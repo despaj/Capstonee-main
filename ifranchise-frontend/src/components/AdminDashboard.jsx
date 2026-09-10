@@ -30,6 +30,38 @@
   } from 'lucide-react';
 
   
+  async function adminModuleFetch(input, options) {
+    const response = await fetch(input, options);
+    const method = String(options?.method || (typeof Request !== "undefined" && input instanceof Request ? input.method : "GET")).toUpperCase();
+    if(response.ok && !["GET","HEAD","OPTIONS"].includes(method)) {
+      window.dispatchEvent(new Event("franchisync:data-changed"));
+    }
+    return response;
+  }
+
+  // Coalesce module writes and never overlap refreshes in the same subscription.
+  function useAdminLiveRefresh(refresh, dependencies) {
+    useEffect(()=>{
+      let stopped=false, running=false, queued=false, timer;
+      const run=async()=>{
+        if(stopped)return;
+        if(running){queued=true;return;}
+        running=true;
+        try { await refresh(); } catch(error) { console.error("Dashboard refresh failed",error); }
+        finally {running=false;if(queued&&!stopped){queued=false;timer=setTimeout(run,300);}}
+      };
+      const schedule=()=>{clearTimeout(timer);timer=setTimeout(run,300);};
+      const visible=()=>{if(document.visibilityState!=="hidden")schedule();};
+      run();
+      const interval=setInterval(()=>{if(document.visibilityState!=="hidden")run();},15000);
+      window.addEventListener("franchisync:data-changed",schedule);
+      window.addEventListener("focus",visible);
+      window.addEventListener("online",visible);
+      document.addEventListener("visibilitychange",visible);
+      return ()=>{stopped=true;clearInterval(interval);clearTimeout(timer);window.removeEventListener("franchisync:data-changed",schedule);window.removeEventListener("focus",visible);window.removeEventListener("online",visible);document.removeEventListener("visibilitychange",visible);};
+    },dependencies);
+  }
+
   // Shared palette must be initialized before module-level style objects.
   const C = {
     green: "#3b791e", greenDk: "#2c5c16", greenMid: "#c9dba0",
@@ -42,20 +74,37 @@
   };
 
   const ADMIN_CSS = `
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+    .ad-detail-dialog { animation:adDetailEnter .18s ease-out; }
+    .ad-detail-dialog button, .ad-detail-dialog summary {
+      transition:transform .14s ease, background-color .14s ease, box-shadow .14s ease;
+    }
+    .ad-detail-dialog button:not(:disabled):hover { box-shadow:0 2px 7px rgba(44,92,22,.12); }
+    .ad-detail-dialog button:not(:disabled):active, .ad-detail-dialog summary:active { transform:scale(.97); }
+    .ad-detail-dialog button:focus-visible, .ad-detail-dialog summary:focus-visible {
+      outline:2px solid #3b791e; outline-offset:3px;
+    }
+    .ad-detail-dialog button:disabled { opacity:.45; cursor:not-allowed; }
+    .ad-evidence-view, .ad-detail-dialog details[open] .ad-order-lines { animation:adEvidenceEnter .16s ease-out; }
+    @keyframes adDetailEnter { from {opacity:0;transform:translateY(6px) scale(.99)} to {opacity:1;transform:none} }
+    @keyframes adEvidenceEnter { from {opacity:0;transform:translateY(4px)} to {opacity:1;transform:none} }
+    @media (prefers-reduced-motion:reduce) {
+      .ad-detail-dialog, .ad-detail-dialog *, .ad-evidence-view { animation:none!important;transition:none!important;transform:none!important; }
+    }
     * { margin:0; padding:0; box-sizing:border-box; }
     :root {
-      --g1:#bdd43c; --g2:#3b791e; --g3:#2c5c16; --g4:#12241B;
+      --g1:#b3a941; --g2:#3b791e; --g3:#2c5c16; --g4:#12241B;
       --green-primary:#3b791e; --green-dark:#2c5c16; --green-light:#509820;
-      --lime:#bdd43c; --lime-ink:#24310C; --white:#ffffff;
+      --lime:#b3a941; --lime-ink:#24310C; --white:#ffffff;
       --gray-100:#F3F4F1; --gray-200:#E1E6D8; --gray-300:#D4DBC8;
-      --gray-400:#9CA89C; --gray-500:#6B7A65; --gray-600:#4B5A45;
+      --gray-400:#9CA89C; --gray-500:#5C6B60; --gray-600:#4B5A45;
       --gray-700:#374132; --gray-800:#1F2A1B;
       --shadow:rgba(50,109,32,0.10); --shadow-strong:rgba(14,59,34,0.20);
       --card-border:#E1E6D8;
       --grad-main:linear-gradient(135deg,#509820,#3b791e);
       --grad-dark:linear-gradient(135deg,#12241B,#2c5c16);
-      --grad-gold:linear-gradient(135deg,#e9cd30,#bdd43c);
+      --grad-gold:linear-gradient(135deg,#e9cd30,#b3a941);
       --grad-bg:#F6F7F1;
     }
 
@@ -174,7 +223,7 @@
       height:60%;
       width:3px;
       border-radius:2px;
-      background:#bdd43c;
+      background:#b3a941;
     }
 
     /* ── Topbar ── */
@@ -189,20 +238,70 @@
     }
     .ad-topbar-title { font-family:'Plus Jakarta Sans',sans-serif; color:#12241B; font-size: 22px; font-weight: 800; }
     .ad-avatar {
-      background:#12241B; color:#bdd43c; box-shadow:none; border-radius:12px;
+      background:#12241B; color:#b3a941; box-shadow:none; border-radius:12px;
       width: 38px; height: 38px;
       display: flex; align-items: center; justify-content: center;
       font-weight: 700;
     }
     .ad-user-name { font-weight: 700; font-size: 13px; color: #12241B; text-align: right; }
     .ad-user-role { font-size: 11.5px; color: #5C6B60; text-align: right; }
+
+    .ad-branch-change-row { transition:background-color .15s ease; }
+    .ad-branch-change-row:hover, .ad-branch-change-row:focus-visible { background:#f0f5e8 !important; }
+    .ad-branch-change-row:active { background:#e3edd6; }
+    /* Shared controls, including imported modules and portal dialogs. */
+    body.fr-admin-ui, body.fr-admin-ui *, body.fr-admin-ui *::before,
+    body.fr-admin-ui *::after {
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+      box-sizing: border-box;
+    }
+    body.fr-admin-ui { color:#12241B; background:#F6F7F1; }
+    body.fr-admin-ui :is(button,input,select,textarea) { font-size:12px; }
+    body.fr-admin-ui button {
+      font-size:12px !important; font-weight:600 !important; line-height:1.35 !important;
+      letter-spacing:0 !important; text-transform:none !important;
+      min-height:36px; border-radius:999px !important;
+      padding:7px 8px; border:1px solid #3b791e; background:#fff; color:#2c5c16;
+      display:inline-flex; align-items:center; justify-content:center; gap:7px;
+      vertical-align:middle; box-sizing:border-box; cursor:pointer;
+      box-shadow:none !important;
+      transition:background-color .16s ease, color .16s ease, border-color .16s ease,
+        transform .12s ease, filter .16s ease !important;
+      -webkit-tap-highlight-color:transparent;
+    }
+    body.fr-admin-ui button:not(:disabled):not([aria-disabled="true"]):hover { filter:brightness(.96); }
+    body.fr-admin-ui button:not(:disabled):not([aria-disabled="true"]):active { transform:scale(.97); }
+    body.fr-admin-ui :is(button,a,input,select,textarea,summary,[tabindex]):focus-visible {
+      outline:2px solid #3b791e !important; outline-offset:3px !important;
+    }
+    body.fr-admin-ui button:is(:disabled,[aria-disabled="true"]) {
+      background:#e8ebe5 !important; background-image:none !important;
+      color:#687260 !important; border-color:#e8ebe5 !important;
+      opacity:1 !important; cursor:not-allowed !important;
+      box-shadow:none !important; filter:none !important; transform:none !important;
+    }
+    body.fr-admin-ui button svg { flex-shrink:0; width:16px; height:16px; }
+    body.fr-admin-ui :is(input,select,textarea) { font-weight:500; }
+    body.fr-admin-ui :is(input,textarea)::placeholder { color:#5C6B60; opacity:.85; }
+    body.fr-admin-ui .ad-nav-item { border-radius:10px !important; font-size:13px !important; }
+    body.fr-admin-ui .ad-toggle { min-width:36px; min-height:36px; }
+    body.fr-admin-ui .admin-dashboard-root { background:#F6F7F1 !important; background-image:none !important; }
+    @media (pointer:coarse) {
+      body.fr-admin-ui button { min-height:44px; min-width:44px; }
+    }
+    @media (prefers-reduced-motion:reduce) {
+      body.fr-admin-ui *, body.fr-admin-ui *::before, body.fr-admin-ui *::after {
+        animation:none !important; transition:none !important; scroll-behavior:auto !important;
+      }
+      body.fr-admin-ui button:active { transform:none !important; }
+    }
   `;
   // ─── Shared style helpers ─────────────────────────────────────────────────────
   const invInputSt = {
     height:38, padding:"0 13px", borderRadius:11,
     border:`1.5px solid ${C.border}`, background:"#fff",
     fontSize:13, color:C.ink, outline:"none",
-    fontFamily:"inherit", boxSizing:"border-box", width:"100%",
+    fontFamily:"'Plus Jakarta Sans', sans-serif", boxSizing:"border-box", width:"100%",
     transition:"border-color .2s ease, box-shadow .2s ease",
   };
   // focus state (wherever :focus is handled via onFocus/onBlur or CSS):
@@ -212,7 +311,7 @@
     height:38, padding:"0 18px", borderRadius:999,
     border:`1.5px solid ${C.border}`, background:C.white,
     fontSize:13, fontWeight:700, cursor:"pointer",
-    fontFamily:"inherit", whiteSpace:"nowrap",
+    fontFamily:"'Plus Jakarta Sans', sans-serif", whiteSpace:"nowrap",
     color: C.green,
     transition:"all .2s cubic-bezier(.4,0,.2,1)",
   };
@@ -229,12 +328,12 @@
     display:"inline-flex", alignItems:"center", gap:4,
     height:28, padding:"0 12px", borderRadius:999,
     fontSize:12, fontWeight:600, cursor:"pointer",
-    fontFamily:"inherit", background:C.white, border:`1px solid ${C.border}`,
+    fontFamily:"'Plus Jakarta Sans', sans-serif", background:C.white, border:`1px solid ${C.border}`,
   };
   const bmActionBtn = (variant = "default") => ({
     display:"inline-flex", alignItems:"center", gap:5,
     padding:"8px 20px", borderRadius:999, fontSize:13, fontWeight:700,
-    cursor:"pointer", fontFamily:"inherit", border:"none",
+    cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif", border:"none",
     ...(variant === "primary"
       ? { background:C.green, color:"#fff", boxShadow:"0 10px 20px rgba(59,121,30,0.22)" }
       : variant === "danger"
@@ -264,7 +363,7 @@
 
   const BmSectionHeader = ({ title, subtitle, action }) => (
     <div style={{
-      background: `linear-gradient(135deg,#2E7D32,#00897b)`,
+      background: `linear-gradient(135deg,#3b791e,#3b791e)`,
       color: C.white, padding: "16px 22px",
       display: "flex", alignItems: "center", justifyContent: "space-between",
     }}>
@@ -287,21 +386,21 @@
       onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 2px 14px rgba(0,140,60,0.07)"; }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
         <div>
-          <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 6 }}>{label}</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: "#0d2b1e" }}>{value}</div>
+          <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5C6B60", marginBottom: 6 }}>{label}</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: "#12241B" }}>{value}</div>
         </div>
         <div style={{ width: 44, height: 44, borderRadius: 13, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           {icon}
         </div>
       </div>
-      <span style={{ fontSize: 11, fontWeight: 700, color: "#5a7a65" }}>{sub}</span>
+      <span style={{ fontSize: 11, fontWeight: 700, color: "#5C6B60" }}>{sub}</span>
     </div>
   );
 
   const bmInput = {
     width: "100%", padding: "9px 12px", borderRadius: 10,
-    border: "1.5px solid #b2dfdb", fontSize: 13, color: "#0d2b1e",
-    background: "#f0fdf5", fontFamily: "inherit", outline: "none",
+    border: "1.5px solid #E1E6D8", fontSize: 13, color: "#12241B",
+    background: "#f0f5e8", fontFamily: "'Plus Jakarta Sans', sans-serif", outline: "none",
     boxSizing: "border-box",
   };
   const bmLabel = {
@@ -502,7 +601,7 @@
               <liveNotif.icon
                 size={19}
                 strokeWidth={2.2}
-                color="#2E7D32"
+                color="#3b791e"
               />
             </div>
 
@@ -526,7 +625,7 @@
                     fontSize: 10,
                     fontWeight: 800,
 
-                    color: "#2E7D32",
+                    color: "#3b791e",
 
                     textTransform: "uppercase",
                     letterSpacing: ".5px",
@@ -587,7 +686,7 @@
                   fontSize: 10.5,
                   fontWeight: 700,
 
-                  color: "#2E7D32",
+                  color: "#3b791e",
                 }}
               >
                 Click to view
@@ -637,7 +736,7 @@
 
               border: `1px solid ${
                 open
-                  ? "#2E7D32"
+                  ? "#3b791e"
                   : "#B9DDBF"
               }`,
 
@@ -662,7 +761,7 @@
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor =
-                "#2E7D32";
+                "#3b791e";
 
               e.currentTarget.style.background =
                 "#E8F5EA";
@@ -670,7 +769,7 @@
             onMouseLeave={(e) => {
               e.currentTarget.style.borderColor =
                 open
-                  ? "#2E7D32"
+                  ? "#3b791e"
                   : "#B9DDBF";
 
               e.currentTarget.style.background =
@@ -681,7 +780,7 @@
           >
             <Bell
               size={19}
-              color="#2E7D32"
+              color="#3b791e"
               strokeWidth={2.1}
             />
 
@@ -701,7 +800,7 @@
                   padding: "0 4px",
 
                   background:
-                    "linear-gradient(135deg,#ef4444,#dc2626)",
+                    "linear-gradient(135deg,#c0392b,#c0392b)",
 
                   color: "#fff",
 
@@ -715,7 +814,7 @@
                   border: "2px solid #fff",
 
                   fontFamily:
-                    "'Plus Jakarta Sans',sans-serif", //dito
+                    "'Plus Jakarta Sans', sans-serif", //dito
 
                   boxShadow:
                     "0 2px 6px rgba(220,38,38,.22)",
@@ -765,7 +864,7 @@
                 zIndex: 3000,
 
                 fontFamily:
-                  "'Plus Jakarta Sans',sans-serif",
+                  "'Plus Jakarta Sans', sans-serif",
 
                 display: "flex",
                 flexDirection: "column",
@@ -781,7 +880,7 @@
                   padding: "15px 18px",
 
                   background:
-                    "linear-gradient(135deg,#256529,#2E7D32)",
+                    "linear-gradient(135deg,#256529,#3b791e)",
 
                   display: "flex",
 
@@ -863,7 +962,7 @@
                       "#fff";
 
                     e.currentTarget.style.color =
-                      "#2E7D32";
+                      "#3b791e";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background =
@@ -909,14 +1008,14 @@
 
                       textAlign: "center",
 
-                      color: "#5A7A65",
+                      color: "#5C6B60",
 
                       fontSize: 13,
                     }}
                   >
                     <RefreshCw
                       size={20}
-                      color="#2E7D32"
+                      color="#3b791e"
                       style={{
                         marginBottom: 9,
 
@@ -967,7 +1066,7 @@
                     >
                       <Check
                         size={20}
-                        color="#2E7D32"
+                        color="#3b791e"
                       />
                     </div>
 
@@ -1095,7 +1194,7 @@
                           <n.icon
                             size={17}
                             strokeWidth={2}
-                            color="#2E7D32"
+                            color="#3b791e"
                           />
                         </div>
 
@@ -1183,7 +1282,7 @@
                                     "#EDF7EF",
 
                                   color:
-                                    "#2E7D32",
+                                    "#3b791e",
 
                                   border:
                                     "1px solid #B9DDBF",
@@ -1267,7 +1366,7 @@
 
                 background: #FFFDF3;
 
-                border: 1.5px solid #2E7D32;
+                border: 1.5px solid #3b791e;
 
                 border-radius: 13px;
 
@@ -1285,9 +1384,7 @@
 
                 box-sizing: border-box;
 
-                font-family:
-                  'Plus Jakarta Sans',
-                  sans-serif;
+                font-family:'Plus Jakarta Sans',sans-serif;
 
                 cursor: pointer;
 
@@ -1319,7 +1416,7 @@
 
                 background: #EDF7EF;
 
-                border: 1px solid #2E7D32;
+                border: 1px solid #3b791e;
 
                 display: flex;
 
@@ -1363,7 +1460,7 @@
               .franchisync-toast-close:hover {
                 background: rgba(46,125,50,.08);
 
-                color: #2E7D32;
+                color: #3b791e;
               }
 
 
@@ -1420,7 +1517,7 @@
                 background:
                   linear-gradient(
                     90deg,
-                    #2E7D32,
+                    #3b791e,
                     #66A96B
                   );
 
@@ -1484,7 +1581,7 @@
 
               .franchisync-notification-scroll::-webkit-scrollbar-thumb:hover {
                 background:
-                  #2E7D32;
+                  #3b791e;
               }
 
 
@@ -1535,6 +1632,20 @@
   //////here dito wonwoo
 
   export default function AdminDashboard() {
+    useEffect(() => {
+      // A link loads reliably even when another module inserts its own style tag.
+      const fontId = 'fr-plus-jakarta-sans';
+      if (!document.getElementById(fontId)) {
+        const link = document.createElement('link');
+        link.id = fontId;
+        link.rel = 'stylesheet';
+        link.href = 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap';
+        document.head.appendChild(link);
+      }
+      document.body.classList.add('fr-admin-ui');
+      return () => document.body.classList.remove('fr-admin-ui');
+    }, []);
+
     const navigate = useNavigate();
     const [activeModule, setActiveModule] = useState(() => {
       return sessionStorage.getItem('fr_activeModule') || 'dashboard';
@@ -1566,7 +1677,7 @@
 
     const fetchAppDeleteHistory = async () => {
       try {
-        const res  = await fetch(`${process.env.REACT_APP_API_URL}/application-delete-history`);
+        const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/application-delete-history`);
         const data = await res.json();
         const mapped = Array.isArray(data)
           ? data.map(row => ({
@@ -1583,7 +1694,7 @@
 
     const fetchActivityLog = useCallback(async () => {
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/orders-activity-log`);
+      const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/orders-activity-log`);
       const data = await res.json();
       setActivityLog(Array.isArray(data) ? data : []);
     } catch (err) { console.error("Failed to fetch orders activity log:", err); }
@@ -1594,7 +1705,7 @@
     try {
         const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
         const userId = stored ? JSON.parse(stored)?.id : null;
-        await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+        await adminModuleFetch(`${process.env.REACT_APP_API_URL}/logout`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userId }),
@@ -1618,15 +1729,13 @@
       sessionStorage.setItem('fr_activeModule', activeModule);
     }, [activeModule]);
 
-    useEffect(() => {
-      fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?preset=${preset}`)
-        .then(res => res.json()).then(data => setStats(data)).catch(err => console.error(err));
+    useAdminLiveRefresh(async () => {
+      const response=await adminModuleFetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?preset=${preset}`,{cache:"no-store"});
+      if(response.ok)setStats(await response.json());
     }, [preset]);
-
-    useEffect(() => {
-      fetch(`${process.env.REACT_APP_API_URL}/transactions`)
-        .then(res => res.json()).then(data => setTransactions(data))
-        .catch(err => console.error("Failed to fetch transactions", err));
+    useAdminLiveRefresh(async () => {
+      const response=await adminModuleFetch(`${process.env.REACT_APP_API_URL}/transactions`,{cache:"no-store"});
+      if(response.ok){const data=await response.json();if(Array.isArray(data))setTransactions(data);}
     }, []);
 
     const [user, setUser] = useState(getUserFromStorage);
@@ -1638,11 +1747,9 @@
     }, []);
 
     const [brands, setBrands] = useState([]);
-    useEffect(() => {
-      fetch(`${process.env.REACT_APP_API_URL}/brands`)
-        .then(res => res.json())
-        .then(data => setBrands(Array.isArray(data) ? data : []))
-        .catch(err => console.error("Failed to fetch brands:", err));
+    useAdminLiveRefresh(async () => {
+      const response=await adminModuleFetch(`${process.env.REACT_APP_API_URL}/brands`,{cache:"no-store"});
+      if(response.ok){const data=await response.json();if(Array.isArray(data))setBrands(data);}
     }, []);
       const [notifications, setNotifications] = useState([]);
       const [notifLoading,  setNotifLoading]  = useState(false);
@@ -1652,10 +1759,10 @@
 
     try {
       const [appsRes, reportsRes, ingredientsRes] = await Promise.all([
-        fetch(`${process.env.REACT_APP_API_URL}/applications`),
-        fetch(`${process.env.REACT_APP_API_URL}/reports?status=submitted`),
+        adminModuleFetch(`${process.env.REACT_APP_API_URL}/applications`),
+        adminModuleFetch(`${process.env.REACT_APP_API_URL}/reports?status=submitted`),
         // Use the exact same source as Head Office Inventory.
-        fetch(`${process.env.REACT_APP_API_URL}/ingredients`),
+        adminModuleFetch(`${process.env.REACT_APP_API_URL}/ingredients`),
       ]);
 
       const apps = appsRes.ok ? await appsRes.json() : [];
@@ -1744,7 +1851,7 @@
             icon: AlertTriangle,
             bg: "#fffdf3",
             color: "#3b791e",
-            border: "#bdd43c",
+            border: "#b3a941",
             suggestion: "Suggested restock: View more inside items.",
             lowStockItems: groupItems,
             navParams: {
@@ -1780,7 +1887,7 @@
 
     const fetchApplications = async () => {
       try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/applications`);
+        const response = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/applications`);
         const data = await response.json();
         setApplications(Array.isArray(data) ? data : [])
       } catch (error) {
@@ -1792,7 +1899,7 @@
     const handleDeleteApplication = async (id) => {
       if (window.confirm('Are you sure you want to delete this application?')) {
         try {
-          const response = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}`, { method: 'DELETE' });
+          const response = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/applications/${id}`, { method: 'DELETE' });
           const data = await response.json();
           if (data.success) {
             setApplications(applications.filter(app => app.id !== id));
@@ -1807,7 +1914,7 @@
 
     const handleApproveApplication = async (id) => {
       try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
+        const response = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'approved' }),
@@ -1879,7 +1986,7 @@
     }
   .ad-logo-mark {
     background: #12241B;           /* dark chip, not gradient */
-    color:#bdd43c;
+    color:#b3a941;
     box-shadow:none;
     border-radius:10px;
   }
@@ -1898,7 +2005,7 @@
   }
   .ad-nav-item.active .ad-nav-icon { color:#3b791e; }
   .ad-nav-bar {
-    background:#bdd43c;             /* lime active-rail, not gradient */
+    background:#b3a941;             /* lime active-rail, not gradient */
     width:3px;
   }
   .ad-nav-item.logout { color:#c0392b; }
@@ -1927,7 +2034,7 @@
     box-sizing:border-box;
   }
   .ad-topbar-title { font-family:'Plus Jakarta Sans',sans-serif; color:#12241B; }
-  .ad-avatar { background:#12241B; color:#bdd43c; box-shadow:none; border-radius:12px; }
+  .ad-avatar { background:#12241B; color:#b3a941; box-shadow:none; border-radius:12px; }
         `}</style>
 
 
@@ -2064,24 +2171,24 @@
               onClick={e => e.stopPropagation()}
             >
               <div style={{ width:68, height:68, borderRadius:20, background:'linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.08))', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', border:'1.5px solid rgba(239,68,68,0.15)' }}>
-                <LogOut size={28} color="#dc2626" strokeWidth={1.75} />
+                <LogOut size={28} color="#c0392b" strokeWidth={1.75} />
               </div>
-              <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:20, fontWeight:800, color:'#0d2b1e', marginBottom:8 }}>Log out?</h2>
-              <p style={{ color:'#94a3b8', fontSize:13, marginBottom:28, lineHeight:1.6, fontFamily:'Poppins,sans-serif' }}>
+              <h2 style={{ fontFamily:"'Plus Jakarta Sans', sans-serif", fontSize:20, fontWeight:800, color:'#12241B', marginBottom:8 }}>Log out?</h2>
+              <p style={{ color:'#94a3b8', fontSize:13, marginBottom:28, lineHeight:1.6, fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
                 You'll need to sign in again to access your account.
               </p>
               <div style={{ display:'flex', gap:10 }}>
                 <button
                   onClick={() => setShowLogoutModal(false)}
                   disabled={isLoggingOut}
-                  style={{ flex:1, padding:'11px 0', borderRadius:12, border:'1.5px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor: isLoggingOut ? 'not-allowed' : 'pointer', fontFamily:'Montserrat,sans-serif', opacity: isLoggingOut ? 0.5 : 1 }}
+                  style={{ flex:1, padding:'11px 0', borderRadius:12, border:'1.5px solid #E1E6D8', background:'#f0f5e8', color:'#5C6B60', fontSize:13, fontWeight:700, cursor: isLoggingOut ? 'not-allowed' : 'pointer', fontFamily:"'Plus Jakarta Sans', sans-serif", opacity: isLoggingOut ? 0.5 : 1 }}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmLogout}
                   disabled={isLoggingOut}
-                  style={{ flex:1, padding:'11px 0', borderRadius:12, border:'none', background:'linear-gradient(135deg,#ef4444,#dc2626)', color:'#fff', fontSize:13, fontWeight:800, cursor: isLoggingOut ? 'not-allowed' : 'pointer', fontFamily:'Montserrat,sans-serif', boxShadow:'0 4px 14px rgba(239,68,68,.25)', display:'flex', alignItems:'center', justifyContent:'center', gap:7, opacity: isLoggingOut ? 0.85 : 1 }}
+                  style={{ flex:1, padding:'11px 0', borderRadius:12, border:'none', background:'linear-gradient(135deg,#c0392b,#c0392b)', color:'#fff', fontSize:13, fontWeight:800, cursor: isLoggingOut ? 'not-allowed' : 'pointer', fontFamily:"'Plus Jakarta Sans', sans-serif", boxShadow:'0 4px 14px rgba(239,68,68,.25)', display:'flex', alignItems:'center', justifyContent:'center', gap:7, opacity: isLoggingOut ? 0.85 : 1 }}
                 >
                   {isLoggingOut
                     ? <><RefreshCw size={14} style={{ animation:'spin .8s linear infinite' }} /> Logging out…</>
@@ -2110,19 +2217,19 @@
   const PAGE_SIZE = 20;
 
   const ACTION_META = {
-    create:  { color: '#00695c', bg: '#e0f2f1', label: 'Create',  dot: '#00897b' },
+    create:  { color: '#2c5c16', bg: '#f0f5e8', label: 'Create',  dot: '#3b791e' },
     update:  { color: '#1565c0', bg: '#e3f2fd', label: 'Update',  dot: '#1e88e5' },
     delete:  { color: '#c62828', bg: '#ffebee', label: 'Delete',  dot: '#e53935' },
     restore: { color: '#6a1b9a', bg: '#f3e5f5', label: 'Restore', dot: '#8e24aa' },
     hide:    { color: '#5d4037', bg: '#efebe9', label: 'Hide',    dot: '#795548' },
-    show:    { color: '#2e7d32', bg: '#e8f5e9', label: 'Show',    dot: '#43a047' },
-    approve: { color: '#2e7d32', bg: '#e8f5e9', label: 'Approve', dot: '#43a047' },
+    show:    { color: '#3b791e', bg: '#f0f5e8', label: 'Show',    dot: '#509820' },
+    approve: { color: '#3b791e', bg: '#f0f5e8', label: 'Approve', dot: '#509820' },
     reject:  { color: '#bf360c', bg: '#fbe9e7', label: 'Reject',  dot: '#e64a19' },
-    login:   { color: '#00695c', bg: '#e0f2f1', label: 'Login',   dot: '#00897b' },
+    login:   { color: '#2c5c16', bg: '#f0f5e8', label: 'Login',   dot: '#3b791e' },
     logout:  { color: '#5d4037', bg: '#efebe9', label: 'Logout',  dot: '#795548' },
     export:  { color: '#1565c0', bg: '#e3f2fd', label: 'Export',  dot: '#1e88e5' },
     print:   { color: '#37474f', bg: '#eceff1', label: 'Print',   dot: '#546e7a' },
-    view:    { color: '#00695c', bg: '#e0f2f1', label: 'View',    dot: '#00897b' },
+    view:    { color: '#2c5c16', bg: '#f0f5e8', label: 'View',    dot: '#3b791e' },
     import:  { color: '#6a1b9a', bg: '#f3e5f5', label: 'Import',  dot: '#8e24aa' },
   };
 
@@ -2191,7 +2298,7 @@
     const pageBtn = (active, disabled) => ({
       minWidth: 32, height: 32, padding: '0 8px', borderRadius: 9,
       border: `1px solid ${active ? 'transparent' : C.border}`,
-      background: active ? 'linear-gradient(135deg,#00c853,#00897b)' : C.white,
+      background: active ? 'linear-gradient(135deg,#3b791e,#3b791e)' : C.white,
       color: active ? '#fff' : disabled ? '#cbd5c9' : C.ink,
       fontSize: 12.5, fontWeight: active ? 800 : 600,
       cursor: disabled ? 'not-allowed' : 'pointer',
@@ -2249,7 +2356,7 @@
   const fmtPeso1  = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const fmt8     = (d) => d.toISOString().slice(0, 10);
   const FONT = "'Plus Jakarta Sans', sans-serif";
-  const PAL      = ["#00c853","#00897b","#26a69a","#43a047","#66bb6a","#f59e0b","#1d4ed8","#7c3aed","#db2777","#ea580c"];
+  const PAL      = ["#3b791e","#3b791e","#26a69a","#509820","#66bb6a","#f59e0b","#1d4ed8","#7c3aed","#db2777","#ea580c"];
 
   function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) {
     const [tip, setTip] = useState(null);
@@ -2308,7 +2415,7 @@
           {yTicks.map((t, i) => (
             <g key={i}>
               <line x1={PL} y1={t.y} x2={W - PR} y2={t.y} stroke="#e8ede9" strokeWidth="1" strokeDasharray="4 3" />
-              <text x={PL - 6} y={t.y + 4} textAnchor="end" fontSize="10" fill="#6b9070" fontFamily={FONT}>{t.label}</text>
+              <text x={PL - 6} y={t.y + 4} textAnchor="end" fontSize="10" fill="#5C6B60" fontFamily={FONT}>{t.label}</text>
             </g>
           ))}
           {labels.map((lbl, i) => {
@@ -2325,16 +2432,16 @@
             });
           })}
           {labels.map((lbl, i) => (
-            <text key={i} x={PL + (i / Math.max(n - 1, 1)) * pW} y={H - 4} textAnchor="middle" fontSize="10" fill="#6b9070" fontFamily={FONT}>{lbl}</text>
+            <text key={i} x={PL + (i / Math.max(n - 1, 1)) * pW} y={H - 4} textAnchor="middle" fontSize="10" fill="#5C6B60" fontFamily={FONT}>{lbl}</text>
           ))}
           {linePath && <path d={linePath} fill="none" stroke="url(#clgLine)" strokeWidth="2.5" strokeLinecap="round" />}
           {linepts.map((p, i) => (
             <circle key={i} cx={p.x} cy={p.y} r={tip?.i === i ? 5 : 3} fill="#1d4ed8" stroke="#fff" strokeWidth="2" />
           ))}
-          {tip && <line x1={tip.x} y1={PT} x2={tip.x} y2={PT + pH} stroke="#00c853" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.4" />}
+          {tip && <line x1={tip.x} y1={PT} x2={tip.x} y2={PT + pH} stroke="#3b791e" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.4" />}
         </svg>
         {tip && (
-          <div style={{ position: "absolute", bottom: 36, left: `${(tip.x / W) * 100}%`, transform: "translateX(-50%)", background: "#0d2b1e", color: "#fff", borderRadius: 10, padding: "8px 12px", pointerEvents: "none", whiteSpace: "nowrap", fontSize: 11, fontFamily: FONT, boxShadow: "0 4px 16px rgba(0,0,0,0.22)", zIndex: 10 }}>
+          <div style={{ position: "absolute", bottom: 36, left: `${(tip.x / W) * 100}%`, transform: "translateX(-50%)", background: "#12241B", color: "#fff", borderRadius: 10, padding: "8px 12px", pointerEvents: "none", whiteSpace: "nowrap", fontSize: 11, fontFamily: FONT, boxShadow: "0 4px 16px rgba(0,0,0,0.22)", zIndex: 10 }}>
             <div style={{ fontWeight: 800, marginBottom: 3, color: "#a7f3d0" }}>{tip.label}</div>
             {barSeries.map((s, si) => <div key={si} style={{ color: PAL[si] }}>{fmtShort(s[tip.i] || 0)}</div>)}
             {lineData?.[tip.i] != null && <div style={{ color: "#93c5fd" }}>GP%: {lineData[tip.i].toFixed(1)}%</div>}
@@ -2351,10 +2458,10 @@
         {data.map((d, i) => (
           <div key={i}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{d.label}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#12241B", fontFamily: FONT }}>{d.label}</span>
               <span style={{ fontSize: 11, fontWeight: 700, color: PAL[i % PAL.length], fontFamily: FONT }}>{fmtShort(d.value)}</span>
             </div>
-            <div style={{ height: 8, borderRadius: 4, background: "#f0fdf5", overflow: "hidden" }}>
+            <div style={{ height: 8, borderRadius: 4, background: "#f0f5e8", overflow: "hidden" }}>
               <div style={{ height: "100%", borderRadius: 4, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})`, width: `${(d.value / maxV) * 100}%`, transition: "width .6s ease" }} />
             </div>
           </div>
@@ -2401,8 +2508,8 @@
           ))}
           {innerRadius > 0 && (
             <>
-              <text x={cx} y={cy - 5} textAnchor="middle" fontSize="13" fontWeight="800" fill="#0d2b1e" fontFamily={FONT}>{hov ? Math.round(hov.pct * 100) + "%" : centerLabel || total.toLocaleString()}</text>
-              <text x={cx} y={cy + 11} textAnchor="middle" fontSize="9.5" fill="#5a7a65" fontFamily={FONT}>{hov ? hov.label : (centerSub || "total")}</text>
+              <text x={cx} y={cy - 5} textAnchor="middle" fontSize="13" fontWeight="800" fill="#12241B" fontFamily={FONT}>{hov ? Math.round(hov.pct * 100) + "%" : centerLabel || total.toLocaleString()}</text>
+              <text x={cx} y={cy + 11} textAnchor="middle" fontSize="9.5" fill="#5C6B60" fontFamily={FONT}>{hov ? hov.label : (centerSub || "total")}</text>
             </>
           )}
         </svg>
@@ -2413,8 +2520,8 @@
                 onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
                 <div style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{s.label}</div>
-                  <div style={{ fontSize: 10, color: "#5a7a65", fontFamily: FONT }}>{Math.round(s.pct * 100)}% · {(s.value || 0).toLocaleString()}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#12241B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{s.label}</div>
+                  <div style={{ fontSize: 10, color: "#5C6B60", fontFamily: FONT }}>{Math.round(s.pct * 100)}% · {(s.value || 0).toLocaleString()}</div>
                 </div>
               </div>
             ))}
@@ -2424,7 +2531,7 @@
     );
   }
 
-  function SparkBar({ values = [], color = "#00c853", height = 30 }) {
+  function SparkBar({ values = [], color = "#3b791e", height = 30 }) {
     if (!values.length) return null;
     const maxV = Math.max(...values, 1);
     return (
@@ -2490,7 +2597,7 @@
 
   function ChartLabel({ children }) {
     return (
-      <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
+      <div style={{ fontSize: 10, fontWeight: 800, color: "#5C6B60", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
         {children}
       </div>
     );
@@ -2509,12 +2616,12 @@
       </span>
     );
   }
-  function BulletItem({ text, color = "#00897b", size = "normal" }) {
+  function BulletItem({ text, color = "#3b791e", size = "normal" }) {
     const fs = size === "small" ? 11 : 12.5;
     return (
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
         <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0, marginTop: fs === 11 ? 4 : 5 }} />
-        <span style={{ fontSize: fs, color: "#0d2b1e", lineHeight: 1.6, fontFamily: FONT }}>{text}</span>
+        <span style={{ fontSize: fs, color: "#12241B", lineHeight: 1.6, fontFamily: FONT }}>{text}</span>
       </div>
     );
   }
@@ -2705,8 +2812,8 @@
           <head>
             <title>Sales_Trend_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
             <style>
-              @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
-              * { box-sizing: border-box; font-family: 'Montserrat', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+              * { box-sizing: border-box; font-family:'Plus Jakarta Sans',sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
               html, body { margin: 0; background: #ffffff !important; }
               @media print { @page { margin: 14mm; } button { display: none !important; } }
             </style>
@@ -2779,19 +2886,19 @@
         <div ref={panelRef} style={{ padding: "18px 20px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18, marginBottom: 14, alignItems: "stretch" }}>
             <div style={{ display: "flex", flexDirection: "column" }}>
-              <ChartLabel><LineChart size={11} color="#00897b" /> Sales revenue over time · {getRangeLabel()}</ChartLabel>
+              <ChartLabel><LineChart size={11} color="#3b791e" /> Sales revenue over time · {getRangeLabel()}</ChartLabel>
               {hasData ? (
                 <>
                   <DashboardLineGraph labels={labels} values={values} height={280} />
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, marginBottom: 14 }}>
                     <svg width={24} height={10}><line x1="0" y1="5" x2="24" y2="5" stroke="#3b791e" strokeWidth="3" /><circle cx="12" cy="5" r="3" fill="#fff" stroke="#3b791e" strokeWidth="2" /></svg>
-                    <span style={{ fontSize: 10.5, fontWeight: 700, color: "#5a7a65", fontFamily: FONT }}>Actual sales revenue</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: "#5C6B60", fontFamily: FONT }}>Actual sales revenue</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
                     {[
                       { label: "Total Revenue", text: `Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`, icon: TrendingUp, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
                       ...(grossProfit != null ? [{ label: "Gross Profit", text: `Recorded gross profit is ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / Math.max((kpiData?.totalSales ?? total), 1)) * 100)}% margin.`, icon: BarChart2, color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" }] : []),
-                      { label: "Period Trend",  text: `Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`, icon: trending ? ArrowUpRight : ArrowDownRight, color: trending ? "#059669" : "#dc2626", bg: trending ? "#ecfdf5" : "#fef2f2", border: trending ? "#a7f3d0" : "#fecaca" },
+                      { label: "Period Trend",  text: `Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`, icon: trending ? ArrowUpRight : ArrowDownRight, color: trending ? "#059669" : "#c0392b", bg: trending ? "#ecfdf5" : "#fef2f2", border: trending ? "#a7f3d0" : "#f2c9c4" },
                     ].map((card, i) => (
                       <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 11, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
                         <div style={{ width: 36, height: 36, borderRadius: 9, background: "#fff", border: `1px solid ${card.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: `0 2px 6px ${card.border}` }}>
@@ -2799,16 +2906,16 @@
                         </div>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 9.5, fontWeight: 800, color: card.color, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 3 }}>{card.label}</div>
-                          <div style={{ fontSize: 12.5, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{card.text}</div>
+                          <div style={{ fontSize: 12.5, color: "#12241B", lineHeight: 1.55, fontFamily: FONT }}>{card.text}</div>
                         </div>
                       </div>
                     ))}
                   </div>
                 </>
               ) : (
-                <div style={{ flex: 1, minHeight: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fffe", borderRadius: 12, border: "1.5px dashed #b2dfdb" }}>
-                  <BarChart2 size={28} color="#b2dfdb" />
-                  <div style={{ fontWeight: 700, fontSize: 13, marginTop: 8, color: "#5a7a65", fontFamily: FONT, textAlign: "center", padding: "0 20px" }}>
+                <div style={{ flex: 1, minHeight: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fffe", borderRadius: 12, border: "1.5px dashed #E1E6D8" }}>
+                  <BarChart2 size={28} color="#E1E6D8" />
+                  <div style={{ fontWeight: 700, fontSize: 13, marginTop: 8, color: "#5C6B60", fontFamily: FONT, textAlign: "center", padding: "0 20px" }}>
                     No data found for {getRangeLabel()}
                   </div>
                   <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4, fontFamily: FONT }}>Try a different range, brand, or branch</div>
@@ -2816,10 +2923,10 @@
               )}
             </div>
 
-            <div style={{ background: "linear-gradient(160deg,#f0fdf5,#eaf5ec)", border: "1px solid #c8e6c9", borderRadius: 14, padding: "16px 14px", display: "flex", flexDirection: "column" }}>
+            <div style={{ background: "linear-gradient(160deg,#f0f5e8,#eaf5ec)", border: "1px solid #c8e6c9", borderRadius: 14, padding: "16px 14px", display: "flex", flexDirection: "column" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                <div style={{ width: 3, height: 15, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
-                <span style={{ fontSize: 10, fontWeight: 800, color: "#00695c", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Period Analysis</span>
+                <div style={{ width: 3, height: 15, borderRadius: 2, background: "linear-gradient(180deg,#3b791e,#3b791e)" }} />
+                <span style={{ fontSize: 10, fontWeight: 800, color: "#2c5c16", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Period Analysis</span>
               </div>
               {hasData ? (
                 <>
@@ -2828,28 +2935,28 @@
                       { label: "Peak",    value: fmtAmt(peak),                        sub: `on ${peakLabel}`,            color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
                       { label: "Low",     value: fmtAmt(low),                         sub: "Period min",                 color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
                       { label: "Average", value: fmtAmt(avg),                         sub: `${labels.length} pts`,       color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
-                      { label: "Trend",   value: `${trending?"+":""}${pctChange}%`,   sub: trending?"Upward":"Downward", color: trending?"#059669":"#dc2626", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#fecaca" },
+                      { label: "Trend",   value: `${trending?"+":""}${pctChange}%`,   sub: trending?"Upward":"Downward", color: trending?"#059669":"#c0392b", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#f2c9c4" },
                     ].map((s, i) => (
                       <div key={i} style={{ background: s.bg, borderRadius: 9, padding: "8px 9px", border: `1px solid ${s.border}` }}>
-                        <div style={{ fontSize: 8.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT, marginBottom: 2 }}>{s.label}</div>
+                        <div style={{ fontSize: 8.5, fontWeight: 800, color: "#5C6B60", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT, marginBottom: 2 }}>{s.label}</div>
                         <div style={{ fontSize: 12.5, fontWeight: 800, color: s.color, fontFamily: FONT, lineHeight: 1.15 }}>{s.value}</div>
-                        <div style={{ fontSize: 9, color: "#5a7a65", fontFamily: FONT, marginTop: 1 }}>{s.sub}</div>
+                        <div style={{ fontSize: 9, color: "#5C6B60", fontFamily: FONT, marginTop: 1 }}>{s.sub}</div>
                       </div>
                     ))}
                   </div>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 8 }}>Key Observations</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "#5C6B60", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 8 }}>Key Observations</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
                     {analysisBullets.slice(3).map((text, i) => {
-                      const dotColors = ["#7c3aed","#059669","#d97706","#dc2626","#00897b","#1d4ed8"];
-                      const bgColors  = ["#f5f3ff","#ecfdf5","#fffbeb","#fef2f2","#f0fdf5","#eff6ff"];
-                      const bdrColors = ["#ddd6fe","#a7f3d0","#fde68a","#fecaca","#d1eedd","#bfdbfe"];
+                      const dotColors = ["#7c3aed","#059669","#d97706","#c0392b","#3b791e","#1d4ed8"];
+                      const bgColors  = ["#f5f3ff","#ecfdf5","#fffbeb","#fef2f2","#f0f5e8","#eff6ff"];
+                      const bdrColors = ["#ddd6fe","#a7f3d0","#fde68a","#f2c9c4","#E1E6D8","#bfdbfe"];
                       const dc = dotColors[i % dotColors.length];
                       const bc = bgColors[i % bgColors.length];
                       const bd = bdrColors[i % bdrColors.length];
                       return (
                         <div key={i} style={{ background: bc, border: `1px solid ${bd}`, borderRadius: 9, padding: "8px 10px", display: "flex", alignItems: "flex-start", gap: 8 }}>
                           <div style={{ width: 7, height: 7, borderRadius: "50%", background: dc, flexShrink: 0, marginTop: 4 }} />
-                          <span style={{ fontSize: 11, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{text}</span>
+                          <span style={{ fontSize: 11, color: "#12241B", lineHeight: 1.55, fontFamily: FONT }}>{text}</span>
                         </div>
                       );
                     })}
@@ -2857,7 +2964,7 @@
                 </>
               ) : (
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                  <Info size={22} color="#b2dfdb" />
+                  <Info size={22} color="#E1E6D8" />
                   <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.6, margin: 0, fontFamily: FONT }}>Select a date range and branch to see analysis.</p>
                 </div>
               )}
@@ -2866,27 +2973,27 @@
 
           {/* Period Summary column removed — 2-column spaced layout */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "18px 20px" }}>
-            <ChartLabel><CategoryPanelIcon size={11} color="#00897b" /> {categoryPanelTitle}</ChartLabel>
+            <div style={{ background: "#f8fffe", border: "1px solid #f0f5e8", borderRadius: 14, padding: "18px 20px" }}>
+            <ChartLabel><CategoryPanelIcon size={11} color="#3b791e" /> {categoryPanelTitle}</ChartLabel>
               {categoryPanelData.length > 0
                 ? <DonutChartSVG segments={categoryPanelData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))} size={150} centerLabel={hasData ? fmtShort(total) : "—"} centerSub="total" />
-                : <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
+                : <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", color: "#E1E6D8", fontFamily: FONT, fontSize: 12 }}>No data</div>
               }
             </div>
             <div style={{
               background: "#f8fffe",
-              border: "1px solid #e0f2f1",
+              border: "1px solid #f0f5e8",
               borderRadius: 14,
               padding: "18px 20px"
             }}>
               <ChartLabel>
-                <Target size={11} color="#00897b" />
+                <Target size={11} color="#3b791e" />
                 Branch Attention & Opportunities
               </ChartLabel>
 
               <div style={{
                 fontSize: 10.5,
-                color: "#789086",
+                color: "#5C6B60",
                 lineHeight: 1.5,
                 marginTop: -3,
                 marginBottom: 12,
@@ -2992,7 +3099,7 @@
                           </span>
                         </div>
 
-                        <div style={{fontSize:9.5,fontWeight:700,color:"#789086",marginTop:-2,marginBottom:5,fontFamily:FONT}}>
+                        <div style={{fontSize:9.5,fontWeight:700,color:"#5C6B60",marginTop:-2,marginBottom:5,fontFamily:FONT}}>
                           {item.brand}
                         </div>
 
@@ -3066,7 +3173,7 @@
       if (!transactions?.length) { setError("No transaction data available."); return; }
       setLoading(true); setError(null);
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`, {
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ transactions, preset, filterLabel }),
         });
@@ -3139,8 +3246,8 @@
           <head>
             <title>Prescriptive_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
             <style>
-              @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
-              * { box-sizing: border-box; font-family: 'Montserrat', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+              * { box-sizing: border-box; font-family:'Plus Jakarta Sans',sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
               html, body { margin: 0; background: #ffffff !important; }
               @media print { @page { margin: 14mm; } button { display: none !important; } }
             </style>
@@ -3266,7 +3373,7 @@
                   </span>
                 </div>
                 {analysis ? (
-                  <p style={{ fontSize: 12.5, color: "#0d2b1e", lineHeight: 1.75, margin: 0, fontFamily: FONT }}>{analysis.summary}</p>
+                  <p style={{ fontSize: 12.5, color: "#12241B", lineHeight: 1.75, margin: 0, fontFamily: FONT }}>{analysis.summary}</p>
                 ) : (
                   <>
                     {preRunBullets.length > 0
@@ -3274,15 +3381,15 @@
                       : <p style={{ fontSize: 12, color: "#94a3b8", fontFamily: FONT, fontStyle: "italic" }}>Load transactions and run AI Analysis to generate insights.</p>
                     }
                     {error && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 9, marginTop: 8 }}>
-                        <AlertTriangle size={13} color="#dc2626" />
-                        <span style={{ fontSize: 11.5, color: "#dc2626", fontWeight: 600, fontFamily: FONT }}>{error}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#fef2f2", border: "1px solid #f2c9c4", borderRadius: 9, marginTop: 8 }}>
+                        <AlertTriangle size={13} color="#c0392b" />
+                        <span style={{ fontSize: 11.5, color: "#c0392b", fontWeight: 600, fontFamily: FONT }}>{error}</span>
                       </div>
                     )}
                     {loading && (
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
                         <div style={{ width: 18, height: 18, border: "2.5px solid #dbeafe", borderTopColor: "#2563eb", borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Sending {transactions?.length} transactions to Groq…</span>
+                        <span style={{ fontSize: 12, color: "#5C6B60", fontFamily: FONT }}>Sending {transactions?.length} transactions to Groq…</span>
                       </div>
                     )}
                   </>
@@ -3291,13 +3398,13 @@
 
               {/* Ghost Stock Anomalies Across Branches — directly under AI Summary */}
               {analysis && showStockAnomalies && (
-                <div style={{ background: "#fff", border: "1px solid #fecaca", borderRadius: 14, padding: "14px 15px" }}>
+                <div style={{ background: "#fff", border: "1px solid #f2c9c4", borderRadius: 14, padding: "14px 15px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: ghostStockAnomalies.length > 0 ? 10 : 0, flexWrap: "wrap" }}>
-                    <div style={{ width: 3, height: 14, borderRadius: 2, background: "#dc2626" }} />
+                    <div style={{ width: 3, height: 14, borderRadius: 2, background: "#c0392b" }} />
                     <span style={{
                       fontSize: 10,
                       fontWeight: 800,
-                      color: "#dc2626",
+                      color: "#c0392b",
                       textTransform: "uppercase",
                       letterSpacing: "0.08em",
                       fontFamily: FONT
@@ -3310,7 +3417,7 @@
                       fontWeight: 700,
                       padding: "2px 8px",
                       borderRadius: 20,
-                      background: ghostStockAnomalies.length > 0 ? "#fee2e2" : "#f1f5f9",
+                      background: ghostStockAnomalies.length > 0 ? "#fdf1f0" : "#f1f5f9",
                       color: ghostStockAnomalies.length > 0 ? "#991b1b" : "#64748b",
                       fontFamily: FONT
                     }}>
@@ -3323,7 +3430,7 @@
                     padding: "10px 12px",
                     borderRadius: 9,
                     background: "#fff7f7",
-                    border: "1px solid #fee2e2",
+                    border: "1px solid #fdf1f0",
                     fontSize: 11.5,
                     color: "#7f1d1d",
                     lineHeight: 1.6,
@@ -3339,7 +3446,7 @@
                         const severity = String(a?.severity || "critical").toLowerCase();
                         const severityColor =
                           severity === "critical"
-                            ? "#dc2626"
+                            ? "#c0392b"
                             : severity === "warning"
                               ? "#d97706"
                               : "#2563eb";
@@ -3349,7 +3456,7 @@
                             key={`${a?.branch || "branch"}-${i}`}
                             style={{
                               background: "linear-gradient(145deg,#fff7f7,#fef2f2)",
-                              border: "1px solid #fecaca",
+                              border: "1px solid #f2c9c4",
                               borderLeft: `4px solid ${severityColor}`,
                               borderRadius: 12,
                               padding: "13px 14px"
@@ -3369,7 +3476,7 @@
                                 fontWeight: 800,
                                 padding: "2px 7px",
                                 borderRadius: 20,
-                                background: "#fee2e2",
+                                background: "#fdf1f0",
                                 color: "#991b1b",
                                 textTransform: "uppercase",
                                 fontFamily: FONT
@@ -3380,7 +3487,7 @@
                               <span style={{
                                 fontSize: 12,
                                 fontWeight: 800,
-                                color: "#0d2b1e",
+                                color: "#12241B",
                                 fontFamily: FONT
                               }}>
                                 {a?.branch || "Unknown Branch"}
@@ -3392,7 +3499,7 @@
                                 fontWeight: 800,
                                 padding: "2px 7px",
                                 borderRadius: 20,
-                                background: severity === "critical" ? "#fee2e2" : severity === "warning" ? "#fef3c7" : "#dbeafe",
+                                background: severity === "critical" ? "#fdf1f0" : severity === "warning" ? "#fef3c7" : "#dbeafe",
                                 color: severity === "critical" ? "#991b1b" : severity === "warning" ? "#92400e" : "#1e40af",
                                 textTransform: "uppercase",
                                 fontFamily: FONT
@@ -3414,14 +3521,14 @@
                               padding: "8px 10px",
                               borderRadius: 8,
                               background: "rgba(255,255,255,0.78)",
-                              border: "1px solid #fecaca",
+                              border: "1px solid #f2c9c4",
                               marginTop: 7
                             }}>
                               <CheckCircle size={12} color="#059669" style={{ flexShrink: 0, marginTop: 2 }} />
                               <span style={{
                                 fontSize: 11.5,
                                 fontWeight: 600,
-                                color: "#0d2b1e",
+                                color: "#12241B",
                                 lineHeight: 1.55,
                                 fontFamily: FONT
                               }}>
@@ -3505,11 +3612,11 @@
                         },
                       }[a?.anomalyType] || {
                         bg: "#f8fffe",
-                        border: "#d1eedd",
+                        border: "#E1E6D8",
                         label: "Anomaly",
-                        labelBg: "#e0f2f1",
-                        labelColor: "#00695c",
-                        dot: "#00897b"
+                        labelBg: "#f0f5e8",
+                        labelColor: "#2c5c16",
+                        dot: "#3b791e"
                       };
 
                       return (
@@ -3548,7 +3655,7 @@
                             <span style={{
                               fontSize: 12,
                               fontWeight: 700,
-                              color: "#0d2b1e",
+                              color: "#12241B",
                               fontFamily: FONT
                             }}>
                               {a?.branch || "Unknown Branch"}
@@ -3572,7 +3679,7 @@
                               <span style={{
                                 fontSize: 11.5,
                                 fontWeight: 600,
-                                color: "#0d2b1e",
+                                color: "#12241B",
                                 lineHeight: 1.55,
                                 fontFamily: FONT
                               }}>
@@ -3592,9 +3699,9 @@
               {analysis?.recommendations?.length > 0 ? (
                 <>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                    <div style={{ width: 3, height: 14, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
-                    <span style={{ fontSize: 10, fontWeight: 800, color: "#0d2b1e", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Actionable Recommendations</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#e0f2f1", color: "#00695c", fontFamily: FONT }}>{analysis.recommendations.length}</span>
+                    <div style={{ width: 3, height: 14, borderRadius: 2, background: "linear-gradient(180deg,#3b791e,#3b791e)" }} />
+                    <span style={{ fontSize: 10, fontWeight: 800, color: "#12241B", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Actionable Recommendations</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#f0f5e8", color: "#2c5c16", fontFamily: FONT }}>{analysis.recommendations.length}</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {analysis.recommendations.map((rec, i) => {
@@ -3615,7 +3722,7 @@
               ) : (
                 <div style={{ background: "#fafbff", border: "1.5px dashed #dbeafe", borderRadius: 14, padding: "28px 20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10 }}>
                   <Brain size={32} color="#bfdbfe" />
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>Recommendations will appear here</div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: "#12241B", fontFamily: FONT }}>Recommendations will appear here</div>
                   <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.65, margin: 0, fontFamily: FONT }}>
                     {transactions?.length
                       ? `${transactions.length} transactions ready. Click "Run AI Analysis" to generate prescriptive recommendations.`
@@ -3630,17 +3737,17 @@
 
         {/* ── OFFSCREEN report layout — used only by Print & Download PDF ── */}
         <div style={{ position: "absolute", left: -99999, top: 0, width: 0, height: 0, overflow: "hidden" }}>
-          <div ref={exportRef} style={{ width: 800, background: "#fff", padding: "44px 48px 36px", fontFamily: FONT, color: "#0d2b1e" }}>
+          <div ref={exportRef} style={{ width: 800, background: "#fff", padding: "44px 48px 36px", fontFamily: FONT, color: "#12241B" }}>
 
             {/* Letterhead */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 18, marginBottom: 26, borderBottom: "4px solid #00c853" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 18, marginBottom: 26, borderBottom: "4px solid #3b791e" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
                 <img src={logoIfranchise} alt="iFranchise Business Services Corp." style={{ height: 58, width: "auto" }} />
-                <div style={{ width: 1, height: 44, background: "#d1eedd" }} />
+                <div style={{ width: 1, height: 44, background: "#E1E6D8" }} />
                 <img src={logoSync} alt="FranchiSync" style={{ height: 46, width: "auto" }} />
               </div>
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#5C6B60", textTransform: "uppercase", letterSpacing: "0.08em" }}>
                   iFranchise Business Services Corp.
                 </div>
                 <div style={{ fontSize: 10.5, color: "#94a3b8", marginTop: 2 }}>
@@ -3651,15 +3758,15 @@
 
             {/* Title block */}
             <div style={{ marginBottom: 26 }}>
-              <div style={{ fontSize: 28, fontWeight: 900, color: "#0d2b1e", letterSpacing: "-0.5px", lineHeight: 1.2 }}>
+              <div style={{ fontSize: 28, fontWeight: 900, color: "#12241B", letterSpacing: "-0.5px", lineHeight: 1.2 }}>
                 AI Prescriptive Analysis Report
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: "#00897b", background: "#e0f2f1", padding: "4px 12px", borderRadius: 20 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "#3b791e", background: "#f0f5e8", padding: "4px 12px", borderRadius: 20 }}>
                   {filterLabel}
                 </span>
                 {lastRun && (
-                  <span style={{ fontSize: 13, color: "#5a7a65", fontWeight: 600 }}>
+                  <span style={{ fontSize: 13, color: "#5C6B60", fontWeight: 600 }}>
                     AI run at {lastRun}
                   </span>
                 )}
@@ -3675,11 +3782,11 @@
                 { label: "Confidence Score",         value: conf ? `${conf}%` : "—", sub: conf ? (conf >= 80 ? "High confidence" : conf >= 60 ? "Medium confidence" : "Low — needs more data") : "Not yet calculated", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
               ].map((card, i) => (
                 <div key={i} style={{ background: card.bg, border: `1.5px solid ${card.border}`, borderRadius: 14, padding: "18px 20px" }}>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#5C6B60", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
                     {card.label}
                   </div>
                   <div style={{ fontSize: 26, fontWeight: 900, color: card.color, lineHeight: 1.1 }}>{card.value}</div>
-                  <div style={{ fontSize: 12.5, color: "#5a7a65", marginTop: 6 }}>{card.sub}</div>
+                  <div style={{ fontSize: 12.5, color: "#5C6B60", marginTop: 6 }}>{card.sub}</div>
                 </div>
               ))}
             </div>
@@ -3687,8 +3794,8 @@
             {/* Executive summary */}
             <div style={{ marginBottom: 28 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
-                <div style={{ width: 5, height: 20, borderRadius: 3, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
-                <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
+                <div style={{ width: 5, height: 20, borderRadius: 3, background: "linear-gradient(180deg,#3b791e,#3b791e)" }} />
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#12241B" }}>
                   {analysis ? "Executive Summary" : "Data Overview"}
                 </span>
               </div>
@@ -3705,8 +3812,8 @@
             {analysis && showStockAnomalies && (
               <div style={{ marginBottom: 28 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
-                  <div style={{ width: 5, height: 20, borderRadius: 3, background: "#dc2626" }} />
-                  <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
+                  <div style={{ width: 5, height: 20, borderRadius: 3, background: "#c0392b" }} />
+                  <span style={{ fontSize: 16, fontWeight: 800, color: "#12241B" }}>
                     Ghost Stock Anomalies Across Branches
                   </span>
                   <span style={{
@@ -3714,7 +3821,7 @@
                     fontWeight: 700,
                     padding: "3px 10px",
                     borderRadius: 20,
-                    background: ghostStockAnomalies.length > 0 ? "#fee2e2" : "#f1f5f9",
+                    background: ghostStockAnomalies.length > 0 ? "#fdf1f0" : "#f1f5f9",
                     color: ghostStockAnomalies.length > 0 ? "#991b1b" : "#64748b"
                   }}>
                     {ghostStockAnomalies.length}
@@ -3726,7 +3833,7 @@
                   padding: "11px 13px",
                   borderRadius: 9,
                   background: "#fff7f7",
-                  border: "1px solid #fee2e2",
+                  border: "1px solid #fdf1f0",
                   fontSize: 12.5,
                   color: "#7f1d1d",
                   lineHeight: 1.65
@@ -3742,8 +3849,8 @@
                         key={`${a?.branch || "branch"}-${i}`}
                         style={{
                           background: "#fef2f2",
-                          border: "1.5px solid #fecaca",
-                          borderLeft: "5px solid #dc2626",
+                          border: "1.5px solid #f2c9c4",
+                          borderLeft: "5px solid #c0392b",
                           borderRadius: 12,
                           padding: "16px 18px"
                         }}
@@ -3769,7 +3876,7 @@
                             fontWeight: 800,
                             padding: "3px 10px",
                             borderRadius: 20,
-                            background: "#fee2e2",
+                            background: "#fdf1f0",
                             color: "#991b1b",
                             textTransform: "uppercase"
                           }}>
@@ -3813,7 +3920,7 @@
               <div style={{ marginBottom: 28 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
                   <div style={{ width: 5, height: 20, borderRadius: 3, background: "#d97706" }} />
-                  <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: "#12241B" }}>
                     Other Stock vs Sales Anomalies
                   </span>
                   <span style={{
@@ -3833,7 +3940,7 @@
                     const cfg = {
                       low_stock_no_reorder: { bg: "#fffbeb", border: "#fde68a", label: "Not Reordering" },
                       dead_stock: { bg: "#eff6ff", border: "#bfdbfe", label: "Dead Stock" },
-                    }[a?.anomalyType] || { bg: "#f8fffe", border: "#d1eedd", label: "Anomaly" };
+                    }[a?.anomalyType] || { bg: "#f8fffe", border: "#E1E6D8", label: "Anomaly" };
 
                     return (
                       <div key={i} style={{
@@ -3884,9 +3991,9 @@
             {analysis?.recommendations?.length > 0 && (
               <div style={{ marginBottom: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
-                  <div style={{ width: 5, height: 20, borderRadius: 3, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
-                  <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>Actionable Recommendations</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#e0f2f1", color: "#00695c" }}>
+                  <div style={{ width: 5, height: 20, borderRadius: 3, background: "linear-gradient(180deg,#3b791e,#3b791e)" }} />
+                  <span style={{ fontSize: 16, fontWeight: 800, color: "#12241B" }}>Actionable Recommendations</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#f0f5e8", color: "#2c5c16" }}>
                     {analysis.recommendations.length}
                   </span>
                 </div>
@@ -3907,7 +4014,7 @@
             )}
 
             {/* Footer */}
-            <div style={{ marginTop: 36, paddingTop: 14, borderTop: "1.5px solid #e0f2f1", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ marginTop: 36, paddingTop: 14, borderTop: "1.5px solid #f0f5e8", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 10.5, color: "#94a3b8" }}>
                 Generated by FranchiSync · Franchise Business Services Corp.
               </span>
@@ -3940,8 +4047,8 @@
           if (names.length) params.set("branches", names.join(","));
         }
         const [analyticsRes, inventoryRes] = await Promise.all([
-          fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`),
-          fetch(`${process.env.REACT_APP_API_URL}/ingredients`),
+          adminModuleFetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`),
+          adminModuleFetch(`${process.env.REACT_APP_API_URL}/ingredients`),
         ]);
         const json = analyticsRes.ok ? await analyticsRes.json() : {};
         const inventoryJson = inventoryRes.ok ? await inventoryRes.json() : [];
@@ -4235,7 +4342,7 @@
     }));
     const moverPie = totalSKUs > 0 ? [
       { label: "Fast Movers", value: fastCount,                                      color: "#059669" },
-      { label: "Slow Movers", value: slowCount,                                      color: "#dc2626" },
+      { label: "Slow Movers", value: slowCount,                                      color: "#c0392b" },
       { label: "Normal",      value: Math.max(0, totalSKUs - fastCount - slowCount), color: "#94a3b8" },
     ].filter(d => d.value > 0) : [];
 
@@ -4248,8 +4355,8 @@
     const tabSt = (a) => ({
       padding: "6px 13px", borderRadius: 8, border: "none", fontSize: 11.5, fontWeight: 700,
       cursor: "pointer", fontFamily: FONT, transition: "all .15s", display: "inline-flex", alignItems: "center", gap: 5,
-      background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
-      color:      a ? "#fff" : "#5a7a65",
+      background: a ? "linear-gradient(135deg,#3b791e,#3b791e)" : "transparent",
+      color:      a ? "#fff" : "#5C6B60",
       boxShadow:  a ? "0 2px 8px rgba(0,180,90,.28)" : "none",
     });
     const RANK_COLORS = ["#f59e0b", "#94a3b8", "#cd7c2e"];
@@ -4258,7 +4365,7 @@
       const isBuyers = tab === "buyers";
       const list = isBuyers ? data?.topBuyers : tab === "top10" ? top10 : tab === "fast" ? fast : slow;
       if (!list?.length) return (
-        <div style={{ padding: "28px 0", textAlign: "center", color: "#9ca3af", fontSize: 12, border: "1.5px dashed #d1eedd", borderRadius: 10, fontFamily: FONT }}>No data for this filter.</div>
+        <div style={{ padding: "28px 0", textAlign: "center", color: "#9ca3af", fontSize: 12, border: "1.5px dashed #E1E6D8", borderRadius: 10, fontFamily: FONT }}>No data for this filter.</div>
       );
       const maxR = Math.max(1, ...list.map(p => isBuyers ? p.totalItems : p.totalRevenue));
       const maxQ = isBuyers ? maxR : Math.max(1, ...list.map(p => p.totalQty));
@@ -4271,7 +4378,7 @@
             {i + 1}
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 12, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.name}</div>
+            <div style={{ fontWeight: 700, fontSize: 12, color: "#12241B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.name}</div>
             {!isBuyers && p.branchBreakdown && (
               <div style={{ fontSize: 9.5, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>
                 {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br} · ${p.brand || p.brandName || selectedBrand?.name || "Brand not set"}: ${q}`).join(" | ")}
@@ -4280,20 +4387,20 @@
           </div>
           {!isBuyers && (
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontWeight: 800, fontSize: 11, color: "#0d2b1e", fontFamily: FONT }}>{p.totalQty?.toLocaleString()}</div>
-              <div style={{ height: 3, borderRadius: 2, background: "#e8f5e9", marginTop: 2 }}>
+              <div style={{ fontWeight: 800, fontSize: 11, color: "#12241B", fontFamily: FONT }}>{p.totalQty?.toLocaleString()}</div>
+              <div style={{ height: 3, borderRadius: 2, background: "#f0f5e8", marginTop: 2 }}>
                 <div style={{ height: "100%", borderRadius: 2, width: `${(p.totalQty / maxQ) * 100}%`, background: PAL[i % PAL.length] }} />
               </div>
             </div>
           )}
-          <div style={{ textAlign: "right", fontWeight: 700, fontSize: 12, color: "#00897b", fontFamily: FONT }}>
+          <div style={{ textAlign: "right", fontWeight: 700, fontSize: 12, color: "#3b791e", fontFamily: FONT }}>
             {isBuyers ? p.totalItems?.toLocaleString() : fmtPeso1(p.totalRevenue)}
           </div>
           <div style={{ paddingLeft: 8 }}>
             {isBuyers
-              ? <span style={{ background: "#e0f2f1", color: "#00695c", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.topProduct}</span>
+              ? <span style={{ background: "#f0f5e8", color: "#2c5c16", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.topProduct}</span>
               : <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#f0fdf5", overflow: "hidden" }}>
+                  <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#f0f5e8", overflow: "hidden" }}>
                     <div style={{ height: "100%", borderRadius: 3, width: `${(p.totalRevenue / maxR) * 100}%`, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})` }} />
                   </div>
                   <span style={{ fontSize: 9.5, fontWeight: 700, color: "#94a3b8", minWidth: 28, textAlign: "right", fontFamily: FONT }}>{Math.round((p.totalRevenue / maxR) * 100)}%</span>
@@ -4319,22 +4426,22 @@
           }
         />
         <div style={{ padding: "18px 20px" }}>
-          {stockEvidence.length > 0 && <div style={{background:"#fff",border:"1px solid #d1eedd",borderRadius:14,padding:"16px 18px",marginBottom:18,overflowX:"auto"}}>
+          {stockEvidence.length > 0 && <div style={{background:"#fff",border:"1px solid #E1E6D8",borderRadius:14,padding:"16px 18px",marginBottom:18,overflowX:"auto"}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:13}}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Inventory Recommendation Report</strong><span style={{fontSize:9.5,fontWeight:800,padding:"3px 8px",borderRadius:20,background:"#ecfdf5",color:"#15803d",border:"1px solid #bbf7d0"}}>ACTUAL STOCK + SALES</span></div>
-            <table style={{width:"100%",borderCollapse:"collapse",minWidth:760,fontFamily:FONT}}><thead><tr>{["Product / Brand","Stock","Period Sales","Reorder Pt","Days Left","Status","Recommendation"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Product / Brand"||h==="Recommendation"?"left":"center",fontSize:9.5,color:"#8290a3",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid #d1eedd"}}>{h}</th>)}</tr></thead><tbody>{stockEvidence.map((r,i)=><tr key={`${r.name}-${r.branch}-${r.brand}`} style={{background:i%2?"#f5fcf7":"#fff"}}><td style={{padding:"10px",fontSize:11,color:"#183126"}}><div style={{fontWeight:800}}>{r.name}</div><div style={{fontSize:9.3,color:"#789086",fontWeight:650,marginTop:3}}>{r.brand || selectedBrand?.name || "Brand not set"}{r.branch&&r.branch!=="Unassigned"?` · ${r.branch}`:""}</div></td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800}}>{r.stock}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.sold}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.reorder}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</td><td style={{padding:"10px",textAlign:"center"}}><span style={{fontSize:9,fontWeight:800,padding:"3px 8px",borderRadius:20,background:r.status==="CRITICAL"?"#fef2f2":r.status==="OVERSTOCK"?"#eff6ff":r.status==="WATCH"?"#fffbeb":"#ecfdf5",color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":r.status==="WATCH"?"#d97706":"#15803d",border:"1px solid currentColor"}}>{r.status}</span></td><td style={{padding:"10px",fontSize:10.5,fontWeight:700,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":"#15803d"}}>{r.recommendation}</td></tr>)}</tbody></table>
+            <table style={{width:"100%",borderCollapse:"collapse",minWidth:760,fontFamily:FONT}}><thead><tr>{["Product / Brand","Stock","Period Sales","Reorder Pt","Days Left","Status","Recommendation"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Product / Brand"||h==="Recommendation"?"left":"center",fontSize:9.5,color:"#8290a3",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid #E1E6D8"}}>{h}</th>)}</tr></thead><tbody>{stockEvidence.map((r,i)=><tr key={`${r.name}-${r.branch}-${r.brand}`} style={{background:i%2?"#f5fcf7":"#fff"}}><td style={{padding:"10px",fontSize:11,color:"#183126"}}><div style={{fontWeight:800}}>{r.name}</div><div style={{fontSize:9.3,color:"#5C6B60",fontWeight:650,marginTop:3}}>{r.brand || selectedBrand?.name || "Brand not set"}{r.branch&&r.branch!=="Unassigned"?` · ${r.branch}`:""}</div></td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800}}>{r.stock}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.sold}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.reorder}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800,color:r.status==="CRITICAL"?"#c0392b":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</td><td style={{padding:"10px",textAlign:"center"}}><span style={{fontSize:9,fontWeight:800,padding:"3px 8px",borderRadius:20,background:r.status==="CRITICAL"?"#fef2f2":r.status==="OVERSTOCK"?"#eff6ff":r.status==="WATCH"?"#fffbeb":"#ecfdf5",color:r.status==="CRITICAL"?"#c0392b":r.status==="OVERSTOCK"?"#2563eb":r.status==="WATCH"?"#d97706":"#15803d",border:"1px solid currentColor"}}>{r.status}</span></td><td style={{padding:"10px",fontSize:10.5,fontWeight:700,color:r.status==="CRITICAL"?"#c0392b":r.status==="OVERSTOCK"?"#2563eb":"#15803d"}}>{r.recommendation}</td></tr>)}</tbody></table>
           </div>}
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 18 }}>
             {[
-              { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#0d2b1e", bg: "#f0fdf5",  border: "#d1eedd",  icon: Layers    },
+              { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#12241B", bg: "#f0f5e8",  border: "#E1E6D8",  icon: Layers    },
               { label: "Fast Movers",         value: fastCount || "—", color: "#059669", bg: "#ecfdf5",  border: "#a7f3d0",  icon: TrendingUp },
-              { label: "Slow Movers",         value: slowCount || "—", color: "#dc2626", bg: "#fef2f2",  border: "#fecaca",  icon: TrendingDown },
+              { label: "Slow Movers",         value: slowCount || "—", color: "#c0392b", bg: "#fef2f2",  border: "#f2c9c4",  icon: TrendingDown },
             { label: "Avg Units Sold / Product", value: data?.avgQty ? `${Number(data.avgQty).toLocaleString()} units` : "—", color: "#1e40af", bg: "#eff6ff", border: "#bfdbfe", icon: Activity },
             ].map((s, i) => (
               <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: "11px 13px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
                   <s.icon size={11} color={s.color} />
-                  <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</span>
+                  <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5C6B60", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</span>
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
               </div>
@@ -4351,7 +4458,7 @@
                 ))}
               </div>
               {!loading && (top10.length > 0 || fast.length > 0 || slow.length > 0 || data?.topBuyers?.length > 0) && (
-                <div style={{ display: "grid", gridTemplateColumns: tab === "buyers" ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, padding: "7px 10px", borderBottom: "2px solid #e8f5e9", fontSize: 9.5, fontWeight: 800, color: "#00897b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, fontFamily: FONT }}>
+                <div style={{ display: "grid", gridTemplateColumns: tab === "buyers" ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, padding: "7px 10px", borderBottom: "2px solid #f0f5e8", fontSize: 9.5, fontWeight: 800, color: "#3b791e", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, fontFamily: FONT }}>
                   <span>#</span><span>Name</span>
                   {tab !== "buyers" && <span style={{ textAlign: "right" }}>Units</span>}
                   <span style={{ textAlign: "right" }}>{tab === "buyers" ? "Items" : "Revenue"}</span>
@@ -4360,30 +4467,30 @@
               )}
               {loading
                 ? <div style={{ padding: "36px 0", textAlign: "center" }}>
-                    <div style={{ width: 28, height: 28, border: "3px solid #d1eedd", borderTopColor: "#00897b", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 10px" }} />
-                    <div style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Loading…</div>
+                    <div style={{ width: 28, height: 28, border: "3px solid #E1E6D8", borderTopColor: "#3b791e", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 10px" }} />
+                    <div style={{ fontSize: 12, color: "#5C6B60", fontFamily: FONT }}>Loading…</div>
                   </div>
                 : renderList()
               }
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
-                <ChartLabel><PieChart size={11} color="#00897b" /> Revenue Share (Top 5)</ChartLabel>
+              <div style={{ background: "#f8fffe", border: "1px solid #f0f5e8", borderRadius: 14, padding: "13px 14px" }}>
+                <ChartLabel><PieChart size={11} color="#3b791e" /> Revenue Share (Top 5)</ChartLabel>
                 {revenuePie.length > 0
                   ? <DonutChartSVG segments={revenuePie} size={120} />
-                  : <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
+                  : <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", color: "#E1E6D8", fontSize: 12, fontFamily: FONT }}>—</div>
                 }
               </div>
-              <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
-                <ChartLabel><Activity size={11} color="#00897b" /> Product Velocity</ChartLabel>
+              <div style={{ background: "#f8fffe", border: "1px solid #f0f5e8", borderRadius: 14, padding: "13px 14px" }}>
+                <ChartLabel><Activity size={11} color="#3b791e" /> Product Velocity</ChartLabel>
                 {moverPie.length > 0
                   ? <DonutChartSVG segments={moverPie} size={110} centerLabel={totalSKUs.toString()} centerSub="SKUs" />
-                  : <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
+                  : <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "center", color: "#E1E6D8", fontSize: 12, fontFamily: FONT }}>—</div>
                 }
               </div>
-              <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
-                <ChartLabel><ShoppingCart size={11} color="#00897b" /> Stock Recommendations</ChartLabel>
+              <div style={{ background: "#f8fffe", border: "1px solid #f0f5e8", borderRadius: 14, padding: "13px 14px" }}>
+                <ChartLabel><ShoppingCart size={11} color="#3b791e" /> Stock Recommendations</ChartLabel>
                 <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                   {[
                     { label: "Reorder Soon",  count: slowCount || 0,                                     color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: AlertTriangle },
@@ -4392,7 +4499,7 @@
                   ].map((r, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, background: r.bg, border: `1px solid ${r.border}`, borderRadius: 9, padding: "8px 11px" }}>
                       <r.icon size={13} color={r.color} />
-                      <span style={{ flex: 1, fontSize: 11, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{r.label}</span>
+                      <span style={{ flex: 1, fontSize: 11, fontWeight: 700, color: "#12241B", fontFamily: FONT }}>{r.label}</span>
                       <span style={{ fontSize: 16, fontWeight: 800, color: r.color, fontFamily: FONT }}>{r.count}</span>
                     </div>
                   ))}
@@ -4411,12 +4518,12 @@
 
     const iconMap = {
       error: (
-        <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#c0392b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
       ),
       success: (
-        <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#2e7d32" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#3b791e" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
         </svg>
       ),
@@ -4438,8 +4545,8 @@
     };
 
     const hc = {
-      error:   { bg: "#fef2f2", border: "#fecaca", titleColor: "#991b1b" },
-      success: { bg: "#e8f5e9", border: "#c8e6c9", titleColor: "#00695c" },
+      error:   { bg: "#fef2f2", border: "#f2c9c4", titleColor: "#991b1b" },
+      success: { bg: "#f0f5e8", border: "#c8e6c9", titleColor: "#2c5c16" },
       info:    { bg: "#eff6ff", border: "#bfdbfe", titleColor: "#1e3a8a" },
       warning: { bg: "#fffbeb", border: "#fed7aa", titleColor: "#92400e" },
       confirm: { bg: "#fffbeb", border: "#fed7aa", titleColor: "#92400e" },
@@ -4467,7 +4574,7 @@
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: hc.titleColor, marginBottom: 4, fontFamily: FONT }}>{title}</div>
               {message && (
-                <div style={{ fontSize: 13, color: "#0d2b1e", lineHeight: 1.6, opacity: 0.85, fontFamily: FONT }}>{message}</div>
+                <div style={{ fontSize: 13, color: "#12241B", lineHeight: 1.6, opacity: 0.85, fontFamily: FONT }}>{message}</div>
               )}
             </div>
             <button
@@ -4475,7 +4582,7 @@
               style={{
                 flexShrink: 0, width: 26, height: 26, borderRadius: "50%",
                 border: `1px solid ${hc.border}`, background: "transparent", cursor: "pointer",
-                color: "#5a7a65", display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#5C6B60", display: "flex", alignItems: "center", justifyContent: "center",
               }}
             >
               <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -4485,7 +4592,7 @@
             {type === "confirm" && (
               <button
                 onClick={onClose}
-                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #E1E6D8", background: "#f0f5e8", color: "#5C6B60", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}
               >
                 {cancelLabel || "Cancel"}
               </button>
@@ -4495,8 +4602,8 @@
               style={{
                 padding: "8px 18px", borderRadius: 8, border: "none",
                 background: type === "confirm"
-                  ? (confirmTone === "success" ? "linear-gradient(135deg,#2E7D32,#00897b)" : "linear-gradient(135deg,#ef4444,#dc2626)")
-                  : "linear-gradient(135deg,#00c853,#00897b)",
+                  ? (confirmTone === "success" ? "linear-gradient(135deg,#3b791e,#3b791e)" : "linear-gradient(135deg,#c0392b,#c0392b)")
+                  : "linear-gradient(135deg,#3b791e,#3b791e)",
                 color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
               }}
             >
@@ -4591,7 +4698,7 @@
           <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}><span style={{width:22,height:22,borderRadius:7,background:"#F1F5EC",color:"#3b791e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{i+1}</span><span style={{fontSize:12,fontWeight:700,color:"#243128",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.label}</span></div>
           <strong style={{fontSize:12,color:"#243128",whiteSpace:"nowrap"}}>{fmtAmt(d.value)}</strong>
         </div>
-        <div style={{height:8,borderRadius:999,background:"#EEF2EA",overflow:"hidden"}}><div style={{height:"100%",width:`${(d.value/max)*100}%`,borderRadius:999,background:"linear-gradient(90deg,#3b791e,#bdd43c)"}}/></div>
+        <div style={{height:8,borderRadius:999,background:"#EEF2EA",overflow:"hidden"}}><div style={{height:"100%",width:`${(d.value/max)*100}%`,borderRadius:999,background:"linear-gradient(90deg,#3b791e,#b3a941)"}}/></div>
       </div>)}
     </div>;
   }
@@ -4657,7 +4764,16 @@
   const b2bTxAmount = (tx) => b2bNum(tx?.net_total, tx?.total, tx?.total_amount, tx?.grand_total);
   const b2bBranchName = (row) => String(row?.branch_name || row?.branch || row?.store_name || row?.store || "").trim();
   const b2bBrandName = (row) => String(row?.brand_name || row?.brand || "").trim();
-  const b2bOrderItems = (o) => b2bArray(o?.items || o?.order_items || o?.orderItems);
+  // GET /orders joins order_items to shop_items and returns this exact line shape.
+  const b2bOrderItems = (o) => {
+    const lines = [o?.items, o?.order_items, o?.orderItems].map(b2bArray).find(items=>items.length) || [];
+    return lines.filter(item=>item && typeof item === "object").map(item=>({
+      ...item,
+      name:item.name || item.item_name || item.product_name || (item.shop_item_id != null ? `Supply item #${item.shop_item_id}` : "Item name unavailable"),
+      qty:b2bNum(item.qty, item.quantity),
+      price:b2bNullableNum(item.price, item.unit_price),
+    }));
+  };
   const b2bTxItems = (tx) => b2bArray(tx?.items || tx?.transaction_items || tx?.transactionItems);
   const b2bItemQty = (item) => b2bNum(item?.qty_received, item?.received_qty, item?.qty, item?.quantity, item?.quantity_sold);
   const b2bItemId = (item) => item?.product_id ?? item?.inventory_id ?? item?.ingredient_id ?? item?.shop_item_id ?? item?.id ?? null;
@@ -4691,8 +4807,9 @@
     const normalized = String(risk || "Normal").toLowerCase();
     const high = normalized.includes("high") || normalized.includes("critical");
     const watch = normalized.includes("watch") || normalized.includes("medium") || normalized.includes("moderate");
-    const label = high ? "High Risk" : watch ? "Watch" : "Normal";
-    const style = high
+    const missing=normalized.includes("no data")||normalized.includes("no transactions");
+    const label = missing ? risk : high ? "High Risk" : watch ? "Watch" : "Normal";
+    const style = missing ? {color:"#5C6B60",background:"#F6F7F1",border:"#E1E6D8"} : high
       ? { color: "#b42318", background: "#fff1f0", border: "#fecdca" }
       : watch
         ? { color: "#b54708", background: "#fffaeb", border: "#fedf89" }
@@ -4751,7 +4868,7 @@
         onMouseLeave={e=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow="0 2px 12px rgba(50,109,32,.06)"; }}>
         <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10 }}>
           <div style={{ minWidth:0 }}>
-            <div style={{ fontSize:10, fontWeight:800, letterSpacing:".07em", textTransform:"uppercase", color:"#6B7A65" }}>{label}</div>
+            <div style={{ fontSize:10, fontWeight:800, letterSpacing:".07em", textTransform:"uppercase", color:"#5C6B60" }}>{label}</div>
             <div style={{ fontSize:21, fontWeight:850, color:"#12241B", marginTop:7, lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
               {displayValue}
             </div>
@@ -4774,7 +4891,7 @@
             </div>
           </div>
         </div>
-        <div style={{ marginTop:10, paddingTop:9, borderTop:"1px solid #EEF2EA", fontSize:10.5, lineHeight:1.45, color:"#6B7A65", display:"flex", alignItems:"center", gap:8 }}>
+        <div style={{ marginTop:10, paddingTop:9, borderTop:"1px solid #EEF2EA", fontSize:10.5, lineHeight:1.45, color:"#5C6B60", display:"flex", alignItems:"center", gap:8 }}>
           <span style={{ flex:1 }}>{note}</span>
           {onClick && <span style={{ display:"inline-flex", alignItems:"center", gap:3, color:t.accent, fontSize:9.5, fontWeight:800, whiteSpace:"nowrap" }}>Breakdown <ChevronRight size={12}/></span>}
         </div>
@@ -4813,300 +4930,126 @@
     );
   }
 
-  function B2BKpiBreakdown({
-    metric,
-    overview,
-    branchRows = [],
-    brandRows = [],
-    skuRows = [],
-    productRows = [],
-    anomalies = [],
-    month,
-    growthTargetPct,
-    onOpenBranch,
-    onOpenBrand,
-    onOpenSku,
-  }) {
-    const previousHq = Number(overview?.prevHqRevenue || 0);
-    const previousPos = Number(overview?.prevPosRevenue || 0);
-    const hqGrowth = previousHq > 0 ? ((Number(overview?.hqRevenue || 0) - previousHq) / previousHq) * 100 : null;
-    const posGrowth = previousPos > 0 ? ((Number(overview?.posRevenue || 0) - previousPos) / previousPos) * 100 : null;
-    const highRiskRows = branchRows.filter(r=>String(r.risk||"").toLowerCase().includes("high"));
-    const watchRows = branchRows.filter(r=>/watch|medium|moderate/i.test(String(r.risk||"")));
-    const varianceRows = skuRows.filter(r=>r.stockVariance!=null && Number(r.stockVariance)!==0);
-    const suppliedUnits = brandRows.reduce((sum,r)=>sum+Number(r.suppliedQty||0),0);
-    const soldUnits = brandRows.reduce((sum,r)=>sum+Number(r.soldQty||0),0);
-    const endingUnits = brandRows.reduce((sum,r)=>sum+Number(r.endingStock||0),0);
-    const revenueDifference = Number(overview?.posRevenue || 0) - Number(overview?.hqRevenue || 0);
-
-    const metricMeta = {
-      hqRevenue: {
-        title:"HQ Supply Revenue",
-        description:"Fulfilled and delivered Head Office supply orders for the active filters.",
-        formula:"Sum of net amounts from fulfilled or delivered Head Office orders.",
-      },
-      hqPrevious: {
-        title:"Previous-Month HQ Revenue",
-        description:"The prior-month baseline used for growth and target calculations.",
-        formula:"Sum of prior-month fulfilled or delivered Head Office supply orders.",
-      },
-      hqChange: {
-        title:"HQ Month-on-Month Change",
-        description:"Change in Head Office supply revenue compared with the previous month.",
-        formula:"Current HQ revenue − previous HQ revenue; percentage uses previous HQ revenue as the base.",
-      },
-      posRevenue: {
-        title:"Franchisee POS Revenue",
-        description:"Paid and completed franchisee POS sales for the active filters.",
-        formula:"Sum of net totals from non-voided, paid or completed POS transactions.",
-      },
-      target: {
-        title:"Monthly Target",
-        description:"The Head Office supply-revenue goal calculated from the prior month.",
-        formula:`Previous HQ revenue × (1 + ${growthTargetPct}% growth target).`,
-      },
-      targetGap: {
-        title:"Target Gap",
-        description:"The remaining Head Office supply revenue required to reach the monthly target.",
-        formula:"Maximum of zero or monthly target − current HQ supply revenue.",
-      },
-      coverage: {
-        title:"HQ Order Coverage",
-        description:"The portion of reported sell-through supported by authorized HQ stock flow.",
-        formula:"Authorized HQ-supplied sellable units ÷ reported POS-sold units × 100.",
-      },
-      atRisk: {
-        title:"At-Risk Branches",
-        description:"Branches with high-risk or watch signals under the current filters.",
-        formula:"Count of branches whose stock and supply risk rules return High Risk or Watch.",
-      },
-      unexplained: {
-        title:"Unexplained Stock",
-        description:"Stock variance that cannot yet be explained by authorized receipts, sales, disposal, or transfers.",
-        formula:"Opening + HQ receipts + transfer in − POS sold − disposal − transfer out − recorded closing.",
-      },
-      sellThrough: {
-        title:"Sell-through",
-        description:"How much available sellable inventory was sold through POS.",
-        formula:"POS-sold units ÷ sellable units available × 100.",
-      },
-    };
-    const meta = metricMeta[metric] || metricMeta.hqRevenue;
-
-    const summariesByMetric = {
-      hqRevenue: [
-        ["Current HQ Revenue", fmtAmt(overview?.hqRevenue), Package, "green", "Selected month"],
-        ["Previous HQ Revenue", previousHq > 0 ? fmtAmt(previousHq) : "—", History, "blue", "Comparison baseline"],
-        ["MoM Growth", hqGrowth==null ? "—" : `${hqGrowth>=0?"+":""}${hqGrowth.toFixed(1)}%`, TrendingUp, hqGrowth!=null&&hqGrowth<0?"red":"green", "Current vs previous"],
-        ["POS Revenue", fmtAmt(overview?.posRevenue), ShoppingCart, "blue", "Sell-through context"],
-      ],
-      hqPrevious: [
-        ["Previous HQ Revenue", previousHq > 0 ? fmtAmt(previousHq) : "—", History, "blue", "Prior month"],
-        ["Current HQ Revenue", fmtAmt(overview?.hqRevenue), Package, "green", "Selected month"],
-        ["Absolute Change", `${Number(overview?.hqRevenue||0)-previousHq>=0?"+":"−"}${fmtAmt(Math.abs(Number(overview?.hqRevenue||0)-previousHq))}`, Activity, "amber", "Current less previous"],
-        ["MoM Growth", hqGrowth==null ? "—" : `${hqGrowth>=0?"+":""}${hqGrowth.toFixed(1)}%`, TrendingUp, hqGrowth!=null&&hqGrowth<0?"red":"green", "Percentage change"],
-      ],
-      hqChange: [
-        ["Absolute Change", `${Number(overview?.hqRevenue||0)-previousHq>=0?"+":"−"}${fmtAmt(Math.abs(Number(overview?.hqRevenue||0)-previousHq))}`, Activity, "amber", "Current less previous"],
-        ["MoM Growth", hqGrowth==null ? "—" : `${hqGrowth>=0?"+":""}${hqGrowth.toFixed(1)}%`, TrendingUp, hqGrowth!=null&&hqGrowth<0?"red":"green", "Previous month is base"],
-        ["Current HQ Revenue", fmtAmt(overview?.hqRevenue), Package, "green", "Selected month"],
-        ["Previous HQ Revenue", previousHq > 0 ? fmtAmt(previousHq) : "—", History, "blue", "Prior month"],
-      ],
-      posRevenue: [
-        ["Current POS Revenue", fmtAmt(overview?.posRevenue), ShoppingCart, "blue", "Selected month"],
-        ["Previous POS Revenue", previousPos > 0 ? fmtAmt(previousPos) : "—", History, "green", "Comparison baseline"],
-        ["POS MoM Growth", posGrowth==null ? "—" : `${posGrowth>=0?"+":""}${posGrowth.toFixed(1)}%`, TrendingUp, posGrowth!=null&&posGrowth<0?"red":"green", "Current vs previous"],
-        ["POS − HQ", `${revenueDifference>=0?"+":"−"}${fmtAmt(Math.abs(revenueDifference))}`, Activity, "amber", "Stock / supply risk signal"],
-      ],
-      target: [
-        ["Monthly Target", fmtAmt(overview?.target), Target, "amber", `${growthTargetPct}% above previous HQ`],
-        ["Current HQ Revenue", fmtAmt(overview?.hqRevenue), Package, "green", "Revenue attained"],
-        ["Target Attainment", overview?.targetAttainment==null?"—":`${Number(overview.targetAttainment).toFixed(1)}%`, Activity, "blue", "Current ÷ target"],
-        ["Target Gap", fmtAmt(overview?.targetGap), TrendingDown, Number(overview?.targetGap)>0?"red":"green", "Remaining requirement"],
-      ],
-      targetGap: [
-        ["Target Gap", fmtAmt(overview?.targetGap), TrendingDown, Number(overview?.targetGap)>0?"red":"green", "Remaining requirement"],
-        ["Monthly Target", fmtAmt(overview?.target), Target, "amber", "Goal"],
-        ["Current HQ Revenue", fmtAmt(overview?.hqRevenue), Package, "green", "Actual"],
-        ["Target Attainment", overview?.targetAttainment==null?"—":`${Number(overview.targetAttainment).toFixed(1)}%`, Activity, "blue", "Actual ÷ goal"],
-      ],
-      coverage: [
-        ["HQ Order Coverage", overview?.coverage==null?"—":`${Number(overview.coverage).toFixed(1)}%`, ShieldCheck, overview?.coverage!=null&&overview.coverage<70?"red":"green", "Authorized supply coverage"],
-        ["Branches With Coverage", branchRows.filter(r=>r.orderCoverage!=null).length.toLocaleString(), Store, "blue", "Evidence available"],
-        ["Below 70%", branchRows.filter(r=>r.orderCoverage!=null&&r.orderCoverage<70).length.toLocaleString(), AlertTriangle, "red", "Needs review"],
-        ["At-Risk Branches", Number(overview?.atRisk||0).toLocaleString(), AlertTriangle, "amber", "All active rules"],
-      ],
-      atRisk: [
-        ["At-Risk Branches", Number(overview?.atRisk||0).toLocaleString(), AlertTriangle, Number(overview?.atRisk)>0?"red":"green", "High Risk + Watch"],
-        ["High Risk", highRiskRows.length.toLocaleString(), AlertTriangle, "red", "Immediate review"],
-        ["Watch", watchRows.length.toLocaleString(), Activity, "amber", "Monitor"],
-        ["Normal", Math.max(0,branchRows.length-highRiskRows.length-watchRows.length).toLocaleString(), CheckCircle2, "green", "No current signal"],
-      ],
-      unexplained: [
-        ["Unexplained Units", overview?.unexplained==null?"—":Number(overview.unexplained).toLocaleString(), Layers, Number(overview?.unexplained)>0?"red":"green", "Absolute variance"],
-        ["Affected SKUs", varianceRows.length.toLocaleString(), Package, varianceRows.length?"red":"green", "Non-zero variance"],
-        ["Positive Variance", varianceRows.filter(r=>Number(r.stockVariance)>0).length.toLocaleString(), ArrowUp, "amber", "Recorded excess"],
-        ["Negative Variance", varianceRows.filter(r=>Number(r.stockVariance)<0).length.toLocaleString(), ArrowDown, "red", "Recorded shortage"],
-      ],
-      sellThrough: [
-        ["Sell-through", overview?.sellThrough==null?"—":`${Number(overview.sellThrough).toFixed(1)}%`, Activity, "green", "Sold ÷ available"],
-        ["Units Supplied", suppliedUnits.toLocaleString(), Package, "green", "HQ receipts"],
-        ["Units Sold", soldUnits.toLocaleString(), ShoppingCart, "blue", "POS deductions"],
-        ["Ending Stock", endingUnits.toLocaleString(), Layers, "amber", "Recorded closing"],
-      ],
-    };
-    const summaries = summariesByMetric[metric] || summariesByMetric.hqRevenue;
-
-    let rows = branchRows;
-    let entity = "branch";
-    let emptyMessage = "No branch evidence is available for this KPI and filter.";
-    let columns = [
-      ["Branch / Brand", "left", r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
-      ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
-      ["POS Revenue", "right", r=>fmtAmt(r.posRevenue)],
-      ["MoM", "right", r=>r.vsLastMonth==null?"—":`${r.vsLastMonth>=0?"+":""}${r.vsLastMonth.toFixed(1)}%`],
-      ["Risk", "right", r=><B2BRiskBadge risk={r.risk}/>],
-    ];
-
-    if (metric === "posRevenue") {
-      rows = [...branchRows].sort((a,b)=>b.posRevenue-a.posRevenue);
-      columns = [
-        ["Branch / Brand", "left", r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
-        ["POS Revenue", "right", r=>fmtAmt(r.posRevenue)],
-        ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
-        ["POS − HQ", "right", r=>`${r.posRevenue-r.hqRevenue>=0?"+":"−"}${fmtAmt(Math.abs(r.posRevenue-r.hqRevenue))}`],
-        ["Risk", "right", r=><B2BRiskBadge risk={r.risk}/>],
-      ];
-    } else if (metric === "target" || metric === "targetGap") {
-      rows = [...branchRows].sort((a,b)=>Number(b.targetGap||0)-Number(a.targetGap||0));
-      columns = [
-        ["Branch / Brand", "left", r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
-        ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
-        ["Target Attainment", "right", r=>r.targetPct==null?"—":`${r.targetPct.toFixed(1)}%`],
-        ["Target Gap", "right", r=>r.targetGap==null?"—":fmtAmt(r.targetGap)],
-        ["Risk", "right", r=><B2BRiskBadge risk={r.risk}/>],
-      ];
-    } else if (metric === "coverage") {
-      rows = [...branchRows].sort((a,b)=>Number(a.orderCoverage??999)-Number(b.orderCoverage??999));
-      columns = [
-        ["Branch / Brand", "left", r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
-        ["Coverage", "right", r=>r.orderCoverage==null?"—":`${r.orderCoverage.toFixed(1)}%`],
-        ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
-        ["Stock Variance", "right", r=>r.stockVariance==null?"—":`${r.stockVariance>0?"+":""}${r.stockVariance.toLocaleString()}`],
-        ["Risk", "right", r=><B2BRiskBadge risk={r.risk}/>],
-      ];
-    } else if (metric === "atRisk") {
-      rows = [...highRiskRows, ...watchRows];
-      columns = [
-        ["Branch / Brand", "left", r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
-        ["Reason", "left", r=>r.reason||"No explanation returned."],
-        ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
-        ["POS Revenue", "right", r=>fmtAmt(r.posRevenue)],
-        ["Risk", "right", r=><B2BRiskBadge risk={r.risk}/>],
-      ];
-      emptyMessage = "No branch is currently classified as High Risk or Watch.";
-    } else if (metric === "unexplained") {
-      rows = varianceRows;
-      entity = "sku";
-      columns = [
-        ["SKU / Product", "left", r=><><b>{r.product}</b><div style={{fontSize:9,color:"#94a3b8",marginTop:2}}>{r.branch} · {r.brand}</div></>],
-        ["Opening", "right", r=>r.openingStock==null?"—":r.openingStock.toLocaleString()],
-        ["HQ Received", "right", r=>Number(r.suppliedQty||0).toLocaleString()],
-        ["POS Sold", "right", r=>Number(r.soldQty||0).toLocaleString()],
-        ["Closing", "right", r=>r.endingStock==null?"—":r.endingStock.toLocaleString()],
-        ["Variance", "right", r=>`${r.stockVariance>0?"+":""}${Number(r.stockVariance).toLocaleString()}`],
-      ];
-      emptyMessage = "No SKU-level variance evidence is available. Link opening stock, HQ receipts, POS deductions, disposal, transfers, and recorded closing stock.";
-    } else if (metric === "sellThrough") {
-      rows = [...brandRows].sort((a,b)=>Number(b.sellThrough||0)-Number(a.sellThrough||0));
-      entity = "brand";
-      columns = [
-        ["Brand", "left", r=>r.brand],
-        ["Units Supplied", "right", r=>Number(r.suppliedQty||0).toLocaleString()],
-        ["Units Sold", "right", r=>Number(r.soldQty||0).toLocaleString()],
-        ["Ending Stock", "right", r=>r.endingStock==null?"—":Number(r.endingStock).toLocaleString()],
-        ["Sell-through", "right", r=>r.sellThrough==null?"—":`${Number(r.sellThrough).toFixed(1)}%`],
-      ];
-      emptyMessage = "No brand sell-through evidence is available for the active filters.";
-    }
-
-    // POS/at-risk KPIs use sold-product evidence. Supply, target, and coverage
-    // KPIs use the stock-flow SKU rows so unlike evidence is never mixed.
-    if (metric === "posRevenue" || metric === "atRisk") {
-      const evidenceKey = (row) => `${String(row?.brand || "").trim().toLowerCase()}::${String(row?.branch || "").trim().toLowerCase()}`;
-      const riskBranchBrands = new Set([...highRiskRows, ...watchRows].map(evidenceKey));
-      rows = metric === "atRisk"
-        ? productRows.filter(row => riskBranchBrands.has(evidenceKey(row)))
-        : productRows;
-      entity = "product";
-      columns = [
-        ["SKU / Product", "left", r=><><b>{r.product}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>SKU {r.sku}</div></>],
-        ["Brand / Branch", "left", r=><><b>{r.brand || "Brand not set"}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.branch}</div></>],
-        ["Units Sold", "right", r=>Number(r.soldQty||0).toLocaleString()],
-        ["POS Revenue", "right", r=>fmtAmt(r.revenue)],
-        ["Transactions", "right", r=>Number(r.transactionCount||0).toLocaleString()],
-        ["Last Sale", "right", r=>r.lastSale ? new Date(r.lastSale).toLocaleDateString("en-PH") : "—"],
-      ];
-      emptyMessage = metric === "atRisk"
-        ? "No sold SKU evidence is available for the currently flagged branches."
-        : "No sold SKU evidence is available for the active filters and month.";
-    } else if (metric !== "unexplained" && metric !== "sellThrough") {
-      rows = skuRows;
-      entity = "sku";
-      columns = [
-        ["SKU / Product", "left", r=><><b>{r.product}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>SKU {r.sku}</div></>],
-        ["Brand / Branch", "left", r=><><b>{r.brand || "Brand not set"}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.branch}</div></>],
-        ["HQ Received", "right", r=>Number(r.suppliedQty||0).toLocaleString()],
-        ["POS Sold", "right", r=>Number(r.soldQty||0).toLocaleString()],
-        ["Recorded Stock", "right", r=>r.endingStock==null?"—":Number(r.endingStock).toLocaleString()],
-        ["Variance", "right", r=>r.stockVariance==null?"—":`${Number(r.stockVariance)>0?"+":""}${Number(r.stockVariance).toLocaleString()}`],
-      ];
-      emptyMessage = "No SKU stock-flow evidence is available for the active filters and month.";
-    }
-
-    const openRow = row => {
-      if (entity === "sku" || entity === "product") onOpenSku?.(row);
-      else if (entity === "brand") onOpenBrand?.(row);
-      else if (entity === "branch") onOpenBranch?.(row);
-    };
-    const th = {padding:"10px 11px",fontSize:9.5,fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",color:"#71806F",background:"#F6FAF3",borderBottom:"1px solid #DDE8DA",whiteSpace:"nowrap"};
-    const td = {padding:"11px",fontSize:10.8,color:"#334155",borderBottom:"1px solid #EEF3EC",verticalAlign:"top"};
-
-    return (
-      <div>
-        <div style={{padding:"11px 13px",borderRadius:11,background:"#F6FAF3",border:"1px solid #DDE8DA",marginBottom:13}}>
-          <div style={{fontSize:12,fontWeight:850,color:"#12241B"}}>{meta.title}</div>
-          <div style={{fontSize:10.7,color:"#5C6B60",lineHeight:1.55,marginTop:4}}>{meta.description}</div>
-          <div style={{fontSize:10,color:"#3b791e",fontWeight:750,lineHeight:1.5,marginTop:5}}><b>Formula:</b> {meta.formula}</div>
-          <div style={{fontSize:9.7,color:"#82907F",marginTop:4}}>Scope: {b2bMonthLabel(month)} · current Brand, Branch, and Risk filters</div>
-        </div>
-
-        <div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(4,minmax(0,1fr))",marginBottom:14}}>
-          {summaries.map(([label,value,Icon,tone,note])=><B2BMetricCard key={label} label={label} value={value} icon={Icon} tone={tone} note={note}/>) }
-        </div>
-
-        <div style={{fontSize:11,fontWeight:850,color:"#12241B",marginBottom:8}}>Evidence breakdown</div>
-        <div style={{overflowX:"auto",border:"1px solid #E7EEE4",borderRadius:13}}>
-          <table style={{width:"100%",borderCollapse:"collapse",minWidth:760}}>
-            <thead><tr>{columns.map(([label,align])=><th key={label} style={{...th,textAlign:align}}>{label}</th>)}</tr></thead>
-            <tbody>
-              {rows.length ? rows.slice(0,20).map((row,index)=>(
-                <tr key={row.id ?? `${entity}-${index}`} onClick={()=>openRow(row)} style={{cursor:entity==="product"?"default":"pointer",background:index%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=index%2?"#FBFDF9":"#fff"}>
-                  {columns.map(([label,align,render])=><td key={label} style={{...td,textAlign:align}}>{render(row)}</td>)}
-                </tr>
-              )) : <tr><td colSpan={columns.length} style={{padding:28,textAlign:"center",fontSize:10.8,color:"#82907F",lineHeight:1.6}}>{emptyMessage}</td></tr>}
-            </tbody>
-          </table>
-        </div>
-
-        {metric === "atRisk" && anomalies.length > 0 && (
-          <div style={{marginTop:13}}>
-            <div style={{fontSize:11,fontWeight:850,color:"#12241B",marginBottom:8}}>Triggered anomaly rules</div>
-            <div style={{display:"grid",gap:7}}>{anomalies.slice(0,10).map((a,i)=><div key={a.id??i} style={{padding:"9px 11px",borderRadius:10,border:"1px solid #E7EEE4",background:i%2?"#FBFDF9":"#fff"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}><b style={{fontSize:10.5,color:"#12241B"}}>{a.branch||a.brand||"Unassigned"}</b><B2BRiskBadge risk={a.severity}/></div><div style={{fontSize:10.2,color:"#5C6B60",marginTop:5,lineHeight:1.5}}><b>{a.rule}:</b> {a.reason}</div></div>)}</div>
-          </div>
-        )}
+  function B2BBranchItemTable({ selected, user, api, onBack }) {
+    const [details,setDetails]=useState([]);
+    const [loading,setLoading]=useState(false);
+    const [error,setError]=useState("");
+    const [attempt,setAttempt]=useState(0);
+    const [page,setPage]=useState(1);
+    const [query,setQuery]=useState("");
+    useEffect(()=>{
+      if(selected.orders.every(o=>b2bOrderItems(o).length) && !attempt) return;
+      const controller=new AbortController();
+      setLoading(true);setError("");
+      (async()=>{
+        if(!user?.role) throw new Error("Sign in again to load item evidence.");
+        const hq=["Super Admin","Franchisee Operations Admin"].includes(user.role);
+        if(!hq&&(!user.brand||!user.branch||!b2bSameScope(user.brand,selected.brand)||!b2bSameScope(user.branch,selected.branch)))
+          throw new Error("This branch is outside your assigned brand and branch.");
+        const params=new URLSearchParams({role:user.role,brand:selected.brand,branch:selected.branch});
+        const response=await adminModuleFetch(`${api}/orders?${params}`,{credentials:"include",cache:"no-store",signal:controller.signal});
+        if(!response.ok) throw new Error(`Item evidence could not be loaded (${response.status}).`);
+        const payload=await response.json();
+        const records=Array.isArray(payload)?payload:Array.isArray(payload?.orders)?payload.orders:Array.isArray(payload?.data)?payload.data:[];
+        if(!controller.signal.aborted) setDetails(records.filter(o=>b2bSameScope(b2bBrandName(o),selected.brand)&&b2bSameScope(b2bBranchName(o),selected.branch)));
+      })().catch(e=>{if(!controller.signal.aborted)setError(e.message);}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
+      return ()=>controller.abort();
+    },[selected,user,api,attempt]);
+    const rows=selected.orders.flatMap(order=>{
+      const updated=details.find(o=>String(o.id)===String(order.id));
+      const items=b2bOrderItems(updated || order);
+      return items.length?items.map((item,index)=>({order,item,key:`${order.id}-${index}`})):[{order,item:null,key:`${order.id}-missing`}];
+    }).filter(({order,item})=>`${order.id} ${item?b2bItemName(item):"Item details unavailable"}`.toLowerCase().includes(query.trim().toLowerCase()));
+    const pages=Math.max(1,Math.ceil(rows.length/15)),currentPage=Math.min(page,pages);
+    const th={padding:"10px 11px",fontSize:9.5,fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",color:C.muted,background:C.bg,borderBottom:`1px solid ${C.border}`,textAlign:"left",whiteSpace:"nowrap"};
+    const td={padding:"11px",fontSize:11,borderBottom:"1px solid #EEF3EC",color:C.dark};
+    return <div className="ad-evidence-view">
+      <button type="button" onClick={onBack} style={{...btnSt,marginBottom:12}}>Back to branches</button>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:12}}>
+        <div><h3 style={{fontSize:14,fontWeight:800}}>{selected.branch} · Ordered Items</h3><p style={{fontSize:11,color:C.muted,marginTop:4}}>{selected.brand} · Source orders for the selected comparison</p></div>
+        <span style={{fontSize:10,fontWeight:700,color:C.greenDk}}>{selected.orders.length} orders</span>
       </div>
-    );
+      <input aria-label="Search items or order number" placeholder="Search item or order number…" value={query} onChange={e=>{setQuery(e.target.value);setPage(1);}} style={{...invInputSt,maxWidth:340,marginBottom:12}}/>
+      {loading&&<p role="status" style={{fontSize:11,color:C.muted,marginBottom:10}}>Loading item evidence…</p>}
+      {error&&<div role="status" style={{fontSize:11,color:C.red,marginBottom:10}}>{error} <button type="button" onClick={()=>setAttempt(n=>n+1)} style={smallBtnSt}>Retry</button></div>}
+      <div style={{overflowX:"auto",border:`1px solid ${C.border}`,borderRadius:13}}>
+        <table aria-label="Branch ordered item evidence" aria-busy={loading} style={{width:"100%",minWidth:620,borderCollapse:"collapse"}}>
+          <thead><tr>{["Item / Order #","Order date","Quantity","Unit price","Line total"].map((label,i)=><th key={label} style={{...th,textAlign:i>1?"right":"left"}}>{label}</th>)}</tr></thead>
+          <tbody>{rows.slice((currentPage-1)*15,currentPage*15).map(({order,item,key},i)=><tr key={key} style={{background:i%2?"#FBFDF9":"#fff"}}>
+            <td style={td}><div style={{fontWeight:750}}>{item?b2bItemName(item):loading?"Loading items…":"Item details unavailable"}</div><div style={{fontSize:9.5,color:C.muted,marginTop:3}}>Order #{order.id}</div></td>
+            <td style={td}>{b2bDateOfOrder(order)?new Date(b2bDateOfOrder(order)).toLocaleDateString("en-PH"):"—"}</td>
+            <td style={{...td,textAlign:"right"}}>{item?b2bItemQty(item).toLocaleString():"—"}</td>
+            <td style={{...td,textAlign:"right"}}>{item?.price==null?"—":fmtAmt(item.price)}</td>
+            <td style={{...td,textAlign:"right",fontWeight:750,color:C.greenDk}}>{item?.price==null?"—":fmtAmt(item.price*b2bItemQty(item))}</td>
+          </tr>)}{!rows.length&&<tr><td colSpan={5} style={{...td,textAlign:"center",padding:24}}>No matching item evidence.</td></tr>}</tbody>
+        </table>
+      </div>
+      {pages>1&&<nav aria-label="Item evidence pages" style={{display:"flex",alignItems:"center",gap:12,marginTop:12,fontSize:11}}><button type="button" style={btnSt} disabled={currentPage===1} onClick={()=>setPage(currentPage-1)}>Previous</button><span>Page {currentPage} of {pages}</span><button type="button" style={btnSt} disabled={currentPage===pages} onClick={()=>setPage(currentPage+1)}>Next</button></nav>}
+    </div>;
+  }
+
+  function B2BKpiBreakdown({ user, api, metric, initialBrand="", initialBranch="", productRows=[], skuRows=[], orders=[], ordersReady=false, branchRows=[], month, onOpenSku, compact=false, initialSelected=null, onSelectBranch }) {
+    const [page, setPage] = useState(1);
+    const [selected, setSelected] = useState(initialSelected);
+    const [query,setQuery] = useState("");
+    const size = 10;
+    const scope = row => (!initialBrand || b2bSameScope(row.brand,initialBrand)) && (!initialBranch || b2bSameScope(row.branch,initialBranch));
+    const previous = b2bShiftMonth(month,-1);
+    const isHq = ["hqRevenue","hqPrevious","hqChange","target","targetGap"].includes(metric);
+    const scopedOrders = orders.filter(o=>b2bIsEarnedOrder(o) && scope({brand:b2bBrandName(o),branch:b2bBranchName(o)}));
+    const current = scopedOrders.filter(o=>b2bMonthKey(b2bDateOfOrder(o))===month);
+    const prior = scopedOrders.filter(o=>b2bMonthKey(b2bDateOfOrder(o))===previous);
+    const sum = list=>list.reduce((n,o)=>n+b2bOrderAmount(o),0);
+    const currentTotal=sum(current), previousTotal=sum(prior);
+    let rows=[];
+    if(isHq){
+      const groups=new Map();
+      branchRows.filter(scope).forEach(r=>{const id=JSON.stringify([r.brand,r.branch]);groups.set(id,{id,brand:r.brand,branch:r.branch,current:0,previous:0,orders:[]});});
+      (metric==="hqPrevious"?prior:metric==="hqChange"?[...current,...prior]:current).forEach(o=>{
+        const brand=b2bBrandName(o), branch=b2bBranchName(o);
+        const key=JSON.stringify([brand,branch]);
+        const row=groups.get(key)||{id:key,brand,branch,current:0,previous:0,orders:[]};
+        row[b2bMonthKey(b2bDateOfOrder(o))===month?"current":"previous"]+=b2bOrderAmount(o);
+        row.orders.push(o);groups.set(key,row);
+      });
+      rows=[...groups.values()];
+    } else if(metric==="atRisk") rows=branchRows.filter(scope).filter(r=>/high|watch|medium/i.test(r.risk||""));
+    else rows=(metric==="posRevenue"?productRows:skuRows).filter(scope).filter(r=>metric!=="unexplained"||r.stockVariance!=null);
+    const rowValue = row => isHq ? Number(metric==="hqPrevious"?row.previous:row.current) || 0
+      : metric==="posRevenue" ? Number(row.revenue)||0 : Math.abs(Number(row.stockVariance)||0);
+    rows.sort((a,b)=>rowValue(b)-rowValue(a) ||
+      (isHq ? Number(b.previous||0)-Number(a.previous||0) || (b.orders?.length||0)-(a.orders?.length||0) : 0) ||
+      String(a.brand).localeCompare(String(b.brand)) || String(a.branch).localeCompare(String(b.branch)) || String(a.product||"").localeCompare(String(b.product||"")));
+    if(query.trim()) rows=rows.filter(r=>`${r.brand} ${r.branch}`.toLowerCase().includes(query.trim().toLowerCase()));
+    const selectBranch = row => { if(onSelectBranch) onSelectBranch(row); else { setSelected(row); } };
+    const pages=Math.max(1,Math.ceil(rows.length/size)), activePage=Math.min(page,pages);
+    const revenue=rows.reduce((n,r)=>n+Number(r.revenue||0),0);
+    const th={padding:"9px 10px",textAlign:"left",fontSize:9.5,fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",background:"#F6F7F1",color:"#5C6B60"};
+    const td={padding:"9px 10px",fontSize:11.5,borderBottom:"1px solid #E1E6D8"};
+    const button={...btnSt,minHeight:34,height:"auto",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:650};
+    const card=(label,value)=><div style={{padding:12,border:"1px solid #E1E6D8",borderRadius:12}}><div style={{fontSize:12,color:C.muted}}>{label}</div><div style={{fontSize:18,fontWeight:800,marginTop:6,overflowWrap:"anywhere"}}>{value}</div></div>;
+    if(selected) return <B2BBranchItemTable key={selected.id} selected={rows.find(r=>r.id===selected.id) || selected} user={user} api={api} onBack={()=>setSelected(null)}/>;
+    return <div className="ad-evidence-view" key="summary">
+      {!compact && <p style={{fontSize:12,color:C.muted,marginBottom:14}}>{initialBrand||"All brands"} · {initialBranch||"All branches"} · {b2bMonthLabel(month)}</p>}
+      {!compact && <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,marginBottom:18}}>
+        {isHq&&ordersReady&&<>{card(metric==="hqPrevious"?"Previous supply revenue":"Supply order revenue",fmtAmt(metric==="hqPrevious"?previousTotal:currentTotal))}{metric==="hqChange"&&<>{card("Previous month",fmtAmt(previousTotal))}{card("Revenue change",fmtAmt(currentTotal-previousTotal))}{previousTotal>0&&card("Month-on-month",`${((currentTotal-previousTotal)/previousTotal*100).toFixed(1)}%`)}</>}</>}
+        {metric==="posRevenue"&&card("POS revenue in verified item evidence",fmtAmt(revenue))}
+        {metric==="atRisk"&&card("At-risk branches",rows.length.toLocaleString())}
+      </div>}
+      {metric==="hqChange" && <label style={{display:"block",marginBottom:12,fontSize:11,color:C.muted}}>Find a branch or brand<input aria-label="Find a branch or brand" value={query} onChange={e=>{setQuery(e.target.value);setPage(1);}} placeholder="Search branch or brand…" style={{...invInputSt,display:"block",maxWidth:360,marginTop:5}}/></label>}
+      {isHq?<p style={{fontSize:12,marginBottom:14}}>Supply revenue uses received orders, grouped by order creation month. Profit or loss requires cost data.</p>:metric==="posRevenue"?<p style={{fontSize:12,marginBottom:14}}>Total of the item revenue shown below for this scope. Records with unverified ownership are excluded.</p>:null}
+      {isHq&&!ordersReady?<p role="status">Supply order evidence is unavailable. No revenue total is calculated from missing records.</p>:<div style={{overflowX:"auto",border:`1px solid ${C.border}`,borderRadius:13}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>{[...(isHq?["Branch / Brand"]:["Brand","Branch"]),...(isHq?[metric==="hqPrevious"?"Previous supply revenue":"Supply revenue",...(metric==="hqChange"?["Previous revenue","Change","Change %"]:[]),"Orders"]:metric==="atRisk"?["Risk","Reason"]:["Item",metric==="posRevenue"?"POS revenue":"Stock variance"]),...(metric!=="atRisk"?["Evidence"]:[])].map(h=><th style={th} key={h}>{h}</th>)}</tr></thead><tbody>
+        {rows.slice((activePage-1)*size,activePage*size).map((r,i)=><tr key={JSON.stringify([r.brand,r.branch,r.id,i])} className={isHq?"ad-branch-change-row":undefined}
+          tabIndex={isHq?0:undefined} aria-label={isHq?`View order evidence for ${r.branch}, ${r.brand}`:undefined}
+          onClick={isHq?()=>selectBranch(r):undefined}
+          onKeyDown={isHq?e=>{if(e.target===e.currentTarget&&(e.key==="Enter"||e.key===" ")){e.preventDefault();selectBranch(r);}}:undefined}
+          style={{cursor:isHq?"pointer":"default",background:i%2?"#FBFDF9":"#fff"}}>{isHq?<td style={td}><div style={{fontWeight:800,color:C.dark}}>{r.branch||"Branch not recorded"}</div><div style={{fontSize:9.5,color:C.muted,marginTop:3}}>{r.brand||"Brand not recorded"}</div></td>:<><td style={td}>{r.brand||"Brand not recorded"}</td><td style={td}>{r.branch||"Branch not recorded"}</td></>}
+          {isHq?<><td style={td}>{fmtAmt(metric==="hqPrevious"?r.previous:r.current)}</td>{metric==="hqChange"&&<><td style={td}>{fmtAmt(r.previous)}</td><td style={{...td,color:r.current<r.previous?C.red:C.greenDk,fontWeight:700}}>{r.current>r.previous?"+":""}{fmtAmt(r.current-r.previous)}</td><td style={td}>{r.previous>0?`${r.current>r.previous?"+":""}${((r.current-r.previous)/r.previous*100).toFixed(1)}%`:r.current>0?"No prior revenue":"—"}</td></>}<td style={td}>{r.orders.length}</td></>:metric==="atRisk"?<><td style={td}>{r.risk}</td><td style={td}>{r.reason}</td></>:<><td style={td}>{r.product}</td><td style={td}>{metric==="posRevenue"?fmtAmt(r.revenue):r.stockVariance==null?"Not available":r.stockVariance.toLocaleString()}</td></>}
+          {metric!=="atRisk"&&<td style={td}><button type="button" style={button} onClick={e=>{e.stopPropagation();if(isHq)selectBranch(r);else onOpenSku?.(r);}} aria-label={`View evidence for ${r.product||r.branch}, ${r.brand}`}>{isHq?"View item evidence":"View item"}</button></td>}
+        </tr>)}
+      </tbody></table>{!rows.length&&<p style={{padding:20}}>No matching evidence for this scope and period.</p>}</div>}
+      {pages>1&&<nav aria-label="Evidence pages" style={{display:"flex",gap:12,alignItems:"center",marginTop:16}}><button style={button} disabled={activePage===1} onClick={()=>setPage(activePage-1)}>Previous</button><span>Page {activePage} of {pages} · {rows.length} rows</span><button style={button} disabled={activePage===pages} onClick={()=>setPage(activePage+1)}>Next</button></nav>}
+    </div>;
   }
 
   function B2BDualTrendChart({ data = [], onPointClick }) {
@@ -5160,6 +5103,30 @@
     );
   }
 
+  const b2bScopeText = value => String(value ?? "").trim().toLowerCase();
+  const b2bSameScope = (a, b) => b2bScopeText(a) === b2bScopeText(b);
+  function b2bVerifiedItemScope(item, parentBrand, parentBranch, catalog) {
+    const name = item?.product || item?.product_name || item?.item_name || item?.name || "";
+    const id = item?.productId ?? item?.product_id ?? item?.inventory_id ?? item?.ingredient_id ?? item?.id;
+    // Prefer the recorded name when present: IDs from different tables can collide.
+    const candidates = catalog.filter(c => {
+      const cid = b2bItemId(c);
+      const nameMatches = name && b2bSameScope(b2bItemName(c), name);
+      return name ? nameMatches : id != null && cid != null && String(id) === String(cid);
+    });
+    const directBrand = b2bBrandName(item);
+    const directBranch = b2bBranchName(item);
+    const owners = [...new Set(candidates.map(b2bBrandName).filter(Boolean))];
+    const itemBrand = directBrand || (owners.length === 1 ? owners[0] : "");
+    const itemBranch = directBranch || parentBranch;
+    if (!itemBrand || !itemBranch || /unknown|unassigned|not set|,|—/i.test(itemBrand)) return null;
+    if (parentBrand && !b2bSameScope(itemBrand, parentBrand)) return null;
+    if (parentBranch && !b2bSameScope(itemBranch, parentBranch)) return null;
+    // A catalog is required to validate product ownership, even for aggregate API rows.
+    if (!candidates.some(c => b2bSameScope(b2bBrandName(c), itemBrand))) return null;
+    return { brand:itemBrand, branch:itemBranch };
+  }
+
   function B2BRevenueAssuranceDashboard({ transactions = [], brands = [], user, view="overview", onOpenSalesAi }) {
     const API = process.env.REACT_APP_API_URL || "";
     const [month, setMonth] = useState(() => b2bMonthKey(new Date()));
@@ -5175,9 +5142,37 @@
     const [anomaliesApi, setAnomaliesApi] = useState([]);
     const [productsApi, setProductsApi] = useState([]);
     const [rawOrders, setRawOrders] = useState([]);
+    const [ordersReady, setOrdersReady] = useState(false);
     const [rawInventory, setRawInventory] = useState([]);
+    const [evidenceCatalog, setEvidenceCatalog] = useState([]);
     const [loadError, setLoadError] = useState("");
     const [drilldown, setDrilldown] = useState(null);
+    const [detailHistory, setDetailHistory] = useState([]);
+    const detailRef = useRef(null);
+    useEffect(() => {
+      if (!drilldown) return;
+      const previousFocus = document.activeElement;
+      const dialog = detailRef.current;
+      dialog?.focus();
+      const handleKey = event => {
+        if (event.key === "Escape") { setDrilldown(null); setDetailHistory([]); }
+        if (event.key !== "Tab" || !dialog) return;
+        const controls = [...dialog.querySelectorAll('button:not(:disabled), summary, a[href], input, select, [tabindex="0"]')];
+        const first = controls[0], last = controls[controls.length-1];
+        if (!first) { event.preventDefault(); return; }
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog)) { event.preventDefault(); first.focus(); }
+      };
+      dialog?.addEventListener("keydown",handleKey);
+      return () => { dialog?.removeEventListener("keydown",handleKey); previousFocus?.focus?.(); };
+    }, [Boolean(drilldown)]);
+    const rememberDetail = () => { if (drilldown) setDetailHistory(history=>[...history,drilldown]); };
+    const closeDetail = () => { setDrilldown(null); setDetailHistory([]); };
+    const backDetail = () => {
+      if (!detailHistory.length) { closeDetail(); return; }
+      setDrilldown(detailHistory[detailHistory.length-1]);
+      setDetailHistory(history=>history.slice(0,-1));
+    };
 
     const branchCatalog = useMemo(() => {
       const map = new Map();
@@ -5219,7 +5214,7 @@
     }, [brand, branch, branchOptions]);
 
     const fetchJson = useCallback(async (url) => {
-      const res = await fetch(url, { credentials:"include" });
+      const res = await adminModuleFetch(url, { credentials:"include", cache:"no-store" });
       if (!res.ok) throw new Error(`${res.status}`);
       const json = await res.json();
       if (json?.error) throw new Error(json.error);
@@ -5232,7 +5227,10 @@
       if (user?.branch && !["Super Admin", "Franchisee Operations Admin"].includes(user?.role)) params.set("branch", user.branch);
       if (user?.brand && !["Super Admin", "Franchisee Operations Admin"].includes(user?.role)) params.set("brand", user.brand);
       const data = await fetchJson(`${API}/orders?${params.toString()}`);
-      return Array.isArray(data) ? data : [];
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data?.orders)) return data.orders;
+      if (Array.isArray(data?.data)) return data.data;
+      throw new Error("Supply orders were not returned as a list");
     }, [API, user, fetchJson]);
 
     const loadB2B = useCallback(async () => {
@@ -5258,6 +5256,14 @@
       ];
 
       const settled = await Promise.allSettled(endpoints.map(fetchJson));
+      const catalogResults = await Promise.allSettled([
+        fetchJson(`${API}/inventory`), fetchJson(`${API}/ingredients`),
+      ]);
+      setEvidenceCatalog(catalogResults.flatMap(result => {
+        if (result.status !== "fulfilled") return [];
+        const value = result.value;
+        return Array.isArray(value) ? value : Array.isArray(value?.data) ? value.data : [];
+      }));
       const hasCoreSummary = settled.slice(0,3).every(r=>r.status==="fulfilled");
 
       if (hasCoreSummary) {
@@ -5272,7 +5278,8 @@
         setBrandsApi(Array.isArray(bd) ? bd : Array.isArray(bd?.brands) ? bd.brands : Array.isArray(bd?.data) ? bd.data : []);
         setAnomaliesApi(Array.isArray(an) ? an : Array.isArray(an?.anomalies) ? an.anomalies : Array.isArray(an?.data) ? an.data : []);
         setProductsApi(Array.isArray(pr) ? pr : Array.isArray(pr?.products) ? pr.products : Array.isArray(pr?.data) ? pr.data : []);
-        setRawOrders([]);
+        try { setRawOrders(await fetchRawOrdersFallback()); setOrdersReady(true); }
+        catch { setRawOrders([]); setOrdersReady(false); }
         setRawInventory([]);
       } else {
         setSourceMode("fallback");
@@ -5284,6 +5291,7 @@
           fetchJson(`${API}/ingredients${inventoryParams.toString() ? `?${inventoryParams.toString()}` : ""}`),
           fetchJson(`${API}/inventory${inventoryParams.toString() ? `?${inventoryParams.toString()}` : ""}`),
         ]);
+        setOrdersReady(ordersResult.status === "fulfilled");
         setRawOrders(ordersResult.status === "fulfilled" && Array.isArray(ordersResult.value) ? ordersResult.value : []);
         const stockPayload = stockInventoryResult.status === "fulfilled" ? stockInventoryResult.value : [];
         const posPayload = posInventoryResult.status === "fulfilled" ? posInventoryResult.value : [];
@@ -5297,7 +5305,7 @@
       setLoading(false);
     }, [API, month, branch, brand, risk, growthTargetPct, fetchJson, fetchRawOrdersFallback]);
 
-    useEffect(() => { loadB2B(); }, [loadB2B]);
+    useAdminLiveRefresh(loadB2B, [loadB2B]);
 
     const fallback = useMemo(() => {
       const currentMonth = month;
@@ -5328,20 +5336,18 @@
       const attainment = target > 0 ? (hqRevenue / target) * 100 : null;
       const gap = Math.max(0, target - hqRevenue);
 
-      const allBranchNames = new Set(branchCatalog.map(b=>b.name));
-      currentOrders.forEach(o=>{ if(b2bBranchName(o)) allBranchNames.add(b2bBranchName(o)); });
-      currentTx.forEach(tx=>{ if(b2bBranchName(tx)) allBranchNames.add(b2bBranchName(tx)); });
-      inventory.forEach(row=>{ if(b2bBranchName(row)) allBranchNames.add(b2bBranchName(row)); });
-      prevOrders.forEach(o=>{ if(b2bBranchName(o)) allBranchNames.add(b2bBranchName(o)); });
-      prevTx.forEach(tx=>{ if(b2bBranchName(tx)) allBranchNames.add(b2bBranchName(tx)); });
-
-      const branchRows = Array.from(allBranchNames).map(name => {
-        const cat = branchCatalog.find(x=>x.name===name);
-        const currO = currentOrders.filter(o=>b2bBranchName(o)===name);
-        const prevO = prevOrders.filter(o=>b2bBranchName(o)===name);
-        const currT = currentTx.filter(tx=>b2bBranchName(tx)===name);
-        const prevT = prevTx.filter(tx=>b2bBranchName(tx)===name);
-        const currI = inventory.filter(row=>b2bBranchName(row)===name);
+      const branchPairs=new Map();
+      const addPair=(name,brandName,cat)=>{if(name&&brandAllows(brandName)&&branchAllows(name))branchPairs.set(JSON.stringify([brandName,name]),{name,brandName,cat});};
+      branchCatalog.forEach(cat=>cat.brandNames.forEach(brandName=>addPair(cat.name,brandName,cat)));
+      [...currentOrders,...prevOrders,...currentTx,...prevTx,...inventory].forEach(row=>{
+        const name=b2bBranchName(row),brandName=b2bBrandName(row);
+        const key=JSON.stringify([brandName,name]);
+        if(!branchPairs.has(key))addPair(name,brandName,branchCatalog.find(c=>c.name===name&&c.brandNames.includes(brandName)));
+      });
+      const branchRows = Array.from(branchPairs.values()).map(({name,brandName,cat}) => {
+        const matches=row=>b2bSameScope(b2bBranchName(row),name)&&b2bSameScope(b2bBrandName(row),brandName);
+        const currO=currentOrders.filter(matches),prevO=prevOrders.filter(matches);
+        const currT=currentTx.filter(matches),prevT=prevTx.filter(matches),currI=inventory.filter(matches);
         const hq = currO.reduce((s,o)=>s+b2bOrderAmount(o),0);
         const prevHq = prevO.reduce((s,o)=>s+b2bOrderAmount(o),0);
         const posV = currT.reduce((s,tx)=>s+b2bTxAmount(tx),0);
@@ -5366,7 +5372,7 @@
         const posGrowth = prevPos > 0 ? ((posV-prevPos)/prevPos)*100 : (posV>0?100:0);
         const targetV = prevHq * (1 + growthTargetPct/100);
         const targetPct = targetV > 0 ? (hq/targetV)*100 : null;
-        let riskLabel = "Normal";
+        let riskLabel = stockVariance==null ? "No data yet" : "Normal";
         let reason = "No revenue-leakage signal from available order/POS data.";
         if (posV > 0 && hq === 0) {
           riskLabel = "High Risk";
@@ -5387,6 +5393,10 @@
           riskLabel = "Watch";
           reason = "POS is stable/up while HQ supply revenue is declining.";
         }
+        if(!currO.length&&!currT.length) {
+          riskLabel="No transactions yet";
+          reason="No orders or completed POS transactions recorded for this month. Inventory evidence may be unavailable.";
+        }
         const branchBrands = Array.from(new Set([
           ...(cat?.brandNames || []),
           ...currO.map(b2bBrandName),
@@ -5394,7 +5404,7 @@
           ...currI.map(b2bBrandName),
         ].filter(Boolean)));
         return {
-          id:cat?.id ?? name, branch:name, brand:resolveBranchBrand(name, branchBrands.join(", ")), location:cat?.location || "—", hqRevenue:hq, posRevenue:posV,
+          id:JSON.stringify([brandName,cat?.id ?? name]), branch:name, brand:brandName, location:cat?.location || "—", hqRevenue:hq, posRevenue:posV,
           vsLastMonth:hqGrowth, posGrowth, targetPct, orderCoverage, stockVariance,
           suppliedQty, soldQty, openingStock:openingQty, endingStock,
           risk:riskLabel, reason, targetGap:Math.max(0,targetV-hq), prevHqRevenue:prevHq,
@@ -5430,7 +5440,7 @@
         return { id:brandOptions.find(b=>b.name===name)?.id ?? name, brand:name, hqRevenue:hq, posRevenue:posV, suppliedQty, soldQty, openingStock, endingStock, sellThrough, stockVariance };
       }).filter(r=>!brand || r.brand===brand).sort((a,b)=>b.hqRevenue-a.hqRevenue);
 
-      const riskRows = branchRows.filter(r=>r.risk!=="Normal").map(r=>({
+      const riskRows = branchRows.filter(r=>/high|watch|medium/i.test(r.risk)).map(r=>({
         id:`fallback-${r.branch}`,
         branch:r.branch,
         brand:r.brand,
@@ -5443,8 +5453,10 @@
 
       const skuMap = new Map();
       const addSku = (item, kind, parentBrand, parentBranch) => {
-        const resolvedBranch = parentBranch || b2bBranchName(item) || "—";
-        const resolvedBrand = parentBrand || b2bBrandName(item) || "—";
+        const scope = b2bVerifiedItemScope(item, parentBrand, parentBranch, evidenceCatalog);
+        if (!scope) return;
+        const resolvedBranch = scope.branch;
+        const resolvedBrand = scope.brand;
         if (branch && resolvedBranch !== branch) return;
         if (brand && resolvedBrand !== brand) return;
         const id = b2bItemId(item);
@@ -5473,7 +5485,7 @@
           ? row.openingStock + row.suppliedQty + b2bNum(row.transferIn) - row.soldQty - b2bNum(row.disposal) - b2bNum(row.transferOut) + b2bNum(row.adjustment)
           : null;
         return { ...row, stockVariance:expectedClosing==null?null:row.endingStock-expectedClosing };
-      }).sort((a,b)=>Math.abs(b.stockVariance||0)-Math.abs(a.stockVariance||0) || (b.soldQty+b.suppliedQty)-(a.soldQty+a.suppliedQty)).slice(0,25);
+      }).sort((a,b)=>Math.abs(b.stockVariance||0)-Math.abs(a.stockVariance||0) || (b.soldQty+b.suppliedQty)-(a.soldQty+a.suppliedQty));
 
       const stockRiskRows = skuRows.filter(row=>row.stockVariance!=null && row.stockVariance!==0).map((row,index)=>({
         id:`stock-${row.id}-${index}`,
@@ -5510,7 +5522,7 @@
       const atRisk = new Set(allAnomalies.map(row=>row.branch).filter(Boolean)).size;
 
       return { hqRevenue, prevHqRevenue, posRevenue, prevPosRevenue, target, attainment, gap, coverage, unexplained, sellThrough, atRisk, branchRows, brandRows, anomalies:allAnomalies, skuRows, trend };
-    }, [month, branch, brand, rawOrders, rawInventory, transactions, branchCatalog, brandOptions, growthTargetPct, resolveBranchBrand]);
+    }, [month, branch, brand, rawOrders, rawInventory, transactions, branchCatalog, brandOptions, growthTargetPct, resolveBranchBrand, evidenceCatalog]);
 
     const normalizedOverview = useMemo(() => {
       const o = overviewApi || {};
@@ -5544,7 +5556,7 @@
       if (sourceMode === "fallback" || !branchesApi.length) {
         return fallback.branchRows.filter(r => risk === "all" || String(r.risk).toLowerCase().includes(risk.toLowerCase().replace("high-risk", "high")));
       }
-      return branchesApi.map((r,i)=>({
+      const reported = branchesApi.map((r,i)=>({
         id:r?.branch_id ?? r?.id ?? r?.branch ?? i,
         branch:String(r?.branch_name || r?.branch || r?.name || "Unknown Branch"),
         brand:resolveBranchBrand(
@@ -5560,14 +5572,22 @@
         prevHqRevenue:b2bNullableNum(r?.previous_hq_supply_revenue, r?.prevHqRevenue, r?.previous_revenue),
         orderCoverage:b2bNullableNum(r?.order_coverage, r?.coverage_pct, r?.orderCoverage),
         stockVariance:b2bNullableNum(r?.stock_variance, r?.stockVariance),
-        risk:String(r?.risk || r?.risk_status || r?.anomaly_status || "Normal"),
+        risk:String(r?.risk || r?.risk_status || r?.anomaly_status || "No data yet"),
         reason:String(r?.reason || r?.risk_reason || ""),
       })).filter(r=>(!branch||r.branch===branch)&&(!risk||risk==="all"||String(r.risk).toLowerCase().includes(risk.toLowerCase().replace("high-risk","high"))));
-    }, [sourceMode, branchesApi, fallback.branchRows, resolveBranchBrand, branch, risk]);
+      const merged=new Map(fallback.branchRows.map(r=>[JSON.stringify([r.brand,r.branch]),r]));
+      reported.forEach(r=>{
+        const key=JSON.stringify([r.brand,r.branch]);
+        const existing=merged.get(key);
+        merged.set(key,{...existing,...r,risk:r.hqRevenue===0&&r.posRevenue===0&&existing?.risk==="No transactions yet"?existing.risk:r.risk});
+      });
+      return [...merged.values()].filter(r=>(!brand||r.brand===brand)&&(!branch||r.branch===branch)&&(risk==="all"||String(r.risk).toLowerCase().includes(risk.toLowerCase())));
+
+    }, [sourceMode, branchesApi, fallback.branchRows, resolveBranchBrand, brand, branch, risk]);
 
     const brandRows = useMemo(() => {
       if (sourceMode === "fallback" || !brandsApi.length) return fallback.brandRows;
-      return brandsApi.map((r,i)=>({
+      const reported = brandsApi.map((r,i)=>({
         id:r?.brand_id ?? r?.id ?? r?.brand ?? i,
         brand:String(r?.brand_name || r?.brand || r?.name || "Unknown Brand"),
         hqRevenue:b2bNum(r?.hq_supply_revenue, r?.hqRevenue, r?.supply_revenue),
@@ -5578,6 +5598,10 @@
         sellThrough:b2bNullableNum(r?.sell_through, r?.sell_through_pct),
         stockVariance:b2bNullableNum(r?.stock_variance, r?.stockVariance),
       })).filter(r=>!brand||r.brand===brand);
+      const merged=new Map(fallback.brandRows.map(r=>[r.brand,r]));
+      reported.forEach(r=>merged.set(r.brand,{...merged.get(r.brand),...r}));
+      return [...merged.values()].filter(r=>!brand||r.brand===brand);
+
     }, [sourceMode, brandsApi, fallback.brandRows, brand]);
 
     const anomalies = useMemo(() => {
@@ -5645,6 +5669,8 @@
           : 1;
 
         txItems.forEach((item, itemIndex) => {
+          const scope = b2bVerifiedItemScope(item, txBrand, txBranch, evidenceCatalog);
+          if (!scope) return;
           const sku = String(item?.id ?? item?.inventory_id ?? item?.product_id ?? item?.sku ?? `ITEM-${itemIndex + 1}`);
           const product = String(item?.name || item?.product_name || item?.item_name || "Unnamed Product");
           const soldQty = Number(item?.qty ?? item?.quantity ?? 0) || 0;
@@ -5652,7 +5678,7 @@
           const lineRevenue = grossLineRevenue * netAllocationRatio;
           const key = `${txBrand}::${txBranch}::${sku}::${product}`;
           const existing = productMap.get(key) || {
-            id:key, sku, product, brand:txBrand, branch:txBranch,
+            id:key, productId:item?.product_id ?? item?.inventory_id ?? item?.id ?? null, sku, product, brand:scope.brand, branch:scope.branch,
             soldQty:0, revenue:0, transactionIds:new Set(), lastSale:null,
           };
           existing.soldQty += soldQty;
@@ -5667,7 +5693,7 @@
       return Array.from(productMap.values())
         .map(row => ({ ...row, transactionCount:row.transactionIds.size, transactionIds:undefined }))
         .sort((a,b) => b.revenue-a.revenue || b.soldQty-a.soldQty);
-    }, [transactions, month, branch, brand, resolveBranchBrand]);
+    }, [transactions, month, branch, brand, resolveBranchBrand, evidenceCatalog]);
 
     const productEvidenceRows = useMemo(() => {
       const rows = sourceMode === "aggregated" && productsApi.length
@@ -5686,17 +5712,23 @@
             lastSale:row?.last_sale || row?.lastSale || null,
           }))
         : transactionProductEvidenceRows;
-      return [...rows].sort((a,b) =>
+      return rows.filter(row =>
+        (!brand || b2bSameScope(row.brand, brand)) &&
+        (!branch || b2bSameScope(row.branch, branch)) &&
+        b2bVerifiedItemScope(row, row.brand, row.branch, evidenceCatalog)
+      ).sort((a,b) =>
         String(a.brand).localeCompare(String(b.brand)) ||
         String(a.branch).localeCompare(String(b.branch)) ||
         String(a.product).localeCompare(String(b.product))
       );
-    }, [sourceMode, productsApi, transactionProductEvidenceRows]);
+    }, [sourceMode, productsApi, transactionProductEvidenceRows, brand, branch, evidenceCatalog]);
 
-    const sortedBranchRows = useMemo(() => [...branchRows].sort((a,b)=>{
-      const rank = v => String(v||"").toLowerCase().includes("high") ? 3 : (String(v||"").toLowerCase().includes("watch") || String(v||"").toLowerCase().includes("medium")) ? 2 : 1;
-      return (rank(b.risk)-rank(a.risk)) || ((b.targetGap||0)-(a.targetGap||0)) || (b.hqRevenue-a.hqRevenue);
-    }), [branchRows]);
+    const sortedBranchRows = useMemo(() => [...branchRows].sort((a,b)=>
+      Number(b.hqRevenue||0)-Number(a.hqRevenue||0) ||
+      Number(b.posRevenue||0)-Number(a.posRevenue||0) ||
+      Number(b.prevHqRevenue||0)-Number(a.prevHqRevenue||0) ||
+      String(a.brand).localeCompare(String(b.brand)) || String(a.branch).localeCompare(String(b.branch))
+    ), [branchRows]);
 
     const monthlyLeaders = useMemo(() => {
       const byHq = [...branchRows].sort((a,b)=>Number(b.hqRevenue||0)-Number(a.hqRevenue||0));
@@ -5710,14 +5742,16 @@
       return { hqBranch:byHq[0]||null, posBranch:byPos[0]||null, hqBrand:byBrand[0]||null, leakageBranch:leakage[0]||null };
     }, [branchRows, brandRows]);
 
-    const openKpi = (metric, title) => setDrilldown({
+    const openKpi = (metric, title) => { rememberDetail(); setDrilldown({
       type:"kpi",
       title:title || metric,
       loading:false,
-      data:{ metric },
-    });
+      data:{ metric, scopeBrand:drilldown?.data?.scopeBrand || drilldown?.data?.brand || brand,
+        scopeBranch:drilldown?.data?.scopeBranch || (drilldown?.type === "branch" ? drilldown?.data?.branch : "") || branch },
+    }); };
 
     const openBranch = async (row) => {
+      rememberDetail();
       setDrilldown({ type:"branch", title:row.branch, loading:true, data:row });
       if (sourceMode === "aggregated") {
         try {
@@ -5730,6 +5764,7 @@
     };
 
     const openBrand = async (row) => {
+      rememberDetail();
       setDrilldown({ type:"brand", title:row.brand, loading:true, data:row });
       const selectedBranchRow = branch ? branchCatalog.find(b=>b.name===branch) : null;
       if (sourceMode === "aggregated" && selectedBranchRow) {
@@ -5743,15 +5778,22 @@
     };
 
     const openSku = async (row) => {
+      rememberDetail();
       setDrilldown({ type:"sku", title:row.product, loading:true, data:row });
       const selectedBranchRow = row?.branchId
         ? { id:row.branchId, name:row.branch }
         : branchCatalog.find(b=>b.name===row.branch && (!row.brand || b.brandNames.includes(row.brand)));
       if (sourceMode === "aggregated" && selectedBranchRow && (row?.productId ?? row?.id) != null) {
         try {
-          const q = new URLSearchParams({ branchId:String(selectedBranchRow.id), productId:String(row?.productId ?? row.id), month });
+          const q = new URLSearchParams({ branchId:String(selectedBranchRow.id), productId:String(row?.productId ?? row.id), brand:row.brand, branch:row.branch, month });
           const data = await fetchJson(`${API}/dashboard/b2b/reconcile?${q.toString()}`);
-          setDrilldown({ type:"sku", title:row.product, loading:false, data:{ ...row, ...(data?.data || data) } });
+          const detail = data?.data || data;
+          if ((b2bBrandName(detail) && !b2bSameScope(b2bBrandName(detail), row.brand)) ||
+              (b2bBranchName(detail) && !b2bSameScope(b2bBranchName(detail), row.branch))) throw new Error("Evidence scope mismatch");
+          const ingredients = Array.isArray(detail?.ingredients) ? detail.ingredients.filter(i =>
+            (!b2bBrandName(i) || b2bSameScope(b2bBrandName(i),row.brand)) &&
+            (!b2bBranchName(i) || b2bSameScope(b2bBranchName(i),row.branch))) : undefined;
+          setDrilldown({ type:"sku", title:row.product, loading:false, data:{ ...row, ...detail, brand:row.brand, branch:row.branch, product:row.product, ingredients } });
           return;
         } catch {}
       }
@@ -5767,7 +5809,7 @@
     const hqRevenueStatus = hqRevenueDirection === "up"
       ? { label:"REVENUE UP", title:"Head Office revenue is higher this month", color:"#2c5c16", bg:"#f0f5e8", border:"#c9dba0", icon:TrendingUp }
       : hqRevenueDirection === "down"
-        ? { label:"REVENUE DOWN", title:"Head Office revenue is lower this month", color:"#b42318", bg:"#fef3f2", border:"#fecaca", icon:TrendingDown }
+        ? { label:"REVENUE DOWN", title:"Head Office revenue is lower this month", color:"#b42318", bg:"#fef3f2", border:"#f2c9c4", icon:TrendingDown }
         : hqRevenueDirection === "same"
           ? { label:"NO CHANGE", title:"Head Office revenue is unchanged", color:"#7c5d12", bg:"#fffbeb", border:"#fde68a", icon:Activity }
           : { label:"NO BASELINE", title:"Head Office monthly comparison is not available yet", color:"#5C6B60", bg:"#F6F7F1", border:"#E1E6D8", icon:Info };
@@ -5882,7 +5924,9 @@
               border={hqRevenueStatus.border}
               onClick={()=>openKpi("hqChange", "HQ Month-on-Month Change")}
             />
+
           </div>
+
         </div>
         )}
 
@@ -5896,7 +5940,7 @@
           </div>
         </div>
 
-        {loadError && <div style={{ marginBottom:12, padding:"10px 12px", borderRadius:10, background:"#fef2f2", border:"1px solid #fecaca", color:"#991b1b", fontSize:11.5, display:"flex", gap:7, alignItems:"flex-start" }}><AlertTriangle size={14} style={{flexShrink:0,marginTop:1}}/>{loadError}</div>}
+        {loadError && <div style={{ marginBottom:12, padding:"10px 12px", borderRadius:10, background:"#fef2f2", border:"1px solid #f2c9c4", color:"#991b1b", fontSize:11.5, display:"flex", gap:7, alignItems:"flex-start" }}><AlertTriangle size={14} style={{flexShrink:0,marginTop:1}}/>{loadError}</div>}
         {sourceMode === "fallback" && <div style={{ marginBottom:12, padding:"10px 12px", borderRadius:10, background:"#fffbeb", border:"1px solid #fde68a", color:"#92400e", fontSize:10.8, lineHeight:1.5, display:"flex", gap:7, alignItems:"flex-start" }}><Info size={14} style={{flexShrink:0,marginTop:1}}/><span>This view is using your existing Mobile Orders, POS transactions, and branch inventory endpoints. Exact historical ghost-stock proof still requires dated opening/closing counts and inventory movements linked to their source order, sale, disposal, or transfer.</span></div>}
 
         {isOverviewView && (
@@ -5904,14 +5948,14 @@
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:14, flexWrap:"wrap", marginBottom:13 }}>
               <div>
                 <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:15, fontWeight:850, color:"#12241B" }}><Brain size={16} color="#3b791e"/> Franchisor Decision Summary</div>
-                <div style={{ fontSize:10.8, color:"#6B7A65", marginTop:4 }}>What needs attention now, why it matters, and the next business action.</div>
+                <div style={{ fontSize:10.8, color:"#5C6B60", marginTop:4 }}>What needs attention now, why it matters, and the next business action.</div>
               </div>
               <button onClick={onOpenSalesAi} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 11px", borderRadius:9, border:"1px solid #C9DBA0", background:"#F4F8F0", color:"#2c5c16", fontSize:10.5, fontWeight:850, cursor:"pointer", fontFamily:FONT }}>Open Sales &amp; AI Guidance <ChevronRight size={12}/></button>
             </div>
             <div style={{ display:"grid", gap:9 }}>
               {franchisorActions.map((item,index)=>{
                 const tone = item.tone === "red"
-                  ? { accent:"#c0392b", bg:"#fff7f7", border:"#f2c9c4", badge:"#fee2e2" }
+                  ? { accent:"#c0392b", bg:"#fff7f7", border:"#f2c9c4", badge:"#fdf1f0" }
                   : item.tone === "amber"
                     ? { accent:"#b45309", bg:"#fffbeb", border:"#fde68a", badge:"#fef3c7" }
                     : { accent:"#2c5c16", bg:"#f4f8f0", border:"#c9dba0", badge:"#eaf3df" };
@@ -5928,8 +5972,8 @@
         {isGhostView && (
           <div style={{ ...sectionCard, marginBottom:15, padding:"15px 17px", borderLeft:"5px solid #c0392b", background:"linear-gradient(135deg,#fff,#fff8f7)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
-              <div><div style={{ display:"flex", alignItems:"center", gap:7, fontSize:14.5, fontWeight:850, color:"#12241B" }}><ShieldCheck size={16} color="#c0392b"/> Loss Investigation Workflow</div><div style={{ fontSize:10.8, color:"#6B7A65", marginTop:4 }}>Start with a risk branch, identify the affected SKU, verify movement evidence, then assign the corrective action.</div></div>
-              <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>{["1  Risk branch","2  Affected SKU","3  Movement evidence","4  Corrective action"].map((step,i)=><React.Fragment key={step}><span style={{ padding:"6px 9px", borderRadius:20, background:i===0?"#fee2e2":"#F6F7F1", color:i===0?"#991b1b":"#526052", border:`1px solid ${i===0?"#fecaca":"#DDE8DA"}`, fontSize:9.7, fontWeight:850 }}>{step}</span>{i<3&&<ChevronRight size={12} color="#94a3b8"/>}</React.Fragment>)}</div>
+              <div><div style={{ display:"flex", alignItems:"center", gap:7, fontSize:14.5, fontWeight:850, color:"#12241B" }}><ShieldCheck size={16} color="#c0392b"/> Loss Investigation Workflow</div><div style={{ fontSize:10.8, color:"#5C6B60", marginTop:4 }}>Start with a risk branch, identify the affected SKU, verify movement evidence, then assign the corrective action.</div></div>
+              <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>{["1  Risk branch","2  Affected SKU","3  Movement evidence","4  Corrective action"].map((step,i)=><React.Fragment key={step}><span style={{ padding:"6px 9px", borderRadius:20, background:i===0?"#fdf1f0":"#F6F7F1", color:i===0?"#991b1b":"#526052", border:`1px solid ${i===0?"#f2c9c4":"#DDE8DA"}`, fontSize:9.7, fontWeight:850 }}>{step}</span>{i<3&&<ChevronRight size={12} color="#94a3b8"/>}</React.Fragment>)}</div>
             </div>
           </div>
         )}
@@ -5937,7 +5981,6 @@
         {isOverviewView && (
         <div className="b2b-kpi-grid b2b-overview-kpi-grid" style={{marginBottom:12}}>
           <B2BMetricCard label="FranchiSync Supply Revenue" value={fmtAmt(normalizedOverview.hqRevenue)} icon={Package} tone="green" loading={loading} onClick={()=>openKpi("hqRevenue", "FranchiSync Supply Revenue")} note={`${hqMoM==null?"No prior-month baseline":`${hqMoM>=0?"+":""}${hqMoM.toFixed(1)}% vs last month`} · fulfilled/delivered HQ orders`} />
-          <B2BMetricCard label="Target Gap" value={hasPreviousHqRevenue?fmtAmt(normalizedOverview.targetGap):"—"} icon={TrendingDown} tone={normalizedOverview.targetGap>0?"red":"green"} loading={loading} onClick={()=>openKpi("targetGap", "Target Gap")} note={!hasPreviousHqRevenue?"No previous-month baseline":normalizedOverview.targetGap>0?"HQ supply revenue still needed to hit target":"Target achieved for the selected month"} />
           <B2BMetricCard label="Franchisee POS Revenue" value={fmtAmt(normalizedOverview.posRevenue)} icon={ShoppingCart} tone="blue" loading={loading} onClick={()=>openKpi("posRevenue", "Franchisee POS Revenue")} note={`${posMoM==null?"No prior-month baseline":`${posMoM>=0?"+":""}${posMoM.toFixed(1)}% vs last month`} · paid/completed POS`} />
           <B2BMetricCard label="At-Risk Branches" value={Number(normalizedOverview.atRisk||0).toLocaleString()} icon={AlertTriangle} tone={normalizedOverview.atRisk>0?"red":"green"} loading={loading} onClick={()=>openKpi("atRisk", "At-Risk Branches")} note="High POS with weak HQ ordering or stock mismatch" />
         </div>
@@ -5945,14 +5988,14 @@
 
         {isGhostView && (
         <div className="b2b-kpi-grid" style={{marginBottom:15}}>
-          <B2BMetricCard label="HQ Order Coverage" value={normalizedOverview.coverage==null?"—":`${normalizedOverview.coverage.toFixed(1)}%`} icon={ShieldCheck} tone={normalizedOverview.coverage!=null&&normalizedOverview.coverage<70?"red":"green"} loading={loading} onClick={()=>openKpi("coverage", "HQ Order Coverage")} note={normalizedOverview.coverage==null?"Requires authorized stock movement evidence":"Authorized HQ stock coverage of reported sell-through"} />
+          {normalizedOverview.coverage != null && <B2BMetricCard label="HQ Order Coverage" value={normalizedOverview.coverage==null?"—":`${normalizedOverview.coverage.toFixed(1)}%`} icon={ShieldCheck} tone={normalizedOverview.coverage!=null&&normalizedOverview.coverage<70?"red":"green"} loading={loading} onClick={()=>openKpi("coverage", "HQ Order Coverage")} note={normalizedOverview.coverage==null?"Requires authorized stock movement evidence":"Authorized HQ stock coverage of reported sell-through"} />}
           <B2BMetricCard label="At-Risk Branches" value={Number(normalizedOverview.atRisk||0).toLocaleString()} icon={AlertTriangle} tone={normalizedOverview.atRisk>0?"red":"green"} loading={loading} onClick={()=>openKpi("atRisk", "At-Risk Branches")} note={`${anomalies.filter(a=>String(a.severity).toLowerCase().includes("high")).length} high-risk · ranked anomaly list`} />
-          <B2BMetricCard label="Unexplained Stock" value={normalizedOverview.unexplained==null?"—":Number(normalizedOverview.unexplained).toLocaleString()} icon={Layers} tone={normalizedOverview.unexplained>0?"red":"green"} loading={loading} onClick={()=>openKpi("unexplained", "Unexplained Stock")} note={normalizedOverview.unexplained==null?"Requires opening/receipts/transfers/POS/disposal linkage":"Positive/negative stock variance requiring investigation"} />
+          {normalizedOverview.unexplained != null && <B2BMetricCard label="Unexplained Stock" value={normalizedOverview.unexplained==null?"—":Number(normalizedOverview.unexplained).toLocaleString()} icon={Layers} tone={normalizedOverview.unexplained>0?"red":"green"} loading={loading} onClick={()=>openKpi("unexplained", "Unexplained Stock")} note={normalizedOverview.unexplained==null?"Requires opening/receipts/transfers/POS/disposal linkage":"Positive/negative stock variance requiring investigation"} />}
         </div>
         )}
 
         {isOverviewView && <div style={{ ...sectionCard, marginBottom:15 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:12, flexWrap:"wrap" }}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>6-Month Supply Revenue vs POS Revenue</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3,lineHeight:1.5}}>Green is FranchiSync supply revenue, blue is franchisee POS revenue, and the dashed line is the HQ target. If POS stays high while supply revenue falls, inspect the affected branch. Click a month to focus the dashboard.</div></div><div style={{fontSize:10.5,color:"#5C6B60",fontWeight:700}}>{b2bMonthLabel(month)}</div></div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:12, flexWrap:"wrap" }}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>6-Month Supply Revenue vs POS Revenue</div><div style={{fontSize:10.8,color:"#5C6B60",marginTop:3,lineHeight:1.5}}>Green is FranchiSync supply revenue, blue is franchisee POS revenue, and the dashed line is the HQ target. If POS stays high while supply revenue falls, inspect the affected branch. Click a month to focus the dashboard.</div></div><div style={{fontSize:10.5,color:"#5C6B60",fontWeight:700}}>{b2bMonthLabel(month)}</div></div>
           <B2BDualTrendChart data={trendData} onPointClick={d=>{ if(d?.month) setMonth(d.month); }} />
         </div>}
 
@@ -5960,18 +6003,18 @@
         <div className="b2b-overview-grid" style={{marginBottom:15}}>
           <div style={sectionCard}>
             <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",marginBottom:11,flexWrap:"wrap"}}>
-              <div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>Supply and POS performance by branch, brand and location</div></div>
+              <div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:10.8,color:"#5C6B60",marginTop:3}}>Supply and POS performance by branch, brand and location</div></div>
               <div style={{fontSize:9.8,color:"#5C6B60",textAlign:"right",lineHeight:1.5}}>Top HQ: <b style={{color:"#2c5c16"}}>{monthlyLeaders.hqBranch?`${monthlyLeaders.hqBranch.branch} · ${monthlyLeaders.hqBranch.brand}`:"—"}</b><br/>Highest POS: <b style={{color:"#2563eb"}}>{monthlyLeaders.posBranch?`${monthlyLeaders.posBranch.branch} · ${monthlyLeaders.posBranch.brand}`:"—"}</b></div>
             </div>
-            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:650}}><thead><tr>{["Branch / Brand","HQ Supply","POS Revenue","Coverage","Status"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{[...branchRows].sort((a,b)=>Number(b.hqRevenue||0)-Number(a.hqRevenue||0)).slice(0,8).map((r,i)=><tr key={r.id} onClick={()=>openBranch(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,color:"#12241B"}}><div style={{fontWeight:850}}>{r.branch}</div><div style={{fontSize:9.5,fontWeight:650,color:"#789086",marginTop:3}}>{r.brand||"Brand not set"}</div></td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:750}}>{r.orderCoverage==null?"—":`${r.orderCoverage.toFixed(1)}%`}</td><td style={{...td,textAlign:"right"}}><B2BRiskBadge risk={r.risk}/></td></tr>)}{!branchRows.length&&<tr><td colSpan="5" style={{padding:26,textAlign:"center",fontSize:10.8,color:"#82907F"}}>No branch data for the selected month.</td></tr>}</tbody></table></div>
+            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:650}}><thead><tr>{["Branch / Brand","HQ Supply","POS Revenue","Coverage","Status"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{[...branchRows].sort((a,b)=>Number(b.hqRevenue||0)-Number(a.hqRevenue||0)).slice(0,8).map((r,i)=><tr key={r.id} onClick={()=>openBranch(r)} tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openBranch(r);}}} aria-label={`View ${r.brand} ${r.branch} details`} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,color:"#12241B"}}><div style={{fontWeight:850}}>{r.branch}</div><div style={{fontSize:9.5,fontWeight:650,color:"#5C6B60",marginTop:3}}>{r.brand||"Brand not set"}</div></td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:750}}>{r.orderCoverage==null?"—":`${r.orderCoverage.toFixed(1)}%`}</td><td style={{...td,textAlign:"right"}}><B2BRiskBadge risk={r.risk}/></td></tr>)}{!branchRows.length&&<tr><td colSpan="5" style={{padding:26,textAlign:"center",fontSize:10.8,color:"#82907F"}}>No branch data for the selected month.</td></tr>}</tbody></table></div>
           </div>
 
           <div style={sectionCard}>
             <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",marginBottom:11,flexWrap:"wrap"}}>
-              <div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Brand Performance</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>Which brand earns the most for FranchiSync this month</div></div>
+              <div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Brand Performance</div><div style={{fontSize:10.8,color:"#5C6B60",marginTop:3}}>Which brand earns the most for FranchiSync this month</div></div>
               <div style={{fontSize:9.8,color:"#5C6B60",textAlign:"right",lineHeight:1.5}}>Top brand: <b style={{color:"#2c5c16"}}>{monthlyLeaders.hqBrand?.brand||"—"}</b><br/>Largest POS–HQ gap: <b style={{color:"#b42318"}}>{monthlyLeaders.leakageBranch?`${monthlyLeaders.leakageBranch.branch} · ${monthlyLeaders.leakageBranch.brand}`:"—"}</b></div>
             </div>
-            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:540}}><thead><tr>{["Brand","HQ Supply","POS Revenue","Supplied / Sold"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{[...brandRows].sort((a,b)=>Number(b.hqRevenue||0)-Number(a.hqRevenue||0)).slice(0,8).map((r,i)=><tr key={r.id} onClick={()=>openBrand(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,fontWeight:800,color:"#12241B"}}>{r.brand}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:750}}>{Number(r.suppliedQty||0).toLocaleString()} / {Number(r.soldQty||0).toLocaleString()}</td></tr>)}{!brandRows.length&&<tr><td colSpan="4" style={{padding:26,textAlign:"center",fontSize:10.8,color:"#82907F"}}>No brand data for the selected month.</td></tr>}</tbody></table></div>
+            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:540}}><thead><tr>{["Brand","HQ Supply","POS Revenue","Supplied / Sold"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{[...brandRows].sort((a,b)=>Number(b.hqRevenue||0)-Number(a.hqRevenue||0)).map((r,i)=><tr key={r.id} onClick={()=>openBrand(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,fontWeight:800,color:"#12241B"}}>{r.brand}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:750}}>{Number(r.suppliedQty||0).toLocaleString()} / {Number(r.soldQty||0).toLocaleString()}</td></tr>)}{!brandRows.length&&<tr><td colSpan="4" style={{padding:26,textAlign:"center",fontSize:10.8,color:"#82907F"}}>No brand data for the selected month.</td></tr>}</tbody></table></div>
           </div>
         </div>
         )}
@@ -5979,32 +6022,32 @@
         {isGhostView && (
         <div className="b2b-two-col" style={{marginBottom:15,gridTemplateColumns:"1fr"}}>
           <div style={sectionCard}>
-            <div style={{ display:"flex", justifyContent:"space-between", gap:12, marginBottom:12, alignItems:"flex-start" }}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Loss Risk by Branch</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>Highest risk first. Use coverage and stock variance to locate the likely source of loss, then click a branch for evidence.</div></div><span style={{fontSize:10.5,fontWeight:800,color:"#3b791e"}}>{sortedBranchRows.length} branches</span></div>
-            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:760}}><thead><tr>{["Branch / Brand","HQ Supply","POS Revenue","Order Coverage","Stock Variance","Risk"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{sortedBranchRows.length?sortedBranchRows.map((r,i)=><tr key={r.id} onClick={()=>openBranch(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,color:"#12241B"}}><div style={{fontWeight:850}}>{r.branch}</div><div style={{fontSize:9.5,fontWeight:650,color:"#789086",marginTop:3}}>{r.brand||"Brand not set"}</div></td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:700}}>{r.orderCoverage==null?"—":`${r.orderCoverage.toFixed(1)}%`}</td><td style={{...td,textAlign:"right",fontWeight:700,color:r.stockVariance==null?"#94a3b8":r.stockVariance===0?"#2c5c16":"#c0392b"}}>{r.stockVariance==null?"—":`${r.stockVariance>0?"+":""}${r.stockVariance.toLocaleString()} units`}</td><td style={{...td,textAlign:"right"}}><B2BRiskBadge risk={r.risk}/></td></tr>):<tr><td colSpan="6" style={{padding:28,textAlign:"center",color:"#94a3b8",fontSize:11.5}}>No branch risk data for the selected filters.</td></tr>}</tbody></table></div>
+            <div style={{ display:"flex", justifyContent:"space-between", gap:12, marginBottom:12, alignItems:"flex-start" }}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Loss Risk by Branch</div><div style={{fontSize:10.8,color:"#5C6B60",marginTop:3}}>Highest HQ supply revenue first, then POS revenue. Click a branch for evidence.</div></div><span style={{fontSize:10.5,fontWeight:800,color:"#3b791e"}}>{sortedBranchRows.length} branches</span></div>
+            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:760}}><thead><tr>{["Branch / Brand","HQ Supply","POS Revenue","Order Coverage","Stock Variance","Risk"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{sortedBranchRows.length?sortedBranchRows.map((r,i)=><tr key={r.id} onClick={()=>openBranch(r)} tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openBranch(r);}}} aria-label={`View ${r.brand} ${r.branch} details`} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,color:"#12241B"}}><div style={{fontWeight:850}}>{r.branch}</div><div style={{fontSize:9.5,fontWeight:650,color:"#5C6B60",marginTop:3}}>{r.brand||"Brand not set"}</div></td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:700}}>{r.orderCoverage==null?"—":`${r.orderCoverage.toFixed(1)}%`}</td><td style={{...td,textAlign:"right",fontWeight:700,color:r.stockVariance==null?"#94a3b8":r.stockVariance===0?"#2c5c16":"#c0392b"}}>{r.stockVariance==null?"—":`${r.stockVariance>0?"+":""}${r.stockVariance.toLocaleString()} units`}</td><td style={{...td,textAlign:"right"}}><B2BRiskBadge risk={r.risk}/></td></tr>):<tr><td colSpan="6" style={{padding:28,textAlign:"center",color:"#94a3b8",fontSize:11.5}}>No branch risk data for the selected filters.</td></tr>}</tbody></table></div>
           </div>
 
           <div style={{...sectionCard,display:"none"}}>
-            <div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Store Location View</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3,marginBottom:13}}>Fast location scan · click a store to open branch detail</div>
+            <div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Store Location View</div><div style={{fontSize:10.8,color:"#5C6B60",marginTop:3,marginBottom:13}}>Fast location scan · click a store to open branch detail</div>
             <div style={{display:"grid",gap:8,maxHeight:390,overflowY:"auto",paddingRight:2}}>{sortedBranchRows.length?sortedBranchRows.map((r,i)=><button key={r.id} onClick={()=>openBranch(r)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"10px 11px",border:"1px solid #E7EEE4",borderRadius:11,background:i%2?"#FBFDF9":"#fff",cursor:"pointer",fontFamily:FONT,textAlign:"left"}}><div style={{display:"flex",gap:8,alignItems:"flex-start",minWidth:0}}><MapPin size={14} color="#3b791e" style={{flexShrink:0,marginTop:1}}/><div style={{minWidth:0}}><div style={{fontSize:11,fontWeight:800,color:"#12241B",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.branch}</div><div style={{fontSize:9.5,color:"#8A9687",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.brand||"Brand not set"}</div></div></div><B2BRiskBadge risk={r.risk}/></button>):<DashboardEmptyState message="No store locations available."/>}</div>
           </div>
         </div>
         )}
 
         {drilldown && (
-          <div onMouseDown={e=>{ if(e.target===e.currentTarget)setDrilldown(null); }} style={{position:"fixed",inset:0,zIndex:5000,background:"rgba(18,36,27,.58)",backdropFilter:"blur(5px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-            <div style={{width:"min(940px,96vw)",maxHeight:"88vh",overflowY:"auto",background:"#fff",borderRadius:20,border:"1px solid #DDE8DA",boxShadow:"0 30px 80px rgba(18,36,27,.28)",fontFamily:FONT}}>
-              <div style={{position:"sticky",top:0,zIndex:2,background:"#fff",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,padding:"17px 20px",borderBottom:"1px solid #E7EEE4"}}><div><div style={{fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:".07em",color:"#6B7A65"}}>{drilldown.type} detail · {b2bMonthLabel(month)}</div><div style={{fontSize:18,fontWeight:850,color:"#12241B",marginTop:3}}>{drilldown.title}</div></div><button onClick={()=>setDrilldown(null)} style={{width:32,height:32,borderRadius:9,border:"1px solid #E1E6D8",background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#5C6B60"}}><X size={15}/></button></div>
+          <div onMouseDown={e=>{ if(e.target===e.currentTarget)closeDetail(); }} style={{position:"fixed",inset:0,zIndex:5000,background:"rgba(18,36,27,.58)",backdropFilter:"blur(5px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <div className="ad-detail-dialog" ref={detailRef} role="dialog" aria-modal="true" aria-label={drilldown.title} tabIndex={-1} style={{width:"min(940px,96vw)",maxHeight:"88vh",overflowY:"auto",background:"#fff",borderRadius:20,border:"1px solid #DDE8DA",boxShadow:"0 30px 80px rgba(18,36,27,.28)",fontFamily:FONT}}>
+              <div style={{position:"sticky",top:0,zIndex:2,background:"#fff",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,padding:"17px 20px",borderBottom:"1px solid #E7EEE4"}}><div><div style={{fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:".07em",color:"#5C6B60"}}>{drilldown.type} detail · {b2bMonthLabel(month)}</div><div style={{fontSize:18,fontWeight:850,color:"#12241B",marginTop:3}}>{drilldown.title}</div></div><div style={{display:"flex",gap:8}}><button type="button" onClick={backDetail} style={{...btnSt,height:34,minHeight:34,padding:"6px 10px",fontSize:11,borderRadius:8}}>Back</button><button aria-label="Close details" onClick={closeDetail} style={{width:34,height:34,borderRadius:9,border:"1px solid #E1E6D8",background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#5C6B60"}}><X size={15}/></button></div></div>
               <div style={{padding:20}}>
-                {drilldown.loading ? <div style={{padding:40,textAlign:"center",color:"#6B7A65"}}><RefreshCw size={22} style={{animation:"spin .8s linear infinite"}}/><div style={{marginTop:8,fontSize:11.5}}>Loading drilldown evidence…</div></div> : (
+                {drilldown.loading ? <div style={{padding:40,textAlign:"center",color:"#5C6B60"}}><RefreshCw size={22} style={{animation:"spin .8s linear infinite"}}/><div style={{marginTop:8,fontSize:11.5}}>Loading drilldown evidence…</div></div> : (
                   <>
                     {drilldown.warning && <div style={{marginBottom:12,padding:"10px 12px",borderRadius:10,background:"#fffbeb",border:"1px solid #fde68a",color:"#92400e",fontSize:10.8,lineHeight:1.5}}>{drilldown.warning}</div>}
-                    {drilldown.type === "branch" && <div><div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(4,minmax(0,1fr))",marginBottom:14}}><B2BMetricCard label="HQ Supply Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.hq_supply_revenue,drilldown.data?.hqRevenue)??0)} icon={Package} note="Open complete HQ breakdown" onClick={()=>openKpi("hqRevenue","HQ Supply Revenue")}/><B2BMetricCard label="POS Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.pos_revenue,drilldown.data?.posRevenue)??0)} icon={ShoppingCart} tone="blue" note="Open complete POS breakdown" onClick={()=>openKpi("posRevenue","POS Revenue")}/><B2BMetricCard label="Target Attainment" value={b2bNullableNum(drilldown.data?.target_attainment_pct,drilldown.data?.targetPct)==null?"—":`${b2bNullableNum(drilldown.data?.target_attainment_pct,drilldown.data?.targetPct).toFixed(1)}%`} icon={Target} tone="amber" note="Open monthly target evidence" onClick={()=>openKpi("target","Target Attainment")}/><B2BMetricCard label="Order Coverage" value={b2bNullableNum(drilldown.data?.order_coverage,drilldown.data?.orderCoverage)==null?"—":`${b2bNullableNum(drilldown.data?.order_coverage,drilldown.data?.orderCoverage).toFixed(1)}%`} icon={ShieldCheck} note="Open stock-flow coverage" onClick={()=>openKpi("coverage","Order Coverage")}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div style={sectionCard}><div style={{fontSize:12,fontWeight:800,color:"#12241B",marginBottom:8}}>Why this branch is flagged</div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>{drilldown.data?.reason || drilldown.data?.risk_reason || "No anomaly explanation was returned for this branch."}</div><div style={{marginTop:10}}><B2BRiskBadge risk={drilldown.data?.risk || drilldown.data?.risk_status}/></div></div><div style={sectionCard}><div style={{fontSize:12,fontWeight:800,color:"#12241B",marginBottom:8}}>Branch context</div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>Branch: <b>{drilldown.data?.branch || drilldown.title}</b><br/>Brand: <b>{drilldown.data?.brand || "Unassigned Brand"}</b><br/>Location: <b>{drilldown.data?.location || "—"}</b><br/>Selected month: <b>{b2bMonthLabel(month)}</b></div></div></div></div>}
-                    {drilldown.type === "brand" && <div><div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(4,minmax(0,1fr))",marginBottom:14}}><B2BMetricCard label="HQ Supply Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.hq_supply_revenue,drilldown.data?.hqRevenue)??0)} icon={Package} note="Open complete HQ breakdown" onClick={()=>openKpi("hqRevenue","HQ Supply Revenue")}/><B2BMetricCard label="POS Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.pos_revenue,drilldown.data?.posRevenue)??0)} icon={ShoppingCart} tone="blue" note="Open complete POS breakdown" onClick={()=>openKpi("posRevenue","POS Revenue")}/><B2BMetricCard label="Qty Supplied" value={b2bNum(drilldown.data?.supplied_qty,drilldown.data?.suppliedQty).toLocaleString()} icon={Package} note="Open HQ order coverage" onClick={()=>openKpi("coverage","Quantity Supplied")}/><B2BMetricCard label="Qty Sold" value={b2bNum(drilldown.data?.sold_qty,drilldown.data?.soldQty).toLocaleString()} icon={TrendingUp} tone="blue" note="Open sell-through evidence" onClick={()=>openKpi("sellThrough","Quantity Sold")}/></div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>Click an SKU in the ghost stock evidence table for opening stock, HQ receipts, POS deductions, disposal, manual adjustment, closing stock and variance evidence.</div></div>}
-                    {drilldown.type === "sku" && <div><div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:860}}><thead><tr><th style={{...th,textAlign:"left"}}>Product / Brand</th>{["Opening","HQ Receipts","POS Sold","Disposal / Waste","Transfer In","Transfer Out","Recorded Closing","Variance"].map(h=><th key={h} style={{...th,textAlign:"right"}}>{h}</th>)}</tr></thead><tbody><tr><td style={{...td,textAlign:"left"}}><b>{drilldown.data?.product || drilldown.data?.sku || "SKU"}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{drilldown.data?.brand || "Brand not set"}{drilldown.data?.branch?` · ${drilldown.data.branch}`:""}</div></td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.opening_stock,drilldown.data?.openingStock)==null?"—":b2bNullableNum(drilldown.data?.opening_stock,drilldown.data?.openingStock).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{b2bNum(drilldown.data?.hq_received,drilldown.data?.received_qty,drilldown.data?.suppliedQty).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{b2bNum(drilldown.data?.pos_sold,drilldown.data?.sold_qty,drilldown.data?.soldQty).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.disposal,drilldown.data?.waste)==null?"—":b2bNum(drilldown.data?.disposal,drilldown.data?.waste).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.transfer_in)==null?"—":b2bNum(drilldown.data?.transfer_in).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.transfer_out)==null?"—":b2bNum(drilldown.data?.transfer_out).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.closing_stock,drilldown.data?.endingStock)==null?"—":b2bNullableNum(drilldown.data?.closing_stock,drilldown.data?.endingStock).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#c0392b"}}>{b2bNullableNum(drilldown.data?.variance,drilldown.data?.stockVariance)==null?"—":b2bNullableNum(drilldown.data?.variance,drilldown.data?.stockVariance).toLocaleString()}</td></tr></tbody></table></div><div style={{marginTop:12,fontSize:10.5,color:"#6B7A65",lineHeight:1.55}}>Evidence endpoint should also return linked Mobile Order references, POS transactions, inventory movements, source/reference IDs, user/reason for manual adjustments, and before/after quantities.</div></div>}
+                    {drilldown.type === "branch" && <div><div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(2,minmax(0,1fr))",marginBottom:14}}><B2BMetricCard label="HQ Supply Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.hq_supply_revenue,drilldown.data?.hqRevenue)??0)} icon={Package} note="Open complete HQ breakdown" onClick={()=>openKpi("hqRevenue","HQ Supply Revenue")}/><B2BMetricCard label="POS Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.pos_revenue,drilldown.data?.posRevenue)??0)} icon={ShoppingCart} tone="blue" note="Open complete POS breakdown" onClick={()=>openKpi("posRevenue","POS Revenue")}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div style={sectionCard}><div style={{fontSize:12,fontWeight:800,color:"#12241B",marginBottom:8}}>Why this branch is flagged</div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>{drilldown.data?.reason || drilldown.data?.risk_reason || "No anomaly explanation was returned for this branch."}</div><div style={{marginTop:10}}><B2BRiskBadge risk={drilldown.data?.risk || drilldown.data?.risk_status}/></div></div><div style={sectionCard}><div style={{fontSize:12,fontWeight:800,color:"#12241B",marginBottom:8}}>Branch context</div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>Branch: <b>{drilldown.data?.branch || drilldown.title}</b><br/>Brand: <b>{drilldown.data?.brand || "Unassigned Brand"}</b><br/>Location: <b>{drilldown.data?.location || "—"}</b><br/>Selected month: <b>{b2bMonthLabel(month)}</b></div></div></div></div>}
+                    {drilldown.type === "brand" && <div><div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(2,minmax(0,1fr))",marginBottom:14}}><B2BMetricCard label="HQ Supply Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.hq_supply_revenue,drilldown.data?.hqRevenue)??0)} icon={Package} note="Open complete HQ breakdown" onClick={()=>openKpi("hqRevenue","HQ Supply Revenue")}/><B2BMetricCard label="POS Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.pos_revenue,drilldown.data?.posRevenue)??0)} icon={ShoppingCart} tone="blue" note="Open complete POS breakdown" onClick={()=>openKpi("posRevenue","POS Revenue")}/></div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>Click an SKU in the ghost stock evidence table for opening stock, HQ receipts, POS deductions, disposal, manual adjustment, closing stock and variance evidence.</div></div>}
+                    {drilldown.type === "sku" && <div><div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:860}}><thead><tr><th style={{...th,textAlign:"left"}}>Product / Brand</th>{["Opening","HQ Receipts","POS Sold","Disposal / Waste","Transfer In","Transfer Out","Recorded Closing","Variance"].map(h=><th key={h} style={{...th,textAlign:"right"}}>{h}</th>)}</tr></thead><tbody><tr><td style={{...td,textAlign:"left"}}><b>{drilldown.data?.product || drilldown.data?.sku || "SKU"}</b><div style={{fontSize:9,color:"#5C6B60",marginTop:2}}>{drilldown.data?.brand || "Brand not set"}{drilldown.data?.branch?` · ${drilldown.data.branch}`:""}</div></td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.opening_stock,drilldown.data?.openingStock)==null?"—":b2bNullableNum(drilldown.data?.opening_stock,drilldown.data?.openingStock).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{b2bNum(drilldown.data?.hq_received,drilldown.data?.received_qty,drilldown.data?.suppliedQty).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{b2bNum(drilldown.data?.pos_sold,drilldown.data?.sold_qty,drilldown.data?.soldQty).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.disposal,drilldown.data?.waste)==null?"—":b2bNum(drilldown.data?.disposal,drilldown.data?.waste).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.transfer_in)==null?"—":b2bNum(drilldown.data?.transfer_in).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.transfer_out)==null?"—":b2bNum(drilldown.data?.transfer_out).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.closing_stock,drilldown.data?.endingStock)==null?"—":b2bNullableNum(drilldown.data?.closing_stock,drilldown.data?.endingStock).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#c0392b"}}>{b2bNullableNum(drilldown.data?.variance,drilldown.data?.stockVariance)==null?"—":b2bNullableNum(drilldown.data?.variance,drilldown.data?.stockVariance).toLocaleString()}</td></tr></tbody></table></div><div style={{marginTop:12,fontSize:10.5,color:"#5C6B60",lineHeight:1.55}}>Evidence endpoint should also return linked Mobile Order references, POS transactions, inventory movements, source/reference IDs, user/reason for manual adjustments, and before/after quantities.</div></div>}
                     {drilldown.type === "sku" && Array.isArray(drilldown.data?.ingredients) && (
                       <div style={{marginTop:14}}>
                         <div style={{fontSize:12.5,fontWeight:850,color:"#12241B",marginBottom:4}}>Specific ingredients for this product</div>
-                        <div style={{fontSize:10.2,color:"#6B7A65",lineHeight:1.5,marginBottom:9}}>
+                        <div style={{fontSize:10.2,color:"#5C6B60",lineHeight:1.5,marginBottom:9}}>
                           {drilldown.data?.brand || "Brand not set"} · {drilldown.data?.branch || "Branch not set"} · {drilldown.data?.product || drilldown.data?.sku || "Product"}
                         </div>
                         <div style={tableWrap}>
@@ -6029,7 +6072,15 @@
                     )}
                     {drilldown.type === "kpi" && (
                       <B2BKpiBreakdown
+                        key={`${drilldown.data?.metric}-${drilldown.data?.scopeBrand}-${drilldown.data?.scopeBranch}`}
                         metric={drilldown.data?.metric}
+                        initialSelected={drilldown.data?.selectedOrders || null}
+                        user={user}
+                        api={API}
+                        orders={rawOrders}
+                        ordersReady={ordersReady}
+                        initialBrand={drilldown.data?.scopeBrand || ""}
+                        initialBranch={drilldown.data?.scopeBranch || ""}
                         overview={normalizedOverview}
                         branchRows={sortedBranchRows}
                         brandRows={brandRows}
@@ -6080,28 +6131,28 @@
     };
     const columns = id === "transactions"
       ? [
-          ["Branch / Brand","left",r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
+          ["Branch / Brand","left",r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#5C6B60",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
           ["Transactions","right",r=>Number(r.transactions||0).toLocaleString()],
           ["Average Sale","right",r=>fmtAmt(r.avgOrder)],
           ["Revenue","right",r=>fmtAmt(r.revenue)],
         ]
       : id === "averageSale"
         ? [
-            ["Branch / Brand","left",r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
+            ["Branch / Brand","left",r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#5C6B60",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
             ["Average Sale","right",r=>fmtAmt(r.avgOrder)],
             ["Transactions","right",r=>Number(r.transactions||0).toLocaleString()],
             ["Revenue","right",r=>fmtAmt(r.revenue)],
           ]
         : id === "activeBranches"
           ? [
-              ["Branch / Brand","left",r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
+              ["Branch / Brand","left",r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#5C6B60",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
               ["Revenue","right",r=>fmtAmt(r.revenue)],
               ["Transactions","right",r=>Number(r.transactions||0).toLocaleString()],
               ["Avg. Sale","right",r=>fmtAmt(r.avgOrder)],
               ["Margin","right",r=>r.hasCogs?`${Number(r.margin||0).toFixed(1)}%`:"No COGS"],
             ]
           : [
-              ["Branch / Brand","left",r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
+              ["Branch / Brand","left",r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#5C6B60",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
               ["Revenue","right",r=>fmtAmt(r.revenue)],
               ["Revenue Share","right",r=>totalRevenue>0?`${(Number(r.revenue||0)/totalRevenue*100).toFixed(1)}%`:"—"],
               ["Gross Profit","right",r=>r.hasCogs?fmtAmt(r.grossProfit):"No COGS"],
@@ -6113,7 +6164,7 @@
       <div onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:"fixed",inset:0,zIndex:5100,background:"rgba(18,36,27,.58)",backdropFilter:"blur(5px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
         <div style={{width:"min(940px,96vw)",maxHeight:"88vh",overflowY:"auto",background:"#fff",borderRadius:20,border:"1px solid #DDE8DA",boxShadow:"0 30px 80px rgba(18,36,27,.28)",fontFamily:FONT}}>
           <div style={{position:"sticky",top:0,zIndex:2,background:"#fff",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,padding:"17px 20px",borderBottom:"1px solid #E7EEE4"}}>
-            <div><div style={{fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:".07em",color:"#6B7A65"}}>Operational KPI detail · {rangeLabel}</div><div style={{fontSize:18,fontWeight:850,color:"#12241B",marginTop:3}}>{detail.label} Breakdown</div><div style={{fontSize:10.5,color:"#71806F",marginTop:3}}>{filterLabel}</div></div>
+            <div><div style={{fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:".07em",color:"#5C6B60"}}>Operational KPI detail · {rangeLabel}</div><div style={{fontSize:18,fontWeight:850,color:"#12241B",marginTop:3}}>{detail.label} Breakdown</div><div style={{fontSize:10.5,color:"#71806F",marginTop:3}}>{filterLabel}</div></div>
             <button onClick={onClose} style={{width:32,height:32,borderRadius:9,border:"1px solid #E1E6D8",background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#5C6B60"}}><X size={15}/></button>
           </div>
           <div style={{padding:20}}>
@@ -6191,7 +6242,7 @@
           const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
           if (bn.length) params.set("branches", bn.join(","));
         }
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
         const d   = await res.json();
         if (!d.error) setKpiData(d);
       } catch (err) { console.error(err); }
@@ -6620,7 +6671,7 @@
           const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
           if (bn.length) params.set("branches", bn.join(","));
         }
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
         const d = await res.json();
         if (!d.error) setKpiData(d);
       } catch (err) {
@@ -6635,15 +6686,15 @@
     }
   };
 
-    const filterInputSt = { height: 36, padding: "0 11px", borderRadius: 9, border: "1px solid #b2dfdb", background: "#f0fdf5", fontSize: 13, color: "#0d2b1e", outline: "none", fontFamily: FONT, boxSizing: "border-box", width: "100%" };
-    const dropSt = { position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 400, background: "#fff", border: "1px solid #b2dfdb", borderRadius: 11, boxShadow: "0 8px 28px rgba(0,0,0,0.10)", maxHeight: 220, overflowY: "auto" };
-    const optSt  = (a) => ({ padding: "9px 14px", cursor: "pointer", fontSize: 13, color: a ? "#00695c" : "#0d2b1e", fontWeight: a ? 700 : 500, background: a ? "#e0f2f1" : "transparent", display: "flex", alignItems: "center", gap: 8, fontFamily: FONT });
-    const tabSt  = (a) => ({ padding: "6px 13px", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT, transition: "all .15s", background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent", color: a ? "#fff" : "#5a7a65", boxShadow: a ? "0 2px 8px rgba(0,180,90,.35)" : "none" });
+    const filterInputSt = { height: 36, padding: "0 11px", borderRadius: 9, border: "1px solid #E1E6D8", background: "#f0f5e8", fontSize: 13, color: "#12241B", outline: "none", fontFamily: FONT, boxSizing: "border-box", width: "100%" };
+    const dropSt = { position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 400, background: "#fff", border: "1px solid #E1E6D8", borderRadius: 11, boxShadow: "0 8px 28px rgba(0,0,0,0.10)", maxHeight: 220, overflowY: "auto" };
+    const optSt  = (a) => ({ padding: "9px 14px", cursor: "pointer", fontSize: 13, color: a ? "#2c5c16" : "#12241B", fontWeight: a ? 700 : 500, background: a ? "#f0f5e8" : "transparent", display: "flex", alignItems: "center", gap: 8, fontFamily: FONT });
+    const tabSt  = (a) => ({ padding: "6px 13px", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT, transition: "all .15s", background: a ? "linear-gradient(135deg,#3b791e,#3b791e)" : "transparent", color: a ? "#fff" : "#5C6B60", boxShadow: a ? "0 2px 8px rgba(0,180,90,.35)" : "none" });
 
     return (
       <div style={{ fontFamily: FONT }}>
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
           *, *::before, *::after { box-sizing: border-box; }
           @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
           @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
@@ -6652,7 +6703,7 @@
 
         {/* Archive banner */}
         {viewArchive && (
-          <div style={{ background: "linear-gradient(135deg,#0d2b1e,#1a4a2e)", color: "#fff", borderRadius: 14, padding: "12px 20px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ background: "linear-gradient(135deg,#12241B,#1a4a2e)", color: "#fff", borderRadius: 14, padding: "12px 20px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 14, fontFamily: FONT }}>
               <Archive size={16} /> Viewing Archive: {viewArchive.year}
               <span style={{ opacity: 0.6, fontSize: 12, fontWeight: 400 }}>— saved {viewArchive.savedAt}</span>
@@ -6667,13 +6718,13 @@
           {[
             { id:"overview", number:"01", label:"Overview", question:"What needs attention?", icon:Home },
             { id:"sales_ai", number:"02", label:"Sales Trend Analysis", question:"How are actual sales changing?", icon:LineChart },
-            { id:"ghost", number:"03", label:"Ghost Stock / AI Prescriptive Analysis", question:"Where are losses coming from?", icon:ShieldCheck },
+            { id:"ghost", number:"03", label:"Ghost Stock / Revenue Leakage", question:"Where are losses coming from?", icon:ShieldCheck },
           ].map(tab=>{
             const active = dashboardTab === tab.id;
             const Icon = tab.icon;
-            return <button key={tab.id} onClick={()=>{ setDashboardTab(tab.id); if(tab.id!=="sales_ai") setViewArchive(null); }} style={{ display:"flex", alignItems:"center", gap:10, minHeight:67, padding:"11px 13px", borderRadius:12, border:`1px solid ${active?"#A9C982":"transparent"}`, background:active?"linear-gradient(135deg,#F2F7EB,#EAF3DF)":"transparent", color:active?"#2c5c16":"#64748b", cursor:"pointer", textAlign:"left", fontFamily:FONT, boxShadow:active?"inset 0 0 0 1px rgba(59,121,30,.05)":"none" }}>
+            return <button key={tab.id} onClick={()=>{ setDashboardTab(tab.id); if(tab.id!=="sales_ai") setViewArchive(null); }} style={{ display:"flex", alignItems:"center", justifyContent:"flex-start", gap:10, minHeight:67, padding:"11px 13px", borderRadius:12, border:`1px solid ${active?"#A9C982":"transparent"}`, background:active?"linear-gradient(135deg,#F2F7EB,#EAF3DF)":"transparent", color:active?"#2c5c16":"#64748b", cursor:"pointer", textAlign:"left", fontFamily:FONT, boxShadow:active?"inset 0 0 0 1px rgba(59,121,30,.05)":"none" }}>
               <span style={{ width:34, height:34, borderRadius:10, flexShrink:0, display:"inline-flex", alignItems:"center", justifyContent:"center", background:active?"#3b791e":"#F1F5F2", color:active?"#fff":"#71806F" }}><Icon size={16}/></span>
-              <span style={{ minWidth:0 }}><span style={{ display:"block", fontSize:9, fontWeight:900, letterSpacing:".08em", opacity:.72, marginBottom:2 }}>{tab.number}</span><span style={{ display:"block", fontSize:11.4, fontWeight:850, lineHeight:1.25 }}>{tab.label}</span><span style={{ display:"block", fontSize:9.4, color:active?"#5C6B60":"#94a3b8", fontWeight:650, marginTop:3, lineHeight:1.25 }}>{tab.question}</span></span>
+              <span style={{ minWidth:0, textAlign:"left" }}><span style={{ display:"block", fontSize:9, fontWeight:900, letterSpacing:".08em", opacity:.72, marginBottom:2 }}>{tab.number}</span><span style={{ display:"block", fontSize:11.4, fontWeight:850, lineHeight:1.25 }}>{tab.label}</span><span style={{ display:"block", fontSize:9.4, color:active?"#5C6B60":"#94a3b8", fontWeight:650, marginTop:3, lineHeight:1.25 }}>{tab.question}</span></span>
             </button>;
           })}
         </div>
@@ -6758,19 +6809,19 @@
                   </button>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
-                      <k.icon size={12} color="#00897b" /> {k.label}
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5C6B60", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
+                      <k.icon size={12} color="#3b791e" /> {k.label}
                     </div>
                     {kpiLoading && k.value == null
-                      ? <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>Loading…</div>
+                      ? <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0f5e8", border: "1.5px dashed #a7f3d0", color: "#5C6B60", display: "inline-block", fontFamily: FONT }}>Loading…</div>
                       : k.value != null
-                        ? <div style={{ fontSize: 22, fontWeight: 800, color: "#0d2b1e", letterSpacing: "-0.5px", fontFamily: FONT }}>
+                        ? <div style={{ fontSize: 22, fontWeight: 800, color: "#12241B", letterSpacing: "-0.5px", fontFamily: FONT }}>
                             {!isHidden ? (k.format === "money" ? fmtAmt(k.value) : Number(k.value).toLocaleString()) : (k.format === "money" ? "₱••••••••" : "••••")}
                           </div>
-                        : <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>— Pending</div>
+                        : <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0f5e8", border: "1.5px dashed #a7f3d0", color: "#5C6B60", display: "inline-block", fontFamily: FONT }}>— Pending</div>
                     }
                   </div>
-                  <SparkBar values={values.slice(-7)} color="#00c853" height={28} />
+                  <SparkBar values={values.slice(-7)} color="#3b791e" height={28} />
                 </div>
                 <div style={{ fontSize: 10.5, fontWeight: 600, color: "#94a3b8", fontFamily: FONT }}>{k.note}</div>
                 <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginTop:4 }}><div style={{ fontSize: 9.5, fontWeight: 600, color: "#A7B0A5", fontFamily: FONT }}>{getRangeLabel()} · {filterLabel}</div><span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:9.5,fontWeight:800,color:"#3b791e",whiteSpace:"nowrap"}}>Breakdown <ChevronRight size={11}/></span></div>
@@ -6798,24 +6849,24 @@
           {/* Brand dropdown */}
           <div ref={brandRef} style={{ position: "relative", minWidth: 170 }}>
             <div onClick={() => { setBrandDropOpen(v => !v); setBrandQ(""); }}
-              style={{ ...filterInputSt, display: "flex", alignItems: "center", gap: 7, cursor: "pointer", paddingRight: 26, userSelect: "none", color: filterBrand ? "#0d2b1e" : "#5a7a65" }}>
-              <Globe size={12} color="#00897b" />
+              style={{ ...filterInputSt, display: "flex", alignItems: "center", gap: 7, cursor: "pointer", paddingRight: 26, userSelect: "none", color: filterBrand ? "#12241B" : "#5C6B60" }}>
+              <Globe size={12} color="#3b791e" />
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{selectedBrand ? selectedBrand.name : "All Brands"}</span>
-              <ChevronDown size={10} style={{ position: "absolute", right: 8, color: "#5a7a65" }} />
+              <ChevronDown size={10} style={{ position: "absolute", right: 8, color: "#5C6B60" }} />
             </div>
             {brandDropOpen && (
               <div style={dropSt}>
-                <div style={{ padding: "6px 8px", borderBottom: "1px solid #b2dfdb", position: "sticky", top: 0, background: "#fff" }}>
+                <div style={{ padding: "6px 8px", borderBottom: "1px solid #E1E6D8", position: "sticky", top: 0, background: "#fff" }}>
                   <div style={{ position: "relative" }}>
-                    <Search size={10} style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)", color: "#5a7a65" }} />
+                    <Search size={10} style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)", color: "#5C6B60" }} />
                     <input autoFocus type="text" value={brandQ} onChange={e => setBrandQ(e.target.value)} placeholder="Search…" onClick={e => e.stopPropagation()} style={{ ...filterInputSt, height: 28, fontSize: 11, paddingLeft: 24 }} />
                   </div>
                 </div>
                 <div style={optSt(!filterBrand)} onMouseDown={() => { setFilterBrand(null); setFilterBranch(null); setBrandDropOpen(false); }}>All Brands</div>
                 {filteredBrands.map(b => (
                   <div key={b.id} style={optSt(filterBrand === b.id)} onMouseDown={() => { setFilterBrand(b.id); setFilterBranch(null); setBrandDropOpen(false); setBrandQ(""); }}>
-                    <Store size={12} color="#00897b" /> {b.name}
-                    <span style={{ marginLeft: "auto", fontSize: 10, color: "#5a7a65" }}>{(b.branches || []).length} branches</span>
+                    <Store size={12} color="#3b791e" /> {b.name}
+                    <span style={{ marginLeft: "auto", fontSize: 10, color: "#5C6B60" }}>{(b.branches || []).length} branches</span>
                   </div>
                 ))}
               </div>
@@ -6825,23 +6876,23 @@
           {/* Branch dropdown */}
           <div ref={branchRef} style={{ position: "relative", minWidth: 180, opacity: filterBrand ? 1 : 0.45 }}>
             <div onClick={() => { if (filterBrand) { setBranchDropOpen(v => !v); setBranchQ(""); } }}
-              style={{ ...filterInputSt, display: "flex", alignItems: "center", gap: 7, cursor: filterBrand ? "pointer" : "not-allowed", paddingRight: 26, userSelect: "none", color: filterBranch ? "#0d2b1e" : "#5a7a65" }}>
-              <Store size={12} color={filterBrand ? "#00897b" : "#5a7a65"} />
+              style={{ ...filterInputSt, display: "flex", alignItems: "center", gap: 7, cursor: filterBrand ? "pointer" : "not-allowed", paddingRight: 26, userSelect: "none", color: filterBranch ? "#12241B" : "#5C6B60" }}>
+              <Store size={12} color={filterBrand ? "#3b791e" : "#5C6B60"} />
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{filterBranch || (filterBrand ? "All Branches" : "Select brand first")}</span>
-              {filterBrand && <ChevronDown size={10} style={{ position: "absolute", right: 8, color: "#5a7a65" }} />}
+              {filterBrand && <ChevronDown size={10} style={{ position: "absolute", right: 8, color: "#5C6B60" }} />}
             </div>
             {branchDropOpen && filterBrand && (
               <div style={dropSt}>
-                <div style={{ padding: "6px 8px", borderBottom: "1px solid #b2dfdb", position: "sticky", top: 0, background: "#fff" }}>
+                <div style={{ padding: "6px 8px", borderBottom: "1px solid #E1E6D8", position: "sticky", top: 0, background: "#fff" }}>
                   <div style={{ position: "relative" }}>
-                    <Search size={10} style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)", color: "#5a7a65" }} />
+                    <Search size={10} style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)", color: "#5C6B60" }} />
                     <input autoFocus type="text" value={branchQ} onChange={e => setBranchQ(e.target.value)} placeholder="Search…" onClick={e => e.stopPropagation()} style={{ ...filterInputSt, height: 28, fontSize: 11, paddingLeft: 24 }} />
                   </div>
                 </div>
                 <div style={optSt(!filterBranch)} onMouseDown={() => { setFilterBranch(null); setBranchDropOpen(false); }}>All Branches</div>
                 {filteredBranches.map(br => (
                   <div key={br} style={optSt(filterBranch === br)} onMouseDown={() => { setFilterBranch(br); setBranchDropOpen(false); setBranchQ(""); }}>
-                    <Store size={11} color="#00897b" /> {br}
+                    <Store size={11} color="#3b791e" /> {br}
                   </div>
                 ))}
               </div>
@@ -6852,13 +6903,13 @@
           {(filterBrand || filterBranch) && (
             <>
               {filterBrand && !filterBranch && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", border: "1px solid #b2dfdb", cursor: "pointer", fontFamily: FONT }}
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#f0f5e8", color: "#2c5c16", border: "1px solid #E1E6D8", cursor: "pointer", fontFamily: FONT }}
                   onClick={() => { setFilterBrand(null); setFilterBranch(null); }}>
                   <Store size={10} /> {selectedBrand?.name} <X size={9} />
                 </span>
               )}
               {filterBranch && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", border: "1px solid #b2dfdb", cursor: "pointer", fontFamily: FONT }}
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#f0f5e8", color: "#2c5c16", border: "1px solid #E1E6D8", cursor: "pointer", fontFamily: FONT }}
                   onClick={() => setFilterBranch(null)}>
                   <Store size={10} /> {filterBranch} <X size={9} />
                 </span>
@@ -6870,7 +6921,7 @@
           <div style={{ width: 1, height: 24, background: "#e0ede2", margin: "0 4px" }} />
 
           {/* Preset tabs */}
-          <div style={{ display: "flex", gap: 3, background: "#f0faf4", borderRadius: 10, padding: 3 }}>
+          <div style={{ display: "flex", gap: 3, background: "#F6F7F1", borderRadius: 10, padding: 3 }}>
             {["day","week","month","year"].map(p => (
               <button key={p} style={tabSt(rangeMode === "preset" && preset === p)} onClick={() => { setRangeMode("preset"); setPreset(p); setViewArchive(null); }}>
                 {p.charAt(0).toUpperCase() + p.slice(1)}
@@ -6880,16 +6931,16 @@
 
           {/* Custom range */}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <Calendar size={12} color="#5a7a65" />
-            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
-            <span style={{ color: "#5a7a65", fontSize: 11, fontFamily: FONT }}>to</span>
-            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
+            <Calendar size={12} color="#5C6B60" />
+            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #E1E6D8", background: "#f0f5e8", fontSize: 11, fontFamily: FONT, color: "#12241B", outline: "none" }} />
+            <span style={{ color: "#5C6B60", fontSize: 11, fontFamily: FONT }}>to</span>
+            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #E1E6D8", background: "#f0f5e8", fontSize: 11, fontFamily: FONT, color: "#12241B", outline: "none" }} />
           <button
             onClick={applyCustomRange}
             disabled={applyingRange}
             style={{
               padding: "6px 13px", borderRadius: 8, border: "none",
-              background: "linear-gradient(135deg,#00c853,#00897b)",
+              background: "linear-gradient(135deg,#3b791e,#3b791e)",
               color: "#fff", fontSize: 11, fontWeight: 700,
               cursor: applyingRange ? "not-allowed" : "pointer",
               fontFamily: FONT, opacity: applyingRange ? 0.7 : 1,
@@ -6909,9 +6960,9 @@
           </div>
 
           {/* Archive */}
-          <button onClick={() => setShowArchive(v => !v)} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #b2dfdb", background: showArchive ? "#e0f2f1" : "#fff", color: "#00695c", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+          <button onClick={() => setShowArchive(v => !v)} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #E1E6D8", background: showArchive ? "#f0f5e8" : "#fff", color: "#2c5c16", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
             <Archive size={13} /> Archives
-            {archives.length > 0 && <span style={{ background: "#00897b", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>{archives.length}</span>}
+            {archives.length > 0 && <span style={{ background: "#3b791e", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>{archives.length}</span>}
           </button>
         </div>
 
@@ -6919,8 +6970,8 @@
         {showArchive && (
           <div style={{ order:3, background: "#fff", border: "1px solid rgba(0,168,76,0.15)", borderRadius: 16, padding: "18px 20px", boxShadow: "0 2px 16px rgba(0,140,60,0.08)", marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#0d2b1e", display: "flex", alignItems: "center", gap: 7 }}>
-                <Archive size={15} color="#00897b" /> Yearly Archives
+              <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#12241B", display: "flex", alignItems: "center", gap: 7 }}>
+                <Archive size={15} color="#3b791e" /> Yearly Archives
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <input
@@ -6930,9 +6981,9 @@
                   min="2000"
                   max="2100"
                   placeholder="Year"
-                  style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 12, fontFamily: FONT, color: "#0d2b1e", outline: "none", width: 86 }}
+                  style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #E1E6D8", background: "#f0f5e8", fontSize: 12, fontFamily: FONT, color: "#12241B", outline: "none", width: 86 }}
                 />
-                <button onClick={requestArchiveYear} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+                <button onClick={requestArchiveYear} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#3b791e,#3b791e)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
                   <Plus size={12} /> Archive Year
                 </button>
               </div>
@@ -6940,16 +6991,16 @@
             {archives.length === 0
               ? <div style={{ padding: "20px 0", textAlign: "center", color: "#94a3b8", fontSize: 13, fontFamily: FONT }}>No archives yet.</div>
               : archives.map(a => (
-                <div key={a.year} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 13px", borderRadius: 9, border: "1px solid #e0f2f1", marginBottom: 7, background: "#f8fffe" }}>
+                <div key={a.year} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 13px", borderRadius: 9, border: "1px solid #f0f5e8", marginBottom: 7, background: "#f8fffe" }}>
                   <div>
-                    <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>{a.label}</div>
-                    <div style={{ fontSize: 10.5, color: "#5a7a65", marginTop: 2, fontFamily: FONT }}>Saved: {a.savedAt} · Total: {fmtAmt(a.kpis.totalSales)}</div>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: "#12241B", fontFamily: FONT }}>{a.label}</div>
+                    <div style={{ fontSize: 10.5, color: "#5C6B60", marginTop: 2, fontFamily: FONT }}>Saved: {a.savedAt} · Total: {fmtAmt(a.kpis.totalSales)}</div>
                   </div>
                   <div style={{ display: "flex", gap: 7 }}>
-                    <button onClick={() => { setViewArchive(viewArchive?.year === a.year ? null : a); setShowArchive(false); }} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: `1px solid ${viewArchive?.year === a.year ? "#00897b" : "#b2dfdb"}`, background: viewArchive?.year === a.year ? "#e0f2f1" : "#f8fffe", color: "#00695c" }}>
+                    <button onClick={() => { setViewArchive(viewArchive?.year === a.year ? null : a); setShowArchive(false); }} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: `1px solid ${viewArchive?.year === a.year ? "#3b791e" : "#E1E6D8"}`, background: viewArchive?.year === a.year ? "#f0f5e8" : "#f8fffe", color: "#2c5c16" }}>
                       {viewArchive?.year === a.year ? "Viewing" : "View"}
                     </button>
-                    <button onClick={() => deleteArchive(a.year)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #fecaca", background: "#fff", color: "#ef4444" }}>Delete</button>
+                    <button onClick={() => deleteArchive(a.year)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #f2c9c4", background: "#fff", color: "#c0392b" }}>Delete</button>
                   </div>
                 </div>
               ))
@@ -6969,10 +7020,10 @@
         {false && analysisTab === "sales" && <>
           <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1.65fr) minmax(330px,.85fr)", gap:16, marginBottom:16 }}>
             <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:12 }}><div><div style={{ fontSize:15, fontWeight:800, color:"#12241B" }}>Revenue Trend</div><div style={{ fontSize:11, color:"#6B7A65", marginTop:3 }}>Actual revenue movement · {getRangeLabel()}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#7A887B",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Period revenue</div><div style={{fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2}}>{fmtAmt(viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : actualRevenue)}</div></div></div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:12 }}><div><div style={{ fontSize:15, fontWeight:800, color:"#12241B" }}>Revenue Trend</div><div style={{ fontSize:11, color:"#5C6B60", marginTop:3 }}>Actual revenue movement · {getRangeLabel()}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#7A887B",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Period revenue</div><div style={{fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2}}>{fmtAmt(viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : actualRevenue)}</div></div></div>
               <DashboardLineGraph labels={chartLabels} values={values} />
             </div>
-            <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:11,color:"#6B7A65",marginTop:3,marginBottom:16}}>Ranked by actual revenue</div><DashboardRankBars data={branchPerformance}/></div>
+            <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:11,color:"#5C6B60",marginTop:3,marginBottom:16}}>Ranked by actual revenue</div><DashboardRankBars data={branchPerformance}/></div>
           </div>
           <div style={{
             background:"#fff",
@@ -7005,7 +7056,7 @@
                     </span>
                   )}
                 </div>
-                <div style={{fontSize:11,color:"#6B7A65",marginTop:4}}>
+                <div style={{fontSize:11,color:"#5C6B60",marginTop:4}}>
                   Revenue, gross profit, margin and transaction efficiency by branch
                 </div>
               </div>
@@ -7077,7 +7128,7 @@
                             ? "#3b791e"
                             : row.margin >= 15
                               ? "#d97706"
-                              : "#dc2626";
+                              : "#c0392b";
 
                       const marginBg = !hasProfitData
                         ? "#f8fafc"
@@ -7110,7 +7161,7 @@
                               </span>
                               <span style={{minWidth:0}}>
                                 <span style={{display:"block",fontSize:11.5,fontWeight:800,color:"#12241B",whiteSpace:"nowrap"}}>{row.branch}</span>
-                                <span style={{display:"block",fontSize:9.4,fontWeight:650,color:"#789086",marginTop:2,whiteSpace:"nowrap"}}>{row.brand || "Unassigned Brand"}</span>
+                                <span style={{display:"block",fontSize:9.4,fontWeight:650,color:"#5C6B60",marginTop:2,whiteSpace:"nowrap"}}>{row.brand || "Unassigned Brand"}</span>
                               </span>
                             </div>
                           </td>
@@ -7258,7 +7309,7 @@
         ];
         const results = await Promise.all(
           endpoints.map(url =>
-            fetch(`${process.env.REACT_APP_API_URL}/${url}`)
+            adminModuleFetch(`${process.env.REACT_APP_API_URL}/${url}`)
               .then(r => r.json())
               .then(rows => (Array.isArray(rows) ? rows : []).map(row => ({
                 id:          row.id,
@@ -7404,7 +7455,7 @@
 
     const td = (i) => ({
       padding: '11px 12px', borderBottom: '1px solid #f0f8f0',
-      background: i % 2 === 0 ? C.white : '#fafffe',
+      background: i % 2 === 0 ? C.white : '#F6F7F1',
       fontSize: 12.5, verticalAlign: 'middle', color: C.ink,
       transition: 'background .12s ease',
     });
@@ -7412,11 +7463,11 @@
     return (
       <div style={{ fontFamily: FONT }}>
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
           @keyframes spin { to { transform: rotate(360deg); } }
           @keyframes rowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-          .al-row-hover:hover td { background: #f0fdf5 !important; }
-          .al-select:focus, .al-input:focus { border-color: #00897b !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.1); }
+          .al-row-hover:hover td { background: #f0f5e8 !important; }
+          .al-select:focus, .al-input:focus { border-color: #3b791e !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.1); }
           .al-toolbar-btn { transition: transform .12s ease, box-shadow .12s ease, filter .12s ease; }
           .al-toolbar-btn:hover { filter: brightness(0.97); transform: translateY(-1px); }
           .al-toolbar-btn:active { transform: translateY(0); }
@@ -7475,7 +7526,7 @@
               <button className="al-toolbar-btn" onClick={exportCSV} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.green, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
                 <Download size={12} /> CSV
               </button>
-              <button className="al-toolbar-btn" onClick={exportPDF} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#00c853,#00897b)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5, boxShadow: '0 2px 10px rgba(0,180,90,0.28)' }}>
+              <button className="al-toolbar-btn" onClick={exportPDF} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#3b791e,#3b791e)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5, boxShadow: '0 2px 10px rgba(0,180,90,0.28)' }}>
                 <FileText size={12} /> PDF
               </button>
               <button className="al-toolbar-btn" onClick={loadLogs} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -7489,7 +7540,7 @@
         <div style={{ background: C.white, border: '1px solid rgba(0,168,76,0.12)', borderRadius: 18, overflow: 'hidden', boxShadow: '0 2px 14px rgba(0,140,60,0.07)' }}>
 
           {/* Panel header */}
-          <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '13px 20px' }}>
+          <div style={{ background: 'linear-gradient(135deg,#3b791e,#3b791e)', padding: '13px 20px' }}>
             <div style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>Audit Log</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,.75)', marginTop: 2 }}>
               {filtered.length} event{filtered.length !== 1 ? 's' : ''} · page {Math.min(page + 1, totalPages)} of {totalPages}
@@ -7531,7 +7582,7 @@
                   <tbody>
                     {pageItems.map((log, i) => (
                       <tr key={log.id} className="al-row-hover" style={{ animation: 'rowIn .22s ease both', animationDelay: `${Math.min(i, 12) * 15}ms` }}>
-                        <td style={{ ...td(i), fontSize: 11, color: C.muted, fontFamily: 'monospace' }}>#LOG-{String(log.id).padStart(5, '0')}</td>
+                        <td style={{ ...td(i), fontSize: 11, color: C.muted, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>#LOG-{String(log.id).padStart(5, '0')}</td>
                         <td style={{ ...td(i), fontSize: 11, whiteSpace: 'nowrap' }}>{fmtFull(log.created_at)}</td>
                         <td style={{ ...td(i), fontWeight: 700 }}>
                           <div>{log.user_name}</div>
@@ -7545,7 +7596,7 @@
                           <div>{log.description}</div>
                           {log.meta?.field && (
                             <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-                              {log.meta.field}: <span style={{ color: '#c62828' }}>{log.meta.old}</span> → <span style={{ color: '#2e7d32' }}>{log.meta.new}</span>
+                              {log.meta.field}: <span style={{ color: '#c62828' }}>{log.meta.old}</span> → <span style={{ color: '#3b791e' }}>{log.meta.new}</span>
                             </div>
                           )}
                         </td>
@@ -7580,12 +7631,12 @@
     const isBrand = target.type === "brand";
     return (
       <div onClick={deleting ? undefined : onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
-        <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "Montserrat, sans-serif" }}>
-          <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-            <Trash2 size={22} color="#dc2626" />
+        <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fdf1f0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+            <Trash2 size={22} color="#c0392b" />
           </div>
-          <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>Delete {isBrand ? "brand" : "branch"}?</h2>
-          <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 16 }}>
+          <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#12241B", marginBottom: 8 }}>Delete {isBrand ? "brand" : "branch"}?</h2>
+          <p style={{ textAlign: "center", fontSize: 13, color: "#5C6B60", lineHeight: 1.6, marginBottom: 16 }}>
             You are about to delete <strong>"{target.name}"</strong>{isBrand ? " and all its associated data." : "."}
           </p>
           {isBrand && target.branchCount > 0 && (
@@ -7595,8 +7646,8 @@
           )}
           <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>You can recover this from Delete History.</p>
           <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-            <button type="button" onClick={onClose} disabled={deleting} style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: deleting ? 0.5 : 1 }}>Cancel</button>
-            <button type="button" onClick={onConfirm} disabled={deleting} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#dc2626,#ef4444)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(220,38,38,0.35)", opacity: deleting ? 0.7 : 1 }}>
+            <button type="button" onClick={onClose} disabled={deleting} style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #E1E6D8", background: "#f0f5e8", color: "#5C6B60", fontSize: 13, fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", opacity: deleting ? 0.5 : 1 }}>Cancel</button>
+            <button type="button" onClick={onConfirm} disabled={deleting} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#c0392b,#c0392b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: "0 2px 10px rgba(220,38,38,0.35)", opacity: deleting ? 0.7 : 1 }}>
               {deleting ? <RefreshCw size={14} style={{ animation: "spin 0.8s linear infinite" }} /> : <Trash2 size={14} />}
               {deleting ? "Deleting…" : `Delete ${isBrand ? "brand" : "branch"}`}
             </button>
@@ -7612,13 +7663,13 @@
     const fmt = (d) => new Date(d).toLocaleString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
     return (
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
-        <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 580, maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "Montserrat, sans-serif" }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 580, maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>Delete History</h2>
-              {history.length > 0 && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#fee2e2", color: "#dc2626" }}>{history.length} deleted</span>}
+              <h2 style={{ fontSize: 17, fontWeight: 800, color: "#12241B", margin: 0 }}>Delete History</h2>
+              {history.length > 0 && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#fdf1f0", color: "#c0392b" }}>{history.length} deleted</span>}
             </div>
-            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #b2dfdb", background: "#e0f2f1", cursor: "pointer", color: "#00695c", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={15} /></button>
+            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #E1E6D8", background: "#f0f5e8", cursor: "pointer", color: "#2c5c16", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={15} /></button>
           </div>
           <div style={{ overflowY: "auto", flex: 1 }}>
             {history.length === 0 ? (
@@ -7629,8 +7680,8 @@
                   {entry.type === "brand" ? "Brand" : "Branch"}
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.name}</div>
-                  <div style={{ fontSize: 11, color: "#5a7a65", marginTop: 2 }}>{fmt(entry.deletedAt)}{entry.type === "brand" && entry.data?.branches?.length > 0 ? ` · ${entry.data.branches.length} ${entry.data.branches.length === 1 ? "branch" : "branches"} included` : ""}{entry.type === "branch" && entry.brandName ? ` · ${entry.brandName}` : ""}</div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: "#12241B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.name}</div>
+                  <div style={{ fontSize: 11, color: "#5C6B60", marginTop: 2 }}>{fmt(entry.deletedAt)}{entry.type === "brand" && entry.data?.branches?.length > 0 ? ` · ${entry.data.branches.length} ${entry.data.branches.length === 1 ? "branch" : "branches"} included` : ""}{entry.type === "branch" && entry.brandName ? ` · ${entry.brandName}` : ""}</div>
                 </div>
                 <button
                   onClick={() => onRestore(entry)}
@@ -7638,11 +7689,11 @@
                   style={{
                     display: "flex", alignItems: "center", gap: 5,
                     padding: "7px 14px", borderRadius: 9,
-                    border: "1.5px solid #00897b",
-                    background: restoringId === entry.id ? "#f0fdf5" : "#e0f2f1",
-                    color: "#00695c", fontSize: 12, fontWeight: 700,
+                    border: "1.5px solid #3b791e",
+                    background: restoringId === entry.id ? "#f0f5e8" : "#f0f5e8",
+                    color: "#2c5c16", fontSize: 12, fontWeight: 700,
                     cursor: restoringId !== null ? "not-allowed" : "pointer",
-                    fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0,
+                    fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: "nowrap", flexShrink: 0,
                     opacity: restoringId !== null ? (restoringId === entry.id ? 0.7 : 0.4) : 1,
                   }}
                 >
@@ -7667,8 +7718,8 @@
   function BrandFormFields({ form, setForm }) {
     const [catInput, setCatInput] = useState("");
     const f = (field) => ({ value: form[field], onChange: (e) => setForm((p) => ({ ...p, [field]: e.target.value })) });
-    const inputSt = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #b2dfdb", fontSize: 13, color: "#0d2b1e", background: "#f0fdf5", fontFamily: "inherit", outline: "none", marginTop: 4, boxSizing: "border-box" };
-    const lbl = { display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em" };
+    const inputSt = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E1E6D8", fontSize: 13, color: "#12241B", background: "#f0f5e8", fontFamily: "'Plus Jakarta Sans', sans-serif", outline: "none", marginTop: 4, boxSizing: "border-box" };
+    const lbl = { display: "block", fontSize: 11, fontWeight: 800, color: "#5C6B60", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em" };
     const addCategory = () => {
       const val = catInput.trim();
       if (!val) return;
@@ -7695,15 +7746,15 @@
           <label style={lbl}>Categories</label>
           <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
             <input style={{ ...inputSt, marginTop: 0, flex: 1 }} placeholder="e.g. Medicine, Supplement..." value={catInput} onChange={(e) => setCatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }} />
-            <button type="button" onClick={addCategory} style={{ padding: "9px 16px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}><Plus size={13} /> Add</button>
+            <button type="button" onClick={addCategory} style={{ padding: "9px 16px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#3b791e,#3b791e)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}><Plus size={13} /> Add</button>
           </div>
           {(form.categories || []).length === 0
             ? <div style={{ fontSize: 12, color: "#9ca3af", fontStyle: "italic", marginTop: 6 }}>No categories yet.</div>
             : <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8 }}>
                 {form.categories.map((cat) => (
-                  <span key={cat} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, background: "#e0f2f1", border: "1.5px solid #00897b", color: "#00695c", fontSize: 12, fontWeight: 700 }}>
+                  <span key={cat} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, background: "#f0f5e8", border: "1.5px solid #3b791e", color: "#2c5c16", fontSize: 12, fontWeight: 700 }}>
                     {cat}
-                    <button type="button" onClick={() => removeCategory(cat)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#00897b" }}><X size={12} /></button>
+                    <button type="button" onClick={() => removeCategory(cat)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#3b791e" }}><X size={12} /></button>
                   </span>
                 ))}
               </div>
@@ -7715,8 +7766,8 @@
 
   function BranchFormFields({ form, setForm, brands }) {
     const f = (field) => ({ value: form[field], onChange: (e) => setForm((p) => ({ ...p, [field]: e.target.value })) });
-    const inputSt = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #b2dfdb", fontSize: 13, color: "#0d2b1e", background: "#f0fdf5", fontFamily: "inherit", outline: "none", marginTop: 4, boxSizing: "border-box" };
-    const lbl = { display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em" };
+    const inputSt = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E1E6D8", fontSize: 13, color: "#12241B", background: "#f0f5e8", fontFamily: "'Plus Jakarta Sans', sans-serif", outline: "none", marginTop: 4, boxSizing: "border-box" };
+    const lbl = { display: "block", fontSize: 11, fontWeight: 800, color: "#5C6B60", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em" };
     return (
       <div style={{ display: "grid", gap: 14 }}>
         <div><label style={lbl}>Parent Brand *</label><select style={{ ...inputSt, appearance: "none", cursor: "pointer" }} {...f("brand_id")} required><option value="">Select brand</option>{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
@@ -7767,25 +7818,25 @@
             width: "100%", maxWidth: 420,
             boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
             border: "1px solid rgba(0,168,76,0.15)",
-            fontFamily: "Montserrat, sans-serif",
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
           }}
         >
           <div style={{
-            width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+            width: 52, height: 52, borderRadius: "50%", background: "#fdf1f0",
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 16px",
           }}>
-            <Trash2 size={22} color="#dc2626" />
+            <Trash2 size={22} color="#c0392b" />
           </div>
-          <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
+          <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#12241B", marginBottom: 8 }}>
             Delete {isBrand ? "brand" : "branch"}?
           </h2>
-          <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 6 }}>
+          <p style={{ textAlign: "center", fontSize: 13, color: "#5C6B60", lineHeight: 1.6, marginBottom: 6 }}>
             You are about to delete <strong>"{target.name}"</strong>
             {!isBrand && target.brandName ? ` under ${target.brandName}` : ""}.
           </p>
           {isBrand && target.branchCount > 0 && (
-            <p style={{ textAlign: "center", fontSize: 12.5, color: "#dc2626", fontWeight: 600, lineHeight: 1.6, marginBottom: 6 }}>
+            <p style={{ textAlign: "center", fontSize: 12.5, color: "#c0392b", fontWeight: 600, lineHeight: 1.6, marginBottom: 6 }}>
               This will also remove {target.branchCount} associated branch{target.branchCount === 1 ? "" : "es"}.
             </p>
           )}
@@ -7796,9 +7847,9 @@
             <button
               type="button" onClick={onClose} disabled={deleting}
               style={{
-                padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
-                background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
-                cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+                padding: "9px 22px", borderRadius: 10, border: "1px solid #E1E6D8",
+                background: "#f0f5e8", color: "#5C6B60", fontSize: 13, fontWeight: 700,
+                cursor: deleting ? "not-allowed" : "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
               }}
             >
               Cancel
@@ -7808,9 +7859,9 @@
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "9px 24px", borderRadius: 10, border: "none",
-                background: "linear-gradient(135deg,#dc2626,#ef4444)",
+                background: "linear-gradient(135deg,#c0392b,#c0392b)",
                 color: "#fff", fontSize: 13, fontWeight: 700,
-                cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+                cursor: deleting ? "not-allowed" : "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
                 boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
                 opacity: deleting ? 0.7 : 1,
               }}
@@ -7828,14 +7879,14 @@
       <div onClick={saving ? undefined : onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
         <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 520, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0, fontFamily: "Montserrat,sans-serif" }}>{title}</h2>
-            <button onClick={onClose} disabled={saving} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #b2dfdb", background: "#e0f2f1", cursor: saving ? "not-allowed" : "pointer", color: "#00695c", display: "flex", alignItems: "center", justifyContent: "center", opacity: saving ? 0.5 : 1 }}><X size={15} /></button>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: "#12241B", margin: 0, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{title}</h2>
+            <button onClick={onClose} disabled={saving} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #E1E6D8", background: "#f0f5e8", cursor: saving ? "not-allowed" : "pointer", color: "#2c5c16", display: "flex", alignItems: "center", justifyContent: "center", opacity: saving ? 0.5 : 1 }}><X size={15} /></button>
           </div>
           <form onSubmit={onSubmit}>
             {children}
             <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
-              <button type="button" onClick={onClose} disabled={saving} style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: saving ? 0.5 : 1 }}>Cancel</button>
-              <button type="submit" disabled={saving} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.35)", opacity: saving ? 0.7 : 1 }}>
+              <button type="button" onClick={onClose} disabled={saving} style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #E1E6D8", background: "#f0f5e8", color: "#5C6B60", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", opacity: saving ? 0.5 : 1 }}>Cancel</button>
+              <button type="submit" disabled={saving} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#3b791e,#3b791e)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: "0 2px 10px rgba(0,180,90,0.35)", opacity: saving ? 0.7 : 1 }}>
                 {saving ? <RefreshCw size={14} style={{ animation: "spin 0.8s linear infinite" }} /> : <Check size={14} />}
                 {saving ? "Saving…" : "Save"}
               </button>
@@ -7889,7 +7940,7 @@
 
   const fetchActivityLog = useCallback(async () => {
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands-activity-log`);
+      const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/brands-activity-log`);
       const data = await res.json();
       setActivityLog(Array.isArray(data) ? data.map(row => ({
         id:          row.id,
@@ -7906,7 +7957,7 @@
 
     const fetchDeleteHistory = async () => {
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`);
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`);
         const data = await res.json();
         const normalized = Array.isArray(data) ? data.map(entry => ({ ...entry, brandName: entry.brand_name ?? null, deletedAt: entry.deleted_at ?? null, data: typeof entry.data === 'string' ? JSON.parse(entry.data) : (entry.data ?? {}) })) : [];
         setDeletedHistory(normalized);
@@ -7916,7 +7967,7 @@
     const fetchBrands = async () => {
         setLoading(true);
         try {
-          const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
+          const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/brands`);
           const data = await res.json();
           const list = Array.isArray(data) ? data : [];
           const sorted = [...list]
@@ -7948,7 +7999,7 @@
       showLoading("Adding brand…");
       try {
         const coords = await getBrowserLocation();
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/brands`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -7975,7 +8026,7 @@
       showLoading("Updating brand…");
       try {
         const coords = await getBrowserLocation();
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`, {
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -8016,7 +8067,7 @@
       showLoading("Deleting brand…");
       try {
         const coords = await getBrowserLocation();
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, {
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -8028,7 +8079,7 @@
         });
         const data = await res.json();
         if (data.success) {
-          await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
+          await adminModuleFetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type: 'brand', name, brand_name: null, data: brandToSave }),
@@ -8053,7 +8104,7 @@
       showLoading("Adding branch…");
       try {
         const coords = await getBrowserLocation();
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/branches`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -8080,7 +8131,7 @@
       showLoading("Updating branch…");
       try {
         const coords = await getBrowserLocation();
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -8111,7 +8162,7 @@
       showLoading("Deleting branch…");
       try {
         const coords = await getBrowserLocation();
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, {
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -8123,7 +8174,7 @@
         });
         const data = await res.json();
         if (data.success) {
-          await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
+          await adminModuleFetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type: 'branch', name, brand_name: brandName, data: branch }),
@@ -8148,7 +8199,7 @@
         if (entry.type === "brand") {
           const { branches, ...brandFields } = entry.data;
           const branchList = Array.isArray(branches) ? branches : [];
-          const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
+          const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/brands`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -8165,7 +8216,7 @@
           const newBrandId = data.brand?.id;
           for (const br of branchList) {
             const { id: _ignore, brand_id: _ignore2, ...branchFields } = br;
-            await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+            await adminModuleFetch(`${process.env.REACT_APP_API_URL}/branches`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -8184,7 +8235,7 @@
               }),
             });
           }
-          await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, { method: 'DELETE' });
+          await adminModuleFetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, { method: 'DELETE' });
           await fetchBrands();
           await fetchDeleteHistory();
           await fetchActivityLog();
@@ -8193,7 +8244,7 @@
           const parentBrand = brands.find((b) => b.name === entry.brandName);
           if (!parentBrand) { showError("Cannot restore branch", `Parent brand "${entry.brandName || 'unknown'}" was not found.`); return; }
           const { id: _id, brand_id: _bid, ...branchFields } = entry.data;
-          const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+          const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/branches`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -8213,7 +8264,7 @@
           });
           const data = await res.json();
           if (data.success) {
-            await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, { method: 'DELETE' });
+            await adminModuleFetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, { method: 'DELETE' });
             await fetchBrands();
             await fetchDeleteHistory();
             await fetchActivityLog();
@@ -8252,12 +8303,12 @@
       return <span style={{ background: s.bg, color: s.color, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>{concept || "—"}</span>;
     };
 
-    const thSt = { padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: "2px solid #d1eedd", background: "#f8fffe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+    const thSt = { padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 10.5, color: "#3b791e", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: "2px solid #E1E6D8", background: "#f8fffe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
     const tdSt = { padding: "11px 12px", borderBottom: "1px solid #f0f8f0", verticalAlign: "middle", overflow: "hidden" };
 
     return (
-      <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
-        <style>{`.bm-root * { font-family:'Montserrat',sans-serif !important; box-sizing:border-box; } .bm-stat { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; } .bm-stat:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); } .bm-brand-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; box-shadow:0 2px 14px rgba(0,140,60,0.07); margin-bottom:24px; overflow:hidden; } .bm-brand-header { background:linear-gradient(135deg,#2E7D32,#00897b); color:#fff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; } .bm-input { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; } .bm-input:focus { border-color:#00897b; box-shadow:0 0 0 2px rgba(0,137,123,0.12); } .bm-select { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; appearance:none; cursor:pointer; } .bm-branch-tr:hover td { background:#f6fef8 !important; } .bm-branch-tr:last-child td { border-bottom:none !important; } @keyframes bm-spin { to { transform: rotate(360deg); } }`}</style>
+      <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        <style>{`.bm-root * { font-family:'Plus Jakarta Sans',sans-serif; box-sizing:border-box; } .bm-stat { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; } .bm-stat:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); } .bm-brand-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; box-shadow:0 2px 14px rgba(0,140,60,0.07); margin-bottom:24px; overflow:hidden; } .bm-brand-header { background:linear-gradient(135deg,#3b791e,#3b791e); color:#fff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; } .bm-input { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #E1E6D8; font-size:13px; color:#12241B; background:#f0f5e8; font-family:'Plus Jakarta Sans',sans-serif; outline:none; } .bm-input:focus { border-color:#3b791e; box-shadow:0 0 0 2px rgba(0,137,123,0.12); } .bm-select { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #E1E6D8; font-size:13px; color:#12241B; background:#f0f5e8; font-family:'Plus Jakarta Sans',sans-serif; outline:none; appearance:none; cursor:pointer; } .bm-branch-tr:hover td { background:#f6fef8 !important; } .bm-branch-tr:last-child td { border-bottom:none !important; } @keyframes bm-spin { to { transform: rotate(360deg); } }`}</style>
         <div className="bm-root">
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
             {[
@@ -8267,12 +8318,12 @@
               <div key={i} className="bm-stat">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                   <div>
-                    <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 6 }}>{s.label}</div>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: "#0d2b1e" }}>{s.value}</div>
+                    <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5C6B60", marginBottom: 6 }}>{s.label}</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: "#12241B" }}>{s.value}</div>
                   </div>
                   <div style={{ width: 44, height: 44, borderRadius: 13, background: s.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{s.icon}</div>
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#5a7a65" }}>{s.sub}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#5C6B60" }}>{s.sub}</span>
               </div>
             ))}
           </div>
@@ -8280,7 +8331,7 @@
           <div style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.13)", borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
             <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
               <div style={{ position:"relative" }}>
-                <Search size={14} color="#5a7a65" style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)" }}/>
+                <Search size={14} color="#5C6B60" style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)" }}/>
                 <input type="text" placeholder="Search brands or branches..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bm-input" style={{ paddingLeft:32, width:260 }}/>
               </div>
               <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} className="bm-select" style={{ width:180 }}>
@@ -8292,10 +8343,10 @@
                 {allRegions.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
               <div style={{ marginLeft:"auto", display:"flex", gap:10 }}>
-                <button onClick={() => setShowHistory(true)} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #dc2626", background:"#fff", color:"#dc2626", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                <button onClick={() => setShowHistory(true)} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #c0392b", background:"#fff", color:"#c0392b", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
                   <History size={14}/> Delete History{deletedHistory.length > 0 ? ` (${deletedHistory.length})` : ""}
                 </button>
-                <button onClick={() => { setBranchForm(emptyBranch); setShowAddBranchModal(true); }} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #00897b", background:"#fff", color:"#00897b", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                <button onClick={() => { setBranchForm(emptyBranch); setShowAddBranchModal(true); }} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #3b791e", background:"#fff", color:"#3b791e", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
                   <Plus size={14}/> Add Branch
                 </button>
               </div>
@@ -8303,9 +8354,9 @@
           </div>
 
           {loading ? (
-            <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>Loading brands & branches...</div>
+            <div style={{ padding: "48px 0", textAlign: "center", color: "#5C6B60", fontSize: 14, fontWeight: 600 }}>Loading brands & branches...</div>
           ) : filteredBrands.length === 0 ? (
-            <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>No brands found. Add your first brand above.</div>
+            <div style={{ padding: "48px 0", textAlign: "center", color: "#5C6B60", fontSize: 14, fontWeight: 600 }}>No brands found. Add your first brand above.</div>
           ) : filteredBrands.map((brand) => (
             <div key={brand.id} className="bm-brand-card">
               <div className="bm-brand-header">
@@ -8321,8 +8372,8 @@
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 12, opacity: 0.85, fontWeight: 600 }}>{brand.branches?.length || 0} {brand.branches?.length === 1 ? "branch" : "branches"}</span>
-                  <button onClick={() => { setSelectedBrand(brand); setBrandForm({ name: brand.name, categories: brand.categories || [], contact_email: brand.contact_email, contact_phone: brand.contact_phone, description: brand.description }); setShowEditBrandModal(true); }} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.5)", background: "rgba(255,255,255,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}><Edit2 size={12} /> Edit Brand</button>
-                  <button onClick={() => setDeleteTarget({ type: "brand", id: brand.id, name: brand.name, branchCount: brand.branches?.length || 0 })} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,150,150,0.5)", background: "rgba(255,80,80,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}><Trash2 size={12} /> Delete</button>
+                  <button onClick={() => { setSelectedBrand(brand); setBrandForm({ name: brand.name, categories: brand.categories || [], contact_email: brand.contact_email, contact_phone: brand.contact_phone, description: brand.description }); setShowEditBrandModal(true); }} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.5)", background: "rgba(255,255,255,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}><Edit2 size={12} /> Edit Brand</button>
+                  <button onClick={() => setDeleteTarget({ type: "brand", id: brand.id, name: brand.name, branchCount: brand.branches?.length || 0 })} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,150,150,0.5)", background: "rgba(255,80,80,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}><Trash2 size={12} /> Delete</button>
                 </div>
               </div>
               <div style={{ width: "100%" }}>
@@ -8331,19 +8382,19 @@
                   <thead><tr>{["Branch Name","Region","Manager","Contact","Address","Concept","Actions"].map((h) => <th key={h} style={thSt}>{h}</th>)}</tr></thead>
                   <tbody>
                     {(!brand.branches || brand.branches.length === 0) ? (
-                      <tr><td colSpan={7} style={{ padding: "24px 20px", color: "#5a7a65", fontSize: 13, fontStyle: "italic", textAlign: "center", borderBottom: "none" }}>No branches yet.{" "}<span style={{ color: "#00897b", cursor: "pointer", textDecoration: "underline", fontWeight: 700 }} onClick={() => { setBranchForm({ ...emptyBranch, brand_id: brand.id }); setShowAddBranchModal(true); }}>Add the first branch</span></td></tr>
+                      <tr><td colSpan={7} style={{ padding: "24px 20px", color: "#5C6B60", fontSize: 13, fontStyle: "italic", textAlign: "center", borderBottom: "none" }}>No branches yet.{" "}<span style={{ color: "#3b791e", cursor: "pointer", textDecoration: "underline", fontWeight: 700 }} onClick={() => { setBranchForm({ ...emptyBranch, brand_id: brand.id }); setShowAddBranchModal(true); }}>Add the first branch</span></td></tr>
                     ) : brand.branches.map((branch) => (
                       <tr key={branch.id} className="bm-branch-tr">
-                        <td style={{ ...tdSt, fontWeight: 700, color: "#0d2b1e", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.name}</td>
-                        <td style={{ ...tdSt, color: "#5a7a65", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.region}</td>
-                        <td style={{ ...tdSt, color: "#0d2b1e", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.manager || "—"}</td>
-                        <td style={{ ...tdSt, color: "#5a7a65", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.contact || "—"}</td>
-                        <td style={{ ...tdSt, color: "#5a7a65", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.address || "—"}</td>
+                        <td style={{ ...tdSt, fontWeight: 700, color: "#12241B", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.name}</td>
+                        <td style={{ ...tdSt, color: "#5C6B60", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.region}</td>
+                        <td style={{ ...tdSt, color: "#12241B", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.manager || "—"}</td>
+                        <td style={{ ...tdSt, color: "#5C6B60", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.contact || "—"}</td>
+                        <td style={{ ...tdSt, color: "#5C6B60", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.address || "—"}</td>
                         <td style={tdSt}>{brand.name === "Coffee Spot" ? <ConceptBadge concept={branch.concept} /> : <span style={{ color: "#9ca3af", fontSize: 12 }}>—</span>}</td>
                         <td style={{ ...tdSt, whiteSpace: "nowrap" }}>
                           <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-                            <button title="Edit branch" onClick={() => { setSelectedBranch(branch); setBranchForm({ name: branch.name, brand_id: brand.id, region: branch.region, manager: branch.manager, contact: branch.contact, address: branch.address, concept: branch.concept || "" }); setShowEditBranchModal(true); }} style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #b2dfdb", background: "#e0f2f1", color: "#00695c", cursor: "pointer", flexShrink: 0 }}><Pencil size={13} /></button>
-                            <button title="Delete branch" onClick={() => setDeleteTarget({ type: "branch", id: branch.id, name: branch.name, brandName: brand.name })} style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#ef4444", cursor: "pointer", flexShrink: 0 }}><Trash2 size={13} /></button>
+                            <button title="Edit branch" onClick={() => { setSelectedBranch(branch); setBranchForm({ name: branch.name, brand_id: brand.id, region: branch.region, manager: branch.manager, contact: branch.contact, address: branch.address, concept: branch.concept || "" }); setShowEditBranchModal(true); }} style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #E1E6D8", background: "#f0f5e8", color: "#2c5c16", cursor: "pointer", flexShrink: 0 }}><Pencil size={13} /></button>
+                            <button title="Delete branch" onClick={() => setDeleteTarget({ type: "branch", id: branch.id, name: branch.name, brandName: brand.name })} style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #f2c9c4", background: "#fff", color: "#c0392b", cursor: "pointer", flexShrink: 0 }}><Trash2 size={13} /></button>
                           </div>
                         </td>
                       </tr>
@@ -8396,7 +8447,7 @@
     const fetchIngredients = useCallback(async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${apiUrl}/ingredients`);
+        const res = await adminModuleFetch(`${apiUrl}/ingredients`);
         const data = await res.json();
         setIngredients(Array.isArray(data) ? data : []);
       } catch (err) {
@@ -8442,7 +8493,7 @@
       if (!force && batchesByIngredient[ingredient.id]) return;
       setBatchLoadingId(ingredient.id);
       try {
-        const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`);
+        const res = await adminModuleFetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`);
         const data = await res.json();
         const active = (Array.isArray(data) ? data : []).filter(b => Number(b.stock || 0) > 0);
         const sorted = sortBatchesByMethod(active, ingredient.brand, ingredient.perishable);
@@ -8482,9 +8533,9 @@
     };
 
     return (
-      <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+      <div style={{ fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
           @keyframes spin { to { transform: rotate(360deg); } }
           .fr-brand-card { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
           .fr-brand-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(50,109,32,.12) !important; border-color: #c9dba0 !important; }
@@ -8509,8 +8560,8 @@
                 const st = brandStats(brandName);
                 return (
                   <button key={brandName} className="fr-brand-card" onClick={() => { setActiveBrand(brandName); setActiveBranch(""); setSelectedProduct(null); setSearch(""); }}
-                    style={{ textAlign:"left", background:C.white, border:`1px solid ${C.border}`, borderRadius:18, padding:0, overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,.05)", cursor:"pointer", fontFamily:"inherit" }}>
-                    <div style={{ height:5, background:"linear-gradient(90deg,#bdd43c,#3b791e)" }}/>
+                    style={{ textAlign:"left", background:C.white, border:`1px solid ${C.border}`, borderRadius:18, padding:0, overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,.05)", cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
+                    <div style={{ height:5, background:"linear-gradient(90deg,#b3a941,#3b791e)" }}/>
                     <div style={{ padding:"18px 18px 16px" }}>
                       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12 }}>
                         <div style={{ minWidth:0 }}>
@@ -8677,20 +8728,20 @@
   function ShopDeleteHistoryPanel({ history, restoringId, onRestore, onClose }) {
     return (
       <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-        <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:18, padding:"28px 32px", width:"100%", maxWidth:680, maxHeight:"80vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+        <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:18, padding:"28px 32px", width:"100%", maxWidth:680, maxHeight:"80vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
               <h2 style={{ fontSize:16, fontWeight:800, color:C.ink, margin:0 }}>Delete History</h2>
               {history.length > 0 && (
-                <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#fee2e2", color:"#e53935" }}>{history.length} deleted</span>
+                <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#fdf1f0", color:"#e53935" }}>{history.length} deleted</span>
               )}
             </div>
-            <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#f0f5e8", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
               ✕
             </button>
           </div>
           {history.length > 0 && (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 100px 90px 110px 100px", gap:8, padding:"6px 0 10px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:700, color:"#5a7a65", textTransform:"uppercase", letterSpacing:"0.06em" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 100px 90px 110px 100px", gap:8, padding:"6px 0 10px", borderBottom:"2px solid #f0f5e8", fontSize:10, fontWeight:700, color:"#5C6B60", textTransform:"uppercase", letterSpacing:"0.06em" }}>
               <span>Item</span><span>Shop</span><span>Price</span><span>Deleted At</span><span></span>
             </div>
           )}
@@ -8703,13 +8754,13 @@
                 <div key={entry.id} style={{ display:"grid", gridTemplateColumns:"1fr 100px 90px 110px 100px", gap:8, alignItems:"center", padding:"12px 0", borderBottom: i < history.length-1 ? "1px solid #f0f8f0" : "none" }}>
                   <div>
                     <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.name}</div>
-                    <div style={{ fontSize:11, color:"#5a7a65", marginTop:2 }}>{d.brand || "—"}</div>
+                    <div style={{ fontSize:11, color:"#5C6B60", marginTop:2 }}>{d.brand || "—"}</div>
                   </div>
-                  <div style={{ fontSize:12, color:"#5a7a65" }}>{d.shop}</div>
+                  <div style={{ fontSize:12, color:"#5C6B60" }}>{d.shop}</div>
                   <div style={{ fontSize:12, color:C.green, fontWeight:700 }}>{fmtPeso(d.price || 0)}</div>
                   <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.deletedAt ? new Date(entry.deletedAt).toLocaleString("en-PH", { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit", timeZone:"Asia/Manila" }) : "—"}</div>
                   <button onClick={() => onRestore(entry)} disabled={restoringId !== null}
-                    style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, border:"1.5px solid #00897b", background:"#e0f2f1", color:"#00695c", fontSize:12, fontWeight:700, cursor: restoringId !== null ? "not-allowed" : "pointer", fontFamily:"inherit", whiteSpace:"nowrap", opacity: restoringId !== null ? (restoringId === entry.id ? 0.85 : 0.4) : 1 }}>
+                    style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, border:"1.5px solid #3b791e", background:"#f0f5e8", color:"#2c5c16", fontSize:12, fontWeight:700, cursor: restoringId !== null ? "not-allowed" : "pointer", fontFamily:"'Plus Jakarta Sans', sans-serif", whiteSpace:"nowrap", opacity: restoringId !== null ? (restoringId === entry.id ? 0.85 : 0.4) : 1 }}>
                     {restoringId === entry.id ? "Restoring…" : "Restore"}
                   </button>
                 </div>
@@ -8725,13 +8776,13 @@
     if (!item) return null;
     return (
       <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2500, padding:20, backdropFilter:"blur(4px)" }}>
-        <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:"1px solid #fecaca", fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
-          <div style={{ background:"#fef2f2", padding:"20px 24px 16px", borderBottom:"1px solid #fecaca" }}>
+        <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:"1px solid #f2c9c4", fontFamily:"'Plus Jakarta Sans', sans-serif", overflow:"hidden" }}>
+          <div style={{ background:"#fef2f2", padding:"20px 24px 16px", borderBottom:"1px solid #f2c9c4" }}>
             <div style={{ fontSize:15, fontWeight:800, color:"#991b1b", marginBottom:5 }}>Delete Item</div>
             <div style={{ fontSize:13, color:C.ink, lineHeight:1.6 }}>
               Are you sure you want to delete <strong>"{item.name}"</strong>?
             </div>
-            <div style={{ marginTop:8, background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"8px 12px", fontSize:12, color:"#7f1d1d" }}>
+            <div style={{ marginTop:8, background:"#fff5f5", border:"1px solid #f2c9c4", borderRadius:8, padding:"8px 12px", fontSize:12, color:"#7f1d1d" }}>
               This will move the item to Delete History where it can be restored.
             </div>
           </div>
@@ -8750,11 +8801,11 @@
             </div>
           </div>
           <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
-            <button onClick={onCancel} disabled={deleting} style={{ padding:"8px 16px", borderRadius:8, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor: deleting ? "not-allowed" : "pointer", fontFamily:"inherit", opacity: deleting ? 0.5 : 1 }}>
+            <button onClick={onCancel} disabled={deleting} style={{ padding:"8px 16px", borderRadius:8, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor: deleting ? "not-allowed" : "pointer", fontFamily:"'Plus Jakarta Sans', sans-serif", opacity: deleting ? 0.5 : 1 }}>
               Cancel
             </button>
             <button onClick={onConfirm} disabled={deleting}
-              style={{ padding:"8px 18px", borderRadius:8, border:"none", background:"#e53935", color:"#fff", fontWeight:700, fontSize:13, cursor: deleting ? "not-allowed" : "pointer", fontFamily:"inherit", opacity: deleting ? 0.7 : 1 }}>
+              style={{ padding:"8px 18px", borderRadius:8, border:"none", background:"#e53935", color:"#fff", fontWeight:700, fontSize:13, cursor: deleting ? "not-allowed" : "pointer", fontFamily:"'Plus Jakarta Sans', sans-serif", opacity: deleting ? 0.7 : 1 }}>
               {deleting ? "Deleting…" : "Delete"}
             </button>
           </div>
@@ -8767,10 +8818,10 @@
     if (!visible) return null;
     return (
       <div style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3500, padding:20, backdropFilter:"blur(6px)" }}>
-        <div style={{ background:C.white, borderRadius:18, padding:"32px 36px", width:"100%", maxWidth:380, boxShadow:"0 28px 70px rgba(0,0,0,0.22)", border:"1px solid #c8e6c9", fontFamily:"Montserrat,sans-serif", textAlign:"center" }}>
+        <div style={{ background:C.white, borderRadius:18, padding:"32px 36px", width:"100%", maxWidth:380, boxShadow:"0 28px 70px rgba(0,0,0,0.22)", border:"1px solid #c8e6c9", fontFamily:"'Plus Jakarta Sans', sans-serif", textAlign:"center" }}>
           <div style={{ fontSize:16, fontWeight:800, color:C.ink, marginBottom:6 }}>Importing Excel</div>
           <div style={{ fontSize:13, color:C.muted, marginBottom:20 }}>Please wait while your data is being processed…</div>
-          <div style={{ background:"#e8f5e9", borderRadius:999, height:6, overflow:"hidden", marginBottom:12 }}>
+          <div style={{ background:"#f0f5e8", borderRadius:999, height:6, overflow:"hidden", marginBottom:12 }}>
             <div style={{ background:`linear-gradient(90deg,${C.teal},${C.green})`, borderRadius:999, height:"100%", width:`${progress.percent}%`, transition:"width 0.4s ease" }}/>
           </div>
           <div style={{ fontSize:12, color:C.muted, fontWeight:600, marginBottom:6 }}>{progress.label}</div>
@@ -8787,22 +8838,22 @@
     if (!modal) return null;
     const { type, title, message, confirmLabel, cancelLabel } = modal;
     const hc = {
-      error:   { bg:"#fef2f2", border:"#fecaca", titleColor:"#991b1b" },
-      success: { bg:"#e8f5e9", border:"#c8e6c9", titleColor:"#00695c" },
+      error:   { bg:"#fef2f2", border:"#f2c9c4", titleColor:"#991b1b" },
+      success: { bg:"#f0f5e8", border:"#c8e6c9", titleColor:"#2c5c16" },
       info:    { bg:"#eff6ff", border:"#bfdbfe", titleColor:"#1e3a8a" },
-      confirm: { bg:"#fef2f2", border:"#fecaca", titleColor:"#991b1b" },
+      confirm: { bg:"#fef2f2", border:"#f2c9c4", titleColor:"#991b1b" },
     }[type] || { bg:"#eff6ff", border:"#bfdbfe", titleColor:"#1e3a8a" };
 
     return (
       <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000, padding:20, backdropFilter:"blur(4px)" }}>
-        <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:`1px solid ${hc.border}`, fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
+        <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:`1px solid ${hc.border}`, fontFamily:"'Plus Jakarta Sans', sans-serif", overflow:"hidden" }}>
           <div style={{ background:hc.bg, padding:"20px 24px 16px", borderBottom:`1px solid ${hc.border}` }}>
             <div style={{ fontSize:15, fontWeight:800, color:hc.titleColor, marginBottom:4 }}>{title}</div>
             {message && <div style={{ fontSize:13, color:C.ink, lineHeight:1.6, opacity:0.85 }}>{message}</div>}
           </div>
           <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
             {type === "confirm" && (
-              <button onClick={onClose} style={{ padding:"8px 16px", borderRadius:8, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+              <button onClick={onClose} style={{ padding:"8px 16px", borderRadius:8, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
                 {cancelLabel || "Cancel"}
               </button>
             )}
@@ -8811,7 +8862,7 @@
               style={{
                 padding:"8px 18px", borderRadius:8, border:"none",
                 background: type === "confirm" ? "#e53935" : `linear-gradient(135deg,${C.teal},${C.green})`,
-                color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit",
+                color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif",
               }}
             >
               {confirmLabel || "OK"}
@@ -8854,11 +8905,11 @@
           </div>
           <div style={{ padding: "0 24px 22px", display: "flex", gap: 8 }}>
             <button onClick={onClose} className="msc-btn"
-              style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+              style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               Close
             </button>
             <button onClick={() => onHideInstead(item)} className="msc-btn"
-              style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: `linear-gradient(135deg,${C.teal},${C.green})`, color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 14px rgba(0,180,90,0.3)" }}>
+              style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: `linear-gradient(135deg,${C.teal},${C.green})`, color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: "0 4px 14px rgba(0,180,90,0.3)" }}>
               Hide Instead
             </button>
           </div>
@@ -8888,19 +8939,19 @@
     width: "100%", height: 38, padding: "0 12px", borderRadius: 9,
     border: `1px solid ${C.border}`, marginTop: "0.3rem", fontSize: "0.85rem",
     color: C.ink, background: C.white, outline: "none", boxSizing: "border-box",
-    fontFamily: "'Montserrat', sans-serif", transition: "border-color .15s, box-shadow .15s",
+    fontFamily: "'Plus Jakarta Sans', sans-serif", transition: "border-color .15s, box-shadow .15s",
   };
   const readOnlyFieldStyle = {
     width: "100%", minHeight: 38, padding: "9px 12px", borderRadius: 9,
     border: `1px solid ${C.border}`, marginTop: "0.3rem", fontSize: "0.85rem",
     color: C.muted, background: "#f5f5f5", boxSizing: "border-box",
-    fontFamily: "'Montserrat', sans-serif", fontWeight: 700, display: "flex", alignItems: "center",
+    fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, display: "flex", alignItems: "center",
   };
   const toolbarBtnSt = {
     display: "inline-flex", alignItems: "center", gap: 6,
     height: 38, padding: "0 16px", borderRadius: 9,
     fontSize: 13, fontWeight: 700, cursor: "pointer",
-    fontFamily: "inherit", whiteSpace: "nowrap", border: "none",
+    fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: "nowrap", border: "none",
   };
 
   const getBrowserLocation = () => {
@@ -8964,7 +9015,7 @@
 
     const fetchActivityLog = useCallback(async () => {
       try {
-        const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`);
+        const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`);
         const data = await res.json();
         setActivityLog(Array.isArray(data) ? data.map(row => ({
           id: row.id, action: row.action,
@@ -8983,7 +9034,7 @@
     const fetchShopItems = useCallback(async () => {
       setItemsLoading(true);
       try {
-        const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
+        const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/shop-items`);
         const data = await res.json();
         setShopItems(Array.isArray(data) ? data : []);
       } catch {
@@ -8997,7 +9048,7 @@
     // which products can appear in the Mobile Shop at all, and for cost.
     const fetchStockItems = useCallback(async () => {
       try {
-        const res  = await fetch(`${process.env.REACT_APP_API_URL}/ingredients?branch=${encodeURIComponent("Head Office")}`);
+        const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/ingredients?branch=${encodeURIComponent("Head Office")}`);
         const data = await res.json();
         setStockItems(Array.isArray(data) ? data : []);
       } catch { setStockItems([]); }
@@ -9148,7 +9199,7 @@
       try {
         const url    = editingItem.id ? `${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}` : `${process.env.REACT_APP_API_URL}/shop-items`;
         const method = editingItem.id ? "PUT" : "POST";
-        await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        await adminModuleFetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         setToast({
           type: "success",
           title: editingItem.id ? "Item Updated" : "Item Listed",
@@ -9190,7 +9241,7 @@
         longitude: coords?.longitude,
       };
         try {
-          const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+          const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
             method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
           });
           if (res.ok) success++; else failed++;
@@ -9212,7 +9263,7 @@
       setDeleteLoading(true);
       const coords = await getBrowserLocation();
       try {
-        await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
+        await adminModuleFetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ deleted_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
@@ -9232,7 +9283,7 @@
       if (!item.id) return; // nothing to toggle until it's listed
       const coords = await getBrowserLocation();
       try {
-        await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}/toggle`, {
+        await adminModuleFetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}/toggle`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ performed_by: user?.name || "System",performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
@@ -9295,7 +9346,7 @@
                 <button onClick={() => { setEditingItem(null); setEditErrors({}); }} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", fontSize: 16, cursor: "pointer", lineHeight: 1, padding: 6, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
               </div>
               <div style={{ padding: "22px 24px" }}>
-                <div style={{ fontSize: 11.5, color: "#00695c", background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 10, padding: "10px 13px", marginBottom: 16, lineHeight: 1.5 }}>
+                <div style={{ fontSize: 11.5, color: "#2c5c16", background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 10, padding: "10px 13px", marginBottom: 16, lineHeight: 1.5 }}>
                   This product comes from <strong>Stock Inventory</strong>. Its name, brand, and price can't be edited here — the shop price is calculated automatically from Stock Inventory cost, bulk pack size, and brand markup.
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1rem" }}>
@@ -9308,7 +9359,7 @@
                   <Field label="Shop Price" error={editErrors.cost}>
                     <div style={{ ...readOnlyFieldStyle, background: editErrors.cost ? "#fdeeee" : C.greenLt, border: `1px solid ${editErrors.cost ? C.red : C.greenMid}`, color: editErrors.cost ? C.red : C.green, justifyContent: "space-between" }}>
                       <span style={{ fontSize: 15, fontWeight: 900 }}>{editingItem.cost > 0 ? fmtPeso(computeDisplayPrice(editingItem.cost, editingItem.unit, editingItem.brand)) : "—"}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: editErrors.cost ? C.red : "#00897b" }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: editErrors.cost ? C.red : "#3b791e" }}>
                         {editingItem.cost > 0 ? `cost ${fmtPeso(editingItem.cost)} × ${bulkLabelFor(editingItem.unit, editingItem.brand)} ${markupLabelFor(editingItem.brand)}` : "no cost set"}
                       </span>
                     </div>
@@ -9334,11 +9385,11 @@
 
                 <div style={{ marginTop: "1.4rem", display: "flex", gap: 8, justifyContent: "flex-end" }}>
                   <button onClick={() => { setEditingItem(null); setEditErrors({}); }} className="msc-btn"
-                    style={{ padding: "10px 18px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                    style={{ padding: "10px 18px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                     Cancel
                   </button>
                   <button onClick={saveEdit} disabled={editLoading} className="msc-btn"
-                    style={{ padding: "10px 24px", borderRadius: 10, border: "none", background: editLoading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`, color: C.white, fontWeight: 800, fontSize: 13, cursor: editLoading ? "not-allowed" : "pointer", opacity: editLoading ? 0.7 : 1, boxShadow: "0 4px 14px rgba(0,180,90,0.3)", fontFamily: "inherit" }}>
+                    style={{ padding: "10px 24px", borderRadius: 10, border: "none", background: editLoading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`, color: C.white, fontWeight: 800, fontSize: 13, cursor: editLoading ? "not-allowed" : "pointer", opacity: editLoading ? 0.7 : 1, boxShadow: "0 4px 14px rgba(0,180,90,0.3)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                     {editLoading ? "Saving…" : editingItem.id ? "Save Changes" : "List Item"}
                   </button>
                 </div>
@@ -9362,11 +9413,11 @@
               </div>
               <div style={{ padding: "0 24px 22px", display: "flex", gap: 8 }}>
                 <button onClick={() => setConfirmDeleteItem(null)} disabled={deleteLoading} className="msc-btn"
-                  style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                  style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   Cancel
                 </button>
                 <button onClick={() => deleteItem(confirmDeleteItem)} disabled={deleteLoading} className="msc-btn"
-                  style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: deleteLoading ? "#ef9a9a" : "#e53935", color: "#fff", fontWeight: 800, fontSize: 13, cursor: deleteLoading ? "not-allowed" : "pointer", fontFamily: "inherit", boxShadow: "0 4px 14px rgba(229,57,53,0.3)" }}>
+                  style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: deleteLoading ? "#ef9a9a" : "#e53935", color: "#fff", fontWeight: 800, fontSize: 13, cursor: deleteLoading ? "not-allowed" : "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: "0 4px 14px rgba(229,57,53,0.3)" }}>
                   {deleteLoading ? "Unlisting…" : "Yes, Unlist"}
                 </button>
               </div>
@@ -9385,12 +9436,12 @@
           </div>
 
           {/* Toolbar */}
-          <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", background: "#fafffe" }}>
+          <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", background: "#F6F7F1" }}>
             <div style={{ position: "relative" }}>
-              <Search size={13} color="#5a7a65" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }} />
+              <Search size={13} color="#5C6B60" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }} />
               <input
                 type="text" placeholder="Search items…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ padding: "8px 12px 8px 30px", borderRadius: 9, border: `1px solid ${C.border}`, fontSize: 13, background: C.white, fontFamily: "inherit", outline: "none", width: 220, height: 38, boxSizing: "border-box" }}
+                style={{ padding: "8px 12px 8px 30px", borderRadius: 9, border: `1px solid ${C.border}`, fontSize: 13, background: C.white, fontFamily: "'Plus Jakarta Sans', sans-serif", outline: "none", width: 220, height: 38, boxSizing: "border-box" }}
               />
             </div>
             <select value={filterShop} onChange={(e) => setFilterShop(e.target.value)}
@@ -9400,7 +9451,7 @@
             </select>
             {(searchQuery || filterShop !== "all") && (
               <button onClick={() => { setSearchQuery(""); setFilterShop("all"); }} className="msc-btn"
-                style={{ height: 38, padding: "0 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", color: "#5a7a65" }}>
+                style={{ height: 38, padding: "0 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#5C6B60" }}>
                 Clear
               </button>
             )}
@@ -9424,7 +9475,7 @@
               </button>
             </span>
 
-            <span style={{ fontSize: 12, color: "#5a7a65", fontWeight: 600, width: "100%" }}>
+            <span style={{ fontSize: 12, color: "#5C6B60", fontWeight: 600, width: "100%" }}>
               {filteredItems.length} of {items.length} products{selectedKeys.size > 0 ? ` · ${selectedKeys.size} selected` : ""}
             </span>
           </div>
@@ -9447,7 +9498,7 @@
                   <thead>
                     <tr>
                       {["Shop", "Item Name", "Price", "Unit", "Status", "Manage"].map((label, i) => (
-                        <th key={i} style={{ padding: "11px 14px", textAlign: i === 5 ? "right" : "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#f8fffe" }}>
+                        <th key={i} style={{ padding: "11px 14px", textAlign: i === 5 ? "right" : "left", fontWeight: 800, fontSize: 10.5, color: "#3b791e", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#f8fffe" }}>
                           {label}
                         </th>
                       ))}
@@ -9467,7 +9518,7 @@
                           style={{ borderBottom: "1px solid #f0f8f0", opacity: item.listed ? 1 : 0.82 }}
                         >
                           <td style={{ padding: "11px 14px", borderLeft: `3px solid ${isSelected ? C.green : "transparent"}` }}>
-                            <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c" }}>{item.brand}</span>
+                            <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#f0f5e8", color: "#2c5c16" }}>{item.brand}</span>
                           </td>
                           <td style={{ padding: "11px 14px", fontWeight: 700, color: C.ink }}>{item.name}</td>
                           <td style={{ padding: "11px 14px" }}>
@@ -9483,7 +9534,7 @@
                           <td style={{ padding: "11px 14px", color: C.muted, fontSize: 12 }}>{item.unit || <span style={{ fontStyle: "italic" }}>—</span>}</td>
                           <td style={{ padding: "11px 14px" }}>
                             {item.listed ? (
-                              <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
+                              <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: item.is_visible ? "#f0f5e8" : "#fce4ec", color: item.is_visible ? "#2c5c16" : "#c62828" }}>
                                 {item.is_visible ? "Visible" : "Hidden"}
                               </span>
                             ) : (
@@ -9519,7 +9570,7 @@
                 </table>
               </div>
 
-              <div style={{ padding: "14px 18px", borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", background: "#fafffe" }}>
+              <div style={{ padding: "14px 18px", borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", background: "#F6F7F1" }}>
                 <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>
                   Showing {pageStartDisplay}-{pageEndDisplay} of {filteredItems.length}
                 </span>
@@ -9530,7 +9581,7 @@
                     className="msc-btn"
                     onClick={() => setCurrentPage(1)}
                     disabled={currentPage === 1}
-                    style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontSize: 11.5, fontWeight: 700, fontFamily: "inherit" }}
+                    style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontSize: 11.5, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                   >
                     First
                   </button>
@@ -9539,7 +9590,7 @@
                     className="msc-btn"
                     onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
                     disabled={currentPage === 1}
-                    style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontSize: 11.5, fontWeight: 700, fontFamily: "inherit" }}
+                    style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontSize: 11.5, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                   >
                     Previous
                   </button>
@@ -9559,7 +9610,7 @@
                         color: page === currentPage ? C.greenDk : C.ink,
                         fontSize: 11.5,
                         fontWeight: 800,
-                        fontFamily: "inherit",
+                        fontFamily: "'Plus Jakarta Sans', sans-serif",
                       }}
                     >
                       {page}
@@ -9571,7 +9622,7 @@
                     className="msc-btn"
                     onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
                     disabled={currentPage === totalPages}
-                    style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontSize: 11.5, fontWeight: 700, fontFamily: "inherit" }}
+                    style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontSize: 11.5, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                   >
                     Next
                   </button>
@@ -9580,7 +9631,7 @@
                     className="msc-btn"
                     onClick={() => setCurrentPage(totalPages)}
                     disabled={currentPage === totalPages}
-                    style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontSize: 11.5, fontWeight: 700, fontFamily: "inherit" }}
+                    style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontSize: 11.5, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                   >
                     Last
                   </button>
@@ -9627,20 +9678,20 @@
             width: "100%", maxWidth: 420,
             boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
             border: "1px solid rgba(0,168,76,0.15)",
-            fontFamily: "Montserrat, sans-serif",
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
           }}
         >
           <div style={{
-            width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+            width: 52, height: 52, borderRadius: "50%", background: "#fdf1f0",
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 16px",
           }}>
-            <Trash2 size={22} color="#dc2626" />
+            <Trash2 size={22} color="#c0392b" />
           </div>
-          <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
+          <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#12241B", marginBottom: 8 }}>
             Delete application?
           </h2>
-          <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 16 }}>
+          <p style={{ textAlign: "center", fontSize: 13, color: "#5C6B60", lineHeight: 1.6, marginBottom: 16 }}>
             You are about to delete the application from <strong>"{app.name}"</strong>{app.email ? ` (${app.email})` : ""}.
           </p>
           <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
@@ -9650,9 +9701,9 @@
             <button
               type="button" onClick={onClose} disabled={deleting}
               style={{
-                padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
-                background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
-                cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+                padding: "9px 22px", borderRadius: 10, border: "1px solid #E1E6D8",
+                background: "#f0f5e8", color: "#5C6B60", fontSize: 13, fontWeight: 700,
+                cursor: deleting ? "not-allowed" : "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
               }}
             >
               Cancel
@@ -9662,9 +9713,9 @@
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "9px 24px", borderRadius: 10, border: "none",
-                background: "linear-gradient(135deg,#dc2626,#ef4444)",
+                background: "linear-gradient(135deg,#c0392b,#c0392b)",
                 color: "#fff", fontSize: 13, fontWeight: 700,
-                cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+                cursor: deleting ? "not-allowed" : "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
                 boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
                 opacity: deleting ? 0.7 : 1,
               }}
@@ -9694,20 +9745,20 @@
             width: "100%", maxWidth: 420,
             boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
             border: "1px solid rgba(0,168,76,0.15)",
-            fontFamily: "Montserrat, sans-serif",
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
           }}
         >
           <div style={{
-            width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+            width: 52, height: 52, borderRadius: "50%", background: "#fdf1f0",
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 16px",
           }}>
-            <Trash2 size={22} color="#dc2626" />
+            <Trash2 size={22} color="#c0392b" />
           </div>
-          <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
+          <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#12241B", marginBottom: 8 }}>
             Delete application?
           </h2>
-          <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 16 }}>
+          <p style={{ textAlign: "center", fontSize: 13, color: "#5C6B60", lineHeight: 1.6, marginBottom: 16 }}>
             You are about to delete <strong>"{target.name}"</strong>
           </p>
           <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
@@ -9717,9 +9768,9 @@
             <button
               type="button" onClick={onClose} disabled={deleting}
               style={{
-                padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
-                background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
-                cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+                padding: "9px 22px", borderRadius: 10, border: "1px solid #E1E6D8",
+                background: "#f0f5e8", color: "#5C6B60", fontSize: 13, fontWeight: 700,
+                cursor: deleting ? "not-allowed" : "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
                 opacity: deleting ? 0.5 : 1,
               }}
             >
@@ -9730,9 +9781,9 @@
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "9px 24px", borderRadius: 10, border: "none",
-                background: "linear-gradient(135deg,#dc2626,#ef4444)",
+                background: "linear-gradient(135deg,#c0392b,#c0392b)",
                 color: "#fff", fontSize: 13, fontWeight: 700,
-                cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+                cursor: deleting ? "not-allowed" : "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
                 boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
                 opacity: deleting ? 0.7 : 1,
               }}
@@ -9782,7 +9833,7 @@
 
     const fetchActivityLog = useCallback(async () => {
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications-activity-log`);
+      const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/applications-activity-log`);
       const data = await res.json();
       setActivityLog(Array.isArray(data) ? data.map(row => ({
         id: row.id, action: row.action,
@@ -9807,7 +9858,7 @@
 
     const fetchApplications = async () => {
       try {
-        const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications`);
+        const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/applications`);
         const data = await res.json();
         setApplications(Array.isArray(data) ? data.map(normalizeApp) : []);
       } catch (err) {
@@ -9907,7 +9958,7 @@
           <style>
             @page { margin: 24px; }
             body {
-              font-family: Arial, sans-serif;
+              font-family:'Plus Jakarta Sans',sans-serif;
               padding: 24px;
               color: #111;
               font-size: 12px;
@@ -10115,7 +10166,7 @@
 
     const fetchAppDeleteHistory = async () => {
       try {
-        const res  = await fetch(`${process.env.REACT_APP_API_URL}/application-delete-history`);
+        const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/application-delete-history`);
         const data = await res.json();
         const mapped = Array.isArray(data)
           ? data.map(row => ({
@@ -10156,7 +10207,7 @@
     setAlertModal({ title: "Approving application…", type: "loading" });
     try {
       const coords = await getBrowserLocation();
-      await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
+      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -10191,7 +10242,7 @@
     setAlertModal({ title: "Rejecting application…", type: "loading" });
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
+      const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -10207,7 +10258,7 @@
 
       const app = applications.find(a => a.id === id);
       if (app?.email) {
-        await fetch(`${process.env.REACT_APP_API_URL}/send-rejection`, {
+        await adminModuleFetch(`${process.env.REACT_APP_API_URL}/send-rejection`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ to: app.email, name: app.name }),
@@ -10237,7 +10288,7 @@
     setAlertModal({ title: "Sending interview options…", type: "loading" });
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${app.id}/schedule-options`, {
+      const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/applications/${app.id}/schedule-options`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -10255,7 +10306,7 @@
       }
 
       if (app.email) {
-        await fetch(`${process.env.REACT_APP_API_URL}/send-schedule-options`, {
+        await adminModuleFetch(`${process.env.REACT_APP_API_URL}/send-schedule-options`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ to: app.email, name: app.name, optionADate, optionBDate, optionCDate, token: data.appointmentToken }),
@@ -10284,7 +10335,7 @@
     }
     setAlertModal({ title: "Simulating client reschedule request…", type: "loading" });
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/public/appointments/${app.appointmentToken}/reschedule-request`, {
+      const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/public/appointments/${app.appointmentToken}/reschedule-request`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -10308,7 +10359,7 @@
     setAlertModal({ title: "Deleting application…", type: "loading" });
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${deleteTarget.id}`, {
+      const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/applications/${deleteTarget.id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -10341,7 +10392,7 @@
     try {
       const d = entry.data;
       const coords = await getBrowserLocation();
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications`, {
+      const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/applications`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -10362,7 +10413,7 @@
       });
       const result = await res.json();
       if (result.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/application-delete-history/${entry.id}`, { method: "DELETE" });
+        await adminModuleFetch(`${process.env.REACT_APP_API_URL}/application-delete-history/${entry.id}`, { method: "DELETE" });
         await fetchAppDeleteHistory();
         await fetchApplications();
         await fetchActivityLog();
@@ -10383,7 +10434,7 @@
         pending:   { bg: "rgba(245,158,11,0.1)",  color: "#d97706" },
         scheduled: { bg: "rgba(37,99,235,0.1)",   color: "#2563eb" },
         approved:  { bg: "rgba(16,185,129,0.1)",  color: "#059669" },
-        rejected:  { bg: "rgba(239,68,68,0.1)",   color: "#dc2626" },
+        rejected:  { bg: "rgba(239,68,68,0.1)",   color: "#c0392b" },
       };
       const s = map[status] || map["pending"];
       return (
@@ -10430,7 +10481,7 @@
               display: "flex", flexDirection: "column",
               boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
               border: "1px solid rgba(0,168,76,0.15)",
-              fontFamily: "Montserrat, sans-serif",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
             }}
           >
             {/* Header */}
@@ -10439,13 +10490,13 @@
               alignItems: "center", marginBottom: 18,
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <h2 style={{ fontSize: 17, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>
+                <h2 style={{ fontSize: 17, fontWeight: 800, color: "#12241B", margin: 0 }}>
                   Application Delete History
                 </h2>
                 {appDeleteHistory.length > 0 && (
                   <span style={{
                     fontSize: 11, fontWeight: 700, padding: "3px 10px",
-                    borderRadius: 20, background: "#fee2e2", color: "#dc2626",
+                    borderRadius: 20, background: "#fdf1f0", color: "#c0392b",
                   }}>
                     {appDeleteHistory.length} deleted
                   </span>
@@ -10455,8 +10506,8 @@
                 onClick={() => setShowAppDeleteHistory(false)}
                 style={{
                   width: 32, height: 32, borderRadius: "50%",
-                  border: "1px solid #b2dfdb", background: "#e0f2f1",
-                  cursor: "pointer", color: "#00695c",
+                  border: "1px solid #E1E6D8", background: "#f0f5e8",
+                  cursor: "pointer", color: "#2c5c16",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}
               >
@@ -10487,12 +10538,12 @@
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
-                        fontWeight: 700, fontSize: 13, color: "#0d2b1e",
+                        fontWeight: 700, fontSize: 13, color: "#12241B",
                         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                       }}>
                         {app.name || "—"}
                       </div>
-                      <div style={{ fontSize: 11, color: "#5a7a65", marginTop: 2 }}>
+                      <div style={{ fontSize: 11, color: "#5C6B60", marginTop: 2 }}>
                         {app.email} · {app.franchise}
                       </div>
                       <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
@@ -10505,11 +10556,11 @@
                       style={{
                         display: "flex", alignItems: "center", gap: 5,
                         padding: "7px 14px", borderRadius: 9,
-                        border: "1.5px solid #00897b",
-                        background: restoringId === entry.id ? "#f0fdf5" : "#e0f2f1",
-                        color: "#00695c", fontSize: 12, fontWeight: 700,
+                        border: "1.5px solid #3b791e",
+                        background: restoringId === entry.id ? "#f0f5e8" : "#f0f5e8",
+                        color: "#2c5c16", fontSize: 12, fontWeight: 700,
                         cursor: restoringId !== null ? "not-allowed" : "pointer",
-                        fontFamily: "inherit", whiteSpace: "nowrap",
+                        fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: "nowrap",
                         opacity: restoringId !== null ? (restoringId === entry.id ? 0.7 : 0.4) : 1,
                       }}
                     >
@@ -10569,14 +10620,14 @@
             boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
             border: "1px solid rgba(0,168,76,0.15)",
             maxHeight: "90vh", overflowY: "auto",
-            fontFamily: "Montserrat, sans-serif",
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
             position: "relative",
           }}>
           <button onClick={() => setViewApp(null)} style={{
             position: "absolute", top: 14, right: 14,
             width: 32, height: 32, borderRadius: "50%",
-            border: "1px solid #b2dfdb", background: "#e0f2f1",
-            cursor: "pointer", color: "#00695c",
+            border: "1px solid #E1E6D8", background: "#f0f5e8",
+            cursor: "pointer", color: "#2c5c16",
             display: "flex", alignItems: "center", justifyContent: "center",
             zIndex: 1,
           }}>
@@ -10585,7 +10636,7 @@
 
     {/* Header row: title + Print/Create Account, on its own line below the X */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontFamily: "Montserrat,sans-serif", fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>
+              <h2 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 18, fontWeight: 800, color: "#12241B", margin: 0 }}>
                 Application Details
               </h2>
               <div style={{ display: "flex", gap: 8 }}>
@@ -10594,9 +10645,9 @@
                   style={{
                     display: "flex", alignItems: "center", gap: 6,
                     padding: "8px 16px", borderRadius: 9,
-                    border: "1.5px solid #b2dfdb", background: "#f0fdf5",
-                    color: "#5a7a65", fontSize: 12, fontWeight: 700,
-                    cursor: "pointer", fontFamily: "inherit",
+                    border: "1.5px solid #E1E6D8", background: "#f0f5e8",
+                    color: "#5C6B60", fontSize: 12, fontWeight: 700,
+                    cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
                   }}
                 >
                   <Printer size={13} /> Print
@@ -10609,9 +10660,9 @@
                 const Section = ({ title, children }) => (
                   <div style={{ marginBottom: 20 }}>
                     <div style={{
-                      fontSize: 10, fontWeight: 800, color: "#00897b", letterSpacing: "0.1em",
+                      fontSize: 10, fontWeight: 800, color: "#3b791e", letterSpacing: "0.1em",
                       textTransform: "uppercase", marginBottom: 10, paddingBottom: 6,
-                      borderBottom: "1.5px solid #e0f2f1",
+                      borderBottom: "1.5px solid #f0f5e8",
                     }}>{title}</div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
                       {children}
@@ -10623,9 +10674,9 @@
                   <div style={{ gridColumn: full ? "1 / -1" : "auto" }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>{label}</div>
                     <div style={{
-                      fontSize: 13, fontWeight: 600, color: value ? "#0d2b1e" : "#9ca3af",
+                      fontSize: 13, fontWeight: 600, color: value ? "#12241B" : "#9ca3af",
                       padding: "7px 10px", background: "#f8fffe", borderRadius: 8,
-                      border: "1px solid #e0f2f1", fontStyle: value ? "normal" : "italic",
+                      border: "1px solid #f0f5e8", fontStyle: value ? "normal" : "italic",
                     }}>
                       {value || "—"}
                     </div>
@@ -10740,10 +10791,10 @@
                     
                       <div style={{ marginBottom: 20 }}>
                 <div style={{
-                  fontSize: 10, fontWeight: 800, color: "#00897b",
+                  fontSize: 10, fontWeight: 800, color: "#3b791e",
                   letterSpacing: "0.1em", textTransform: "uppercase",
                   marginBottom: 10, paddingBottom: 6,
-                  borderBottom: "1.5px solid #e0f2f1",
+                  borderBottom: "1.5px solid #f0f5e8",
                 }}>Required Documents</div>
 
                 {/* Letter of Intent */}
@@ -10769,15 +10820,15 @@
                         style={{
                             display: "flex", alignItems: "center", gap: 8,
                             padding: "10px 14px", borderRadius: 8,
-                            border: "1.5px solid #b2dfdb", background: "#e0f2f1",
-                            color: "#00695c", fontSize: 13, fontWeight: 700,
-                            cursor: "pointer", fontFamily: "inherit", width: "fit-content",
+                            border: "1.5px solid #E1E6D8", background: "#f0f5e8",
+                            color: "#2c5c16", fontSize: 13, fontWeight: 700,
+                            cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", width: "fit-content",
                           }}
                       >
                       <FileText size={15} /> View Letter of Intent
                         </button>
                   ) : (
-                    <div style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic", padding: "7px 10px", background: "#f8fffe", borderRadius: 8, border: "1px solid #e0f2f1" }}>
+                    <div style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic", padding: "7px 10px", background: "#f8fffe", borderRadius: 8, border: "1px solid #f0f5e8" }}>
                       No Letter of Intent uploaded
                     </div>
                   )}
@@ -10791,7 +10842,7 @@
                       alt="Government ID"
                       style={{
                         maxWidth: "100%", maxHeight: 200,
-                        borderRadius: 10, border: "1.5px solid #b2dfdb",
+                        borderRadius: 10, border: "1.5px solid #E1E6D8",
                         objectFit: "contain", background: "#f8fffe",
                       }}
                     />
@@ -10799,14 +10850,14 @@
                     <div style={{
                       display: "flex", alignItems: "center", gap: 8,
                       padding: "10px 14px", borderRadius: 8,
-                      border: "1.5px solid #a5d6a7", background: "#e8f5e9",
-                      fontSize: 13, fontWeight: 600, color: "#1b5e20",
+                      border: "1.5px solid #a5d6a7", background: "#f0f5e8",
+                      fontSize: 13, fontWeight: 600, color: "#2c5c16",
                     }}>
-                      <CheckCircle2 size={15} color="#2E7D32" />
+                      <CheckCircle2 size={15} color="#3b791e" />
                       ID Verified — {viewApp.idType}
                     </div>
                   ) : (
-                    <div style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic", padding: "7px 10px", background: "#f8fffe", borderRadius: 8, border: "1px solid #e0f2f1" }}>
+                    <div style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic", padding: "7px 10px", background: "#f8fffe", borderRadius: 8, border: "1px solid #f0f5e8" }}>
                       No ID attached
                     </div>
                   )}
@@ -10838,7 +10889,7 @@
                 );
               })()}
 
-  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8, paddingTop: 16, borderTop: "1.5px solid #e0f2f1" }}>
+  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8, paddingTop: 16, borderTop: "1.5px solid #f0f5e8" }}>
   {interviewPending(viewApp) || !viewApp.appointmentDate ? (
     <button
       onClick={() => setScheduleApp(viewApp)}
@@ -10846,10 +10897,10 @@
       style={{
         display: "flex", alignItems: "center", gap: 7,
         padding: "10px 22px", borderRadius: 10,
-        border: "1.5px solid #b2dfdb", background: "#e0f2f1",
-        color: "#00695c", fontSize: 13, fontWeight: 700,
+        border: "1.5px solid #E1E6D8", background: "#f0f5e8",
+        color: "#2c5c16", fontSize: 13, fontWeight: 700,
         cursor: processingId !== null ? "not-allowed" : "pointer",
-        fontFamily: "inherit",
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
       }}
     >
       <CalendarClock size={15} /> {viewApp.appointmentDate ? "Resend Interview Options" : "Send Interview Options"}
@@ -10862,11 +10913,11 @@
                       style={{
                         display: "flex", alignItems: "center", gap: 7,
                         padding: "10px 22px", borderRadius: 10, border: "none",
-                        background: viewApp.status === "rejected" ? "#e0e0e0" : "linear-gradient(135deg,#ef4444,#dc2626)",
+                        background: viewApp.status === "rejected" ? "#e0e0e0" : "linear-gradient(135deg,#c0392b,#c0392b)",
                         color: viewApp.status === "rejected" ? "#9e9e9e" : "#fff",
                         fontSize: 13, fontWeight: 700,
                         cursor: (viewApp.status === "rejected" || processingId !== null) ? "not-allowed" : "pointer",
-                        fontFamily: "inherit",
+                        fontFamily: "'Plus Jakarta Sans', sans-serif",
                         opacity: viewApp.status === "rejected" ? 0.6 : 1,
                       }}
                     >
@@ -10881,11 +10932,11 @@
                       style={{
                         display: "flex", alignItems: "center", gap: 7,
                         padding: "10px 22px", borderRadius: 10, border: "none",
-                        background: viewApp.accountCreatedAt ? "#e0e0e0" : "linear-gradient(135deg,#00c853,#00897b)",
+                        background: viewApp.accountCreatedAt ? "#e0e0e0" : "linear-gradient(135deg,#3b791e,#3b791e)",
                         color: viewApp.accountCreatedAt ? "#9e9e9e" : "#fff",
                         fontSize: 13, fontWeight: 700,
                         cursor: (processingId !== null || viewApp.accountCreatedAt) ? "not-allowed" : "pointer",
-                        fontFamily: "inherit",
+                        fontFamily: "'Plus Jakarta Sans', sans-serif",
                         boxShadow: "0 2px 10px rgba(0,180,90,0.3)",
                         opacity: (processingId !== null || viewApp.accountCreatedAt) ? 0.6 : 1,
                       }}
@@ -10931,27 +10982,27 @@
               width: "100%", maxWidth: 420,
               boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
               border: "1px solid rgba(0,168,76,0.15)",
-              fontFamily: "Montserrat, sans-serif",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
             }}>
               <div style={{
                 display: "flex", justifyContent: "space-between",
                 alignItems: "center", marginBottom: 20,
               }}>
-                <h2 style={{ fontSize: 17, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>
+                <h2 style={{ fontSize: 17, fontWeight: 800, color: "#12241B", margin: 0 }}>
                   Actions
                 </h2>
                 <button onClick={() => setMenuApp(null)} style={{
                   width: 32, height: 32, borderRadius: "50%",
-                  border: "1px solid #b2dfdb", background: "#e0f2f1",
-                  cursor: "pointer", color: "#00695c",
+                  border: "1px solid #E1E6D8", background: "#f0f5e8",
+                  cursor: "pointer", color: "#2c5c16",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
                   <X size={15} />
                 </button>
               </div>
-              <p style={{ fontSize: 13, color: "#5a7a65", marginBottom: 20 }}>
+              <p style={{ fontSize: 13, color: "#5C6B60", marginBottom: 20 }}>
                 Applicant:{" "}
-                <strong style={{ color: "#0d2b1e" }}>{menuApp.name}</strong>
+                <strong style={{ color: "#12241B" }}>{menuApp.name}</strong>
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <button
@@ -10959,9 +11010,9 @@
                   style={{
                     display: "flex", alignItems: "center", gap: 10,
                     padding: "12px 16px", borderRadius: 11,
-                    border: "1.5px solid #b2dfdb", background: "#e0f2f1",
-                    color: "#00695c", fontSize: 13, fontWeight: 700,
-                    cursor: "pointer", fontFamily: "inherit",
+                    border: "1.5px solid #E1E6D8", background: "#f0f5e8",
+                    color: "#2c5c16", fontSize: 13, fontWeight: 700,
+                    cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
                   }}
                 >
                   <Eye size={15} /> View Application Details
@@ -10975,11 +11026,11 @@
                   style={{
                     display: "flex", alignItems: "center", gap: 10,
                     padding: "12px 16px", borderRadius: 11, border: "none",
-                    background: menuApp.accountCreatedAt ? "#e0e0e0" : "linear-gradient(135deg,#00c853,#00897b)",
+                    background: menuApp.accountCreatedAt ? "#e0e0e0" : "linear-gradient(135deg,#3b791e,#3b791e)",
                     color: menuApp.accountCreatedAt ? "#9e9e9e" : "#fff",
                     fontSize: 13, fontWeight: 700,
                     cursor: (processingId !== null || menuApp.accountCreatedAt) ? "not-allowed" : "pointer",
-                    fontFamily: "inherit",
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
                     opacity: (processingId !== null || menuApp.accountCreatedAt) ? 0.6 : 1,
                   }}
                 >
@@ -10994,11 +11045,11 @@
                     padding: "12px 16px", borderRadius: 11, border: "none",
                     background: menuApp.status === "approved"
                       ? "#e0e0e0"
-                      : "linear-gradient(135deg,#00c853,#00897b)",
+                      : "linear-gradient(135deg,#3b791e,#3b791e)",
                     color: menuApp.status === "approved" ? "#9e9e9e" : "#fff",
                     fontSize: 13, fontWeight: 700,
                     cursor: menuApp.status === "approved" ? "not-allowed" : "pointer",
-                    fontFamily: "inherit",
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
                     opacity: menuApp.status === "approved" ? 0.6 : 1,
                   }}
                 >
@@ -11013,11 +11064,11 @@
                       padding: "12px 16px", borderRadius: 11, border: "none",
                       background: menuApp.status === "rejected"
                       ? "#e0e0e0"
-                      : "linear-gradient(135deg,#ef4444,#dc2626)",
+                      : "linear-gradient(135deg,#c0392b,#c0392b)",
                       color: menuApp.status === "rejected" ? "#9e9e9e" : "#fff",
                       fontSize: 13, fontWeight: 700,
                       cursor: menuApp.status === "rejected" ? "not-allowed" : "pointer",
-                      fontFamily: "inherit",
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
                       opacity: menuApp.status === "rejected" ? 0.6 : 1,
                   }}
                   >
@@ -11031,7 +11082,7 @@
                   )}
 
         {/* ── Main content ── */}
-        <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
+        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
           {/* Stat cards */}
           <div style={{
@@ -11060,7 +11111,7 @@
                 label: "Rejected",
                 value: applications.filter(a => a.status === "rejected").length,
                 icon: <X size={20} color="#7f1d1d" />,
-                bg: "linear-gradient(135deg,#fee2e2,#fca5a5)", sub: "Not approved",
+                bg: "linear-gradient(135deg,#fdf1f0,#fca5a5)", sub: "Not approved",
               },
             ].map((s, i) => <BmStatCard key={i} {...s} />)}
           </div>
@@ -11071,16 +11122,16 @@
 
               {/* Search */}
               <div style={{ position:"relative" }}>
-                <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
+                <Search size={13} color="#5C6B60" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
                 <input
                   type="text"
                   placeholder="Search name, email, phone…"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  style={{ padding:"9px 12px 9px 30px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, color:"#0d2b1e", background:"#f0fdf5", fontFamily:"inherit", outline:"none", width:240 }}
+                  style={{ padding:"9px 12px 9px 30px", borderRadius:10, border:"1.5px solid #E1E6D8", fontSize:13, color:"#12241B", background:"#f0f5e8", fontFamily:"'Plus Jakarta Sans', sans-serif", outline:"none", width:240 }}
                 />
                 {searchQuery && (
-                  <div onClick={() => setSearchQuery("")} style={{ position:"absolute", right:9, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:"#5a7a65" }}>
+                  <div onClick={() => setSearchQuery("")} style={{ position:"absolute", right:9, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:"#5C6B60" }}>
                     <X size={12}/>
                   </div>
                 )}
@@ -11088,7 +11139,7 @@
 
               {/* Status */}
               <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+                style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #E1E6D8", fontSize:13, background:"#f0f5e8", fontFamily:"'Plus Jakarta Sans', sans-serif", outline:"none", cursor:"pointer" }}>
                   <option value="all">All Statuses</option>
                   <option value="pending">Pending</option>
                   <option value="scheduled">Scheduled</option>
@@ -11098,7 +11149,7 @@
 
               {/* Franchise Interest */}
               <select value={filterFranchise} onChange={e => setFilterFranchise(e.target.value)}
-                style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+                style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #E1E6D8", fontSize:13, background:"#f0f5e8", fontFamily:"'Plus Jakarta Sans', sans-serif", outline:"none", cursor:"pointer" }}>
                 <option value="all">All Franchises</option>
                 <option value="Food Caravan">Food Caravan</option>
                 <option value="Coffee Spot">Coffee Spot</option>
@@ -11110,13 +11161,13 @@
               {(searchQuery || filterStatus !== "all" || filterFranchise !== "all") && (
                 <button
                   onClick={() => { setSearchQuery(""); setFilterStatus("all"); setFilterFranchise("all"); }}
-                  style={{ padding:"9px 14px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  style={{ padding:"9px 14px", borderRadius:10, border:"1.5px solid #E1E6D8", background:"#fff", color:"#5C6B60", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
                   Clear filters
                 </button>
               )}
 
               {/* Result count pushed right */}
-              <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
+              <span style={{ marginLeft:"auto", fontSize:12, color:"#5C6B60", fontWeight:600 }}>
                 {filteredApps.length} of {applications.length} application{applications.length !== 1 ? "s" : ""}
               </span>
 
@@ -11133,7 +11184,7 @@
           }}>
             {/* Table header bar */}
             <div style={{
-              background: "linear-gradient(135deg,#2E7D32,#00897b)",
+              background: "linear-gradient(135deg,#3b791e,#3b791e)",
               padding: "16px 22px",
               display: "flex", alignItems: "center", justifyContent: "space-between",
             }}>
@@ -11150,7 +11201,7 @@
                     border: "1.5px solid rgba(255,255,255,0.4)",
                     background: "rgba(255,255,255,0.12)",
                     color: "#fff", fontSize: 12, fontWeight: 700,
-                    cursor: "pointer", fontFamily: "inherit",
+                    cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
                   }}
                 >
                   Export CSV
@@ -11165,13 +11216,13 @@
                     border: "1.5px solid rgba(255,255,255,0.4)",
                     background: "rgba(255,255,255,0.10)",
                     color: "#fff", fontSize: 12, fontWeight: 700,
-                    cursor: "pointer", fontFamily: "inherit",
+                    cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
                   }}
                 >
                   <History size={13} /> Delete History
                   {appDeleteHistory.length > 0 && (
                     <span style={{
-                      background: "#dc2626", color: "#fff",
+                      background: "#c0392b", color: "#fff",
                       fontSize: 10, fontWeight: 800,
                       padding: "1px 7px", borderRadius: 20,
                     }}>
@@ -11197,7 +11248,7 @@
                     ].map(h => (
                       <th key={h} style={{
                         padding: "9px 14px", textAlign: "left",
-                        fontWeight: 800, fontSize: 10.5, color: "#00897b",
+                        fontWeight: 800, fontSize: 10.5, color: "#3b791e",
                         letterSpacing: "0.07em", textTransform: "uppercase",
                         borderBottom: `1px solid ${C.border}`,
                         background: "#f8fffe", whiteSpace: "nowrap",
@@ -11224,25 +11275,25 @@
                       onMouseEnter={e => e.currentTarget.style.background = "#f6fef8"}
                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                     >
-                      <td style={{ padding: "12px 14px", fontWeight: 700, color: "#0d2b1e" }}>
+                      <td style={{ padding: "12px 14px", fontWeight: 700, color: "#12241B" }}>
                         {app.name}
                       </td>
-                      <td style={{ padding: "12px 14px", color: "#5a7a65", fontSize: 12 }}>
+                      <td style={{ padding: "12px 14px", color: "#5C6B60", fontSize: 12 }}>
                         {app.email}
                       </td>
-                      <td style={{ padding: "12px 14px", color: "#5a7a65", fontSize: 12 }}>
+                      <td style={{ padding: "12px 14px", color: "#5C6B60", fontSize: 12 }}>
                         {app.phone}
                       </td>
-                      <td style={{ padding: "12px 14px", color: "#0d2b1e", fontWeight: 600 }}>
+                      <td style={{ padding: "12px 14px", color: "#12241B", fontWeight: 600 }}>
                         {app.franchise}
                       </td>
-                      <td style={{ padding: "12px 14px", color: "#5a7a65", fontSize: 12 }}>
+                      <td style={{ padding: "12px 14px", color: "#5C6B60", fontSize: 12 }}>
                         {app.date ? new Date(app.date).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric", timeZone: "Asia/Manila" }) : "—"}
                       </td>
                       <td style={{ padding: "12px 14px" }}>
                         <StatusBadge status={app.status} />
                         {app.appointmentDate && (
-                          <div style={{ fontSize: 11, color: app.appointmentStatus === "reschedule_requested" ? "#d97706" : "#5a7a65", marginTop: 4 }}>
+                          <div style={{ fontSize: 11, color: app.appointmentStatus === "reschedule_requested" ? "#d97706" : "#5C6B60", marginTop: 4 }}>
                             {app.appointmentStatus === "reschedule_requested" ? "Reschedule requested" : `Interview: ${new Date(app.appointmentDate).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila" })}`}
                           </div>
 
@@ -11255,8 +11306,8 @@
     onClick={() => setViewApp(app)}
     style={{
       ...smallBtnSt,
-      border: "1.5px solid #b2dfdb",
-      background: "#e0f2f1", color: "#00695c",
+      border: "1.5px solid #E1E6D8",
+      background: "#f0f5e8", color: "#2c5c16",
       height: 28, padding: "0 12px",
     }}
     title="View"
@@ -11266,7 +11317,7 @@
                           {/* Delete */}
                         <button
                             onClick={() => handleDelete(app.id)}
-                            style={{ ...smallBtnSt, border: "1.5px solid #fecaca", background: "#fee2e2", color: "#dc2626", height: 28, padding: "0 12px" }}
+                            style={{ ...smallBtnSt, border: "1.5px solid #f2c9c4", background: "#fdf1f0", color: "#c0392b", height: 28, padding: "0 12px" }}
                             title="Delete"
                           >
                             <Trash2 size={11} />
@@ -11309,15 +11360,15 @@
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
         <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 460, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>
+            <h2 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 18, fontWeight: 800, color: '#12241B', margin: 0 }}>
               Send Interview Time Options
             </h2>
-            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #b2dfdb', background: '#e0f2f1', cursor: 'pointer', color: '#00695c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #E1E6D8', background: '#f0f5e8', cursor: 'pointer', color: '#2c5c16', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <X size={15} />
             </button>
           </div>
           <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>
-            Applicant: <strong style={{ color: '#0d2b1e' }}>{applicant?.name}</strong>
+            Applicant: <strong style={{ color: '#12241B' }}>{applicant?.name}</strong>
           </p>
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: 14 }}>
@@ -11336,11 +11387,11 @@
               The applicant will get an email with all three times and picks whichever works for them — no separate confirmation step needed from you.
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button type="button" onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+              <button type="button" onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #E1E6D8', background: '#f0f5e8', color: '#5C6B60', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 Cancel
               </button>
               <button type="submit" disabled={sending}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(0,180,90,0.35)', opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#3b791e,#3b791e)', color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '0 2px 10px rgba(0,180,90,0.35)', opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
                 {sending ? "Sending…" : "Send Options"}
               </button>
             </div>
@@ -11365,15 +11416,15 @@
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
         <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 460, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>
+            <h2 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 18, fontWeight: 800, color: '#12241B', margin: 0 }}>
               Send Reschedule Options
             </h2>
-            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #b2dfdb', background: '#e0f2f1', cursor: 'pointer', color: '#00695c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #E1E6D8', background: '#f0f5e8', cursor: 'pointer', color: '#2c5c16', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <X size={15} />
             </button>
           </div>
           <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>
-            Applicant: <strong style={{ color: '#0d2b1e' }}>{applicant?.name}</strong>
+            Applicant: <strong style={{ color: '#12241B' }}>{applicant?.name}</strong>
           </p>
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: 14 }}>
@@ -11388,11 +11439,11 @@
               The applicant gets an email with both options and picks the one that works for them.
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button type="button" onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+              <button type="button" onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #E1E6D8', background: '#f0f5e8', color: '#5C6B60', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 Cancel
               </button>
               <button type="submit" disabled={sending}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(0,180,90,0.35)', opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#3b791e,#3b791e)', color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '0 2px 10px rgba(0,180,90,0.35)', opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
                 {sending ? "Sending…" : "Send Options"}
               </button>
             </div>
@@ -11410,7 +11461,7 @@
     const [selectedRole, setSelectedRole] = useState(roles?.[0] || 'Franchisee');
 
     useEffect(() => {
-      fetch(`${process.env.REACT_APP_API_URL}/brands`).then(r => r.json())
+      adminModuleFetch(`${process.env.REACT_APP_API_URL}/brands`).then(r => r.json())
         .then(d => setBrands(Array.isArray(d) ? d : [])).catch(() => {}).finally(() => setBrandsLoading(false));
     }, []);
 
@@ -11443,7 +11494,7 @@
 
         // Create the account first — if the email is a duplicate, we bail
         // out before ever touching branches, so no orphan branch is created.
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/users`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name, firstName, lastName, middleInitial: middleInitial || null, suffix: suffix || null,
@@ -11467,7 +11518,7 @@
         // The applicant is the new franchisee — their assigned branch doesn't
         // exist yet, so create it under the selected brand now that the
         // account itself succeeded.
-        const branchRes = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+        const branchRes = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/branches`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: branch,
@@ -11484,7 +11535,7 @@
           return;
         }
 
-        await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
+        await adminModuleFetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ to: email, name, password: tempPassword }),
         });
@@ -11495,7 +11546,7 @@
         // locally-disabled button — not a false "something went wrong".
         let markedApplication = null;
         try {
-          const markedRes = await fetch(`${process.env.REACT_APP_API_URL}/applications/${applicant?.id}/account-created`, {
+          const markedRes = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/applications/${applicant?.id}/account-created`, {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               performed_by: user?.name || 'System',
@@ -11525,10 +11576,10 @@
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
         <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 500, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', maxHeight: '92vh', overflowY: 'auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>Create Franchisee Account</h2>
-            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #b2dfdb', background: '#e0f2f1', cursor: 'pointer', color: '#00695c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={15} /></button>
+            <h2 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 18, fontWeight: 800, color: '#12241B', margin: 0 }}>Create Franchisee Account</h2>
+            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #E1E6D8', background: '#f0f5e8', cursor: 'pointer', color: '#2c5c16', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={15} /></button>
           </div>
-          <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>Creating account for: <strong style={{ color: '#0d2b1e' }}>{applicant?.name}</strong></p>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>Creating account for: <strong style={{ color: '#12241B' }}>{applicant?.name}</strong></p>
           <form onSubmit={handleSubmit}>
             <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
     <div style={{ flex: 2 }}>
@@ -11592,9 +11643,9 @@
             </div>
             <p style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>A temporary password will be auto-generated and emailed to the applicant.</p>
           <div style={{ display: 'flex', gap: 10 }}>
-              <button type="button" onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+              <button type="button" onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #E1E6D8', background: '#f0f5e8', color: '#5C6B60', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Cancel</button>
               <button type="submit" disabled={sending}
-                style={{ display:'flex', alignItems:'center', gap:6, flex: 1, justifyContent:'center', padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.35)',
+                style={{ display:'flex', alignItems:'center', gap:6, flex: 1, justifyContent:'center', padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#3b791e,#3b791e)', color:'#fff', fontSize:13, fontWeight:700, fontFamily:"'Plus Jakarta Sans', sans-serif", boxShadow:'0 2px 10px rgba(0,180,90,0.35)',
                 opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
                 {sending && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
                 {sending ? "Creating…" : "✉ Create & Send"}
@@ -11663,7 +11714,7 @@
 
     const fetchActivityLog = useCallback(async () => {
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/reports-activity-log`);
+      const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/reports-activity-log`);
       const data = await res.json();
       setActivityLog(Array.isArray(data) ? data : []);
     } catch (err) { console.error("Failed to fetch orders activity log:", err); }
@@ -11671,7 +11722,7 @@
 
   const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
     try {
-      await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
+      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -11698,7 +11749,7 @@
         if (filterStatus !== "all") params.set("status", filterStatus);
         if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
 
-        const res  = await fetch(`${API}/reports?${params}`);
+        const res  = await adminModuleFetch(`${API}/reports?${params}`);
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = await res.json();
         setReports(data);
@@ -11757,7 +11808,7 @@
     setActionLoading(true);
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/approve`, {
+      const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/approve`, {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -12017,7 +12068,7 @@
     const ModalShell = ({ title, subtitle, icon, onClose, children, maxWidth=500 }) => (
       <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20 }}>
         <div onClick={e => e.stopPropagation()} style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", maxHeight:"92vh", overflowY:"auto" }}>
-          <div style={{ background:"linear-gradient(135deg,#2E7D32,#00897b)", borderRadius:"20px 20px 0 0", padding:"16px 22px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div style={{ background:"linear-gradient(135deg,#3b791e,#3b791e)", borderRadius:"20px 20px 0 0", padding:"16px 22px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div style={{ display:"flex", alignItems:"center", gap:9 }}>
               {icon}
               <div>
@@ -12036,18 +12087,18 @@
 
     const ReportMetaGrid = ({ report }) => (
       <>
-        <div style={{ marginBottom:16, padding:"12px 14px", background:"#f0fdf5", borderRadius:12, border:"1px solid #d1eedd" }}>
-          <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:5 }}>Submitted By</div>
-          <div style={{ fontWeight:800, fontSize:14, color:"#0d2b1e" }}>{report.submittedBy}</div>
-          <div style={{ fontSize:12, color:"#5a7a65", marginTop:1 }}>{report.role}</div>
+        <div style={{ marginBottom:16, padding:"12px 14px", background:"#f0f5e8", borderRadius:12, border:"1px solid #E1E6D8" }}>
+          <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5C6B60", marginBottom:5 }}>Submitted By</div>
+          <div style={{ fontWeight:800, fontSize:14, color:"#12241B" }}>{report.submittedBy}</div>
+          <div style={{ fontSize:12, color:"#5C6B60", marginTop:1 }}>{report.role}</div>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
           {[{ label:"Brand", value:report.brand },{ label:"Branch", value:report.branch },
             { label:"Period", value:fmtPeriod(report.period) },{ label:"Submitted", value:fmtDate(report.submittedAt) }
           ].map(({ label, value }) => (
-            <div key={label} style={{ padding:"10px 12px", background:"#f8fffe", borderRadius:10, border:"1px solid #e0f2f1" }}>
-              <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:3 }}>{label}</div>
-              <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e" }}>{value}</div>
+            <div key={label} style={{ padding:"10px 12px", background:"#f8fffe", borderRadius:10, border:"1px solid #f0f5e8" }}>
+              <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5C6B60", marginBottom:3 }}>{label}</div>
+              <div style={{ fontWeight:700, fontSize:13, color:"#12241B" }}>{value}</div>
             </div>
           ))}
         </div>
@@ -12056,16 +12107,16 @@
 
     if (initialLoading) return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 0", gap:14 }}>
-      <div style={{ width:36, height:36, border:"3px solid #d1eedd", borderTopColor:"#00897b", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>
-      <div style={{ fontSize:13, fontWeight:700, color:"#5a7a65" }}>Loading reports…</div>
+      <div style={{ width:36, height:36, border:"3px solid #E1E6D8", borderTopColor:"#3b791e", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>
+      <div style={{ fontSize:13, fontWeight:700, color:"#5C6B60" }}>Loading reports…</div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 
     if (error) return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 0", gap:12 }}>
-      <div style={{ fontSize:13, fontWeight:700, color:"#dc2626" }}>{error}</div>
-      <button onClick={fetchReports} style={{ padding:"9px 22px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+      <div style={{ fontSize:13, fontWeight:700, color:"#c0392b" }}>{error}</div>
+      <button onClick={fetchReports} style={{ padding:"9px 22px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#3b791e,#3b791e)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
         Retry
       </button>
     </div>
@@ -12073,7 +12124,7 @@
 
     // ── Render ──────────────────────────────────────────────────────
     return (
-      <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
+      <div style={{ fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
 
         {viewReport && (
           <ModalShell
@@ -12086,14 +12137,14 @@
             <ReportMetaGrid report={viewReport}/>
 
             {/* PDF shows immediately — no click needed */}
-            <div style={{ marginBottom: 16, borderRadius: 12, overflow: "hidden", border: "1px solid #d1eedd" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px", background: "#f0fdf5", borderBottom: "1px solid #d1eedd" }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#00897b" }}>
+            <div style={{ marginBottom: 16, borderRadius: 12, overflow: "hidden", border: "1px solid #E1E6D8" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px", background: "#f0f5e8", borderBottom: "1px solid #E1E6D8" }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#3b791e" }}>
                   REP-{String(viewReport.id).padStart(5, '0')} · {fmtPeriod(viewReport.period)}
                 </span>
                 <button
                   onClick={() => downloadReport(viewReport)}
-                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#3b791e,#3b791e)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   <Download size={11}/> Download
                 </button>
               </div>
@@ -12119,13 +12170,13 @@
                 {viewReport.status !== "approved" && (
                   <button
                     onClick={() => setApproveReport(viewReport)}
-                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 20px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: actionLoading ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: actionLoading ? 0.7 : 1, boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}>
+                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 20px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#3b791e,#3b791e)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: actionLoading ? "not-allowed" : "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", opacity: actionLoading ? 0.7 : 1, boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}>
                     {actionLoading ? <RefreshCw size={13} style={{ animation: "spin 0.8s linear infinite" }}/> : <Check size={14}/>} Acknowledge
                   </button>
                 )}
                 <button
                   onClick={() => { setViewReport(null); setPdfPreviewUrl(null); }}
-                  style={{ padding: "8px 20px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  style={{ padding: "8px 20px", borderRadius: 10, border: "1px solid #E1E6D8", background: "#f0f5e8", color: "#5C6B60", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   Close
                 </button>
               </div>
@@ -12137,17 +12188,17 @@
         {approveReport && (
           <ModalShell title={`Acknowledge Report #${approveReport.id}`} subtitle={approveReport.brand + " · " + approveReport.branch} icon={<Check size={16} color="#fff"/>} onClose={() => setApproveReport(null)} maxWidth={440}>
             <ReportMetaGrid report={approveReport}/>
-            <div style={{ padding:"14px 16px", borderRadius:12, background:"linear-gradient(135deg,#d1fae5,#e0f2f1)", border:"1px solid #a7f3d0", marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
-              <Check size={18} color="#00897b"/>
+            <div style={{ padding:"14px 16px", borderRadius:12, background:"linear-gradient(135deg,#d1fae5,#f0f5e8)", border:"1px solid #a7f3d0", marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+              <Check size={18} color="#3b791e"/>
               <div>
-                <div style={{ fontWeight:800, fontSize:13, color:"#0d2b1e" }}>Confirm Acknowledgment</div>
-                <div style={{ fontSize:12, color:"#5a7a65", marginTop:2 }}>This will mark the report as acknowledged. This action cannot be undone.</div>
+                <div style={{ fontWeight:800, fontSize:13, color:"#12241B" }}>Confirm Acknowledgment</div>
+                <div style={{ fontSize:12, color:"#5C6B60", marginTop:2 }}>This will mark the report as acknowledged. This action cannot be undone.</div>
               </div>
             </div>
             <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
-              <button onClick={() => setApproveReport(null)} style={{ padding:"9px 20px", borderRadius:10, border:"1px solid #b2dfdb", background:"#f0fdf5", color:"#5a7a65", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+              <button onClick={() => setApproveReport(null)} style={{ padding:"9px 20px", borderRadius:10, border:"1px solid #E1E6D8", background:"#f0f5e8", color:"#5C6B60", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>Cancel</button>
               <button onClick={() => handleApprove(approveReport)} disabled={actionLoading}
-                style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 22px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", fontSize:13, fontWeight:700, cursor:actionLoading?"not-allowed":"pointer", fontFamily:"inherit", opacity:actionLoading?0.7:1, boxShadow:"0 2px 10px rgba(0,180,90,0.35)" }}>
+                style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 22px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#3b791e,#3b791e)", color:"#fff", fontSize:13, fontWeight:700, cursor:actionLoading?"not-allowed":"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif", opacity:actionLoading?0.7:1, boxShadow:"0 2px 10px rgba(0,180,90,0.35)" }}>
                 {actionLoading ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <Check size={14}/>} Acknowledge Report
               </button>
             </div>
@@ -12166,11 +12217,11 @@
 
       {/* Search */}
       <div style={{ position:"relative", flex:"1 1 220px", minWidth:180 }}>
-        <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
+        <Search size={13} color="#5C6B60" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
         <input type="text" placeholder="Search ID or submitter..." value={search} onChange={e => setSearch(e.target.value)}
           style={{ ...bmInput, paddingLeft:30, height:36, width:"100%" }}/>
         {search && (
-          <div onClick={() => setSearch("")} style={{ position:"absolute", right:9, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:"#5a7a65" }}>
+          <div onClick={() => setSearch("")} style={{ position:"absolute", right:9, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:"#5C6B60" }}>
             <X size={12}/>
           </div>
         )}
@@ -12194,7 +12245,7 @@
 
       {/* Export + Refresh pushed right */}
       <button onClick={() => handleExport(filterBrand || null)}
-        style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:6, padding:"7px 16px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#f0fdf5", color:"#00695c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+        style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:6, padding:"7px 16px", borderRadius:10, border:"1.5px solid #E1E6D8", background:"#f0f5e8", color:"#2c5c16", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
         <Download size={13}/> Export CSV
       </button>
   <button
@@ -12202,8 +12253,8 @@
     disabled={refreshing}
     style={{
       display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:10,
-      border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65",
-      fontSize:12, fontWeight:700, fontFamily:"inherit",
+      border:"1.5px solid #E1E6D8", background:"#fff", color:"#5C6B60",
+      fontSize:12, fontWeight:700, fontFamily:"'Plus Jakarta Sans', sans-serif",
       cursor: refreshing ? "not-allowed" : "pointer",
       opacity: refreshing ? 0.6 : 1,
     }}
@@ -12215,15 +12266,15 @@
 
     {/* Active filter chips — mirrors inventory pattern */}
     {(search || filterStatus !== "all" || filterBrand || filterBranch) && (
-      <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:"1px solid #d1eedd", flexWrap:"wrap" }}>
-        <span style={{ fontSize:11, color:"#5a7a65", fontWeight:600 }}>Active:</span>
+      <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:"1px solid #E1E6D8", flexWrap:"wrap" }}>
+        <span style={{ fontSize:11, color:"#5C6B60", fontWeight:600 }}>Active:</span>
         {search       && <Chip label={`"${search}"`}        color="#3949ab" bg="#e8eaf6" onRemove={() => setSearch("")}/>}
-        {filterStatus !== "all" && <Chip label={REPORT_STATUS[filterStatus]?.label} color="#00695c" bg="#e0f2f1" onRemove={() => setFilterStatus("all")}/>}
-        {filterBrand && !filterBranch && <Chip label={brandList.find(b => b.id === filterBrand)?.name} color="#00695c" bg="#e8f5e9" onRemove={() => { setFilterBrand(null); setFilterBranch(null); }}/>}
-        {filterBranch && <Chip label={filterBranch} color="#00695c" bg="#e0f7fa" onRemove={() => setFilterBranch(null)}/>}
+        {filterStatus !== "all" && <Chip label={REPORT_STATUS[filterStatus]?.label} color="#2c5c16" bg="#f0f5e8" onRemove={() => setFilterStatus("all")}/>}
+        {filterBrand && !filterBranch && <Chip label={brandList.find(b => b.id === filterBrand)?.name} color="#2c5c16" bg="#f0f5e8" onRemove={() => { setFilterBrand(null); setFilterBranch(null); }}/>}
+        {filterBranch && <Chip label={filterBranch} color="#2c5c16" bg="#e0f7fa" onRemove={() => setFilterBranch(null)}/>}
         <button
           onClick={() => { setSearch(""); setFilterStatus("all"); setFilterBrand(null); setFilterBranch(null); }}
-          style={{ height:24, padding:"0 10px", borderRadius:7, border:"1px solid #d1eedd", background:"#fff", color:"#5a7a65", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginLeft:"auto" }}>
+          style={{ height:24, padding:"0 10px", borderRadius:7, border:"1px solid #E1E6D8", background:"#fff", color:"#5C6B60", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif", marginLeft:"auto" }}>
           Clear all
         </button>
       </div>
@@ -12232,7 +12283,7 @@
 
         {/* One BmSection per brand */}
         {allBrands.length === 0 ? (
-          <div style={{ padding:"60px 0", textAlign:"center", color:"#5a7a65", fontSize:13, fontStyle:"italic" }}>
+          <div style={{ padding:"60px 0", textAlign:"center", color:"#5C6B60", fontSize:13, fontStyle:"italic" }}>
             No reports found.
           </div>
         ) : allBrands.map(brand => {
@@ -12250,9 +12301,9 @@
                     <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                       <span style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.8)", textTransform:"uppercase", letterSpacing:"0.07em" }}>Branch</span>
                       <select value={activeBranch} onChange={e => setBrandBranchFilter(prev => ({ ...prev, [brand]: e.target.value }))}
-                        style={{ height:30, padding:"0 10px", borderRadius:8, border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", outline:"none", appearance:"none" }}>
-                        <option value="all" style={{ color:"#0d2b1e", background:"#fff" }}>All branches</option>
-                        {branches.map(b => <option key={b} value={b} style={{ color:"#0d2b1e", background:"#fff" }}>{b}</option>)}
+                        style={{ height:30, padding:"0 10px", borderRadius:8, border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif", outline:"none", appearance:"none" }}>
+                        <option value="all" style={{ color:"#12241B", background:"#fff" }}>All branches</option>
+                        {branches.map(b => <option key={b} value={b} style={{ color:"#12241B", background:"#fff" }}>{b}</option>)}
                       </select>
                     </div>
                     <span style={{ fontSize:12, color:"rgba(255,255,255,0.7)", fontWeight:600 }}>
@@ -12260,7 +12311,7 @@
                     </span>
                     {/* Per-brand export */}
                     <button onClick={() => handleExport(brand)}
-                      style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:8, border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                      style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:8, border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
                       <Download size={11}/> Export
                     </button>
                   </div>
@@ -12271,33 +12322,33 @@
                   <thead>
                     <tr>
                       {["Report #","Submitted By","Role","Branch","Period","Date Submitted","Status",""].map(h => (
-                        <th key={h} style={{ padding:"10px 14px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:"1px solid #d1eedd", background:"#f8fffe", whiteSpace:"nowrap" }}>{h}</th>
+                        <th key={h} style={{ padding:"10px 14px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#3b791e", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:"1px solid #E1E6D8", background:"#f8fffe", whiteSpace:"nowrap" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {brandReports.length === 0 ? (
-                      <tr><td colSpan={8} style={{ padding:"36px 0", textAlign:"center", color:"#5a7a65", fontSize:13, fontStyle:"italic" }}>No reports match the current filters.</td></tr>
+                      <tr><td colSpan={8} style={{ padding:"36px 0", textAlign:"center", color:"#5C6B60", fontSize:13, fontStyle:"italic" }}>No reports match the current filters.</td></tr>
                     ) : brandReports.map(report => (
                       <tr key={report.id}
                         onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
                         onMouseLeave={e => e.currentTarget.style.background="transparent"}
                         style={{ borderBottom:"1px solid #f0f8f0" }}>
-                        <td style={{ padding:"11px 14px", fontWeight:800, color:"#0d2b1e", fontSize:12 }}>
+                        <td style={{ padding:"11px 14px", fontWeight:800, color:"#12241B", fontSize:12 }}>
                           REP-{String(report.id).padStart(5, '0')}  {/* ← was #{report.id} */}
                         </td>
-                        <td style={{ padding:"11px 14px", fontWeight:700, color:"#0d2b1e" }}>{report.submittedBy}</td>
+                        <td style={{ padding:"11px 14px", fontWeight:700, color:"#12241B" }}>{report.submittedBy}</td>
                         <td style={{ padding:"11px 14px" }}>
-                          <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:"rgba(0,137,123,0.1)", color:"#00695c" }}>{report.role}</span>
+                          <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:"rgba(0,137,123,0.1)", color:"#2c5c16" }}>{report.role}</span>
                         </td>
-                        <td style={{ padding:"11px 14px", fontSize:12, color:"#5a7a65" }}>{report.branch}</td>
-                        <td style={{ padding:"11px 14px", fontSize:12, color:"#5a7a65", whiteSpace:"nowrap" }}>{fmtPeriod(report.period)}</td>
-                        <td style={{ padding:"11px 14px", fontSize:11, color:"#5a7a65", whiteSpace:"nowrap" }}>{fmtDate(report.submittedAt)}</td>
+                        <td style={{ padding:"11px 14px", fontSize:12, color:"#5C6B60" }}>{report.branch}</td>
+                        <td style={{ padding:"11px 14px", fontSize:12, color:"#5C6B60", whiteSpace:"nowrap" }}>{fmtPeriod(report.period)}</td>
+                        <td style={{ padding:"11px 14px", fontSize:11, color:"#5C6B60", whiteSpace:"nowrap" }}>{fmtDate(report.submittedAt)}</td>
                         <td style={{ padding:"11px 14px" }}><StatusBadge status={report.status}/></td>
                         <td style={{ padding:"11px 14px" }}>
                           <button
                             onClick={() => handleViewReport(report)}
-                            style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:9, border:"1.5px solid #b2dfdb", background:"#e0f2f1", color:"#00695c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                            style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:9, border:"1.5px solid #E1E6D8", background:"#f0f5e8", color:"#2c5c16", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
                             <Eye size={13}/> View Report
                           </button>
                         </td>
@@ -12323,8 +12374,8 @@
     const isError = type === "error";
     const isSuccess = type === "success";
 
-    const iconBg = isError ? "#fee2e2" : isSuccess ? "#d1fae5" : "#dbeafe";
-    const iconColor = isError ? "#dc2626" : isSuccess ? "#059669" : "#2563eb";
+    const iconBg = isError ? "#fdf1f0" : isSuccess ? "#d1fae5" : "#dbeafe";
+    const iconColor = isError ? "#c0392b" : isSuccess ? "#059669" : "#2563eb";
     const Icon = isError ? Trash2 : isSuccess ? Check : Info;
 
     return (
@@ -12343,7 +12394,7 @@
             width: "100%", maxWidth: 380,
             boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
             border: "1px solid rgba(0,168,76,0.15)",
-            fontFamily: "Montserrat, sans-serif",
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
             textAlign: "center",
           }}
         >
@@ -12354,16 +12405,16 @@
           }}>
             <Icon size={22} color={iconColor} />
           </div>
-          <p style={{ fontSize: 14, color: "#0d2b1e", lineHeight: 1.6, marginBottom: 20, fontWeight: 600 }}>
+          <p style={{ fontSize: 14, color: "#12241B", lineHeight: 1.6, marginBottom: 20, fontWeight: 600 }}>
             {message}
           </p>
           <button
             onClick={onClose}
             style={{
               padding: "9px 28px", borderRadius: 10,
-              border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)",
+              border: "none", background: "linear-gradient(135deg,#3b791e,#3b791e)",
               color: "#fff", fontSize: 13, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
+              cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
               boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
             }}
           >
@@ -12399,7 +12450,7 @@
             display: "flex", flexDirection: "column",
             boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
             border: "1px solid rgba(0,168,76,0.15)",
-            fontFamily: "Montserrat, sans-serif",
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
           }}
         >
         <style>{`
@@ -12409,13 +12460,13 @@
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 800, color: "#12241B", margin: 0 }}>
                 Delete History
               </h2>
               {history.length > 0 && (
                 <span style={{
                   fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20,
-                  background: "#fee2e2", color: "#dc2626",
+                  background: "#fdf1f0", color: "#c0392b",
                 }}>
                   {history.length} deleted
                 </span>
@@ -12425,8 +12476,8 @@
               onClick={onClose}
               style={{
                 width: 32, height: 32, borderRadius: "50%",
-                border: "1px solid #b2dfdb", background: "#e0f2f1",
-                cursor: "pointer", color: "#00695c",
+                border: "1px solid #E1E6D8", background: "#f0f5e8",
+                cursor: "pointer", color: "#2c5c16",
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}
             >
@@ -12439,8 +12490,8 @@
             <div style={{
               display: "grid", gridTemplateColumns: "1fr 1fr 80px 90px 90px",
               gap: 8, padding: "6px 0 10px",
-              borderBottom: "2px solid #e0f2f1",
-              fontSize: 10, fontWeight: 800, color: "#00897b",
+              borderBottom: "2px solid #f0f5e8",
+              fontSize: 10, fontWeight: 800, color: "#3b791e",
               textTransform: "uppercase", letterSpacing: "0.07em",
             }}>
               <span>Name</span>
@@ -12472,17 +12523,17 @@
                   }}
                 >
                   {/* Name */}
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: "#12241B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {entry.data.name}
                   </div>
                   {/* Email */}
-                  <div style={{ fontSize: 12, color: "#5a7a65", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: 12, color: "#5C6B60", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {entry.data.email}
                   </div>
                   {/* Role badge */}
                   <span style={{
                     fontSize: 10, fontWeight: 800, padding: "3px 8px",
-                    borderRadius: 20, background: "#e0f2f1", color: "#00695c",
+                    borderRadius: 20, background: "#f0f5e8", color: "#2c5c16",
                     whiteSpace: "nowrap", textAlign: "center",
                   }}>
                     {entry.data.role}
@@ -12499,11 +12550,11 @@
                     style={{
                       display: "flex", alignItems: "center", gap: 5,
                       padding: "7px 14px", borderRadius: 9,
-                      border: "1.5px solid #00897b",
-                      background: restoringId === entry.id ? "#f0fdf5" : "#e0f2f1",
-                      color: "#00695c", fontSize: 12, fontWeight: 700,
+                      border: "1.5px solid #3b791e",
+                      background: restoringId === entry.id ? "#f0f5e8" : "#f0f5e8",
+                      color: "#2c5c16", fontSize: 12, fontWeight: 700,
                       cursor: restoringId !== null ? "not-allowed" : "pointer",
-                      fontFamily: "inherit", whiteSpace: "nowrap",
+                      fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: "nowrap",
                       opacity: restoringId !== null ? (restoringId === entry.id ? 0.7 : 0.4) : 1,
                     }}
                   >
@@ -12527,10 +12578,10 @@
   }
 
     const PasswordValidation = ({ errors }) => (
-      <div style={{ marginTop:8, fontSize:12, padding:'10px 14px', background:'#f0fdf5', borderRadius:10, border:'1.5px solid #b2dfdb' }}>
-        <div style={{ marginBottom:6, fontWeight:700, color:'#0d2b1e', fontSize:11, textTransform:'uppercase', letterSpacing:'0.06em' }}>Password must contain:</div>
+      <div style={{ marginTop:8, fontSize:12, padding:'10px 14px', background:'#f0f5e8', borderRadius:10, border:'1.5px solid #E1E6D8' }}>
+        <div style={{ marginBottom:6, fontWeight:700, color:'#12241B', fontSize:11, textTransform:'uppercase', letterSpacing:'0.06em' }}>Password must contain:</div>
         {[['minLength','At least 8 characters'],['uppercase','Uppercase letter (A-Z)'],['lowercase','Lowercase letter (a-z)'],['number','Number (0-9)'],['specialChar','Special character (!@#$%^&*...)']].map(([key,text]) => (
-          <div key={key} style={{ color:errors.includes(key)?'#dc2626':'#059669', marginBottom:3, fontSize:12, display:'flex', alignItems:'center', gap:6, fontWeight:600 }}>
+          <div key={key} style={{ color:errors.includes(key)?'#c0392b':'#059669', marginBottom:3, fontSize:12, display:'flex', alignItems:'center', gap:6, fontWeight:600 }}>
             <span>{errors.includes(key)?'✗':'✓'}</span> {text}
           </div>
         ))}
@@ -12549,8 +12600,8 @@
       <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
         <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:500, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', maxHeight:'92vh', overflowY:'auto' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
-            <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:18, fontWeight:800, color:'#0d2b1e', margin:0 }}>{title}</h2>
-            <button onClick={onClose} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #b2dfdb', background:'#e0f2f1', cursor:'pointer', color:'#00695c', display:'flex', alignItems:'center', justifyContent:'center' }}><X size={15}/></button>
+            <h2 style={{ fontFamily:"'Plus Jakarta Sans', sans-serif", fontSize:18, fontWeight:800, color:'#12241B', margin:0 }}>{title}</h2>
+            <button onClick={onClose} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #E1E6D8', background:'#f0f5e8', cursor:'pointer', color:'#2c5c16', display:'flex', alignItems:'center', justifyContent:'center' }}><X size={15}/></button>
           </div>
           <form onSubmit={onSubmit}>
     <div style={{ display:'flex', gap:10, marginBottom:14 }}>
@@ -12616,9 +12667,9 @@
     <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:4 }}>
       <input type={showPassword?"text":"password"} name="password" value={formData.password} onChange={pwChange}
         placeholder="Leave blank to keep current"
-        style={{ ...bmInput, flex:1, fontFamily:'monospace', letterSpacing:'0.05em' }} />
+        style={{ ...bmInput, flex:1, fontFamily:"'Plus Jakarta Sans', sans-serif", letterSpacing:'0.05em' }} />
       <button type="button" onClick={() => setShowPassword(v=>!v)}
-        style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:36, padding:'0 12px', flexShrink:0 }}>
+        style={{ ...smallBtnSt, border:'1.5px solid #E1E6D8', background:'#f0f5e8', color:'#2c5c16', height:36, padding:'0 12px', flexShrink:0 }}>
         {showPassword?"Hide":"Show"}
       </button>
     </div>
@@ -12630,9 +12681,9 @@
             </div>
             )}
             <div style={{ display:'flex', gap:10, marginTop:22, justifyContent:'flex-end' }}>
-              <button type="button" onClick={onClose} disabled={saving} style={{ padding:'9px 22px', borderRadius:10, border:'1px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily:'inherit' }}>Cancel</button>
+              <button type="button" onClick={onClose} disabled={saving} style={{ padding:'9px 22px', borderRadius:10, border:'1px solid #E1E6D8', background:'#f0f5e8', color:'#5C6B60', fontSize:13, fontWeight:700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily:"'Plus Jakarta Sans', sans-serif" }}>Cancel</button>
             <button type="submit" disabled={saving}
-                style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.35)',
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#3b791e,#3b791e)', color:'#fff', fontSize:13, fontWeight:700, fontFamily:"'Plus Jakarta Sans', sans-serif", boxShadow:'0 2px 10px rgba(0,180,90,0.35)',
                 opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
                 {saving && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
                 {saving ? (isEdit ? "Saving…" : "Adding…") : (isEdit ? "Save Changes" : "Add User")}
@@ -12661,20 +12712,20 @@
             width: "100%", maxWidth: 420,
             boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
             border: "1px solid rgba(0,168,76,0.15)",
-            fontFamily: "Montserrat, sans-serif",
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
           }}
         >
           <div style={{
-            width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+            width: 52, height: 52, borderRadius: "50%", background: "#fdf1f0",
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 16px",
           }}>
-            <Trash2 size={22} color="#dc2626" />
+            <Trash2 size={22} color="#c0392b" />
           </div>
-          <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
+          <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#12241B", marginBottom: 8 }}>
             Delete user?
           </h2>
-          <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 16 }}>
+          <p style={{ textAlign: "center", fontSize: 13, color: "#5C6B60", lineHeight: 1.6, marginBottom: 16 }}>
             You are about to delete <strong>"{user.name}"</strong> ({user.email}).
           </p>
           <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
@@ -12684,9 +12735,9 @@
             <button
               type="button" onClick={onClose} disabled={deleting}
               style={{
-                padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
-                background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
-                cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+                padding: "9px 22px", borderRadius: 10, border: "1px solid #E1E6D8",
+                background: "#f0f5e8", color: "#5C6B60", fontSize: 13, fontWeight: 700,
+                cursor: deleting ? "not-allowed" : "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
               }}
             >
               Cancel
@@ -12696,8 +12747,8 @@
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "9px 24px", borderRadius: 10, border: "none",
-                  background: "linear-gradient(135deg,#dc2626,#ef4444)",
-                  color: "#fff", fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+                  background: "linear-gradient(135deg,#c0392b,#c0392b)",
+                  color: "#fff", fontSize: 13, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif",
                   boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
                   opacity: deleting ? 0.6 : 1, cursor: deleting ? "not-allowed" : "pointer",
                 }}
@@ -12758,7 +12809,7 @@
 
     const fetchActivityLog = useCallback(async () => {
       try {
-        const res  = await fetch(`${process.env.REACT_APP_API_URL}/users-activity-log`);
+        const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/users-activity-log`);
         const data = await res.json();
         setActivityLog(Array.isArray(data) ? data : []);
       } catch (err) { console.error("Failed to fetch orders activity log:", err); }
@@ -12766,7 +12817,7 @@
 
   const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
   try {
-    await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
+    await adminModuleFetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -12786,7 +12837,7 @@
     useEffect(() => {
     const fetchBrands = async () => {
       try {
-        const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
+        const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/brands`);
         const data = await res.json();
         setBrands(Array.isArray(data) ? data : []);
       } catch (err) { console.error("Failed to fetch brands:", err); }
@@ -12803,7 +12854,7 @@
 
     const fetchUsers = async () => {
       try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/users`);
+        const response = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/users`);
         const data = await response.json();
         console.log("users from API:", data);
         setUsers(data);
@@ -12813,7 +12864,7 @@
       }
     };
     const fetchDeleteHistory = async () => {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/delete-history`);
+    const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/delete-history`);
     const data = await res.json();
     setDeleteHistory(Array.isArray(data) ? data : []);
   };
@@ -12822,7 +12873,7 @@
 
     const handleSendCredentials = async (user) => {
       try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
+        const response = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -12877,13 +12928,13 @@
     longitude: coords?.longitude,
   };
   try {
-    const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+    const response = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/users`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     const data = await response.json();
     if (data.success) {
-      await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
+      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ to: formData.email, name: formData.name, password: tempPassword }),
       });
@@ -12927,7 +12978,7 @@
     longitude: coords?.longitude,
   };
   try {
-    const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingUser.id}`, {
+    const response = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/users/${editingUser.id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -12958,14 +13009,14 @@
   const targetUser = deleteTarget;
   try {
     const coords = await getBrowserLocation();
-    const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${targetUser.id}`, {
+    const response = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/users/${targetUser.id}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ deleted_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
     });
     const data = await response.json();
     if (data.success) {
-      await fetch(`${process.env.REACT_APP_API_URL}/delete-history`, {
+      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/delete-history`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_data: targetUser }),
@@ -12992,7 +13043,7 @@
     const coords = await getBrowserLocation();
     const d = entry.user_data || entry.data || {};
 
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+    const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/users`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -13012,7 +13063,7 @@
     const data = await res.json();
 
     if (data.success) {
-      await fetch(`${process.env.REACT_APP_API_URL}/delete-history/${entry.id}`, { method: "DELETE" });
+      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/delete-history/${entry.id}`, { method: "DELETE" });
       await fetchDeleteHistory();
       await fetchUsers();
       await fetchActivityLog();
@@ -13085,7 +13136,7 @@
     };
 
     return (
-      <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+      <div style={{ fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
 
 
         {/* Stat Cards */}
@@ -13105,33 +13156,33 @@
 
           {/* Search */}
           <div style={{ position:"relative" }}>
-            <Search size={14} color="#5a7a65" style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)" }}/>
+            <Search size={14} color="#5C6B60" style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)" }}/>
             <input
               type="text"
               placeholder="Search name or email…"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              style={{ padding:"9px 12px 9px 32px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, color:"#0d2b1e", background:"#f0fdf5", fontFamily:"inherit", outline:"none", width:240 }}
+              style={{ padding:"9px 12px 9px 32px", borderRadius:10, border:"1.5px solid #E1E6D8", fontSize:13, color:"#12241B", background:"#f0f5e8", fontFamily:"'Plus Jakarta Sans', sans-serif", outline:"none", width:240 }}
             />
           </div>
 
           {/* Role */}
           <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
-            style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+            style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #E1E6D8", fontSize:13, background:"#f0f5e8", fontFamily:"'Plus Jakarta Sans', sans-serif", outline:"none", cursor:"pointer" }}>
             <option value="all">All Roles</option>
             {['Super Admin','Franchisee Operations Admin', 'Sales Admin', 'Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
           </select>
 
           {/* Brand */}
           <select value={filterBrandF} onChange={e => { setFilterBrandF(e.target.value); setFilterBranchF('all'); }}
-            style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+            style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #E1E6D8", fontSize:13, background:"#f0f5e8", fontFamily:"'Plus Jakarta Sans', sans-serif", outline:"none", cursor:"pointer" }}>
             <option value="all">All Brands</option>
             {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
 
           {/* Branch */}
           <select value={filterBranchF} onChange={e => setFilterBranchF(e.target.value)} disabled={filterBrandF === 'all'}
-            style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background: filterBrandF === 'all' ? '#f5f5f5' : '#f0fdf5', fontFamily:"inherit", outline:"none", cursor: filterBrandF === 'all' ? 'not-allowed' : 'pointer', opacity: filterBrandF === 'all' ? 0.5 : 1 }}>
+            style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #E1E6D8", fontSize:13, background: filterBrandF === 'all' ? '#f5f5f5' : '#f0f5e8', fontFamily:"'Plus Jakarta Sans', sans-serif", outline:"none", cursor: filterBrandF === 'all' ? 'not-allowed' : 'pointer', opacity: filterBrandF === 'all' ? 0.5 : 1 }}>
             <option value="all">{filterBrandF === 'all' ? 'Select brand first' : 'All Branches'}</option>
             {filterBrandBranches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
           </select>
@@ -13140,7 +13191,7 @@
           {(searchQuery || filterRole !== 'all' || filterBrandF !== 'all' || filterBranchF !== 'all') && (
             <button
               onClick={() => { setSearchQuery(''); setFilterRole('all'); setFilterBrandF('all'); setFilterBranchF('all'); }}
-              style={{ padding:"9px 14px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              style={{ padding:"9px 14px", borderRadius:10, border:"1.5px solid #E1E6D8", background:"#fff", color:"#5C6B60", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
               Clear filters
             </button>
           )}
@@ -13150,23 +13201,23 @@
 
         {/* Table card */}
         <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
-          <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ background:'linear-gradient(135deg,#3b791e,#3b791e)', padding:'16px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>User Accounts</span>
             <div style={{ display:'flex', gap:8 }}>
               {/* Delete History button */}
               <button
                 onClick={() => setShowDeleteHistory(true)}
-                style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.10)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.10)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'Plus Jakarta Sans', sans-serif" }}
               >
                 <History size={13}/> Delete History
                 {deleteHistory.length > 0 && (
-                  <span style={{ background:'#dc2626', color:'#fff', fontSize:10, fontWeight:800, padding:'1px 7px', borderRadius:20, marginLeft:2 }}>
+                  <span style={{ background:'#c0392b', color:'#fff', fontSize:10, fontWeight:800, padding:'1px 7px', borderRadius:20, marginLeft:2 }}>
                     {deleteHistory.length}
                   </span>
                 )}
               </button>
               <button onClick={() => setShowAddModal(true)}
-                style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 18px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.12)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 18px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.12)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
                 <Plus size={14}/> Add New User
               </button>
             </div>
@@ -13176,7 +13227,7 @@
               <thead>
                 <tr>
                   {['Name','Email','Role','Brand', 'Branch','Actions'].map(h => (
-                    <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontWeight:800, fontSize:10.5, color:'#00897b', letterSpacing:'0.07em', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, background:'#f8fffe' }}>{h}</th>
+                    <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontWeight:800, fontSize:10.5, color:'#3b791e', letterSpacing:'0.07em', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, background:'#f8fffe' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -13185,23 +13236,23 @@
                   <tr key={user.id} style={{ borderBottom:`1px solid #f0f8f0` }}
                     onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
                     onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                    <td style={{ padding:'12px 14px', fontWeight:700, color:'#0d2b1e' }}>{user.name}</td>
-                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.email}</td>
+                    <td style={{ padding:'12px 14px', fontWeight:700, color:'#12241B' }}>{user.name}</td>
+                    <td style={{ padding:'12px 14px', color:'#5C6B60', fontSize:12 }}>{user.email}</td>
                     <td style={{ padding:'12px 14px' }}>
-                      <span style={{ background:'#e0f2f1', color:'#00695c', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700 }}>{user.role}</span>
+                      <span style={{ background:'#f0f5e8', color:'#2c5c16', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700 }}>{user.role}</span>
                     </td>
-                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.brand || '—'}</td>
-                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.branch}</td>
+                    <td style={{ padding:'12px 14px', color:'#5C6B60', fontSize:12 }}>{user.brand || '—'}</td>
+                    <td style={{ padding:'12px 14px', color:'#5C6B60', fontSize:12 }}>{user.branch}</td>
                   
                     <td style={{ padding:'12px 14px' }}>
     <div style={{ display:'flex', gap:6 }}>
-      <button onClick={() => openEditModal(user)} style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 12px' }}>
+      <button onClick={() => openEditModal(user)} style={{ ...smallBtnSt, border:'1.5px solid #E1E6D8', background:'#f0f5e8', color:'#2c5c16', height:28, padding:'0 12px' }}>
         <Pencil size={11}/>
       </button>
       <button onClick={() => handleSendCredentials(user)} title="Resend Credentials" style={{ ...smallBtnSt, border:'1.5px solid #bfdbfe', background:'#dbeafe', color:'#2563eb', height:28, padding:'0 12px' }}>
         <Mail size={11}/>
       </button>
-      <button onClick={() => handleDeleteUser(user)} style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 12px' }}>
+      <button onClick={() => handleDeleteUser(user)} style={{ ...smallBtnSt, border:'1.5px solid #f2c9c4', background:'#fdf1f0', color:'#c0392b', height:28, padding:'0 12px' }}>
         <Trash2 size={11}/>
       </button>
     </div>
@@ -13316,7 +13367,7 @@
 
   const fetchDeleteHistory = async () => {
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements/delete-history`);
+      const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/announcements/delete-history`);
       const data = await res.json();
 
       setDeleteHistory(Array.isArray(data) ? data.map(e => ({
@@ -13334,7 +13385,7 @@
 
   const fetchActivityLog = useCallback(async () => {
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements-activity-log`);
+      const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/announcements-activity-log`);
       const data = await res.json();
       setActivityLog(Array.isArray(data) ? data : []);
     } catch (err) { console.error("Failed to fetch orders activity log:", err); }
@@ -13342,7 +13393,7 @@
 
   const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
     try {
-      await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
+      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -13362,7 +13413,7 @@
     const fetchAnnouncements = async () => {
       setFetching(true);
       try {
-        const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements`);
+        const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/announcements`);
         const data = await res.json();
         setAnnouncements(Array.isArray(data) ? data : []);
       } catch (err) { console.error("Fetch error:", err); setAnnouncements([]); }
@@ -13395,7 +13446,7 @@
       `Permanently delete "${entry.data.title}"? This cannot be undone.`,
       async () => {
         try {
-          await fetch(`${process.env.REACT_APP_API_URL}/announcements/delete-history/${entry.id}`, {
+          await adminModuleFetch(`${process.env.REACT_APP_API_URL}/announcements/delete-history/${entry.id}`, {
             method: "DELETE"
           });
           fetchDeleteHistory();
@@ -13418,7 +13469,7 @@
           ? `${process.env.REACT_APP_API_URL}/announcements/${editing.id}`
           : `${process.env.REACT_APP_API_URL}/announcements`;
         const method = editing ? "PUT" : "POST";
-        const res    = await fetch(url, {
+        const res    = await adminModuleFetch(url, {
           method,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -13443,7 +13494,7 @@
       if (!isAdminUser(user)) return;
       showConfirm(`You are about to delete this announcement. You can recover it from Delete History.`, async () => {
         try {
-          const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements/${item.id}`, {
+          const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/announcements/${item.id}`, {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ userId: user.id, role: user.role }),
@@ -13469,7 +13520,7 @@
 
     const handleRestore = async (entry) => {
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/announcements`, {
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/announcements`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -13482,7 +13533,7 @@
         const data = await res.json();
         if (!res.ok) { showAlert(data.error || "Failed to restore.", "error"); return; }
 
-        await fetch(`${process.env.REACT_APP_API_URL}/announcements/delete-history/${entry.id}`, {
+        await adminModuleFetch(`${process.env.REACT_APP_API_URL}/announcements/delete-history/${entry.id}`, {
           method: "DELETE"
         });
 
@@ -13549,8 +13600,8 @@
 
     // ── Styles ──
     const commStyles = {
-      root: { fontFamily: "'Montserrat', sans-serif", display: "flex", flexDirection: "column", height: "100%" },
-      header: { background: "linear-gradient(135deg,#2E7D32,#00897b)", padding: "20px 24px 28px", borderRadius: "18px 18px 0 0", position: "relative", overflow: "hidden" },
+      root: { fontFamily: "'Plus Jakarta Sans', sans-serif", display: "flex", flexDirection: "column", height: "100%" },
+      header: { background: "linear-gradient(135deg,#3b791e,#3b791e)", padding: "20px 24px 28px", borderRadius: "18px 18px 0 0", position: "relative", overflow: "hidden" },
       headerTop: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 },
       eyebrow: { fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.6)", letterSpacing: "0.25em", marginBottom: 4 },
       headerTitle: { fontSize: 22, fontWeight: 900, color: "#fff", letterSpacing: "-0.4px" },
@@ -13558,32 +13609,32 @@
       liveDot: { width: 7, height: 7, borderRadius: "50%", background: "#d4df33", boxShadow: "0 0 0 3px rgba(212,223,51,0.3)" },
       liveTxt: { fontSize: 9, fontWeight: 800, color: "#d4df33", letterSpacing: "0.15em" },
       searchBarWrap: { display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.18)", borderRadius: 12, padding: "9px 13px", marginTop: 12, border: "1px solid rgba(255,255,255,0.25)" },
-      searchInput: { flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: 13, fontFamily: "inherit" },
+      searchInput: { flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: 13, fontFamily: "'Plus Jakarta Sans', sans-serif" },
       tabsRow: { display: "flex", gap: 7, padding: "14px 20px", background: "#fff", borderBottom: `1px solid ${C.border}`, flexWrap: "wrap" },
-      tabBase: { display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 20, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", border: "none", transition: "all .15s" },
+      tabBase: { display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 20, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", border: "none", transition: "all .15s" },
       badge: { padding: "1px 7px", borderRadius: 10, fontSize: 10, fontWeight: 800 },
       listArea: { flex: 1, overflowY: "auto", padding: "20px 20px 24px", background: "#f8fffe" },
       sectionLabel: { display: "flex", alignItems: "center", gap: 8, marginBottom: 14 },
-      labelAccent: { width: 4, height: 16, borderRadius: 2, background: "linear-gradient(135deg,#00897b,#4CAF50)", flexShrink: 0 },
-      labelTxt: { fontSize: 11, fontWeight: 800, color: "#0d2b1e", letterSpacing: "0.08em", textTransform: "uppercase" },
+      labelAccent: { width: 4, height: 16, borderRadius: 2, background: "linear-gradient(135deg,#3b791e,#4CAF50)", flexShrink: 0 },
+      labelTxt: { fontSize: 11, fontWeight: 800, color: "#12241B", letterSpacing: "0.08em", textTransform: "uppercase" },
       card: (pinned) => ({ display: "flex", background: "#fff", borderRadius: 18, marginBottom: 10, border: `1px solid ${pinned ? "#FFE082" : C.border}`, boxShadow: pinned ? "0 3px 14px rgba(249,168,37,0.18)" : "0 2px 10px rgba(0,140,60,0.07)", overflow: "hidden", cursor: "pointer", transition: "transform .15s, box-shadow .15s" }),
-      cardAccentBar: (pinned) => ({ width: 4, flexShrink: 0, background: pinned ? "linear-gradient(180deg,#F9A825,#FFC107)" : "linear-gradient(180deg,#00897b,#4CAF50)" }),
+      cardAccentBar: (pinned) => ({ width: 4, flexShrink: 0, background: pinned ? "linear-gradient(180deg,#F9A825,#FFC107)" : "linear-gradient(180deg,#3b791e,#4CAF50)" }),
       cardBody: { flex: 1, padding: "13px 15px 11px" },
       cardHeaderRow: { display: "flex", alignItems: "flex-start", gap: 10 },
-      initialsChip: (pinned) => ({ width: 40, height: 40, borderRadius: 12, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: pinned ? "linear-gradient(135deg,#F9A825,#E65100)" : "linear-gradient(135deg,#2E7D32,#00897b)", fontSize: 13, fontWeight: 900, color: "#fff" }),
+      initialsChip: (pinned) => ({ width: 40, height: 40, borderRadius: 12, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: pinned ? "linear-gradient(135deg,#F9A825,#E65100)" : "linear-gradient(135deg,#3b791e,#3b791e)", fontSize: 13, fontWeight: 900, color: "#fff" }),
       cardMeta: { flex: 1, minWidth: 0 },
       cardTitleRow: { display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", marginBottom: 3 },
-      cardTitle: { fontSize: 14, fontWeight: 800, color: "#0d2b1e" },
-      cardDate: { fontSize: 10, color: "#8AAD96", fontFamily: "monospace" },
-      cardContent: { fontSize: 12.5, color: "#5a7a65", lineHeight: 1.65, marginTop: 9, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" },
+      cardTitle: { fontSize: 14, fontWeight: 800, color: "#12241B" },
+      cardDate: { fontSize: 10, color: "#8AAD96", fontFamily: "'Plus Jakarta Sans', sans-serif" },
+      cardContent: { fontSize: 12.5, color: "#5C6B60", lineHeight: 1.65, marginTop: 9, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" },
       tapHint: { display: "flex", alignItems: "center", gap: 3, marginTop: 7, fontSize: 10, color: "#8AAD96" },
       pinnedBadge: { display: "inline-flex", alignItems: "center", gap: 3, background: "#FFF8E1", borderRadius: 6, padding: "2px 6px", border: "1px solid #FFE082", fontSize: 8, fontWeight: 800, color: "#F9A825" },
-      recentBadge: { background: "#E0F2F1", borderRadius: 6, padding: "2px 6px", border: "1px solid #B2DFDB", fontSize: 8, fontWeight: 800, color: "#00695c" },
+      recentBadge: { background: "#f0f5e8", borderRadius: 6, padding: "2px 6px", border: "1px solid #E1E6D8", fontSize: 8, fontWeight: 800, color: "#2c5c16" },
       cardActions: { display: "flex", gap: 5, flexShrink: 0, alignItems: "flex-start" },
-      actionBtn: (variant) => ({ width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`, background: "#f0fdf5", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: variant === "delete" ? "#e53935" : variant === "pin" ? "#F9A825" : "#00695c" }),
+      actionBtn: (variant) => ({ width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`, background: "#f0f5e8", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: variant === "delete" ? "#e53935" : variant === "pin" ? "#F9A825" : "#2c5c16" }),
       emptyState: { display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 0 40px", gap: 10, textAlign: "center" },
       emptyIcon: { fontSize: 40, marginBottom: 4 },
-      emptyTitle: { fontSize: 15, fontWeight: 800, color: "#0d2b1e" },
+      emptyTitle: { fontSize: 15, fontWeight: 800, color: "#12241B" },
       emptySub: { fontSize: 12, color: "#8AAD96", maxWidth: 260, lineHeight: 1.6 },
     };
   const emptyIcon =
@@ -13596,10 +13647,10 @@
     return (
       <div style={commStyles.root}>
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
           .comm-card:hover { transform: translateY(-2px) !important; box-shadow: 0 6px 20px rgba(0,140,60,0.12) !important; }
           .comm-action-btn:hover { opacity: 0.78; }
-          .comm-tab:hover { background: #e8fdf0 !important; color: #00695c !important; }
+          .comm-tab:hover { background: #e8fdf0 !important; color: #2c5c16 !important; }
           .comm-del-row:hover { background: #f6fef8 !important; }
         `}</style>
 
@@ -13624,7 +13675,7 @@
               {isAdminUser(user) && (
                 <button
                   onClick={() => { setEditing(null); setTitle(""); setContent(""); setImageUrl(""); setImageError(false); setModalVisible(true); }}
-                  style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.18)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.18)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   <Plus size={14} /> New
                 </button>
               )}
@@ -13657,18 +13708,18 @@
                 style={{
                   ...commStyles.tabBase,
                   background: active
-                    ? isDelTab ? "linear-gradient(135deg,#dc2626,#ef4444)" : "linear-gradient(135deg,#2E7D32,#00897b)"
-                    : isDelTab ? "#fee2e2" : "#e8f5e9",
-                  color: active ? "#fff" : isDelTab ? "#dc2626" : "#5a7a65",
-                  border: active ? "none" : `1px solid ${isDelTab ? "#fecaca" : C.border}`,
+                    ? isDelTab ? "linear-gradient(135deg,#c0392b,#c0392b)" : "linear-gradient(135deg,#3b791e,#3b791e)"
+                    : isDelTab ? "#fdf1f0" : "#f0f5e8",
+                  color: active ? "#fff" : isDelTab ? "#c0392b" : "#5C6B60",
+                  border: active ? "none" : `1px solid ${isDelTab ? "#f2c9c4" : C.border}`,
                   boxShadow: active ? (isDelTab ? "0 2px 8px rgba(220,38,38,0.28)" : "0 2px 8px rgba(0,180,90,0.28)") : "none",
                 }}>
                 {label}
                 {tabBadge[key] > 0 && (
                   <span style={{
                     ...commStyles.badge,
-                    background: active ? "rgba(255,255,255,0.28)" : isDelTab ? "#fecaca" : C.greenMid,
-                    color: active ? "#fff" : isDelTab ? "#dc2626" : "#2E7D32",
+                    background: active ? "rgba(255,255,255,0.28)" : isDelTab ? "#f2c9c4" : C.greenMid,
+                    color: active ? "#fff" : isDelTab ? "#c0392b" : "#3b791e",
                   }}>
                     {tabBadge[key]}
                   </span>
@@ -13688,7 +13739,7 @@
                 <div style={commStyles.labelAccent} />
                 <span style={commStyles.labelTxt}>Delete History</span>
                 {deleteHistory.length > 0 && (
-                  <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 20, background: "#fee2e2", color: "#dc2626" }}>{deleteHistory.length} deleted</span>
+                  <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 20, background: "#fdf1f0", color: "#c0392b" }}>{deleteHistory.length} deleted</span>
                 )}
               </div>
 
@@ -13701,7 +13752,7 @@
               ) : (
                 <div style={{ background: "#fff", borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,140,60,0.07)" }}>
                   {/* column headers */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 160px 200px", gap: 8, padding: "10px 16px", borderBottom: `2px solid #e0f2f1`, fontSize: 10, fontWeight: 800, color: "#00897b", textTransform: "uppercase", letterSpacing: "0.07em", background: "#f8fffe" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 160px 200px", gap: 8, padding: "10px 16px", borderBottom: `2px solid #f0f5e8`, fontSize: 10, fontWeight: 800, color: "#3b791e", textTransform: "uppercase", letterSpacing: "0.07em", background: "#f8fffe" }}>
                     <span>Title</span>
                     <span>Content Preview</span>
                     <span>Deleted At</span>
@@ -13715,26 +13766,26 @@
                     >
                       {/* Title + image indicator */}
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.data.title}</div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "#12241B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.data.title}</div>
                         {entry.data.image_url && (
-                          <span style={{ fontSize: 9, background: "#e0f2f1", color: "#00695c", padding: "1px 6px", borderRadius: 6, fontWeight: 700, marginTop: 3, display: "inline-block" }}>🖼 Has Image</span>
+                          <span style={{ fontSize: 9, background: "#f0f5e8", color: "#2c5c16", padding: "1px 6px", borderRadius: 6, fontWeight: 700, marginTop: 3, display: "inline-block" }}>🖼 Has Image</span>
                         )}
                       </div>
                       {/* Content preview */}
-                      <div style={{ fontSize: 11, color: "#5a7a65", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.data.content}</div>
+                      <div style={{ fontSize: 11, color: "#5C6B60", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.data.content}</div>
                       {/* Date */}
                       <div style={{ fontSize: 10, color: "#9ca3af" }}>{fmt(entry.deletedAt)}</div>
                       {/* Restore */}
                       <div style={{ display: "flex", gap: 6, justifyContent: "flex-start" }}>
                         <button
                           onClick={() => handleRestore(entry)}
-                          style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 10px", borderRadius: 9, border: "1.5px solid #00897b", background: "#e0f2f1", color: "#00695c", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+                          style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 10px", borderRadius: 9, border: "1.5px solid #3b791e", background: "#f0f5e8", color: "#2c5c16", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: "nowrap" }}
                         >
                           <RotateCcw size={11} /> Restore
                         </button>
                         <button
                           onClick={() => handlePermanentDelete(entry)}
-                          style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 10px", borderRadius: 9, border: "1.5px solid #fecaca", background: "#fee2e2", color: "#dc2626", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+                          style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 10px", borderRadius: 9, border: "1.5px solid #f2c9c4", background: "#fdf1f0", color: "#c0392b", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: "nowrap" }}
                         >
                           <Trash2 size={11} /> Delete
                         </button>
@@ -13755,7 +13806,7 @@
               </div>
 
               {fetching ? (
-                <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 13, fontStyle: "italic" }}>Loading announcements…</div>
+                <div style={{ padding: "48px 0", textAlign: "center", color: "#5C6B60", fontSize: 13, fontStyle: "italic" }}>Loading announcements…</div>
               ) : filtered.length === 0 ? (
                 <div style={commStyles.emptyState}>
                   <div style={commStyles.emptyIcon}>{emptyIcon}</div>
@@ -13781,7 +13832,7 @@
                             <span style={commStyles.cardTitle}>{item.title}</span>
                             {pinned && <span style={commStyles.pinnedBadge}>🔖 PINNED</span>}
                             {recent && !pinned && <span style={commStyles.recentBadge}>NEW</span>}
-                            {item.image_url && <span style={{ background: "#e0f2f1", color: "#00695c", borderRadius: 6, padding: "2px 6px", fontSize: 8, fontWeight: 800, border: "1px solid #b2dfdb" }}>🖼 IMG</span>}
+                            {item.image_url && <span style={{ background: "#f0f5e8", color: "#2c5c16", borderRadius: 6, padding: "2px 6px", fontSize: 8, fontWeight: 800, border: "1px solid #E1E6D8" }}>🖼 IMG</span>}
                           </div>
                           <div style={commStyles.cardDate}>{new Date(item.created_at).toLocaleString()}</div>
                         </div>
@@ -13816,7 +13867,7 @@
         {viewingItem && (
           <div onClick={() => setViewingItem(null)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
             <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 580, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
-              <div style={{ background: viewingItem.pinned ? "linear-gradient(135deg,#F9A825,#E65100)" : "linear-gradient(135deg,#2E7D32,#00897b)", borderRadius: "20px 20px 0 0", padding: "20px 22px 28px", position: "relative", overflow: "hidden" }}>
+              <div style={{ background: viewingItem.pinned ? "linear-gradient(135deg,#F9A825,#E65100)" : "linear-gradient(135deg,#3b791e,#3b791e)", borderRadius: "20px 20px 0 0", padding: "20px 22px 28px", position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, opacity: 0.12, background: "radial-gradient(ellipse at 50% 100%, #fff 0%, transparent 70%)" }} />
                 <button onClick={() => setViewingItem(null)} style={{ position: "absolute", top: 14, right: 14, width: 32, height: 32, borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.2)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <X size={15} />
@@ -13831,7 +13882,7 @@
                       {isRecent(viewingItem) && <span style={{ background: "rgba(255,255,255,0.2)", padding: "2px 8px", borderRadius: 8, fontSize: 9, fontWeight: 900, color: "#fff" }}>NEW</span>}
                     </div>
                     <div style={{ fontSize: 19, fontWeight: 900, color: "#fff", lineHeight: 1.3, letterSpacing: "-0.3px" }}>{viewingItem.title}</div>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", marginTop: 4, fontFamily: "monospace" }}>{new Date(viewingItem.created_at).toLocaleString()}</div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", marginTop: 4, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{new Date(viewingItem.created_at).toLocaleString()}</div>
                   </div>
                 </div>
               </div>
@@ -13852,13 +13903,13 @@
 
                 {isAdminUser(user) && (
                   <div style={{ display: "flex", gap: 10, marginTop: 28, flexWrap: "wrap" }}>
-                    <button onClick={() => handlePin(viewingItem)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: viewingItem.pinned ? "none" : "1.5px solid #FFE082", background: viewingItem.pinned ? "#F9A825" : "#FFF8E1", color: viewingItem.pinned ? "#fff" : "#F9A825" }}>
+                    <button onClick={() => handlePin(viewingItem)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", border: viewingItem.pinned ? "none" : "1.5px solid #FFE082", background: viewingItem.pinned ? "#F9A825" : "#FFF8E1", color: viewingItem.pinned ? "#fff" : "#F9A825" }}>
                       {viewingItem.pinned ? "🔖 Unpin" : "📌 Pin"}
                     </button>
-                    <button onClick={() => { handleEdit(viewingItem); setViewingItem(null); }} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff" }}>
+                    <button onClick={() => { handleEdit(viewingItem); setViewingItem(null); }} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", border: "none", background: "linear-gradient(135deg,#3b791e,#3b791e)", color: "#fff" }}>
                       <Pencil size={13} /> Edit
                     </button>
-                    <button onClick={() => { handleDelete(viewingItem); }} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "1.5px solid #fecaca", background: "#fee2e2", color: "#dc2626" }}>
+                    <button onClick={() => { handleDelete(viewingItem); }} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", border: "1.5px solid #f2c9c4", background: "#fdf1f0", color: "#c0392b" }}>
                       <Trash2 size={13} /> Delete
                     </button>
                   </div>
@@ -13872,7 +13923,7 @@
         {isAdminUser(user) && modalVisible && (
           <div onClick={() => setModalVisible(false)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2500, padding: 20 }}>
             <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 520, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", overflow: "hidden", maxHeight: "92vh", overflowY: "auto" }}>
-              <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ background: "linear-gradient(135deg,#3b791e,#3b791e)", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontWeight: 900, fontSize: 15, color: "#fff" }}>{editing ? "Edit Announcement" : "New Announcement"}</span>
                 <button onClick={() => setModalVisible(false)} style={{ width: 30, height: 30, borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.18)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <X size={14} />
@@ -13898,7 +13949,7 @@
                     <span>Image URL <span style={{ color: "#9ca3af", fontWeight: 400 }}>(Optional)</span></span>
                     {imageUrl && (
                       <button type="button" onClick={() => { setImageUrl(""); setImageError(false); }}
-                        style={{ fontSize: 11, background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontWeight: 700 }}>
+                        style={{ fontSize: 11, background: "none", border: "none", color: "#c0392b", cursor: "pointer", fontWeight: 700 }}>
                         ✕ Remove
                       </button>
                     )}
@@ -13923,7 +13974,7 @@
                     </div>
                   )}
                   {imageUrl && imageError && (
-                    <div style={{ marginTop: 8, padding: "9px 12px", background: "#fee2e2", borderRadius: 10, border: "1px solid #fecaca", fontSize: 12, color: "#dc2626", fontWeight: 600 }}>
+                    <div style={{ marginTop: 8, padding: "9px 12px", background: "#fdf1f0", borderRadius: 10, border: "1px solid #f2c9c4", fontSize: 12, color: "#c0392b", fontWeight: 600 }}>
                       ⚠ Could not load image. Check the URL and try again.
                     </div>
                   )}
@@ -13933,8 +13984,8 @@
                 </div>
 
                 <div style={{ display: "flex", gap: 10 }}>
-                  <button type="button" onClick={() => setModalVisible(false)} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "1.5px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-                  <button type="submit" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}>
+                  <button type="button" onClick={() => setModalVisible(false)} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "1.5px solid #E1E6D8", background: "#f0f5e8", color: "#5C6B60", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Cancel</button>
+                  <button type="submit" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#3b791e,#3b791e)", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}>
                     <Check size={14} /> Save Announcement
                   </button>
                 </div>
@@ -13951,24 +14002,24 @@
         {/* ── CONFIRM / DELETE MODAL ── */}
         {confirmModal && (
           <div onClick={() => setConfirmModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, padding: 20, backdropFilter: "blur(4px)" }}>
-            <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "Montserrat, sans-serif" }}>
-              <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                <Trash2 size={22} color="#dc2626" />
+            <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fdf1f0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                <Trash2 size={22} color="#c0392b" />
               </div>
-              <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>Delete Announcement?</h2>
+              <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#12241B", marginBottom: 8 }}>Delete Announcement?</h2>
               {confirmModal.itemName && (
-                <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 8 }}>
+                <p style={{ textAlign: "center", fontSize: 13, color: "#5C6B60", lineHeight: 1.6, marginBottom: 8 }}>
                   You are about to delete <strong>"{confirmModal.itemName}"</strong>.
                 </p>
               )}
               <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 24 }}>You can recover this from Delete History.</p>
               <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
                 <button type="button" onClick={() => setConfirmModal(null)}
-                  style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #E1E6D8", background: "#f0f5e8", color: "#5C6B60", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   Cancel
                 </button>
                 <button type="button" onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
-                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#dc2626,#ef4444)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(220,38,38,0.35)" }}>
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#c0392b,#c0392b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: "0 2px 10px rgba(220,38,38,0.35)" }}>
                   <Trash2 size={14} /> Delete
                 </button>
               </div>
@@ -14101,12 +14152,12 @@
     padding:"10px 18px", borderRadius:10, border:"none",
     background:`linear-gradient(135deg,${C.green},${C.greenDk})`,
     color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer",
-    fontFamily:"inherit", boxShadow:"0 2px 10px rgba(59,121,30,0.25)"
+    fontFamily:"'Plus Jakarta Sans', sans-serif", boxShadow:"0 2px 10px rgba(59,121,30,0.25)"
   };
-  const ghostBtn   = { padding:"10px 18px", borderRadius:10, border:`1px solid ${C.border}`, background:"#fff", color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" };
-  const dangerBtn  = { padding:"10px 18px", borderRadius:10, border:"none", background:`linear-gradient(135deg,#ef4444,${C.red})`, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(220,38,38,0.22)" };
-  const dangerTextBtn = { padding:"9px 14px", borderRadius:10, border:`1px solid ${C.redBorder}`, background:C.redBg, color:C.red, fontWeight:700, fontSize:12.5, cursor:"pointer", fontFamily:"inherit" };
-  const printBtn = { padding:"10px 16px", borderRadius:10, border:`1.5px solid ${C.green}`, background:"#fff", color:C.greenDk, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", display:"inline-flex", alignItems:"center", gap:6 };
+  const ghostBtn   = { padding:"10px 18px", borderRadius:10, border:`1px solid ${C.border}`, background:"#fff", color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" };
+  const dangerBtn  = { padding:"10px 18px", borderRadius:10, border:"none", background:`linear-gradient(135deg,#c0392b,${C.red})`, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif", boxShadow:"0 2px 10px rgba(220,38,38,0.22)" };
+  const dangerTextBtn = { padding:"9px 14px", borderRadius:10, border:`1px solid ${C.redBorder}`, background:C.redBg, color:C.red, fontWeight:700, fontSize:12.5, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" };
+  const printBtn = { padding:"10px 16px", borderRadius:10, border:`1.5px solid ${C.green}`, background:"#fff", color:C.greenDk, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif", display:"inline-flex", alignItems:"center", gap:6 };
 
   function StatusBadge({ status, size="md" }) {
     const s = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
@@ -14135,18 +14186,18 @@
       <div style={{
         position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
         maxWidth:380, padding:"16px 18px", borderRadius:14,
-        background: isErr ? "#fef2f2" : "#f0fdf5",
-        borderLeft: `5px solid ${isErr ? "#dc2626" : "#00897b"}`,
-        border: `1px solid ${isErr ? "#fecaca" : "#b2dfdb"}`,
+        background: isErr ? "#fef2f2" : "#f0f5e8",
+        borderLeft: `5px solid ${isErr ? "#c0392b" : "#3b791e"}`,
+        border: `1px solid ${isErr ? "#f2c9c4" : "#E1E6D8"}`,
         borderLeftWidth: 5,
         boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
-        fontFamily:"'Montserrat',sans-serif",
+        fontFamily:"'Plus Jakarta Sans', sans-serif",
         animation:"toastIn .22s ease",
       }}>
         <div style={{
           flexShrink:0, width:32, height:32, borderRadius:"50%", display:"flex",
           alignItems:"center", justifyContent:"center",
-          background: isErr ? "#dc2626" : "#00897b", color:"#fff",
+          background: isErr ? "#c0392b" : "#3b791e", color:"#fff",
           boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(0,137,123,0.4)"}`,
         }}>
           {isErr
@@ -14157,7 +14208,7 @@
         </div>
 
         <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#0d2b1e" }}>
+          <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#12241B" }}>
             {toast.title}
           </div>
           {toast.message && (
@@ -14239,14 +14290,14 @@
         <div style={{ fontSize:12.5, fontWeight:800, color:"#7f1d1d", marginBottom:10 }}>{title}</div>
         <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#7f1d1d", marginBottom:5 }}>Reason *</label>
         <select value={reason} onChange={e => setReason(e.target.value)} onBlur={() => setTouched(true)}
-          style={{ width:"100%", height:36, borderRadius:8, border:`1px solid ${touched && !valid ? C.red : "#fecaca"}`, padding:"0 10px", fontSize:12.5, fontFamily:"inherit", marginBottom: touched && !valid ? 4 : 10, background:"#fff" }}>
+          style={{ width:"100%", height:36, borderRadius:8, border:`1px solid ${touched && !valid ? C.red : "#f2c9c4"}`, padding:"0 10px", fontSize:12.5, fontFamily:"'Plus Jakarta Sans', sans-serif", marginBottom: touched && !valid ? 4 : 10, background:"#fff" }}>
           <option value="">Select a reason…</option>
           {REJECT_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
         {touched && !valid && <div style={{ fontSize:11, color:C.red, fontWeight:700, marginBottom:10 }}>Please choose a reason before continuing.</div>}
         <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#7f1d1d", marginBottom:5 }}>Note (optional)</label>
         <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Add any extra context…"
-          style={{ width:"100%", height:56, borderRadius:8, border:"1px solid #fecaca", padding:"8px 10px", fontSize:12.5, fontFamily:"inherit", resize:"vertical", marginBottom:12, background:"#fff", boxSizing:"border-box" }}/>
+          style={{ width:"100%", height:56, borderRadius:8, border:"1px solid #f2c9c4", padding:"8px 10px", fontSize:12.5, fontFamily:"'Plus Jakarta Sans', sans-serif", resize:"vertical", marginBottom:12, background:"#fff", boxSizing:"border-box" }}/>
         <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
           <button onClick={onCancel} disabled={saving} style={ghostBtn}>Back</button>
         <button
@@ -14371,7 +14422,7 @@
     return (
       <div className="receipt-page" style={{
         width:"8.5in", height:"4.25in", padding:"0.28in 0.4in", boxSizing:"border-box",
-        fontFamily:"'Courier New', Courier, monospace", color:"#000", background:"#fff",
+        fontFamily:"'Plus Jakarta Sans', sans-serif", color:"#000", background:"#fff",
         display:"flex", flexDirection:"column" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", borderBottom:"1px dashed #000", paddingBottom:6, marginBottom:6 }}>
           <div>
@@ -14443,7 +14494,7 @@
     return (
       <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", zIndex:2500, display:"flex", justifyContent:"flex-end", animation:"overlayIn .18s ease" }}>
         <div onClick={e => e.stopPropagation()}
-          style={{ width:460, maxWidth:"94vw", height:"100%", background:C.white, boxShadow:"-12px 0 40px rgba(0,0,0,0.18)", display:"flex", flexDirection:"column", fontFamily:"'Montserrat',sans-serif", animation:"drawerIn .22s cubic-bezier(.2,.8,.2,1)" }}>
+          style={{ width:460, maxWidth:"94vw", height:"100%", background:C.white, boxShadow:"-12px 0 40px rgba(0,0,0,0.18)", display:"flex", flexDirection:"column", fontFamily:"'Plus Jakarta Sans', sans-serif", animation:"drawerIn .22s cubic-bezier(.2,.8,.2,1)" }}>
 
           {/* Header */}
           <div style={{ padding:"18px 22px", background:`linear-gradient(135deg,${C.teal},${C.green})`, color:"#fff", flexShrink:0 }}>
@@ -14520,7 +14571,7 @@
                           {showBadge && (
                             <span style={{ fontSize:9.5, fontWeight:800, padding:"3px 8px", borderRadius:20,
                               color: !r.matched ? "#991b1b" : r.sufficient ? "#27500a" : "#9a3412",
-                              background: !r.matched ? "#fee2e2" : r.sufficient ? "#eaf3de" : "#fef3c7" }}>
+                              background: !r.matched ? "#fdf1f0" : r.sufficient ? "#eaf3de" : "#fef3c7" }}>
                               {!r.matched ? "UNMATCHED" : r.sufficient ? "OK" : "SHORT"}
                             </span>
                           )}
@@ -14531,7 +14582,7 @@
                   })}
                 </div>
               )}
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", borderRadius:10, background:"linear-gradient(135deg,#d1fae5,#e0f2f1)", marginTop:8 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", borderRadius:10, background:"linear-gradient(135deg,#d1fae5,#f0f5e8)", marginTop:8 }}>
                 <div style={{ fontWeight:800, fontSize:13, color:C.ink }}>Total</div>
                 <div style={{ fontWeight:800, fontSize:16, color:C.green }}>{fmtPeso1(order.total)}</div>
               </div>
@@ -14685,7 +14736,7 @@
     /* ── activity log ── */
     const fetchActivityLog = useCallback(async () => {
       try {
-        const res  = await fetch(`${apiUrl}/orders-activity-log`);
+        const res  = await adminModuleFetch(`${apiUrl}/orders-activity-log`);
         const data = await res.json();
         setActivityLog(Array.isArray(data) ? data : []);
       } catch (err) { console.error("Failed to fetch orders activity log:", err); }
@@ -14710,7 +14761,7 @@
         if (user?.brand)  params.set("brand", user.brand);
       }
 
-      const res = await fetch(`${apiUrl}/orders?${params.toString()}`, { credentials: "include" });
+      const res = await adminModuleFetch(`${apiUrl}/orders?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load orders");
       const data = await res.json();
       setOrders(data.map(normalizeOrder));
@@ -14723,7 +14774,7 @@
 
     const fetchIngredients = useCallback(async () => {
       try {
-        const res = await fetch(`${apiUrl}/ingredients`);
+        const res = await adminModuleFetch(`${apiUrl}/ingredients`);
         const d = await res.json();
         setIngredients(Array.isArray(d) ? d : []);
       } catch (err) { console.warn("Failed to fetch ingredients:", err); }
@@ -14736,7 +14787,7 @@
       Caps each item's availability at the linked ingredient's real batch stock,
       same logic the old manual "check stock" step used, just automatic + upfront. */
     const fetchShopItemsMap = async () => {
-      const res = await fetch(`${apiUrl}/shop-items`);
+      const res = await adminModuleFetch(`${apiUrl}/shop-items`);
       const data = await res.json();
       const map = {};
       (Array.isArray(data) ? data : []).forEach(i => { map[i.id] = i; });
@@ -14744,7 +14795,7 @@
     };
 
     const fetchBatchesFor = async (ingredientId) => {
-      const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredientId}`);
+      const res = await adminModuleFetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredientId}`);
       const d = await res.json();
       return Array.isArray(d) ? d : [];
     };
@@ -14809,7 +14860,7 @@
     const advanceStatus = async (order, nextUiStatus, changeNote) => {
         const coords = await getBrowserLocation(); // reuse the helper used elsewhere in this app
         try {
-          const res = await fetch(`${apiUrl}/orders/${order._dbId}`, {
+          const res = await adminModuleFetch(`${apiUrl}/orders/${order._dbId}`, {
             method:"PUT", headers:{ "Content-Type":"application/json" }, credentials:"include",
             body: JSON.stringify({
               status: nextUiStatus,
@@ -14943,17 +14994,17 @@
     ];
 
     if (loadingData) return (
-      <div style={{ padding:60, textAlign:"center", color:C.muted, fontFamily:"'Montserrat',sans-serif" }}>Loading orders…</div>
+      <div style={{ padding:60, textAlign:"center", color:C.muted, fontFamily:"'Plus Jakarta Sans', sans-serif" }}>Loading orders…</div>
     );
     if (error) return (
-      <div style={{ padding:40, textAlign:"center", fontFamily:"'Montserrat',sans-serif" }}>
+      <div style={{ padding:40, textAlign:"center", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
         <div style={{ color:C.red, marginBottom:12 }}>{error}</div>
         <button onClick={fetchOrders} style={{ padding:"8px 20px", borderRadius:8, border:`1px solid ${C.border}`, background:C.greenLt, color:C.greenDk, fontWeight:700, cursor:"pointer" }}>Retry</button>
       </div>
     );
 
     return (
-      <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
+      <div style={{ fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
         <style>{`
           @keyframes spin { to { transform: rotate(360deg); } }
           @keyframes cardIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
@@ -14980,12 +15031,12 @@
             <div style={{ position:"relative", flex:"1 1 220px", minWidth:200 }}>
               <Search size={15} color={C.muted} style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}/>
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search order # or customer name…"
-                style={{ width:"100%", height:38, padding:"0 14px 0 36px", borderRadius:10, border:`1px solid ${C.border}`, fontSize:13, fontFamily:"inherit", boxSizing:"border-box" }}/>
+                style={{ width:"100%", height:38, padding:"0 14px 0 36px", borderRadius:10, border:`1px solid ${C.border}`, fontSize:13, fontFamily:"'Plus Jakarta Sans', sans-serif", boxSizing:"border-box" }}/>
             </div>
 
                       <select value={filterBrand} onChange={e => { setFilterBrand(e.target.value); setFilterBranch(""); }}
               style={{ height:38, padding:"0 12px", borderRadius:10, border:`1px solid ${C.border}`,
-                fontSize:12.5, fontWeight:700, color:C.ink, fontFamily:"inherit", background:"#fff", cursor:"pointer" }}>
+                fontSize:12.5, fontWeight:700, color:C.ink, fontFamily:"'Plus Jakarta Sans', sans-serif", background:"#fff", cursor:"pointer" }}>
               <option value="">All Brands</option>
               {propBrands.map(b => (
                 <option key={b.id} value={b.id}>{b.name}</option>
@@ -14994,7 +15045,7 @@
 
             <select value={filterBranch} onChange={e => setFilterBranch(e.target.value)} disabled={!filterBrand}
               style={{ height:38, padding:"0 12px", borderRadius:10, border:`1px solid ${C.border}`,
-                fontSize:12.5, fontWeight:700, color:C.ink, fontFamily:"inherit", background: filterBrand ? "#fff" : "#f3f4f6",
+                fontSize:12.5, fontWeight:700, color:C.ink, fontFamily:"'Plus Jakarta Sans', sans-serif", background: filterBrand ? "#fff" : "#f3f4f6",
                 cursor: filterBrand ? "pointer" : "not-allowed", opacity: filterBrand ? 1 : 0.6 }}>
               <option value="">All Branches</option>
               {branchOptions.map(br => (
@@ -15004,7 +15055,7 @@
 
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
               style={{ height:38, padding:"0 12px", borderRadius:10, border:`1px solid ${C.border}`,
-                fontSize:12.5, fontWeight:700, color:C.ink, fontFamily:"inherit", background:"#fff", cursor:"pointer" }}>
+                fontSize:12.5, fontWeight:700, color:C.ink, fontFamily:"'Plus Jakarta Sans', sans-serif", background:"#fff", cursor:"pointer" }}>
               {FILTER_CHIPS.map(c => (
                 <option key={c.key} value={c.key}>{c.label} ({c.count})</option>
               ))}
@@ -15012,7 +15063,7 @@
 
             <button onClick={handleRefreshClick} disabled={refreshingOrders}
               style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1px solid ${C.border}`,
-                background:C.greenLt, color:C.greenDk, fontWeight:700, fontSize:12, cursor: refreshingOrders ? "not-allowed" : "pointer", fontFamily:"inherit", opacity: refreshingOrders ? 0.6 : 1 }}>
+                background:C.greenLt, color:C.greenDk, fontWeight:700, fontSize:12, cursor: refreshingOrders ? "not-allowed" : "pointer", fontFamily:"'Plus Jakarta Sans', sans-serif", opacity: refreshingOrders ? 0.6 : 1 }}>
               <RefreshCw size={13} style={ refreshingOrders ? { animation:"spin 0.8s linear infinite" } : undefined }/> Refresh
             </button>
           </div>
@@ -15022,7 +15073,7 @@
               style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:"none",
                 background: (massAccepting || counts.pending === 0) ? "#e5e7eb" : `linear-gradient(135deg,${C.teal},${C.green})`,
                 color: (massAccepting || counts.pending === 0) ? "#9ca3af" : "#fff",
-                fontWeight:700, fontSize:12, cursor: (massAccepting || counts.pending === 0) ? "not-allowed" : "pointer", fontFamily:"inherit" }}>
+                fontWeight:700, fontSize:12, cursor: (massAccepting || counts.pending === 0) ? "not-allowed" : "pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>
               {massAccepting ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <Printer size={13}/>}
               {massAccepting ? "Accepting…" : `Accept & Print All (${orders.filter(o => o.status === "pending" && stockAvailability[o.id]?.ok).length})`}
             </button>
@@ -15153,7 +15204,7 @@
     const sendOtp = async () => {
       try {
         const emailToSend = formData.personalEmail || formData.email;
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/send-otp-password-change`, {
+        const response = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/send-otp-password-change`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: emailToSend }),
         });
@@ -15170,7 +15221,7 @@
       try {
         setOtpError('');
         const emailToVerify = formData.personalEmail || formData.email;
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}/password`, {
+        const response = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/users/${user.id}/password`, {
           method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ currentPassword: formData.currentPassword, newPassword: formData.newPassword, email: emailToVerify, otp: otp.trim() }),
         });
@@ -15222,7 +15273,7 @@
     const updateProfile = async () => {
     try {
       const fullName = [formData.firstName, formData.middleInitial ? formData.middleInitial + "." : "", formData.lastName, formData.suffix].filter(Boolean).join(" ");
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, {
+      const response = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: fullName,
@@ -15273,14 +15324,14 @@
       ...bmInput,
       marginTop: 4,
       background: disabled ? '#f5f8f5' : '#fff',
-      color: disabled ? '#9ca3af' : '#0d2b1e',
+      color: disabled ? '#9ca3af' : '#12241B',
       cursor: disabled ? 'not-allowed' : 'text',
-      border: disabled ? '1.5px solid #e5e7eb' : '1.5px solid #b2dfdb',
+      border: disabled ? '1.5px solid #e5e7eb' : '1.5px solid #E1E6D8',
     });
 
     const PwChecklist = () => (
-      <div style={{ marginTop: 8, fontSize: 12, padding: '10px 14px', background: '#f0fdf5', borderRadius: 10, border: '1.5px solid #b2dfdb' }}>
-        <div style={{ marginBottom: 6, fontWeight: 700, color: '#0d2b1e', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Password must contain:</div>
+      <div style={{ marginTop: 8, fontSize: 12, padding: '10px 14px', background: '#f0f5e8', borderRadius: 10, border: '1.5px solid #E1E6D8' }}>
+        <div style={{ marginBottom: 6, fontWeight: 700, color: '#12241B', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Password must contain:</div>
         {[
           ['minLength',   'At least 8 characters'],
           ['uppercase',   'Uppercase letter (A-Z)'],
@@ -15288,7 +15339,7 @@
           ['number',      'Number (0-9)'],
           ['specialChar', 'Special character (!@#$%^&*...)'],
         ].map(([key, text]) => (
-          <div key={key} style={{ color: passwordErrors.includes(key) ? '#dc2626' : '#059669', marginBottom: 3, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+          <div key={key} style={{ color: passwordErrors.includes(key) ? '#c0392b' : '#059669', marginBottom: 3, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
             <span>{passwordErrors.includes(key) ? '✗' : '✓'}</span> {text}
           </div>
         ))}
@@ -15296,7 +15347,7 @@
     );
 
     const FieldError = ({ name }) => fieldErrors[name]
-      ? <span style={{ fontSize: 11, color: '#dc2626', marginTop: 4, display: 'block', fontWeight: 600 }}>{fieldErrors[name]}</span>
+      ? <span style={{ fontSize: 11, color: '#c0392b', marginTop: 4, display: 'block', fontWeight: 600 }}>{fieldErrors[name]}</span>
       : null;
 
     const EyeToggle = ({ show, onToggle, disabled }) => (
@@ -15304,7 +15355,7 @@
         type="button"
         onClick={onToggle}
         disabled={disabled}
-        style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', color: '#5a7a65', display: 'flex', alignItems: 'center', padding: 0 }}
+        style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', color: '#5C6B60', display: 'flex', alignItems: 'center', padding: 0 }}
       >
         {show
           ? <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
@@ -15314,40 +15365,40 @@
     );
 
     return (
-      <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
+      <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
         {/* ── Account Overview Card ── */}
         <div style={{ background: C.white, border: '1px solid rgba(0,168,76,0.12)', borderRadius: 18, boxShadow: '0 2px 14px rgba(0,140,60,0.07)', overflow: 'hidden', marginBottom: 24 }}>
-          <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '16px 22px' }}>
+          <div style={{ background: 'linear-gradient(135deg,#3b791e,#3b791e)', padding: '16px 22px' }}>
             <span style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>Account Overview</span>
           </div>
           <div style={{ padding: '22px 24px', display: 'flex', alignItems: 'center', gap: 22 }}>
-            <div style={{ width: 68, height: 68, borderRadius: '50%', background: 'linear-gradient(135deg,#d1fae5,#6ee7b7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800, color: '#00695c', flexShrink: 0, letterSpacing: 1, border: '2.5px solid #a7f3d0' }}>
+            <div style={{ width: 68, height: 68, borderRadius: '50%', background: 'linear-gradient(135deg,#d1fae5,#6ee7b7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800, color: '#2c5c16', flexShrink: 0, letterSpacing: 1, border: '2.5px solid #a7f3d0' }}>
               {initials}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 800, fontSize: 20, color: '#0d2b1e', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
-              <div style={{ fontSize: 13, color: '#5a7a65', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#5a7a65" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 7L2 7"/></svg>
+              <div style={{ fontWeight: 800, fontSize: 20, color: '#12241B', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
+              <div style={{ fontSize: 13, color: '#5C6B60', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#5C6B60" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 7L2 7"/></svg>
                 {user.email}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ background: 'rgba(0,137,123,0.1)', color: '#00695c', padding: '3px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>{user.role}</span>
-                {user.branch && <span style={{ background: '#f0fdf5', color: '#0d2b1e', padding: '3px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, border: '1.5px solid #b2dfdb' }}>{user.branch}</span>}
+                <span style={{ background: 'rgba(0,137,123,0.1)', color: '#2c5c16', padding: '3px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>{user.role}</span>
+                {user.branch && <span style={{ background: '#f0f5e8', color: '#12241B', padding: '3px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, border: '1.5px solid #E1E6D8' }}>{user.branch}</span>}
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, textAlign: 'right' }}>
-              <div style={{ padding: '8px 16px', borderRadius: 12, background: '#f0fdf5', border: '1.5px solid #b2dfdb' }}>
-                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#5a7a65', marginBottom: 2 }}>Account Status</div>
+              <div style={{ padding: '8px 16px', borderRadius: 12, background: '#f0f5e8', border: '1.5px solid #E1E6D8' }}>
+                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#5C6B60', marginBottom: 2 }}>Account Status</div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#059669', display: 'inline-block' }}/>
                   <span style={{ fontWeight: 800, fontSize: 13, color: '#059669' }}>Active</span>
                 </div>
               </div>
               {user.branch && (
-                <div style={{ padding: '8px 16px', borderRadius: 12, background: '#f0fdf5', border: '1.5px solid #b2dfdb' }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#5a7a65', marginBottom: 2 }}>Branch</div>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e' }}>{user.branch}</div>
+                <div style={{ padding: '8px 16px', borderRadius: 12, background: '#f0f5e8', border: '1.5px solid #E1E6D8' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#5C6B60', marginBottom: 2 }}>Branch</div>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: '#12241B' }}>{user.branch}</div>
                 </div>
               )}
             </div>
@@ -15355,12 +15406,12 @@
         </div>
 
         {/* ── Lock/Unlock Banner ── */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: isUnlocked ? '#f0fdf5' : '#f5f8f5', border: `1.5px solid ${isUnlocked ? '#b2dfdb' : '#e5e7eb'}`, borderRadius: 14, padding: '12px 20px', marginBottom: 20, transition: 'all 0.2s' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: isUnlocked ? '#f0f5e8' : '#f5f8f5', border: `1.5px solid ${isUnlocked ? '#E1E6D8' : '#e5e7eb'}`, borderRadius: 14, padding: '12px 20px', marginBottom: 20, transition: 'all 0.2s' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {isUnlocked ? <Unlock size={18} /> : <Lock size={18} />}
             <div>
-              <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e' }}>{isUnlocked ? 'Editing Enabled' : 'Profile Locked'}</div>
-              <div style={{ fontSize: 11, color: '#5a7a65' }}>{isUnlocked ? 'Make your changes and save when done.' : 'Click Unlock to edit your profile.'}</div>
+              <div style={{ fontWeight: 800, fontSize: 13, color: '#12241B' }}>{isUnlocked ? 'Editing Enabled' : 'Profile Locked'}</div>
+              <div style={{ fontSize: 11, color: '#5C6B60' }}>{isUnlocked ? 'Make your changes and save when done.' : 'Click Unlock to edit your profile.'}</div>
             </div>
           </div>
           <button
@@ -15374,8 +15425,8 @@
             }}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 18px', borderRadius: 10, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-              background: isUnlocked ? 'linear-gradient(135deg,#dc2626,#ef4444)' : 'linear-gradient(135deg,#2E7D32,#00897b)',
+              padding: '8px 18px', borderRadius: 10, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif",
+              background: isUnlocked ? 'linear-gradient(135deg,#c0392b,#c0392b)' : 'linear-gradient(135deg,#3b791e,#3b791e)',
               color: '#fff', boxShadow: isUnlocked ? '0 2px 8px rgba(220,38,38,0.3)' : '0 2px 8px rgba(0,180,90,0.3)',
             }}
           >
@@ -15388,7 +15439,7 @@
 
           {/* ── Personal Information Card ── */}
           <div style={{ background: C.white, border: '1px solid rgba(0,168,76,0.12)', borderRadius: 18, boxShadow: '0 2px 14px rgba(0,140,60,0.07)', overflow: 'hidden' }}>
-            <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '16px 22px' }}>
+            <div style={{ background: 'linear-gradient(135deg,#3b791e,#3b791e)', padding: '16px 22px' }}>
               <span style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>Personal Information</span>
             </div>
             <form onSubmit={handleSubmit} style={{ padding: '22px 24px' }}>
@@ -15473,7 +15524,7 @@
                 <button
                   type="submit"
                   disabled={!isUnlocked}
-                  style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: isUnlocked ? 'linear-gradient(135deg,#2E7D32,#00897b)' : '#d1d5db', color: '#fff', fontSize: 13, fontWeight: 800, cursor: isUnlocked ? 'pointer' : 'not-allowed', fontFamily: 'inherit', boxShadow: isUnlocked ? '0 2px 10px rgba(0,180,90,0.28)' : 'none', opacity: isUnlocked ? 1 : 0.6 }}
+                  style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: isUnlocked ? 'linear-gradient(135deg,#3b791e,#3b791e)' : '#d1d5db', color: '#fff', fontSize: 13, fontWeight: 800, cursor: isUnlocked ? 'pointer' : 'not-allowed', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: isUnlocked ? '0 2px 10px rgba(0,180,90,0.28)' : 'none', opacity: isUnlocked ? 1 : 0.6 }}
                 >
                   Save Changes
                 </button>
@@ -15483,11 +15534,11 @@
 
           {/* ── Change Password Card ── */}
           <div style={{ background: C.white, border: '1px solid rgba(0,168,76,0.12)', borderRadius: 18, boxShadow: '0 2px 14px rgba(0,140,60,0.07)', overflow: 'hidden' }}>
-            <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '16px 22px' }}>
+            <div style={{ background: 'linear-gradient(135deg,#3b791e,#3b791e)', padding: '16px 22px' }}>
               <span style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>Change Password</span>
             </div>
             <form onSubmit={handleSubmit} style={{ padding: '22px 24px' }}>
-              <div style={{ background: isUnlocked ? '#f0fdf5' : '#f5f8f5', borderRadius: 12, padding: '12px 16px', marginBottom: 20, border: `1.5px solid ${isUnlocked ? C.border : '#e5e7eb'}`, fontSize: 12, color: C.muted, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: isUnlocked ? '#f0f5e8' : '#f5f8f5', borderRadius: 12, padding: '12px 16px', marginBottom: 20, border: `1.5px solid ${isUnlocked ? C.border : '#e5e7eb'}`, fontSize: 12, color: C.muted, display: 'flex', alignItems: 'center', gap: 8 }}>
                 {isUnlocked ? 'An OTP will be sent to your email for verification' : 'Unlock your profile to change your password'}
               </div>
 
@@ -15545,7 +15596,7 @@
                 </div>
                 {/* Live match indicator */}
                 {isUnlocked && formData.confirmPassword && (
-                  <div style={{ fontSize: 11, marginTop: 4, fontWeight: 600, color: formData.newPassword === formData.confirmPassword ? '#059669' : '#dc2626', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ fontSize: 11, marginTop: 4, fontWeight: 600, color: formData.newPassword === formData.confirmPassword ? '#059669' : '#c0392b', display: 'flex', alignItems: 'center', gap: 4 }}>
                     {formData.newPassword === formData.confirmPassword ? '✓ Passwords match' : '✗ Passwords do not match'}
                   </div>
                 )}
@@ -15555,7 +15606,7 @@
               <button
                 type="submit"
                 disabled={!isUnlocked}
-                style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: isUnlocked ? 'linear-gradient(135deg,#2E7D32,#00897b)' : '#d1d5db', color: '#fff', fontSize: 13, fontWeight: 800, cursor: isUnlocked ? 'pointer' : 'not-allowed', fontFamily: 'inherit', boxShadow: isUnlocked ? '0 2px 10px rgba(0,180,90,0.28)' : 'none', opacity: isUnlocked ? 1 : 0.6 }}
+                style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: isUnlocked ? 'linear-gradient(135deg,#3b791e,#3b791e)' : '#d1d5db', color: '#fff', fontSize: 13, fontWeight: 800, cursor: isUnlocked ? 'pointer' : 'not-allowed', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: isUnlocked ? '0 2px 10px rgba(0,180,90,0.28)' : 'none', opacity: isUnlocked ? 1 : 0.6 }}
               >
                 Update Password
               </button>
@@ -15569,8 +15620,8 @@
             <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 440, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)' }}>
               <div style={{ textAlign: 'center', marginBottom: 22 }}>
                 <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg,#d1fae5,#6ee7b7)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', fontSize: '1.6rem' }}>🔑</div>
-                <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', marginBottom: 6 }}>Verify OTP</h2>
-                <p style={{ fontSize: 13, color: C.muted }}>Code sent to <strong style={{ color: '#0d2b1e' }}>{formData.personalEmail || formData.email}</strong></p>
+                <h2 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 18, fontWeight: 800, color: '#12241B', marginBottom: 6 }}>Verify OTP</h2>
+                <p style={{ fontSize: 13, color: C.muted }}>Code sent to <strong style={{ color: '#12241B' }}>{formData.personalEmail || formData.email}</strong></p>
               </div>
               <div style={{ marginBottom: 14 }}>
                 <label style={bmLabel}>Enter 6-Digit OTP</label>
@@ -15578,7 +15629,7 @@
                   type="text" placeholder="000000" value={otp}
                   onChange={e => { const v = e.target.value.replace(/\D/g, '').slice(0, 6); setOtp(v); setOtpError(''); }}
                   maxLength={6} autoFocus
-                  style={{ ...bmInput, marginTop: 6, fontSize: 24, textAlign: 'center', letterSpacing: '0.6rem', fontFamily: 'monospace' }}
+                  style={{ ...bmInput, marginTop: 6, fontSize: 24, textAlign: 'center', letterSpacing: '0.6rem', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                 />
               </div>
               {otpSent && !otpError && (
@@ -15587,20 +15638,20 @@
                 </div>
               )}
               {otpError && (
-                <div style={{ padding: '10px 14px', background: '#fee2e2', borderRadius: 10, border: '1.5px solid #fecaca', color: '#dc2626', fontSize: 12, fontWeight: 700, textAlign: 'center', marginBottom: 12 }}>
+                <div style={{ padding: '10px 14px', background: '#fdf1f0', borderRadius: 10, border: '1.5px solid #f2c9c4', color: '#c0392b', fontSize: 12, fontWeight: 700, textAlign: 'center', marginBottom: 12 }}>
                   Please try again {otpError}
                 </div>
               )}
               <div style={{ textAlign: 'center', marginBottom: 20 }}>
-                <button type="button" onClick={sendOtp} style={{ background: 'none', border: 'none', color: '#00897b', cursor: 'pointer', fontSize: 12, fontWeight: 700, textDecoration: 'underline' }}>Resend OTP</button>
+                <button type="button" onClick={sendOtp} style={{ background: 'none', border: 'none', color: '#3b791e', cursor: 'pointer', fontSize: 12, fontWeight: 700, textDecoration: 'underline' }}>Resend OTP</button>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="button" onClick={() => { setShowOtpModal(false); setOtp(''); setOtpSent(false); setOtpError(''); }}
-                  style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #E1E6D8', background: '#f0f5e8', color: '#5C6B60', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   Cancel
                 </button>
                 <button type="button" onClick={verifyOtpAndChangePassword} disabled={otp.length !== 6}
-                  style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: otp.length !== 6 ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: otp.length !== 6 ? 0.5 : 1 }}>
+                  style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#3b791e,#3b791e)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: otp.length !== 6 ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", opacity: otp.length !== 6 ? 0.5 : 1 }}>
                   Verify & Change
                 </button>
               </div>
@@ -15613,9 +15664,9 @@
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
             <div style={{ background: C.white, borderRadius: 20, padding: '40px 36px', maxWidth: 420, width: '100%', textAlign: 'center', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)' }}>
               <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg,#d1fae5,#6ee7b7)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: '2.2rem' }}>✅</div>
-              <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 22, fontWeight: 800, color: '#0d2b1e', marginBottom: 10 }}>Password Changed!</h2>
+              <h2 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 22, fontWeight: 800, color: '#12241B', marginBottom: 10 }}>Password Changed!</h2>
               <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>Your password has been updated successfully.<br />You'll be redirected to login shortly.</p>
-              <div style={{ background: '#f0fdf5', borderRadius: 12, padding: '10px 16px', fontSize: 12, color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <div style={{ background: '#f0f5e8', borderRadius: 12, padding: '10px 16px', fontSize: 12, color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                 💡 Use your new password on the next login
               </div>
             </div>
@@ -15630,17 +15681,17 @@
         {/* ── Confirm Modal ── */}
         {confirmModal && (
           <div onClick={() => setConfirmModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 20, backdropFilter: 'blur(4px)' }}>
-            <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 400, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', fontFamily: 'Montserrat, sans-serif', textAlign: 'center' }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 400, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', fontFamily: "'Plus Jakarta Sans', sans-serif", textAlign: 'center' }}>
               <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 22 }}>↩</div>
-              <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0d2b1e', marginBottom: 8 }}>Discard Changes?</h2>
-              <p style={{ fontSize: 13, color: '#5a7a65', lineHeight: 1.6, marginBottom: 24 }}>{confirmModal.message}</p>
+              <h2 style={{ fontSize: 17, fontWeight: 800, color: '#12241B', marginBottom: 8 }}>Discard Changes?</h2>
+              <p style={{ fontSize: 13, color: '#5C6B60', lineHeight: 1.6, marginBottom: 24 }}>{confirmModal.message}</p>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
                 <button type="button" onClick={() => setConfirmModal(null)}
-                  style={{ padding: '9px 22px', borderRadius: 10, border: '1px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ padding: '9px 22px', borderRadius: 10, border: '1px solid #E1E6D8', background: '#f0f5e8', color: '#5C6B60', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   Keep Editing
                 </button>
                 <button type="button" onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#c2410c,#ea580c)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(194,65,12,0.35)' }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#c2410c,#ea580c)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: '0 2px 10px rgba(194,65,12,0.35)' }}>
                   Discard
                 </button>
               </div>
@@ -15674,7 +15725,7 @@
     React.useEffect(() => {
       const create = async () => {
         try {
-          const res  = await fetch(`${process.env.REACT_APP_API_URL}/paymongo/create-gcash`, {
+          const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/paymongo/create-gcash`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -15710,7 +15761,7 @@
     const startPolling = (id) => {
       pollRef.current = setInterval(async () => {
         try {
-          const res  = await fetch(`${process.env.REACT_APP_API_URL}/paymongo/link-status/${id}`);
+          const res  = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/paymongo/link-status/${id}`);
           const data = await res.json();
           if (data.status === 'paid') {
             clearInterval(pollRef.current);
@@ -15764,7 +15815,7 @@
           width:'100%', maxWidth:400,
           overflow:'hidden',
           boxShadow:'0 32px 80px rgba(0,0,0,0.3)',
-          fontFamily:"'Plus Jakarta Sans',sans-serif",
+          fontFamily:"'Plus Jakarta Sans', sans-serif",
           animation:'gcashSlideUp .25s cubic-bezier(.22,1,.36,1)',
         }}>
           <style>{`
@@ -15804,7 +15855,7 @@
 
           {/* Amount bar */}
           <div style={{ background:'#f0f7ff', padding:'12px 22px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #e5e7eb' }}>
-            <div style={{ fontSize:11, fontWeight:800, color:'#5a7a65', textTransform:'uppercase', letterSpacing:'0.07em' }}>Amount</div>
+            <div style={{ fontSize:11, fontWeight:800, color:'#5C6B60', textTransform:'uppercase', letterSpacing:'0.07em' }}>Amount</div>
             <div style={{ fontSize:22, fontWeight:900, color:'#0057a8' }}>{fmtPHP(totalAmt)}</div>
           </div>
 
@@ -15817,7 +15868,7 @@
                 <svg width={36} height={36} viewBox="0 0 24 24" fill="none" stroke="#007acc" strokeWidth={2} style={{ animation:'spin 0.8s linear infinite', marginBottom:12 }}>
                   <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
                 </svg>
-                <div style={{ fontSize:14, color:'#5a7a65', fontWeight:600 }}>Creating payment link…</div>
+                <div style={{ fontSize:14, color:'#5C6B60', fontWeight:600 }}>Creating payment link…</div>
               </div>
             )}
 
@@ -15852,18 +15903,18 @@
                 {/* Ref number */}
                 {refNo && (
                   <div style={{ fontSize:11, color:'#9ca3af', marginBottom:12 }}>
-                    Ref # <strong style={{ color:'#374151', fontFamily:'monospace' }}>{refNo}</strong>
+                    Ref # <strong style={{ color:'#374151', fontFamily:"'Plus Jakarta Sans', sans-serif" }}>{refNo}</strong>
                   </div>
                 )}
 
                 {/* Countdown */}
                 <div style={{
                   display:'inline-flex', alignItems:'center', gap:6,
-                  background: countdown < 30 ? '#fee2e2' : '#f0f7ff',
-                  border:`1px solid ${countdown < 30 ? '#fecaca' : '#bfdbfe'}`,
+                  background: countdown < 30 ? '#fdf1f0' : '#f0f7ff',
+                  border:`1px solid ${countdown < 30 ? '#f2c9c4' : '#bfdbfe'}`,
                   borderRadius:20, padding:'5px 14px',
                   fontSize:12, fontWeight:700,
-                  color: countdown < 30 ? '#dc2626' : '#1e40af',
+                  color: countdown < 30 ? '#c0392b' : '#1e40af',
                   marginBottom:16,
                 }}>
                   <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
@@ -15873,7 +15924,7 @@
                 </div>
 
                 {/* Polling indicator */}
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:7, fontSize:12, color:'#5a7a65' }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:7, fontSize:12, color:'#5C6B60' }}>
                   <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#007acc" strokeWidth={2} style={{ animation:'spin 1.2s linear infinite', flexShrink:0 }}>
                     <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
                   </svg>
@@ -15888,12 +15939,12 @@
                 <div style={{ width:72, height:72, borderRadius:'50%', background:'linear-gradient(135deg,#059669,#047857)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px', boxShadow:'0 4px 20px rgba(5,150,105,0.4)' }}>
                   <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 </div>
-                <div style={{ fontWeight:900, fontSize:18, color:'#0d2b1e', marginBottom:6 }}>Payment Received!</div>
-                <div style={{ fontSize:13, color:'#5a7a65', marginBottom:10 }}>
+                <div style={{ fontWeight:900, fontSize:18, color:'#12241B', marginBottom:6 }}>Payment Received!</div>
+                <div style={{ fontSize:13, color:'#5C6B60', marginBottom:10 }}>
                   {fmtPHP(totalAmt)} via GCash
                 </div>
                 {gcashRef && (
-                  <div style={{ background:'#f0fdf5', border:'1px solid #d1eedd', borderRadius:10, padding:'8px 14px', fontSize:12, fontWeight:700, color:'#00695c', fontFamily:'monospace', letterSpacing:'0.05em' }}>
+                  <div style={{ background:'#f0f5e8', border:'1px solid #E1E6D8', borderRadius:10, padding:'8px 14px', fontSize:12, fontWeight:700, color:'#2c5c16', fontFamily:"'Plus Jakarta Sans', sans-serif", letterSpacing:'0.05em' }}>
                     Ref: {gcashRef}
                   </div>
                 )}
@@ -15904,14 +15955,14 @@
             {/* ERROR */}
             {step==='error' && (
               <div style={{ padding:'24px 0' }}>
-                <div style={{ width:60, height:60, borderRadius:'50%', background:'#fee2e2', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' }}>
-                  <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2.5} strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                <div style={{ width:60, height:60, borderRadius:'50%', background:'#fdf1f0', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' }}>
+                  <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#c0392b" strokeWidth={2.5} strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
                 </div>
-                <div style={{ fontWeight:800, fontSize:15, color:'#0d2b1e', marginBottom:6 }}>Payment Failed</div>
-                <div style={{ fontSize:13, color:'#5a7a65', marginBottom:20 }}>{errorMsg}</div>
+                <div style={{ fontWeight:800, fontSize:15, color:'#12241B', marginBottom:6 }}>Payment Failed</div>
+                <div style={{ fontSize:13, color:'#5C6B60', marginBottom:20 }}>{errorMsg}</div>
                 <div style={{ display:'flex', gap:10 }}>
-                  <button onClick={onCancel} style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1.5px solid #d1d5db', background:'#f9fafb', color:'#6b7280', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
-                  <button onClick={handleRetry} style={{ flex:1, padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#007acc,#0057a8)', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'inherit' }}>Try Again</button>
+                  <button onClick={onCancel} style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1.5px solid #d1d5db', background:'#f9fafb', color:'#6b7280', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'Plus Jakarta Sans', sans-serif" }}>Cancel</button>
+                  <button onClick={handleRetry} style={{ flex:1, padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#007acc,#0057a8)', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:"'Plus Jakarta Sans', sans-serif" }}>Try Again</button>
                 </div>
               </div>
             )}
@@ -15920,7 +15971,7 @@
             {(step==='ready' || step==='polling') && (
               <button
                 onClick={onCancel}
-                style={{ marginTop:14, width:'100%', padding:'10px 0', borderRadius:10, border:'1.5px solid #d1d5db', background:'#f9fafb', color:'#6b7280', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}
+                style={{ marginTop:14, width:'100%', padding:'10px 0', borderRadius:10, border:'1.5px solid #d1d5db', background:'#f9fafb', color:'#6b7280', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'Plus Jakarta Sans', sans-serif" }}
               >
                 Cancel payment
               </button>
@@ -16010,7 +16061,7 @@
     const fetchProducts = React.useCallback(async () => {
       try {
         const branchQ = activeBranch ? `?branch=${encodeURIComponent(activeBranch)}` : "";
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory${branchQ}`);
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/inventory${branchQ}`);
         const data = await res.json();
         setMenuItems(Array.isArray(data) ? data : []);
       } catch { setMenuItems([]); }
@@ -16020,7 +16071,7 @@
       setLoadingTx(true);
       try {
         const q   = activeBranch ? `?branch=${encodeURIComponent(activeBranch)}` : "";
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions${q}`);
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/transactions${q}`);
         const d   = await res.json();
         setTransactions(Array.isArray(d) ? d : []);
       } catch { setTransactions([]); }
@@ -16030,7 +16081,7 @@
     const fetchVoidedTransactions = React.useCallback(async () => {
       try {
         const q   = activeBranch ? `?branch=${encodeURIComponent(activeBranch)}` : "";
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions/voided${q}`);
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/transactions/voided${q}`);
         const d   = await res.json();
         setVoidedTx(Array.isArray(d) ? d : []);
       } catch { setVoidedTx([]); }
@@ -16179,7 +16230,7 @@
         })),
       };
     
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions`, {
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/transactions`, {
           method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
         });
         const d = await res.json();
@@ -16227,7 +16278,7 @@
       setSelectedTxId(null);
 
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions/${selectedTxId}/void`, {
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/transactions/${selectedTxId}/void`, {
           method: "POST", 
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ voided_by: user?.name || "Manager", reason: "Manual void" }),
@@ -16256,7 +16307,7 @@
       }
       setRetrieveProcessing(true);
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions/${selectedVoidId}/retrieve`, {
+        const res = await adminModuleFetch(`${process.env.REACT_APP_API_URL}/transactions/${selectedVoidId}/retrieve`, {
           method:"POST", headers:{"Content-Type":"application/json"},
           body: JSON.stringify({ retrieved_by: user?.name||"Manager" }),
         });
@@ -16359,7 +16410,7 @@
           <thead>
             <tr>
               {["","#","Date", isVoided ? "Voided At" : null, isVoided ? "Voided By" : null, "Branch","Shop","Cashier","Items","Subtotal","Discount","VAT","Total","Payment","Status"].filter(Boolean).map(h=>(
-                <th key={h} style={{ padding:"8px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, background:"#f8fffe", whiteSpace:"nowrap" }}>{h}</th>
+                <th key={h} style={{ padding:"8px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#3b791e", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, background:"#f8fffe", whiteSpace:"nowrap" }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -16369,9 +16420,9 @@
               return (
                 <tr key={tx.id}
                   onClick={()=>onSelect(isSelected ? null : tx.id)}
-                  style={{ borderBottom:`1px solid #f0f8f0`, cursor:"pointer", background: isSelected ? "#e8f5e9" : "transparent", transition:"background .1s" }}
+                  style={{ borderBottom:`1px solid #f0f8f0`, cursor:"pointer", background: isSelected ? "#f0f5e8" : "transparent", transition:"background .1s" }}
                   onMouseEnter={e=>{ if (!isSelected) e.currentTarget.style.background="#f6fef8"; }}
-                  onMouseLeave={e=>{ e.currentTarget.style.background = isSelected ? "#e8f5e9" : "transparent"; }}>
+                  onMouseLeave={e=>{ e.currentTarget.style.background = isSelected ? "#f0f5e8" : "transparent"; }}>
                   {/* Checkbox col */}
                   <td style={{ padding:"10px 10px 10px 14px" }}>
                     <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${isSelected ? C.green : C.border}`, background: isSelected ? C.green : C.white, display:"flex", alignItems:"center", justifyContent:"center", transition:"all .1s" }}>
@@ -16392,7 +16443,7 @@
                   )}
                   <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{tx.branch}</td>
                   <td style={{ padding:"10px 12px" }}>
-                    <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:tx.shop==="Coffee Spot"?"#fff8e1":"#e0f2f1", color:tx.shop==="Coffee Spot"?"#f57f17":"#00695c" }}>{tx.shop}</span>
+                    <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:tx.shop==="Coffee Spot"?"#fff8e1":"#f0f5e8", color:tx.shop==="Coffee Spot"?"#f57f17":"#2c5c16" }}>{tx.shop}</span>
                   </td>
                   <td style={{ padding:"10px 12px", color:C.ink, fontWeight:600, fontSize:12 }}>{tx.cashier}</td>
                   <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{(tx.items||[]).length} item{(tx.items||[]).length!==1?"s":""}</td>
@@ -16406,8 +16457,8 @@
                   <td style={{ padding:"10px 12px", fontWeight:800, color: isVoided ? C.muted : C.green }}>{fmtPHP(tx.total)}</td>
                   <td style={{ padding:"10px 12px" }}>
                     <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600,
-                      background:tx.payment_method==="Cash"?"#e8f5e9":tx.payment_method==="GCash"?"#e3f2fd":"#f3e5f5",
-                      color:tx.payment_method==="Cash"?"#2e7d32":tx.payment_method==="GCash"?"#1565c0":"#6a1b9a" }}>
+                      background:tx.payment_method==="Cash"?"#f0f5e8":tx.payment_method==="GCash"?"#e3f2fd":"#f3e5f5",
+                      color:tx.payment_method==="Cash"?"#3b791e":tx.payment_method==="GCash"?"#1565c0":"#6a1b9a" }}>
                       {tx.payment_method}
                     </span>
                   </td>
@@ -16451,7 +16502,7 @@
           <div style={{ display:"flex", gap:8 }}>
             <button onClick={onClose} style={{ ...btnSt, flex:1, justifyContent:"center" }}>Cancel</button>
             <button onClick={onConfirm} disabled={processing}
-              style={{ flex:1, height:36, border:"none", borderRadius:9, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit",
+              style={{ flex:1, height:36, border:"none", borderRadius:9, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif",
                 background:`linear-gradient(135deg,${actionColor||C.red},${actionColor ? actionColor+"cc" : "#b71c1c"})`,
                 color:C.white, opacity:processing?0.7:1, justifyContent:"center", display:"flex", alignItems:"center", gap:6 }}>
               {processing ? "Processing…" : actionLabel}
@@ -16462,9 +16513,9 @@
     );
 
     return (
-      <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", background:"linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)", minHeight:"100vh", padding:"24px 30px 48px" }}>
+      <div style={{ fontFamily:"'Plus Jakarta Sans', sans-serif", background:"linear-gradient(140deg,#f0f5e8 0%,#F6F7F1 45%,#f0f5e8 100%)", minHeight:"100vh", padding:"24px 30px 48px" }}>
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
           @media print { body > * { display: none !important; } .pos-receipt-print { display: block !important; } }
         `}</style>
 
@@ -16493,7 +16544,7 @@
               { id:"voided",  label:"Recently Voided",     count: voidedTx.length, countColor:"#c62828", countBg:"rgba(229,57,53,0.15)" },
             ].map(tab=>(
               <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
-                style={{ padding:"8px 22px", borderRadius:10, border:"none", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+                style={{ padding:"8px 22px", borderRadius:10, border:"none", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif",
                   background:activeTab===tab.id?`linear-gradient(135deg,${C.teal},${C.green})`:"transparent",
                   color:activeTab===tab.id?C.white:C.muted,
                   boxShadow:activeTab===tab.id?"0 2px 10px rgba(0,180,90,0.28)":"none", transition:"all .15s" }}>
@@ -16521,7 +16572,7 @@
                   style={{
                     display: "flex", alignItems: "center", gap: 7, height: 38, padding: "0 18px",
                     border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800,
-                    cursor: selectedTxId && !isExpired ? "pointer" : "not-allowed", fontFamily: "inherit",
+                    cursor: selectedTxId && !isExpired ? "pointer" : "not-allowed", fontFamily: "'Plus Jakarta Sans', sans-serif",
                     background: canVoid
                       ? "linear-gradient(135deg,#e53935,#b71c1c)"
                       : "#e0e0e0",
@@ -16556,7 +16607,7 @@
               onClick={openRetrieveModal}
               disabled={!selectedVoidId}
               style={{ display:"flex", alignItems:"center", gap:7, height:38, padding:"0 18px", border:"none", borderRadius:10,
-                fontSize:13, fontWeight:800, cursor: selectedVoidId ? "pointer" : "not-allowed", fontFamily:"inherit",
+                fontSize:13, fontWeight:800, cursor: selectedVoidId ? "pointer" : "not-allowed", fontFamily:"'Plus Jakarta Sans', sans-serif",
                 background: selectedVoidId ? `linear-gradient(135deg,${C.teal},${C.green})` : "#e0e0e0",
                 color: selectedVoidId ? C.white : "#9e9e9e",
                 boxShadow: selectedVoidId ? "0 3px 12px rgba(0,180,90,0.35)" : "none",
@@ -16642,7 +16693,7 @@
                 <div style={{ padding:"14px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
                   <span style={{ fontWeight:800, fontSize:14 }}>🛒 Order Cart</span>
                   {cart.length > 0 && (
-                    <button onClick={clearCart} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:C.white, borderRadius:8, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Clear</button>
+                    <button onClick={clearCart} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:C.white, borderRadius:8, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif" }}>Clear</button>
                   )}
                 </div>
                 <div style={{ maxHeight:280, overflowY:"auto", padding:cart.length===0?"0":"8px 0" }}>
@@ -16652,7 +16703,7 @@
                       Tap a product to add it
                     </div>
                   ) : cart.map(item=>(
-                    <div key={`${item.source}-${item.id}`} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 16px", borderBottom:`1px solid #f0fdf5` }}>
+                    <div key={`${item.source}-${item.id}`} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 16px", borderBottom:`1px solid #f0f5e8` }}>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.displayName}</div>
                         <div style={{ fontSize:11, color:C.muted }}>{fmtPHP(item.price)} each</div>
@@ -16698,7 +16749,7 @@
                               setShowDiscountAuth(true);
                             }
                           }}
-                          style={{ height:32, padding:"0 14px", borderRadius:8, border:"none", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+                          style={{ height:32, padding:"0 14px", borderRadius:8, border:"none", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif",
                             background:isActive ? `linear-gradient(135deg,${C.teal},${C.green})` : C.bg,
                             color:isActive ? C.white : C.muted }}>
                           {d.label}{d.pct !== null && d.label !== "None" ? ` (${d.pct}%)` : ""}
@@ -16820,9 +16871,9 @@
           background: isSplitPayment
             ? "linear-gradient(135deg,#007acc,#0057a8)"
             : "#f0f0f0",
-          color: isSplitPayment ? "#fff" : "#5a7a65",
+          color: isSplitPayment ? "#fff" : "#5C6B60",
           fontSize:11, fontWeight:700, cursor:"pointer",
-          fontFamily:"inherit",
+          fontFamily:"'Plus Jakarta Sans', sans-serif",
         }}
       >
         ✂ {isSplitPayment ? "Split ON" : "Split Payment"}
@@ -16841,7 +16892,7 @@
             }}
             style={{
               flex:1, height:32, border:"none", borderRadius:8,
-              fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+              fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif",
               background: paymentMethod===m
                 ? `linear-gradient(135deg,${C_teal},${C_green})`
                 : C_bg,
@@ -16862,7 +16913,7 @@
       }}>
         <div>
           <div style={{ fontSize:10, fontWeight:800, color:"#1e40af", textTransform:"uppercase", letterSpacing:"0.06em" }}>GCash Ref #</div>
-          <div style={{ fontSize:13, fontWeight:700, color:"#1e40af", fontFamily:"monospace", letterSpacing:"0.05em" }}>{gcashRefNumber}</div>
+          <div style={{ fontSize:13, fontWeight:700, color:"#1e40af", fontFamily:"'Plus Jakarta Sans', sans-serif", letterSpacing:"0.05em" }}>{gcashRefNumber}</div>
         </div>
         <button onClick={() => setGcashRefNumber("")} style={{ background:"none", border:"none", cursor:"pointer", color:"#93c5fd", fontSize:16 }}>×</button>
       </div>
@@ -16870,22 +16921,22 @@
 
     {/* ── SPLIT payment panel ── */}
     {isSplitPayment && (
-      <div style={{ background:"#f8fffe", border:"1.5px solid #b2dfdb", borderRadius:12, padding:"14px 14px 10px", marginTop:4 }}>
+      <div style={{ background:"#f8fffe", border:"1.5px solid #E1E6D8", borderRadius:12, padding:"14px 14px 10px", marginTop:4 }}>
 
         {/* Remaining indicator */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-          <span style={{ fontSize:11, fontWeight:700, color:"#5a7a65" }}>
+          <span style={{ fontSize:11, fontWeight:700, color:"#5C6B60" }}>
             Total to split:
           </span>
-          <span style={{ fontSize:14, fontWeight:800, color:"#0d2b1e" }}>
+          <span style={{ fontSize:14, fontWeight:800, color:"#12241B" }}>
             {fmtPHP(totalAmt)}
           </span>
         </div>
 
         {/* GCash leg */}
         <div style={{
-          background: splitGcashPaid ? "#e8f5e9" : "#fff",
-          border:`1.5px solid ${splitGcashPaid ? "#00897b" : "#bfdbfe"}`,
+          background: splitGcashPaid ? "#f0f5e8" : "#fff",
+          border:`1.5px solid ${splitGcashPaid ? "#3b791e" : "#bfdbfe"}`,
           borderRadius:10, padding:"10px 12px", marginBottom:8,
         }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
@@ -16901,7 +16952,7 @@
           </div>
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
             <div style={{ position:"relative", flex:1 }}>
-              <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", fontSize:13, fontWeight:700, color:"#5a7a65" }}>₱</span>
+              <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", fontSize:13, fontWeight:700, color:"#5C6B60" }}>₱</span>
               <input
                 type="number"
                 placeholder="0.00"
@@ -16937,7 +16988,7 @@
                   padding:"0 14px", height:36, borderRadius:9, border:"none",
                   background:"linear-gradient(135deg,#007acc,#0057a8)",
                   color:"#fff", fontSize:12, fontWeight:700,
-                  cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap",
+                  cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif", whiteSpace:"nowrap",
                   flexShrink:0,
                 }}
               >
@@ -16952,27 +17003,27 @@
                   // recalc cash
                   setSplitCashAmt("");
                 }}
-                style={{ padding:"0 10px", height:36, borderRadius:9, border:"1px solid #fecaca", background:"#fee2e2", color:"#dc2626", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}
+                style={{ padding:"0 10px", height:36, borderRadius:9, border:"1px solid #f2c9c4", background:"#fdf1f0", color:"#c0392b", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans', sans-serif", whiteSpace:"nowrap", flexShrink:0 }}
               >
                 Redo
               </button>
             )}
           </div>
           {splitGcashPaid && splitGcashRef && (
-            <div style={{ marginTop:5, fontSize:11, color:"#00695c", fontFamily:"monospace", fontWeight:600 }}>
+            <div style={{ marginTop:5, fontSize:11, color:"#2c5c16", fontFamily:"'Plus Jakarta Sans', sans-serif", fontWeight:600 }}>
               Ref: {splitGcashRef}
             </div>
           )}
         </div>
 
         {/* Cash leg */}
-        <div style={{ background:"#fff", border:"1.5px solid #d1eedd", borderRadius:10, padding:"10px 12px" }}>
+        <div style={{ background:"#fff", border:"1.5px solid #E1E6D8", borderRadius:10, padding:"10px 12px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
-            <div style={{ width:22, height:22, borderRadius:6, background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:900, color:"#fff" }}>₱</div>
-            <span style={{ fontSize:12, fontWeight:700, color:"#2E7D32" }}>Cash amount</span>
+            <div style={{ width:22, height:22, borderRadius:6, background:"linear-gradient(135deg,#3b791e,#3b791e)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:900, color:"#fff" }}>₱</div>
+            <span style={{ fontSize:12, fontWeight:700, color:"#3b791e" }}>Cash amount</span>
           </div>
           <div style={{ position:"relative" }}>
-            <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", fontSize:13, fontWeight:700, color:"#5a7a65" }}>₱</span>
+            <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", fontSize:13, fontWeight:700, color:"#5C6B60" }}>₱</span>
             <input
               type="number"
               placeholder="0.00"
@@ -16991,18 +17042,18 @@
           const shortfall = totalAmt - covered;
           const change    = covered - totalAmt;
           return (
-            <div style={{ marginTop:10, padding:"8px 10px", background: Math.abs(shortfall) < 0.01 ? "#e8f5e9" : shortfall > 0 ? "#fff3e0" : "#e8f5e9", borderRadius:8, fontSize:12 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", color:"#5a7a65", marginBottom:2 }}>
+            <div style={{ marginTop:10, padding:"8px 10px", background: Math.abs(shortfall) < 0.01 ? "#f0f5e8" : shortfall > 0 ? "#fff3e0" : "#f0f5e8", borderRadius:8, fontSize:12 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", color:"#5C6B60", marginBottom:2 }}>
                 <span>GCash</span><span style={{ fontWeight:700 }}>{fmtPHP(gcash)}</span>
               </div>
-              <div style={{ display:"flex", justifyContent:"space-between", color:"#5a7a65", marginBottom:4 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", color:"#5C6B60", marginBottom:4 }}>
                 <span>Cash</span><span style={{ fontWeight:700 }}>{fmtPHP(cash)}</span>
               </div>
               <div style={{ display:"flex", justifyContent:"space-between", borderTop:"1px solid rgba(0,0,0,0.06)", paddingTop:4 }}>
-                <span style={{ fontWeight:800, color: shortfall > 0.01 ? "#e65100" : "#2e7d32" }}>
+                <span style={{ fontWeight:800, color: shortfall > 0.01 ? "#e65100" : "#3b791e" }}>
                   {shortfall > 0.01 ? `⚠ Short by` : change > 0.01 ? "Change due" : "✓ Exact"}
                 </span>
-                <span style={{ fontWeight:800, color: shortfall > 0.01 ? "#e65100" : "#2e7d32" }}>
+                <span style={{ fontWeight:800, color: shortfall > 0.01 ? "#e65100" : "#3b791e" }}>
                   {shortfall > 0.01 ? fmtPHP(shortfall) : change > 0.01 ? fmtPHP(change) : ""}
                 </span>
               </div>
@@ -17050,7 +17101,7 @@
       width:"100%", height:46, border:"none", borderRadius:12,
       fontSize:15, fontWeight:900,
       cursor: cart.length===0||processing ? "not-allowed" : "pointer",
-      fontFamily:"inherit",
+      fontFamily:"'Plus Jakarta Sans', sans-serif",
       background: cart.length===0 ? "#e0e0e0"
         : isSplitPayment
           ? (() => {
@@ -17151,9 +17202,9 @@
             </div>
 
             {selectedVoidId && (
-              <div style={{ background:"#e8f5e9", border:`1px solid ${C.greenMid}`, borderRadius:10, padding:"9px 16px", marginBottom:12, display:"flex", alignItems:"center", gap:8, fontSize:13 }}>
+              <div style={{ background:"#f0f5e8", border:`1px solid ${C.greenMid}`, borderRadius:10, padding:"9px 16px", marginBottom:12, display:"flex", alignItems:"center", gap:8, fontSize:13 }}>
                 <span style={{ fontSize:"1rem" }}></span>
-                <span style={{ color:"#1b5e20", fontWeight:700 }}>Voided transaction <strong>#{selectedVoidId}</strong> selected.</span>
+                <span style={{ color:"#2c5c16", fontWeight:700 }}>Voided transaction <strong>#{selectedVoidId}</strong> selected.</span>
                 <span style={{ color:C.muted }}>Click <strong>Retrieve Transaction</strong> to restore it to transaction history.</span>
               </div>
             )}
@@ -17220,7 +17271,7 @@
                 {lastReceipt.payment_method === "GCash" && lastReceipt.gcash_ref && (
                   <div style={{ fontSize:12, display:"flex", justifyContent:"space-between", color:C.muted, marginBottom:2 }}>
                     <span>GCash Ref #</span>
-                    <span style={{ fontWeight:700, fontFamily:"monospace", color:C.ink, letterSpacing:"0.05em" }}>
+                    <span style={{ fontWeight:700, fontFamily:"'Plus Jakarta Sans', sans-serif", color:C.ink, letterSpacing:"0.05em" }}>
                       {lastReceipt.gcash_ref}
                     </span>
                   </div>
@@ -17236,17 +17287,17 @@
                   </>
                 )}
                 {lastReceipt.is_split && (
-    <div style={{ fontSize:12, background:"#f0fdf5", borderRadius:8, padding:"8px 10px", marginTop:6, marginBottom:4 }}>
-      <div style={{ display:"flex", justifyContent:"space-between", color:"#5a7a65", marginBottom:3 }}>
+    <div style={{ fontSize:12, background:"#f0f5e8", borderRadius:8, padding:"8px 10px", marginTop:6, marginBottom:4 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", color:"#5C6B60", marginBottom:3 }}>
         <span>GCash</span>
         <span style={{ fontWeight:700 }}>{fmtPHP(lastReceipt.split_gcash_amt)}</span>
       </div>
       {lastReceipt.gcash_ref && (
-        <div style={{ fontSize:11, color:"#00695c", fontFamily:"monospace", marginBottom:3 }}>
+        <div style={{ fontSize:11, color:"#2c5c16", fontFamily:"'Plus Jakarta Sans', sans-serif", marginBottom:3 }}>
           Ref: {lastReceipt.gcash_ref}
         </div>
       )}
-      <div style={{ display:"flex", justifyContent:"space-between", color:"#5a7a65" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", color:"#5C6B60" }}>
         <span>Cash</span>
         <span style={{ fontWeight:700 }}>{fmtPHP(lastReceipt.split_cash_amt)}</span>
       </div>
@@ -17425,10 +17476,10 @@
     }, [open]);
   
     const menuItems = [
-      { icon: <Eye size={13} />,         label: "View Application", color: "#0d2b1e", action: onView },
+      { icon: <Eye size={13} />,         label: "View Application", color: "#12241B", action: onView },
       { icon: <UserPlus size={13} />,    label: "Add Account",      color: "#2563eb", action: onAddAccount },
       { icon: <CheckCircle size={13} />, label: "Approve",          color: "#059669", action: onApprove },
-      { icon: <Trash2 size={13} />,      label: "Delete",           color: "#dc2626", action: onDelete, danger: true },
+      { icon: <Trash2 size={13} />,      label: "Delete",           color: "#c0392b", action: onDelete, danger: true },
     ];
   
     return (
@@ -17442,9 +17493,9 @@
             width: 32, height: 32,
             display: "flex", alignItems: "center", justifyContent: "center",
             borderRadius: 8,
-            border: open ? "1.5px solid #00897b" : "1px solid #b2dfdb",
-            background: open ? "#e0f2f1" : "#fff",
-            color: open ? "#00695c" : "#5a7a65",
+            border: open ? "1.5px solid #3b791e" : "1px solid #E1E6D8",
+            background: open ? "#f0f5e8" : "#fff",
+            color: open ? "#2c5c16" : "#5C6B60",
             cursor: "pointer", flexShrink: 0,
             transition: "all .15s",
           }}
@@ -17462,7 +17513,7 @@
               left: menuPos.left,
               zIndex: 3000,
               background: "#fff",
-              border: "1px solid #d1eedd",
+              border: "1px solid #E1E6D8",
               borderRadius: 12,
               boxShadow: "0 8px 32px rgba(0,0,0,0.14)",
               padding: "6px 0",
@@ -17481,11 +17532,11 @@
                   background: "none", border: "none", cursor: "pointer",
                   fontSize: 13, fontWeight: 700,
                   color: item.color,
-                  fontFamily: "'Plus Jakarta Sans',sans-serif",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
                   textAlign: "left",
-                  borderTop: item.danger ? "1px solid #fee2e2" : "none",
+                  borderTop: item.danger ? "1px solid #fdf1f0" : "none",
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.background = item.danger ? "#fff5f5" : "#f0fdf5"}
+                onMouseEnter={(e) => e.currentTarget.style.background = item.danger ? "#fff5f5" : "#f0f5e8"}
                 onMouseLeave={(e) => e.currentTarget.style.background = "none"}
               >
                 {item.icon}
@@ -17530,7 +17581,7 @@
             maxHeight: "90vh", overflowY: "auto",
             boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
             border: "1px solid rgba(0,168,76,0.15)",
-            fontFamily: "'Plus Jakarta Sans',sans-serif",
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
           }}
         >
           {children}
@@ -17548,8 +17599,8 @@
           onClick={onClose}
           style={{
             width: 32, height: 32, borderRadius: "50%",
-            border: "1px solid #b2dfdb", background: "#e0f2f1",
-            cursor: "pointer", color: "#00695c",
+            border: "1px solid #E1E6D8", background: "#f0f5e8",
+            cursor: "pointer", color: "#2c5c16",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}
         >
@@ -17567,9 +17618,9 @@
           onClick={onClose}
           style={{
             padding: "9px 22px", borderRadius: 10,
-            border: "1.5px solid #b2dfdb", background: "#f0fdf5",
-            color: "#5a7a65", fontSize: 13, fontWeight: 700,
-            cursor: "pointer", fontFamily: "inherit",
+            border: "1.5px solid #E1E6D8", background: "#f0f5e8",
+            color: "#5C6B60", fontSize: 13, fontWeight: 700,
+            cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
           }}
         >
           {closeLabel}
@@ -17581,9 +17632,9 @@
               display: "flex", alignItems: "center", gap: 6,
               padding: "9px 24px", borderRadius: 10, border: "none",
               fontSize: 13, fontWeight: 700, cursor: "pointer",
-              fontFamily: "inherit",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
               ...(confirmStyle || {
-                background: "linear-gradient(135deg,#2E7D32,#00897b)",
+                background: "linear-gradient(135deg,#3b791e,#3b791e)",
                 color: "#fff",
                 boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
               }),
@@ -17726,7 +17777,7 @@
         {/* Applicant card */}
         <div
           style={{
-            background: "#f0fdf5", border: "1px solid #b2dfdb",
+            background: "#f0f5e8", border: "1px solid #E1E6D8",
             borderRadius: 12, padding: "14px 16px", marginBottom: 20,
           }}
         >
@@ -17770,7 +17821,7 @@
   
         <div
           style={{
-            background: "#f0fdf5", border: "1px solid #b2dfdb",
+            background: "#f0f5e8", border: "1px solid #E1E6D8",
             borderRadius: 12, padding: "14px 16px", marginBottom: 16,
           }}
         >
@@ -17825,12 +17876,12 @@
         {/* Icon */}
         <div
           style={{
-            width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+            width: 52, height: 52, borderRadius: "50%", background: "#fdf1f0",
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 16px",
           }}
         >
-          <Trash2 size={22} color="#dc2626" />
+          <Trash2 size={22} color="#c0392b" />
         </div>
   
         <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: C.dark, marginBottom: 8 }}>
@@ -17857,7 +17908,7 @@
           confirmLabel="Delete Application"
           confirmIcon={<Trash2 size={14} />}
           confirmStyle={{
-            background: "linear-gradient(135deg,#dc2626,#ef4444)",
+            background: "linear-gradient(135deg,#c0392b,#c0392b)",
             color: "#fff",
             boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
           }}
@@ -17907,7 +17958,7 @@
           confirmLabel="Restore Application"
           confirmIcon={<RotateCcw size={14} />}
           confirmStyle={{
-            background: "linear-gradient(135deg,#2E7D32,#00897b)",
+            background: "linear-gradient(135deg,#3b791e,#3b791e)",
             color: "#fff",
             boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
           }}
@@ -17936,8 +17987,8 @@
   
     const thSt = {
       padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 10.5,
-      color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase",
-      borderBottom: "2px solid #d1eedd", background: "#f8fffe",
+      color: "#3b791e", letterSpacing: "0.07em", textTransform: "uppercase",
+      borderBottom: "2px solid #E1E6D8", background: "#f8fffe",
       whiteSpace: "nowrap",
     };
     const tdSt = {
@@ -17946,7 +17997,7 @@
     };
   
     return (
-      <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+      <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
           <div>
@@ -17959,7 +18010,7 @@
             <span
               style={{
                 fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 20,
-                background: "#fee2e2", color: "#dc2626",
+                background: "#fdf1f0", color: "#c0392b",
               }}
             >
               {deletedItems.length} deleted
@@ -17973,7 +18024,7 @@
               padding: "48px 0", textAlign: "center",
               color: C.muted, fontSize: 14, fontStyle: "italic",
               background: "#f8fffe", borderRadius: 16,
-              border: "1px dashed #b2dfdb",
+              border: "1px dashed #E1E6D8",
             }}
           >
             No deleted applications.
@@ -18037,8 +18088,8 @@
                           onClick={() => setViewTarget(item)}
                           style={{
                             width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
-                            borderRadius: 8, border: "1px solid #b2dfdb", background: "#e0f2f1",
-                            color: "#00695c", cursor: "pointer", flexShrink: 0,
+                            borderRadius: 8, border: "1px solid #E1E6D8", background: "#f0f5e8",
+                            color: "#2c5c16", cursor: "pointer", flexShrink: 0,
                           }}
                         >
                           <Eye size={13} />
@@ -18049,8 +18100,8 @@
                           onClick={() => setRestoreTarget(item)}
                           style={{
                             width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
-                            borderRadius: 8, border: "1.5px solid #00897b", background: "#f0fdf5",
-                            color: "#00695c", cursor: "pointer", flexShrink: 0,
+                            borderRadius: 8, border: "1.5px solid #3b791e", background: "#f0f5e8",
+                            color: "#2c5c16", cursor: "pointer", flexShrink: 0,
                           }}
                         >
                           <RotateCcw size={13} />
@@ -18092,8 +18143,8 @@
       <div style={{ marginBottom: "2rem" }}>
         <h3
           style={{
-            fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 800, fontSize: 13,
-            color: "#00897b", textTransform: "uppercase", letterSpacing: "0.08em",
+            fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 13,
+            color: "#3b791e", textTransform: "uppercase", letterSpacing: "0.08em",
             marginBottom: 12, paddingBottom: 8, borderBottom: `2px solid ${C.border}`,
           }}
         >
@@ -18117,7 +18168,7 @@
       <div>
         <p
           style={{
-            fontSize: 11, fontWeight: 800, color: "#5a7a65",
+            fontSize: 11, fontWeight: 800, color: "#5C6B60",
             textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4,
           }}
         >
@@ -18127,7 +18178,7 @@
           style={{
             fontWeight: highlight || large ? 800 : 600,
             fontSize: large ? 15 : 13,
-            color: highlight ? "#00897b" : C.dark,
+            color: highlight ? "#3b791e" : C.dark,
           }}
         >
           {value}
@@ -18135,7 +18186,6 @@
       </div>
     );
   }
-  // ─── Exports ───────────────────────────────────
-  // gfhf───────────────────────────────
+  // ─── Exports ──────────────────────────────────────────────────────────────────
   export { ActionDropdown,  POSContent };
 
