@@ -36,6 +36,8 @@ import {
   Trash2,
   X,
   Check,
+  ArrowLeft,
+  ArrowRight,
   Building2,
   Store,
   TrendingDown,
@@ -48,6 +50,7 @@ import {
   Mail,
   Edit2,
   Archive,
+  CreditCard,
   Calendar,
   Pin,
   Megaphone,
@@ -4478,10 +4481,293 @@ function SalesVsStockSection({
   );
 }
 
+function BranchOperationsSnapshot({
+  transactions = [],
+  preset,
+  rangeMode,
+  appliedRange,
+}) {
+  const rows = useMemo(() => {
+    const now = new Date();
+    return transactions.filter((tx) => {
+      const d = new Date(tx.created_at || tx.date || 0);
+      if (Number.isNaN(d.getTime())) return false;
+      if (rangeMode === "custom" && appliedRange) {
+        const from = new Date(`${appliedRange.from}T00:00:00`);
+        const to = new Date(`${appliedRange.to}T23:59:59.999`);
+        return d >= from && d <= to;
+      }
+      if (preset === "day") return d.toDateString() === now.toDateString();
+      if (preset === "week") {
+        const start = new Date(now);
+        start.setDate(now.getDate() - now.getDay());
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23, 59, 59, 999);
+        return d >= start && d <= end;
+      }
+      if (preset === "year") return d.getFullYear() === now.getFullYear();
+      return (
+        d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+      );
+    });
+  }, [transactions, preset, rangeMode, appliedRange]);
+
+  const metrics = useMemo(() => {
+    const products = new Map();
+    const hours = new Map();
+    const payments = new Map();
+    let units = 0;
+
+    rows.forEach((tx) => {
+      const hour = new Date(tx.created_at || tx.date).getHours();
+      hours.set(hour, (hours.get(hour) || 0) + Number(tx.total || 0));
+
+      const payment =
+        tx.payment_method ||
+        tx.paymentMethod ||
+        tx.payment_type ||
+        "Unspecified";
+      payments.set(
+        payment,
+        (payments.get(payment) || 0) + Number(tx.total || 0),
+      );
+
+      let items = tx.items || tx.products || tx.cart_items || [];
+      if (typeof items === "string") {
+        try {
+          items = JSON.parse(items);
+        } catch {
+          items = [];
+        }
+      }
+      (Array.isArray(items) ? items : []).forEach((item) => {
+        const name =
+          item.product_name ||
+          item.productName ||
+          item.name ||
+          item.menu_name ||
+          "Unnamed Product";
+        const qty = Number(item.quantity ?? item.qty ?? 1);
+        units += qty;
+        products.set(name, (products.get(name) || 0) + qty);
+      });
+    });
+
+    const rankedProducts = [...products.entries()].sort((a, b) => b[1] - a[1]);
+    const peakHour = [...hours.entries()].sort((a, b) => b[1] - a[1])[0];
+    const paymentRows = [...payments.entries()].sort((a, b) => b[1] - a[1]);
+    const revenue = rows.reduce((sum, tx) => sum + Number(tx.total || 0), 0);
+    return {
+      units,
+      revenue,
+      top: rankedProducts[0] || null,
+      slow:
+        rankedProducts.length > 1
+          ? rankedProducts[rankedProducts.length - 1]
+          : null,
+      peakHour,
+      paymentRows,
+    };
+  }, [rows]);
+
+  const hourLabel = (hour) => {
+    if (hour === null || hour === undefined) return "No data";
+    const start = new Date();
+    start.setHours(hour, 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(hour + 1);
+    return `${start.toLocaleTimeString("en-PH", { hour: "numeric" })}–${end.toLocaleTimeString("en-PH", { hour: "numeric" })}`;
+  };
+
+  const cards = [
+    {
+      label: "Transactions",
+      value: rows.length.toLocaleString(),
+      sub: `${metrics.units.toLocaleString()} units sold`,
+      icon: Receipt,
+      color: "#3b791e",
+      bg: "#f0f5e8",
+    },
+    {
+      label: "Best Seller",
+      value: metrics.top?.[0] || "No sales data",
+      sub: metrics.top
+        ? `${metrics.top[1]} units sold`
+        : "Record product-level items",
+      icon: TrendingUp,
+      color: "#3b791e",
+      bg: "#f0f5e8",
+    },
+    {
+      label: "Needs Attention",
+      value: metrics.slow?.[0] || "Not enough data",
+      sub: metrics.slow
+        ? `${metrics.slow[1]} units sold`
+        : "Requires at least two products",
+      icon: TrendingDown,
+      color: "#b45309",
+      bg: "#fff7ed",
+    },
+    {
+      label: "Busiest Hour",
+      value: hourLabel(metrics.peakHour?.[0]),
+      sub: metrics.peakHour
+        ? `${fmtPeso(metrics.peakHour[1])} sales`
+        : "No transactions yet",
+      icon: Clock,
+      color: "#1d4ed8",
+      bg: "#eff6ff",
+    },
+  ];
+
+  return (
+    <section
+      style={{
+        background: "#fff",
+        border: "1px solid #E1E6D8",
+        borderRadius: 16,
+        padding: "20px 22px",
+        boxShadow: "0 8px 24px rgba(50,109,32,.06)",
+        marginBottom: 18,
+      }}
+    >
+      <div className="v-section-head">
+        <VSectionTitle icon={<Activity size={18} />}>
+          Branch Operations Snapshot
+        </VSectionTitle>
+        <span style={{ fontSize: 11.5, color: "#5C6B60", fontWeight: 600 }}>
+          Selected period · {fmtPeso(metrics.revenue)} revenue
+        </span>
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))",
+          gap: 12,
+        }}
+      >
+        {cards.map(({ label, value, sub, icon: Icon, color, bg }) => (
+          <div
+            key={label}
+            style={{
+              border: "1px solid #E1E6D8",
+              borderRadius: 14,
+              padding: "15px 16px",
+              minWidth: 0,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                marginBottom: 9,
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div className="v-kpi-label">{label}</div>
+                <div
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 800,
+                    color: "#12241B",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                  title={String(value)}
+                >
+                  {value}
+                </div>
+              </div>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 11,
+                  background: bg,
+                  color,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Icon size={17} />
+              </div>
+            </div>
+            <div className="v-kpi-sub">{sub}</div>
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          marginTop: 14,
+          paddingTop: 14,
+          borderTop: "1px solid #E1E6D8",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            marginBottom: 9,
+            fontSize: 12,
+            fontWeight: 800,
+            color: "#12241B",
+          }}
+        >
+          <CreditCard size={14} color="#3b791e" /> Payment Mix
+        </div>
+        {metrics.paymentRows.length === 0 ? (
+          <div style={{ color: "#9CA89C", fontSize: 12 }}>
+            No payment data for this period.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {metrics.paymentRows.map(([method, amount]) => {
+              const share =
+                metrics.revenue > 0 ? (amount / metrics.revenue) * 100 : 0;
+              return (
+                <span
+                  key={method}
+                  style={{
+                    padding: "7px 11px",
+                    borderRadius: 999,
+                    background: "#F6F7F1",
+                    border: "1px solid #E1E6D8",
+                    fontSize: 11.5,
+                    color: "#374132",
+                  }}
+                >
+                  <strong>{method}</strong> · {share.toFixed(0)}% (
+                  {fmtPeso(amount)})
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function FrDashboardContent({ transactions, brands, user }) {
   const userBranch = (user?.branch || "").trim();
+  const userBrand = String(
+    user?.brand ||
+      user?.brand_name ||
+      user?.brandName ||
+      brands?.[0]?.name ||
+      "",
+  ).trim();
   const today = new Date();
   const fmt8 = (d) => d.toISOString().slice(0, 10);
+  const [dashboardTab, setDashboardTab] = useState("overview");
+  const [dashboardDrilldown, setDashboardDrilldown] = useState(null);
 
   // ── date-range state ──────────────────────────────────────────────────────
   const [rangeMode, setRangeMode] = useState("preset");
@@ -4515,16 +4801,20 @@ function FrDashboardContent({ transactions, brands, user }) {
   // ── KPI (server-side) ─────────────────────────────────────────────────────
   const [kpiData, setKpiData] = useState(null);
   const [kpiLoading, setKpiLoading] = useState(false);
-  const [hiddenKpis, setHiddenKpis] = useState({});
-  const [analysisTab, setAnalysisTab] = useState("sales");
 
   const scopedTransactions = useMemo(() => {
     const branch = userBranch.toLowerCase();
 
     return (transactions || []).filter(
-      (tx) => (tx.branch || "").trim().toLowerCase() === branch,
+      (tx) =>
+        (tx.branch || "").trim().toLowerCase() === branch &&
+        (!userBrand ||
+          !String(tx.brand || tx.brand_name || "").trim() ||
+          String(tx.brand || tx.brand_name || "")
+            .trim()
+            .toLowerCase() === userBrand.toLowerCase()),
     );
-  }, [transactions, userBranch]);
+  }, [transactions, userBranch, userBrand]);
 
   const tabSt = (a) => ({
     padding: "6px 13px",
@@ -4535,7 +4825,7 @@ function FrDashboardContent({ transactions, brands, user }) {
     cursor: "pointer",
     fontFamily: FONT,
     transition: "all .15s",
-    background: a ? "#3b791e" : "transparent",
+    background: a ? "linear-gradient(135deg,#509820,#3b791e)" : "transparent",
     color: a ? "#fff" : "#5C6B60",
     boxShadow: a ? "0 2px 8px rgba(59,121,30,.35)" : "none",
   });
@@ -4574,6 +4864,33 @@ function FrDashboardContent({ transactions, brands, user }) {
 
   // ── filter transactions to this branch ───────────────────────────────────
   const myTransactions = scopedTransactions;
+  const periodTransactions = useMemo(() => {
+    const now = new Date();
+    return myTransactions.filter((tx) => {
+      const d = new Date(tx.created_at || tx.date || 0);
+      if (Number.isNaN(d.getTime())) return false;
+      if (rangeMode === "custom" && appliedRange) {
+        return (
+          d >= new Date(`${appliedRange.from}T00:00:00`) &&
+          d <= new Date(`${appliedRange.to}T23:59:59.999`)
+        );
+      }
+      if (preset === "day") return d.toDateString() === now.toDateString();
+      if (preset === "week") {
+        const start = new Date(now);
+        start.setDate(now.getDate() - now.getDay());
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23, 59, 59, 999);
+        return d >= start && d <= end;
+      }
+      if (preset === "year") return d.getFullYear() === now.getFullYear();
+      return (
+        d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+      );
+    });
+  }, [myTransactions, preset, rangeMode, appliedRange]);
   // ── chart data ────────────────────────────────────────────────────────────
   const chartData = useMemo(() => {
     if (viewingArchive) return viewingArchive.chartData;
@@ -4751,7 +5068,6 @@ function FrDashboardContent({ transactions, brands, user }) {
       }[preset] || "This Month"
     );
   };
-  const filterLabel = `${userBranch} — ${getRangeLabel()}`;
 
   const saveArchive = () => {
     const year = parseInt(archiveYearInput);
@@ -4814,6 +5130,15 @@ function FrDashboardContent({ transactions, brands, user }) {
     0,
   );
   const avgOrder = todaySales.length ? todayRevenue / todaySales.length : 0;
+  const sortedBranchTransactions = useMemo(
+    () =>
+      [...periodTransactions].sort(
+        (a, b) =>
+          new Date(b.created_at || b.date || 0) -
+          new Date(a.created_at || a.date || 0),
+      ),
+    [periodTransactions],
+  );
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -4825,12 +5150,12 @@ function FrDashboardContent({ transactions, brands, user }) {
         .fr-db-bot-grid  { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
         @media(max-width:960px){ .fr-db-kpi-grid{ grid-template-columns:repeat(2,1fr); } }
         @media(max-width:720px){ .fr-db-ins-grid,.fr-db-bot-grid{ grid-template-columns:1fr; } }
-        .fr-db-kpi  { background:#fff; border:1px solid rgba(59,121,30,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(59,121,30,0.07); transition:transform .2s,box-shadow .2s; }
-        .fr-db-kpi:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(59,121,30,0.13); }
-        .fr-db-chart { background:#fff; border:1px solid rgba(59,121,30,0.12); border-radius:22px; padding:22px 24px 16px; box-shadow:0 2px 20px rgba(59,121,30,0.07); margin-bottom:18px; }
-        .fr-db-ins  { background:#fff; border:1px solid rgba(59,121,30,0.12); border-radius:18px; padding:18px 20px; box-shadow:0 2px 12px rgba(59,121,30,0.06); }
-        .fr-db-tab-group { display:flex; gap:3px; background:#F6F7F1; border-radius:12px; padding:4px; }
-        .fr-db-tab { padding:6px 14px; border-radius:9px; border:none; background:transparent; font-size:12px; font-weight:600; color:#5C6B60; cursor:pointer; transition:all .15s; font-family:inherit; }
+        .fr-db-kpi  { background:#fff; border:1px solid #E1E6D8; border-radius:16px; padding:20px 22px; box-shadow:0 8px 24px rgba(50,109,32,0.06); transition:transform .2s,box-shadow .2s; }
+        .fr-db-kpi:hover { transform:translateY(-2px); box-shadow:0 12px 28px rgba(50,109,32,0.10); }
+        .fr-db-chart { background:#fff; border:1px solid #E1E6D8; border-radius:16px; padding:22px 24px 16px; box-shadow:0 8px 24px rgba(50,109,32,0.06); margin-bottom:18px; }
+        .fr-db-ins  { background:#fff; border:1px solid #E1E6D8; border-radius:16px; padding:18px 20px; box-shadow:0 8px 24px rgba(50,109,32,0.06); }
+        .fr-db-tab-group { display:flex; gap:3px; background:#F6F7F1; border:1px solid #E1E6D8; border-radius:999px; padding:4px; }
+        .fr-db-tab { padding:6px 14px; border-radius:999px; border:none; background:transparent; font-size:12px; font-weight:600; color:#5C6B60; cursor:pointer; transition:all .15s; font-family:inherit; }
         .fr-db-tab.active { background:linear-gradient(135deg,#509820,#3b791e); color:#fff; box-shadow:0 2px 8px rgba(59,121,30,.35); }
         .fr-db-tab:hover:not(.active) { color:#12241B; background:#f0f5e8; }
         .fr-db-date { padding:7px 11px; border-radius:9px; border:1.5px solid #D4DBC8; background:#F6F7F1; font-size:12px; font-family:inherit; color:#12241B; outline:none; }
@@ -4838,12 +5163,143 @@ function FrDashboardContent({ transactions, brands, user }) {
         .fr-db-apply { padding:7px 16px; border-radius:9px; border:none; background:linear-gradient(135deg,#509820,#3b791e); color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
         .fr-db-tooltip { position:absolute; background:linear-gradient(135deg,#12241B,#2c5c16); color:#fff; border-radius:12px; padding:9px 14px; pointer-events:none; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,0.22); transform:translate(-50%,-100%) translateY(-12px); z-index:10; }
         .fr-db-tooltip::after { content:''; position:absolute; bottom:-6px; left:50%; transform:translateX(-50%); border:6px solid transparent; border-top-color:#2c5c16; border-bottom:none; }
-        .fr-db-arc-panel { background:#fff; border:1px solid rgba(59,121,30,0.15); border-radius:18px; padding:22px 24px; box-shadow:0 2px 16px rgba(59,121,30,0.08); margin-bottom:18px; }
-        .fr-db-arc-row   { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-radius:10px; border:1px solid #f0f5e8; margin-bottom:8px; background:#fbfdf6; }
+        .fr-db-arc-panel { background:#fff; border:1px solid rgba(59,121,30,0.15); border-radius:18px; padding:22px 24px; box-shadow:0 2px 16px rgba(50,109,32,0.08); margin-bottom:18px; }
+        .fr-db-arc-row   { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-radius:10px; border:1px solid #E1E6D8; margin-bottom:8px; background:#fbfdf6; }
         .fr-db-arc-row:hover { background:#f0f5e8; }
         .fr-db-arc-btn   { padding:5px 13px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; border:1px solid; }
         .fr-db-view-banner { background:linear-gradient(135deg,#12241B,#2c5c16); color:#fff; border-radius:14px; padding:12px 20px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
+        .manager-dashboard-tabs { background:#fff; border:1px solid #DCE9DB; border-radius:16px; padding:7px; margin-bottom:16px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; box-shadow:0 2px 14px rgba(50,109,32,.06); }
+        .manager-dashboard-tab { display:flex; align-items:center; gap:10px; min-height:67px; padding:11px 13px; border-radius:12px; cursor:pointer; text-align:left; font-family:inherit; transition:all .18s ease; }
+        .manager-dashboard-tab:not(.active):hover { background:#F6F7F1 !important; color:#12241B !important; }
+        @media(max-width:900px){ .manager-dashboard-tabs{grid-template-columns:1fr}.manager-dashboard-tab{min-height:58px} }
       `}</style>
+
+      {/* Three-tab dashboard workspace — same UX treatment as AdminDashboard */}
+      <div className="manager-dashboard-tabs">
+        {[
+          {
+            id: "overview",
+            number: "01",
+            label: "Overview",
+            question: "How is my branch performing?",
+            icon: Home,
+          },
+          {
+            id: "sales_ai",
+            number: "02",
+            label: "Sales & AI Analysis",
+            question: "Why are sales changing?",
+            icon: LineChart,
+          },
+          {
+            id: "stock_products",
+            number: "03",
+            label: "Stock & Product Performance",
+            question: "What should I reorder or improve?",
+            icon: Layers,
+          },
+        ].map((tab) => {
+          const active = dashboardTab === tab.id;
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              className={`manager-dashboard-tab${active ? " active" : ""}`}
+              onClick={() => setDashboardTab(tab.id)}
+              style={{
+                border: `1px solid ${active ? "#A9C982" : "transparent"}`,
+                background: active
+                  ? "linear-gradient(135deg,#F2F7EB,#EAF3DF)"
+                  : "transparent",
+                color: active ? "#2c5c16" : "#64748b",
+                boxShadow: active
+                  ? "inset 0 0 0 1px rgba(59,121,30,.05)"
+                  : "none",
+              }}
+            >
+              <span
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 10,
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: active ? "#3b791e" : "#F1F5F0",
+                  color: active ? "#bdd43c" : "#71806F",
+                }}
+              >
+                <Icon size={16} />
+              </span>
+              <span style={{ minWidth: 0 }}>
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: 9,
+                    fontWeight: 900,
+                    letterSpacing: ".08em",
+                    opacity: 0.72,
+                    marginBottom: 2,
+                  }}
+                >
+                  {tab.number}
+                </span>
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: 11.4,
+                    fontWeight: 850,
+                    lineHeight: 1.25,
+                  }}
+                >
+                  {tab.label}
+                </span>
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: 9.4,
+                    color: active ? "#5C6B60" : "#9CA89C",
+                    fontWeight: 650,
+                    marginTop: 3,
+                    lineHeight: 1.25,
+                  }}
+                >
+                  {tab.question}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          margin: "18px 0 12px",
+          color: "#5C6B60",
+        }}
+      >
+        <span style={{ height: 1, background: "#DCE9DB", flex: 1 }} />
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 850,
+            letterSpacing: ".11em",
+            textTransform: "uppercase",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {dashboardTab === "overview"
+            ? "Branch Performance Workspace"
+            : dashboardTab === "sales_ai"
+              ? "Sales & AI Decision Workspace"
+              : "Stock & Product Decision Workspace"}
+        </span>
+        <span style={{ height: 1, background: "#DCE9DB", flex: 1 }} />
+      </div>
 
       {/* ── Archive viewing banner ── */}
       {viewingArchive && (
@@ -4883,210 +5339,15 @@ function FrDashboardContent({ transactions, brands, user }) {
         </div>
       )}
 
-      {/* ── KPI Cards ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-          gap: 14,
-          marginBottom: 18,
-          animation: "fadeUp .35s ease",
-        }}
-      >
-        {[
-          {
-            label: "Sales Revenue",
-            value: kpiData?.salesRevenue,
-            icon: TrendingUp,
-          },
-          {
-            label: "Sales Profit",
-            value: kpiData?.salesProfit,
-            icon: BarChart2,
-          },
-          { label: "Cost of Sales", value: kpiData?.cogs, icon: Package },
-          {
-            label: "Total Sales",
-            value: kpiData?.totalSales,
-            icon: ShoppingCart,
-          },
-        ].map((k, i) => {
-          const isHidden = !!hiddenKpis[i];
-          return (
-            <div
-              key={i}
-              style={{
-                background: "#fff",
-                border: "1px solid #E1E6D8",
-                borderRadius: 18,
-                padding: "18px 20px",
-                boxShadow: "0 2px 14px rgba(59,121,30,0.07)",
-                position: "relative",
-                overflow: "hidden",
-                transition: "transform .2s, box-shadow .2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-3px)";
-                e.currentTarget.style.boxShadow =
-                  "0 8px 28px rgba(59,121,30,0.13)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "";
-                e.currentTarget.style.boxShadow =
-                  "0 2px 14px rgba(59,121,30,0.07)";
-              }}
-            >
-              <button
-                onClick={() =>
-                  setHiddenKpis((prev) => ({ ...prev, [i]: !prev[i] }))
-                }
-                style={{
-                  position: "absolute",
-                  top: 14,
-                  right: 14,
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "#1565c0",
-                  opacity: 0.6,
-                  padding: 2,
-                  display: "flex",
-                  alignItems: "center",
-                }}
-                title={isHidden ? "Show value" : "Hide value"}
-              >
-                {!isHidden ? (
-                  <svg
-                    width={15}
-                    height={15}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                ) : (
-                  <svg
-                    width={15}
-                    height={15}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                    <line x1="1" y1="1" x2="23" y2="23" />
-                  </svg>
-                )}
-              </button>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  marginBottom: 10,
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      color: "#5C6B60",
-                      marginBottom: 5,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 5,
-                      fontFamily: FONT,
-                    }}
-                  >
-                    <k.icon size={12} color="#3b791e" /> {k.label}
-                  </div>
-                  {kpiLoading && k.value == null ? (
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        padding: "5px 12px",
-                        borderRadius: 9,
-                        background: "#F6F7F1",
-                        border: "1.5px dashed #a7f3d0",
-                        color: "#5C6B60",
-                        display: "inline-block",
-                        fontFamily: FONT,
-                      }}
-                    >
-                      Loading…
-                    </div>
-                  ) : k.value != null ? (
-                    <div
-                      style={{
-                        fontSize: 22,
-                        fontWeight: 800,
-                        color: "#12241B",
-                        letterSpacing: "-0.5px",
-                        fontFamily: FONT,
-                      }}
-                    >
-                      {!isHidden ? fmtAmt(k.value) : "₱••••••••"}
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        padding: "5px 12px",
-                        borderRadius: 9,
-                        background: "#F6F7F1",
-                        border: "1.5px dashed #a7f3d0",
-                        color: "#5C6B60",
-                        display: "inline-block",
-                        fontFamily: FONT,
-                      }}
-                    >
-                      — Pending
-                    </div>
-                  )}
-                </div>
-                <SparkBar
-                  values={values.slice(-7)}
-                  color="#509820"
-                  height={28}
-                />
-              </div>
-              <span
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 600,
-                  color: "#94a3b8",
-                  fontFamily: FONT,
-                }}
-              >
-                {getRangeLabel()} · {filterLabel}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
       {/* ── Filter + Date toolbar ── */}
       <div
         style={{
           background: "#fff",
-          border: "1px solid #E1E6D8",
+          border: "1px solid rgba(59,121,30,0.12)",
           borderRadius: 14,
           padding: "12px 16px",
           marginBottom: 14,
-          boxShadow: "0 1px 8px rgba(59,121,30,0.05)",
+          boxShadow: "0 1px 8px rgba(50,109,32,0.05)",
           display: "flex",
           alignItems: "center",
           gap: 10,
@@ -5186,7 +5447,7 @@ function FrDashboardContent({ transactions, brands, user }) {
             padding: "7px 14px",
             borderRadius: 9,
             border: "1.5px solid #D4DBC8",
-            background: showArchivePanel ? "#f0f5e8" : "#fff",
+            background: showArchivePanel ? "#E1E6D8" : "#fff",
             color: "#2c5c16",
             fontSize: 12,
             fontWeight: 700,
@@ -5212,6 +5473,187 @@ function FrDashboardContent({ transactions, brands, user }) {
         </button>
       </div>
 
+      {/* Compact KPI row — visible in every decision workspace */}
+      <div className="fr-db-kpi-grid">
+        {[
+          {
+            label: "Today's Revenue",
+            value: fmtPeso(todayRevenue),
+            sub: `${todaySales.length} completed transactions`,
+            icon: <DollarSign size={17} />,
+            color: "#3b791e",
+            bg: "#F2F7EB",
+            rows: todaySales,
+          },
+          {
+            label: "Period Revenue",
+            value: kpiLoading ? "…" : fmtPeso(kpiData?.salesRevenue ?? 0),
+            sub: `${getRangeLabel()} · ${userBranch || "Branch"}`,
+            icon: <BarChart size={17} />,
+            color: "#3b791e",
+            bg: "#F2F7EB",
+            rows: sortedBranchTransactions,
+          },
+          {
+            label: "Period Profit",
+            value: kpiLoading
+              ? "…"
+              : kpiData?.salesProfit == null
+                ? "Not available"
+                : fmtPeso(kpiData.salesProfit),
+            sub: "Requires recorded cost of sales",
+            icon: <TrendingUp size={17} />,
+            color: "#3b791e",
+            bg: "#F2F7EB",
+            rows: sortedBranchTransactions,
+          },
+          {
+            label: "Average Sale",
+            value: fmtPeso(isNaN(avgOrder) ? 0 : avgOrder),
+            sub: "Revenue per transaction today",
+            icon: <ShoppingCart size={17} />,
+            color: "#3b791e",
+            bg: "#F2F7EB",
+            rows: todaySales,
+          },
+        ].map((k, i) => (
+          <div
+            key={i}
+            className="fr-db-kpi"
+            role="button"
+            tabIndex={0}
+            onClick={() =>
+              setDashboardDrilldown({
+                title: k.label,
+                rows: [...k.rows].sort(
+                  (a, b) => Number(b.total || 0) - Number(a.total || 0),
+                ),
+              })
+            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ")
+                setDashboardDrilldown({
+                  title: k.label,
+                  rows: [...k.rows].sort(
+                    (a, b) => Number(b.total || 0) - Number(a.total || 0),
+                  ),
+                });
+            }}
+            style={{ cursor: "pointer" }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 10,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 850,
+                  textTransform: "uppercase",
+                  letterSpacing: ".08em",
+                  color: "#3b791e",
+                }}
+              >
+                {k.label}
+              </div>
+              <div
+                style={{
+                  width: 31,
+                  height: 31,
+                  borderRadius: 9,
+                  background: k.bg,
+                  color: k.color,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {k.icon}
+              </div>
+            </div>
+            <div
+              style={{
+                fontSize: 23,
+                fontWeight: 850,
+                color: "#12241B",
+                letterSpacing: "-.02em",
+              }}
+            >
+              {k.value}
+            </div>
+            <div
+              style={{
+                fontSize: 10.5,
+                fontWeight: 600,
+                color: "#9CA89C",
+                marginTop: 6,
+                lineHeight: 1.45,
+              }}
+            >
+              {k.sub}
+            </div>
+            <div
+              style={{
+                fontSize: 9.5,
+                fontWeight: 800,
+                color: "#3b791e",
+                marginTop: 8,
+              }}
+            >
+              View sorted breakdown →
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #DCE9DB",
+          borderLeft: "4px solid #3b791e",
+          borderRadius: 14,
+          padding: "14px 17px",
+          marginBottom: 18,
+          boxShadow: "0 2px 10px rgba(50,109,32,.04)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 13,
+            fontWeight: 850,
+            color: "#12241B",
+            marginBottom: 4,
+          }}
+        >
+          {dashboardTab === "overview" ? (
+            <Activity size={15} color="#3b791e" />
+          ) : dashboardTab === "sales_ai" ? (
+            <LineChart size={15} color="#3b791e" />
+          ) : (
+            <Layers size={15} color="#3b791e" />
+          )}
+          {dashboardTab === "overview"
+            ? "Start with the branch performance summary"
+            : dashboardTab === "sales_ai"
+              ? "Read the actual sales evidence before the AI guidance"
+              : "Compare stock movement with actual product sales"}
+        </div>
+        <div style={{ fontSize: 10.8, color: "#5C6B60", lineHeight: 1.55 }}>
+          {dashboardTab === "overview"
+            ? "Use revenue, profit, average sale, best sellers, peak hours, and payment mix to understand the branch at a glance."
+            : dashboardTab === "sales_ai"
+              ? "Use the revenue line and period summary to confirm the trend, then review the recommendations generated from the same branch data."
+              : "Prioritize items with low coverage, unusual stock movement, weak sales velocity, or immediate reorder recommendations."}
+        </div>
+      </div>
+
       {/* Archive panel */}
       {showArchivePanel && (
         <div
@@ -5220,7 +5662,7 @@ function FrDashboardContent({ transactions, brands, user }) {
             border: "1px solid rgba(59,121,30,0.15)",
             borderRadius: 16,
             padding: "18px 20px",
-            boxShadow: "0 2px 16px rgba(59,121,30,0.08)",
+            boxShadow: "0 2px 16px rgba(50,109,32,0.08)",
             marginBottom: 16,
           }}
         >
@@ -5277,7 +5719,7 @@ function FrDashboardContent({ transactions, brands, user }) {
                       padding: "7px 14px",
                       borderRadius: 8,
                       border: "none",
-                      background: "linear-gradient(135deg,#509820,#3b791e)",
+                      background: "linear-gradient(135deg,#3b791e,#3b791e)",
                       color: "#fff",
                       fontSize: 12,
                       fontWeight: 700,
@@ -5320,7 +5762,7 @@ function FrDashboardContent({ transactions, brands, user }) {
                       cursor: "pointer",
                       fontFamily: FONT,
                       border: "1px solid #3b791e",
-                      background: "#f0f5e8",
+                      background: "#E1E6D8",
                       color: "#2c5c16",
                     }}
                   >
@@ -5351,7 +5793,7 @@ function FrDashboardContent({ transactions, brands, user }) {
               style={{
                 padding: "20px 0",
                 textAlign: "center",
-                color: "#94a3b8",
+                color: "#9CA89C",
                 fontSize: 13,
                 fontFamily: FONT,
               }}
@@ -5368,9 +5810,9 @@ function FrDashboardContent({ transactions, brands, user }) {
                   justifyContent: "space-between",
                   padding: "9px 13px",
                   borderRadius: 9,
-                  border: "1px solid #f0f5e8",
+                  border: "1px solid #E1E6D8",
                   marginBottom: 7,
-                  background: "#F6F7F1",
+                  background: "#fbfdf6",
                 }}
               >
                 <div>
@@ -5412,7 +5854,7 @@ function FrDashboardContent({ transactions, brands, user }) {
                       fontFamily: FONT,
                       border: `1px solid ${viewingArchive?.year === a.year ? "#3b791e" : "#D4DBC8"}`,
                       background:
-                        viewingArchive?.year === a.year ? "#f0f5e8" : "#fbfdf6",
+                        viewingArchive?.year === a.year ? "#E1E6D8" : "#fbfdf6",
                       color: "#2c5c16",
                     }}
                   >
@@ -5441,109 +5883,171 @@ function FrDashboardContent({ transactions, brands, user }) {
         </div>
       )}
 
-      {/* Analysis navigation — same dashboard layout language as AdminDashboard */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          background: "#fff",
-          border: "1px solid #E1E6D8",
-          borderRadius: 14,
-          padding: "10px 12px",
-          marginBottom: 14,
-          boxShadow: "0 1px 8px rgba(50,109,32,.04)",
-          flexWrap: "wrap",
-        }}
-      >
+      {/* Branch-owner operational summary */}
+      {dashboardTab === "overview" && (
+        <BranchOperationsSnapshot
+          transactions={myTransactions}
+          preset={preset}
+          rangeMode={rangeMode}
+          appliedRange={appliedRange}
+        />
+      )}
+
+      {/* ── SECTION 1: SALES TREND ── */}
+      {dashboardTab === "sales_ai" && (
+        <>
+          <SalesTrendSection
+            values={values}
+            labels={chartData.labels}
+            kpiData={kpiData}
+            total={total}
+            avg={avg}
+            peak={peak}
+            low={low}
+            peakLabel={peakLabel}
+            pctChange={pctChange}
+            trending={trending}
+            getRangeLabel={getRangeLabel}
+            filterLabel={`${userBranch} — ${getRangeLabel()}`}
+          />
+
+          {/* ── SECTION 2: PRESCRIPTIVE ANALYSIS ── */}
+          <PrescriptiveSection
+            transactions={myTransactions}
+            filterLabel={`${userBranch} — ${getRangeLabel()}`}
+            preset={preset}
+            total={total}
+            values={values}
+            kpiData={kpiData}
+          />
+        </>
+      )}
+
+      {/* ── SECTION 3: SALES VS STOCK ── */}
+      {dashboardTab === "stock_products" && (
+        <>
+          <SalesVsStockSection
+            preset={preset}
+            appliedRange={appliedRange}
+            rangeMode={rangeMode}
+            filterBranch={userBranch}
+            filterBrand={null}
+            selectedBrand={null}
+            total={total}
+          />
+
+          {/* Product-level decisions: top, fast-moving, and slow-moving items */}
+          <ProductAnalyticsPanel
+            preset={preset}
+            appliedRange={appliedRange}
+            rangeMode={rangeMode}
+            filterBranch={userBranch}
+            filterBrand={null}
+            selectedBrand={null}
+          />
+        </>
+      )}
+
+      {dashboardDrilldown && (
         <div
-          style={{
-            display: "flex",
-            gap: 3,
-            background: "#F6F7F1",
-            border: "1px solid #E1E6D8",
-            borderRadius: 11,
-            padding: 4,
-            flexWrap: "wrap",
-          }}
+          className="v-modal-overlay"
+          onClick={() => setDashboardDrilldown(null)}
         >
-          {[
-            { id: "sales", label: "Sales Trend", icon: TrendingUp },
-            { id: "prescriptive", label: "Prescriptive Analysis", icon: Brain },
-            { id: "stock", label: "Sales vs Stocks", icon: Layers },
-          ].map((t) => {
-            const active = analysisTab === t.id;
-            const Icon = t.icon;
-            return (
+          <div
+            className="v-modal"
+            style={{ maxWidth: 760, padding: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                padding: "18px 20px",
+                borderBottom: "1px solid #E1E6D8",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <div
+                  style={{ fontSize: 16, fontWeight: 850, color: "#12241B" }}
+                >
+                  {dashboardDrilldown.title}
+                </div>
+                <div style={{ fontSize: 10.5, color: "#5C6B60", marginTop: 3 }}>
+                  {userBranch} · highest-value transactions first
+                </div>
+              </div>
               <button
-                key={t.id}
-                onClick={() => setAnalysisTab(t.id)}
+                onClick={() => setDashboardDrilldown(null)}
                 style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  height: 34,
-                  padding: "0 14px",
+                  width: 30,
+                  height: 30,
                   borderRadius: 9,
-                  border: "none",
-                  background: active ? "#3b791e" : "transparent",
-                  color: active ? "#fff" : "#5C6B60",
-                  fontSize: 12,
-                  fontWeight: 700,
+                  border: "1px solid #E1E6D8",
+                  background: "#fff",
                   cursor: "pointer",
-                  fontFamily: "inherit",
-                  boxShadow: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                <Icon size={13} /> {t.label}
+                <X size={15} />
               </button>
-            );
-          })}
+            </div>
+            <div style={{ padding: 20, maxHeight: "65vh", overflowY: "auto" }}>
+              {dashboardDrilldown.rows.length === 0 ? (
+                <VEmptyState
+                  icon={BarChart2}
+                  title="No branch data"
+                  sub="No completed transactions are available for this selection."
+                />
+              ) : (
+                <table className="v-table">
+                  <thead>
+                    <tr>
+                      <th>Transaction</th>
+                      <th>Date</th>
+                      <th>Payment</th>
+                      <th style={{ textAlign: "right" }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboardDrilldown.rows.map((tx, index) => (
+                      <tr key={tx.id || tx.transaction_id || index}>
+                        <td style={{ fontWeight: 750 }}>
+                          {tx.transaction_id ||
+                            tx.reference_no ||
+                            tx.id ||
+                            `Transaction ${index + 1}`}
+                        </td>
+                        <td>
+                          {new Date(tx.created_at || tx.date).toLocaleString(
+                            "en-PH",
+                          )}
+                        </td>
+                        <td>
+                          {tx.payment_method ||
+                            tx.paymentMethod ||
+                            tx.payment_type ||
+                            "Not recorded"}
+                        </td>
+                        <td
+                          style={{
+                            textAlign: "right",
+                            fontWeight: 800,
+                            color: "#3b791e",
+                          }}
+                        >
+                          {fmtPeso(tx.total)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
         </div>
-        <div style={{ fontSize: 11, color: "#5C6B60", fontWeight: 600 }}>
-          {userBranch} · {getRangeLabel()}
-        </div>
-      </div>
-
-      {analysisTab === "sales" && (
-        <SalesTrendSection
-          values={values}
-          labels={chartData.labels}
-          kpiData={kpiData}
-          total={total}
-          avg={avg}
-          peak={peak}
-          low={low}
-          peakLabel={peakLabel}
-          pctChange={pctChange}
-          trending={trending}
-          getRangeLabel={getRangeLabel}
-          filterLabel={`${userBranch} — ${getRangeLabel()}`}
-        />
-      )}
-
-      {analysisTab === "prescriptive" && (
-        <PrescriptiveSection
-          transactions={myTransactions}
-          filterLabel={`${userBranch} — ${getRangeLabel()}`}
-          preset={preset}
-          total={total}
-          values={values}
-          kpiData={kpiData}
-        />
-      )}
-
-      {analysisTab === "stock" && (
-        <SalesVsStockSection
-          preset={preset}
-          appliedRange={appliedRange}
-          rangeMode={rangeMode}
-          filterBranch={userBranch}
-          filterBrand={null}
-          selectedBrand={null}
-          total={total}
-        />
       )}
     </div>
   );
@@ -9712,6 +10216,7 @@ function FrReportsContent({ user, transactions = [] }) {
         });
       });
 
+      // ── CHANGE 1: top 10 instead of top 5, formatted as a numbered list ──
       const topItemsList = Object.entries(itemMap)
         .sort((a, b) => b[1].revenue - a[1].revenue)
         .slice(0, 10)
@@ -9722,6 +10227,7 @@ function FrReportsContent({ user, transactions = [] }) {
         .join("\n");
 
       const topItems = topItemsList || "  No item-level data available";
+      // ─────────────────────────────────────────────────────────────────────
 
       const dailyMap = {};
       filtered.forEach((tx) => {
@@ -9822,7 +10328,8 @@ ${topItems}
 
       const data = await res.json();
       const reportText =
-        data.content?.[0]?.text || "Failed to generate report.";
+        data.content?.[0]?.text ||
+        "Failed to generate report.No data available for the selected period.";
       const sanitizeReport = (text) => {
         return text
           .replace(/₱/g, "PHP ")
@@ -10386,36 +10893,46 @@ ${topItems}
         </span>
         <div style={{ display: "flex", gap: 4 }}>
           <button
+            aria-label="First page"
+            title="First page"
             onClick={() => setPage(0)}
             disabled={page === 0}
             className="v-btn v-btn-secondary v-btn-sm"
             style={{ opacity: page === 0 ? 0.35 : 1 }}
           >
-            «
+            <ArrowLeft size={12} />
+            <ArrowLeft size={12} style={{ marginLeft: -9 }} />
           </button>
           <button
+            aria-label="Previous page"
+            title="Previous page"
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
             className="v-btn v-btn-secondary v-btn-sm"
             style={{ opacity: page === 0 ? 0.35 : 1 }}
           >
-            ‹
+            <ArrowLeft size={12} />
           </button>
           <button
+            aria-label="Next page"
+            title="Next page"
             onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
             disabled={page >= totalPages - 1}
             className="v-btn v-btn-secondary v-btn-sm"
             style={{ opacity: page >= totalPages - 1 ? 0.35 : 1 }}
           >
-            ›
+            <ArrowRight size={12} />
           </button>
           <button
+            aria-label="Last page"
+            title="Last page"
             onClick={() => setPage(totalPages - 1)}
             disabled={page >= totalPages - 1}
             className="v-btn v-btn-secondary v-btn-sm"
             style={{ opacity: page >= totalPages - 1 ? 0.35 : 1 }}
           >
-            »
+            <ArrowRight size={12} />
+            <ArrowRight size={12} style={{ marginLeft: -9 }} />
           </button>
         </div>
       </div>
@@ -10423,60 +10940,120 @@ ${topItems}
   };
 
   return (
-    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-      <div className="v-stat-grid">
-        <VKpi
-          label="Cost of Sales"
-          value={
-            kpiLoading
-              ? "..."
-              : `₱${Number(kpiStats.cogs).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`
-          }
-          icon={<TrendingDown size={20} />}
-          color="orange"
-          sub={`${dateFrom} to ${dateTo}`}
-        />
-        <VKpi
-          label="Sales Revenue"
-          value={
-            kpiLoading
-              ? "..."
-              : `₱${Number(kpiStats.salesRevenue).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`
-          }
-          icon={<TrendingUp size={20} />}
-          color="green"
-          sub={`${kpiStats.txCount} transactions`}
-        />
-        <VKpi
-          label="Gross Profit"
-          value={
-            kpiLoading
-              ? "..."
-              : `₱${Number(kpiStats.salesProfit).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`
-          }
-          icon={<DollarSign size={20} />}
-          color="blue"
-          sub="Revenue minus Cost of Sales"
-        />
-        <VKpi
-          label="Reports Generated"
-          value={reports.length + history.length}
-          sub="This session"
-          icon={<FileText size={20} />}
-          color="purple"
-        />
-        <ConfirmDeleteReportModal
-          report={confirmDeleteTarget}
-          deleting={deletingId !== null}
-          onConfirm={() =>
-            confirmDeleteTarget && deleteReport(confirmDeleteTarget)
-          }
-          onCancel={() => {
-            if (!deletingId) setConfirmDeleteTarget(null);
-          }}
-        />
-        <Toast toast={toast} onClose={() => setToast(null)} />
+    <div
+      className="ma-reports"
+      style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+    >
+      <style>{`
+        .ma-reports {
+          --ma-green:#3b791e; --ma-green-dark:#2c5c16; --ma-green-mid:#c9dba0;
+          --ma-teal:#509820; --ma-lime:#b3a941; --ma-lime-ink:#24310C;
+          --ma-ink:#347022; --ma-text:#24310C; --ma-muted:#5C6B60;
+          --ma-border:#E1E6D8; --ma-bg:#F6F7F1; --ma-white:#ffffff;
+          --ma-warn:#b45309; --ma-warn-bg:#fff7ed;
+          --ma-red:#c0392b; --ma-red-bg:#fdf1f0;
+          color:var(--ma-text); width:100%; min-width:0;
+        }
+        .ma-page-head { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:20px; }
+        .ma-page-title { display:flex; align-items:center; gap:11px; margin:0 0 5px; color:var(--ma-green-dark); font-size:22px; font-weight:800; letter-spacing:-.025em; }
+        .ma-page-icon { width:38px; height:38px; border-radius:11px; display:inline-flex; align-items:center; justify-content:center; color:var(--ma-white); background:linear-gradient(135deg,var(--ma-green),var(--ma-green-dark)); box-shadow:0 7px 18px rgba(59,121,30,.2); }
+        .ma-page-sub { margin:0; color:var(--ma-muted); font-size:12.5px; line-height:1.55; }
+        .ma-context { display:inline-flex; align-items:center; gap:7px; min-height:34px; padding:0 12px; border:1px solid var(--ma-border); border-radius:10px; background:var(--ma-white); color:var(--ma-green-dark); font-size:11.5px; font-weight:700; white-space:nowrap; }
+        .ma-context-dot { width:7px; height:7px; border-radius:50%; background:var(--ma-teal); box-shadow:0 0 0 3px rgba(80,152,32,.12); }
+        .ma-reports .v-stat-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
+        .ma-reports .v-stat-card, .ma-reports .v-kpi { border:1px solid var(--ma-border)!important; border-radius:14px!important; background:var(--ma-white)!important; box-shadow:0 3px 12px rgba(36,49,12,.045)!important; }
+        .ma-reports .v-card { border:1px solid var(--ma-border)!important; border-radius:16px!important; background:var(--ma-white)!important; box-shadow:0 5px 18px rgba(36,49,12,.05)!important; }
+        .ma-reports .v-section-head { display:flex; justify-content:space-between; align-items:center; gap:14px; padding-bottom:14px; margin-bottom:16px; border-bottom:1px solid var(--ma-border); }
+        .ma-reports .v-form-label { color:var(--ma-muted)!important; font-size:10.5px!important; font-weight:800!important; letter-spacing:.055em; text-transform:uppercase; }
+        .ma-reports .v-form-input { height:42px!important; border:1px solid var(--ma-border)!important; border-radius:10px!important; background:var(--ma-bg)!important; color:var(--ma-text)!important; box-shadow:none!important; }
+        .ma-reports .v-form-input:focus { border-color:var(--ma-green)!important; background:var(--ma-white)!important; box-shadow:0 0 0 3px rgba(59,121,30,.1)!important; }
+        .ma-reports .v-btn { min-height:34px; border-radius:9px!important; font-family:inherit!important; font-weight:700!important; transition:transform .15s ease,box-shadow .15s ease,background .15s ease!important; }
+        .ma-reports .v-btn:not(:disabled):hover { transform:translateY(-1px); }
+        .ma-reports .v-btn-primary { background:var(--ma-green)!important; border-color:var(--ma-green)!important; color:var(--ma-white)!important; box-shadow:0 5px 14px rgba(59,121,30,.18)!important; }
+        .ma-reports .v-btn-primary:not(:disabled):hover { background:var(--ma-green-dark)!important; }
+        .ma-reports .v-btn-blue { background:var(--ma-bg)!important; color:var(--ma-green-dark)!important; border:1px solid var(--ma-green-mid)!important; box-shadow:none!important; }
+        .ma-reports .v-btn-ghost, .ma-reports .v-btn-secondary { color:var(--ma-muted)!important; border-color:var(--ma-border)!important; background:var(--ma-white)!important; }
+        .ma-reports .v-btn-ghost:not(:disabled):hover, .ma-reports .v-btn-secondary:not(:disabled):hover { color:var(--ma-green-dark)!important; background:var(--ma-bg)!important; border-color:var(--ma-green-mid)!important; }
+        .ma-reports .v-table { width:100%; border-collapse:separate; border-spacing:0; }
+        .ma-reports .v-table th { padding:10px 12px!important; background:var(--ma-bg)!important; color:var(--ma-muted)!important; border-bottom:1px solid var(--ma-border)!important; font-size:9.5px!important; font-weight:800!important; letter-spacing:.065em; text-transform:uppercase; white-space:nowrap; }
+        .ma-reports .v-table td { padding:12px!important; border-bottom:1px solid var(--ma-border)!important; vertical-align:middle; }
+        .ma-reports .v-table tbody tr:hover td { background:#fbfcf8; }
+        .ma-reports .v-badge-blue { color:var(--ma-green-dark)!important; background:var(--ma-bg)!important; border:1px solid var(--ma-green-mid)!important; }
+        .ma-reports .v-badge-green { color:var(--ma-green-dark)!important; background:#f0f5e8!important; border:1px solid var(--ma-green-mid)!important; }
+        .ma-report-tabs { display:flex; gap:3px; background:var(--ma-bg); border:1px solid var(--ma-border); border-radius:12px; padding:4px; width:fit-content; max-width:100%; margin-bottom:16px; overflow-x:auto; }
+        .ma-report-tab { display:inline-flex; align-items:center; gap:6px; height:34px; padding:0 14px; border-radius:9px; border:0; background:transparent; color:var(--ma-muted); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; }
+        .ma-report-tab.active { background:var(--ma-green); color:var(--ma-white); box-shadow:0 3px 10px rgba(59,121,30,.18); }
+        .ma-report-count { min-width:18px; height:18px; padding:0 5px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center; font-size:9.5px; background:var(--ma-white); border:1px solid var(--ma-border); }
+        .ma-report-tab.active .ma-report-count { background:rgba(255,255,255,.18); border-color:transparent; }
+        @media (max-width:1050px) { .ma-reports .v-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+        @media (max-width:720px) {
+          .ma-page-head { flex-direction:column; gap:10px; }
+          .ma-reports .v-stat-grid { grid-template-columns:1fr; }
+          .ma-generate-grid { grid-template-columns:1fr!important; }
+          .ma-generate-grid .v-btn { width:100%; justify-content:center; }
+          .ma-reports .v-card { padding:16px!important; }
+        }
+        /* Compact report workspace: scoped to avoid restyling other modules. */
+        .ma-reports { font-size:12px; line-height:1.55; }
+        .ma-reports .ma-page-head { margin-bottom:16px; }
+        .ma-reports .ma-page-title { font-size:18px; gap:9px; }
+        .ma-reports .ma-page-icon { width:32px; height:32px; border-radius:10px; box-shadow:none; }
+        .ma-reports .ma-page-sub { font-size:11.5px; }
+        .ma-reports .ma-context { font-size:10.5px; min-height:30px; }
+        .ma-reports .v-card { padding:16px 18px!important; border-radius:14px!important; box-shadow:0 2px 10px rgba(36,49,12,.035)!important; animation:ma-report-enter .22s ease-out; }
+        .ma-reports .v-section-head { padding-bottom:11px; margin-bottom:13px; flex-wrap:wrap; }
+        .ma-reports .v-section-head > :first-child { font-size:12px!important; font-weight:750!important; color:var(--ma-green-dark)!important; }
+        .ma-reports .v-section-head > span { font-size:10.5px!important; color:var(--ma-muted)!important; }
+        .ma-reports .v-form-input { width:100%; box-sizing:border-box; min-width:0; height:38px!important; padding:0 11px; font-size:12px!important; font-family:inherit; }
+        .ma-reports .ma-generate-grid { gap:12px!important; margin-bottom:12px!important; }
+        .ma-reports .ma-generate-grid > button { height:38px!important; padding:0 18px!important; }
+        .ma-reports .v-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:32px; padding:6px 11px; font-size:11px!important; cursor:pointer; }
+        .ma-reports .v-btn-sm { min-height:30px; padding:5px 9px; font-size:10.5px!important; }
+        .ma-reports button:disabled { cursor:not-allowed; transform:none!important; box-shadow:none!important; }
+        .ma-reports button:focus-visible, .ma-reports input:focus-visible { outline:2px solid var(--ma-green); outline-offset:3px; }
+        .ma-reports .v-btn:not(:disabled):active { transform:translateY(0) scale(.98); }
+        .ma-reports .ma-report-tab { font-size:11px; height:32px; padding:0 12px; transition:background .18s ease,color .18s ease,box-shadow .18s ease; }
+        .ma-reports .ma-report-tab:not(.active):hover { background:var(--ma-white); color:var(--ma-green-dark); }
+        .ma-reports .v-table { min-width:640px; }
+        .ma-reports .v-table th { font-size:9px!important; padding:10px!important; }
+        .ma-reports .v-table td { font-size:11px!important; padding:11px 10px!important; transition:background .16s ease; }
+        .ma-reports .v-table td:first-child { font-variant-numeric:tabular-nums; }
+        .ma-reports .v-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 7px; border-radius:6px; font-size:10px!important; font-weight:600; }
+        .ma-reports pre { font-size:11.5px!important; line-height:1.8!important; color:var(--ma-text)!important; max-height:360px; overflow:auto; overflow-wrap:anywhere; white-space:pre-wrap; margin:0; padding:2px; animation:ma-report-enter .2s ease-out; scrollbar-width:thin; scrollbar-color:var(--ma-green-mid) transparent; }
+        .ma-reports .ma-preset-active { background:#f0f5e8!important; border:1px solid var(--ma-green-mid)!important; color:var(--ma-green-dark)!important; }
+        @keyframes ma-report-enter { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+        @media (max-width:720px) { .ma-reports .v-card { padding:14px!important; } .ma-reports .ma-page-title { font-size:17px; } }
+        @media (prefers-reduced-motion:reduce) { .ma-reports *, .ma-reports *::before, .ma-reports *::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
+      `}</style>
+
+      <div className="ma-page-head">
+        <div>
+          <h2 className="ma-page-title">
+            <span className="ma-page-icon">
+              <FileText size={19} />
+            </span>
+            Sales &amp; Reports
+          </h2>
+          <p className="ma-page-sub">
+            Generate, review, and submit evidence-based branch sales reports.
+          </p>
+        </div>
+        <div className="ma-context">
+          <span className="ma-context-dot" />
+          {user?.brand || "Assigned brand"} · {branch || "Assigned branch"}
+        </div>
       </div>
+      <ConfirmDeleteReportModal
+        report={confirmDeleteTarget}
+        deleting={deletingId !== null}
+        onConfirm={() =>
+          confirmDeleteTarget && deleteReport(confirmDeleteTarget)
+        }
+        onCancel={() => {
+          if (!deletingId) setConfirmDeleteTarget(null);
+        }}
+      />
+      <Toast toast={toast} onClose={() => setToast(null)} />
 
       {/* Generate Report Card */}
       <div
@@ -10490,6 +11067,7 @@ ${topItems}
         </div>
 
         <div
+          className="ma-generate-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr auto",
@@ -10558,7 +11136,7 @@ ${topItems}
             style={{
               fontSize: 11,
               fontWeight: 700,
-              color: "#94a3b8",
+              color: "#9CA89C",
               alignSelf: "center",
               fontFamily: "Plus Jakarta Sans,sans-serif",
               textTransform: "uppercase",
@@ -10604,7 +11182,8 @@ ${topItems}
           ].map((p) => (
             <button
               key={p.label}
-              className="v-btn v-btn-ghost v-btn-sm"
+              aria-pressed={dateFrom === p.from && dateTo === p.to}
+              className={`v-btn v-btn-ghost v-btn-sm ${dateFrom === p.from && dateTo === p.to ? "ma-preset-active" : ""}`}
               onClick={() => {
                 setDateFrom(p.from);
                 setDateTo(p.to);
@@ -10675,19 +11254,7 @@ ${topItems}
       </div>
 
       {/* Sales report navigation — same compact tab layout as AdminDashboard */}
-      <div
-        style={{
-          display: "flex",
-          gap: 3,
-          background: "#F6F7F1",
-          border: "1px solid #E1E6D8",
-          borderRadius: 12,
-          padding: 4,
-          width: "fit-content",
-          marginBottom: 16,
-          flexWrap: "wrap",
-        }}
-      >
+      <div className="ma-report-tabs">
         {[
           {
             id: "generated",
@@ -10713,41 +11280,13 @@ ${topItems}
           return (
             <button
               key={t.id}
+              aria-pressed={active}
               onClick={() => setReportTab(t.id)}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                height: 34,
-                padding: "0 14px",
-                borderRadius: 9,
-                border: "none",
-                background: active ? "#3b791e" : "transparent",
-                color: active ? "#fff" : "#5C6B60",
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
+              className={`ma-report-tab ${active ? "active" : ""}`}
             >
               <Icon size={13} />
               {t.label}
-              <span
-                style={{
-                  minWidth: 18,
-                  height: 18,
-                  padding: "0 5px",
-                  borderRadius: 9,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 9.5,
-                  background: active ? "rgba(255,255,255,.18)" : "#fff",
-                  border: active ? "none" : "1px solid #E1E6D8",
-                }}
-              >
-                {t.count}
-              </span>
+              <span className="ma-report-count">{t.count}</span>
             </button>
           );
         })}
@@ -10766,7 +11305,7 @@ ${topItems}
             <span
               style={{
                 fontSize: 12,
-                color: "#94a3b8",
+                color: "#9CA89C",
                 fontFamily: "Plus Jakarta Sans,sans-serif",
               }}
             >
@@ -11032,7 +11571,7 @@ ${topItems}
             <span
               style={{
                 fontSize: 12,
-                color: "#94a3b8",
+                color: "#9CA89C",
                 fontFamily: "Plus Jakarta Sans,sans-serif",
               }}
             >
@@ -11091,7 +11630,7 @@ ${topItems}
                           <td
                             style={{
                               fontSize: 12,
-                              color: "#94a3b8",
+                              color: "#9CA89C",
                               fontFamily: "Plus Jakarta Sans,sans-serif",
                             }}
                           >
@@ -11228,7 +11767,7 @@ ${topItems}
                                     style={{
                                       padding: "24px 0",
                                       textAlign: "center",
-                                      color: "#94a3b8",
+                                      color: "#9CA89C",
                                       fontSize: 13,
                                       fontStyle: "italic",
                                     }}
@@ -11265,7 +11804,7 @@ ${topItems}
             <span
               style={{
                 fontSize: 12,
-                color: "#94a3b8",
+                color: "#9CA89C",
                 fontFamily: "Plus Jakarta Sans,sans-serif",
               }}
             >
@@ -11334,7 +11873,7 @@ ${topItems}
                           <td
                             style={{
                               fontSize: 12,
-                              color: "#94a3b8",
+                              color: "#9CA89C",
                               fontFamily: "Plus Jakarta Sans,sans-serif",
                             }}
                           >
@@ -11346,7 +11885,7 @@ ${topItems}
                                 fontSize: 12,
                                 fontWeight: 700,
                                 fontFamily: "Plus Jakarta Sans,sans-serif",
-                                color: isExpiringSoon ? "#ef4444" : "#94a3b8",
+                                color: isExpiringSoon ? "#ef4444" : "#9CA89C",
                               }}
                             >
                               {daysLeft !== null
@@ -11406,7 +11945,6 @@ ${topItems}
     </div>
   );
 }
-
 function ConfirmDeleteReportModal({ report, deleting, onConfirm, onCancel }) {
   const fmtPeriod = (period) => {
     if (!period) return "—";

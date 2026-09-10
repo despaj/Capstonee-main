@@ -78,6 +78,20 @@ import {
   CalendarClock,
 } from "lucide-react";
 
+async function adminModuleFetch(input, options) {
+  const response = await fetch(input, options);
+  const method = String(
+    options?.method ||
+      (typeof Request !== "undefined" && input instanceof Request
+        ? input.method
+        : "GET"),
+  ).toUpperCase();
+  if (response.ok && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+    window.dispatchEvent(new Event("franchisync:data-changed"));
+  }
+  return response;
+}
+
 const C = {
   green: "#3b791e",
   greenDk: "#2c5c16",
@@ -12274,7 +12288,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
         );
         if (bn.length) params.set("branches", bn.join(","));
       }
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`,
       );
       const d = await res.json();
@@ -12562,11 +12576,17 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
     const grouped = {};
     filteredTransactions.forEach((tx) => {
       const branch = tx.branch || "Unassigned";
-      grouped[branch] =
-        (grouped[branch] || 0) + Number(tx.total || tx.total_amount || 0);
+      const brand =
+        tx.brand || tx.brand_name || tx.franchise_brand || "Unassigned Brand";
+      const key = `${brand}::${branch}`;
+      grouped[key] =
+        (grouped[key] || 0) + Number(tx.total || tx.total_amount || 0);
     });
     return Object.entries(grouped)
-      .map(([label, value]) => ({ label, value }))
+      .map(([key, value]) => {
+        const [brand, branch] = key.split("::");
+        return { label: `${branch} · ${brand}`, value, branch, brand };
+      })
       .sort((a, b) => b.value - a.value);
   }, [filteredTransactions, viewArchive]);
 
@@ -12577,6 +12597,14 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
 
     filteredTransactions.forEach((tx) => {
       const branch = String(tx?.branch || "Unassigned").trim() || "Unassigned";
+      const brand =
+        String(
+          tx?.brand ||
+            tx?.brand_name ||
+            tx?.franchise_brand ||
+            "Unassigned Brand",
+        ).trim() || "Unassigned Brand";
+      const groupKey = `${brand}::${branch}`;
       const revenue =
         Number(tx?.total ?? tx?.total_amount ?? tx?.grand_total ?? 0) || 0;
 
@@ -12622,9 +12650,10 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
         }
       }
 
-      if (!grouped[branch]) {
-        grouped[branch] = {
+      if (!grouped[groupKey]) {
+        grouped[groupKey] = {
           branch,
+          brand,
           revenue: 0,
           cogs: 0,
           transactions: 0,
@@ -12632,9 +12661,9 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
         };
       }
 
-      grouped[branch].revenue += revenue;
-      grouped[branch].cogs += cogs;
-      grouped[branch].transactions += 1;
+      grouped[groupKey].revenue += revenue;
+      grouped[groupKey].cogs += cogs;
+      grouped[groupKey].transactions += 1;
 
       if (
         cogs > 0 ||
@@ -12643,7 +12672,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
         tx?.cost_of_goods != null ||
         tx?.cost_of_goods_sold != null
       ) {
-        grouped[branch].hasCogs = true;
+        grouped[groupKey].hasCogs = true;
       }
     });
 
@@ -12873,7 +12902,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
           );
           if (bn.length) params.set("branches", bn.join(","));
         }
-        const res = await fetch(
+        const res = await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`,
         );
         const d = await res.json();
@@ -12897,10 +12926,10 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
     height: 36,
     padding: "0 11px",
     borderRadius: 9,
-    border: "1px solid #b2dfdb",
-    background: "#f0fdf5",
+    border: "1px solid #E1E6D8",
+    background: "#f0f5e8",
     fontSize: 13,
-    color: "#0d2b1e",
+    color: "#12241B",
     outline: "none",
     fontFamily: FONT,
     boxSizing: "border-box",
@@ -12913,7 +12942,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
     right: 0,
     zIndex: 400,
     background: "#fff",
-    border: "1px solid #b2dfdb",
+    border: "1px solid #E1E6D8",
     borderRadius: 11,
     boxShadow: "0 8px 28px rgba(0,0,0,0.10)",
     maxHeight: 220,
@@ -12923,9 +12952,9 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
     padding: "9px 14px",
     cursor: "pointer",
     fontSize: 13,
-    color: a ? "#00695c" : "#0d2b1e",
+    color: a ? "#2c5c16" : "#12241B",
     fontWeight: a ? 700 : 500,
-    background: a ? "#e0f2f1" : "transparent",
+    background: a ? "#f0f5e8" : "transparent",
     display: "flex",
     alignItems: "center",
     gap: 8,
@@ -12940,15 +12969,15 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
     cursor: "pointer",
     fontFamily: FONT,
     transition: "all .15s",
-    background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
-    color: a ? "#fff" : "#5a7a65",
+    background: a ? "linear-gradient(135deg,#3b791e,#3b791e)" : "transparent",
+    color: a ? "#fff" : "#5C6B60",
     boxShadow: a ? "0 2px 8px rgba(0,180,90,.35)" : "none",
   });
 
   return (
     <div style={{ fontFamily: FONT }}>
       <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
           *, *::before, *::after { box-sizing: border-box; }
           @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
           @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
@@ -12959,7 +12988,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
       {viewArchive && (
         <div
           style={{
-            background: "linear-gradient(135deg,#0d2b1e,#1a4a2e)",
+            background: "linear-gradient(135deg,#12241B,#1a4a2e)",
             color: "#fff",
             borderRadius: 14,
             padding: "12px 20px",
@@ -13038,7 +13067,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
           {
             id: "ghost",
             number: "03",
-            label: "Ghost Stock Anomalies",
+            label: "Ghost Stock / Revenue Leakage",
             question: "Where are losses coming from?",
             icon: ShieldCheck,
           },
@@ -13055,6 +13084,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
               style={{
                 display: "flex",
                 alignItems: "center",
+                justifyContent: "flex-start",
                 gap: 10,
                 minHeight: 67,
                 padding: "11px 13px",
@@ -13087,7 +13117,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
               >
                 <Icon size={16} />
               </span>
-              <span style={{ minWidth: 0 }}>
+              <span style={{ minWidth: 0, textAlign: "left" }}>
                 <span
                   style={{
                     display: "block",
@@ -13141,6 +13171,19 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
             onOpenSalesAi={() => setDashboardTab("sales_ai")}
           />
         </div>
+      )}
+
+      {!viewArchive && dashboardTab === "ghost" && (
+        <SalesVsStockSection
+          preset={preset}
+          appliedRange={appliedRange}
+          rangeMode={rangeMode}
+          filterBranch={filterBranch}
+          filterBrand={filterBrand}
+          selectedBrand={selectedBrand}
+          total={total}
+          transactions={filteredTransactions}
+        />
       )}
 
       {!viewArchive && dashboardTab === "ghost" && (
@@ -13388,7 +13431,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                         fontWeight: 800,
                         textTransform: "uppercase",
                         letterSpacing: "0.08em",
-                        color: "#5a7a65",
+                        color: "#5C6B60",
                         marginBottom: 5,
                         display: "flex",
                         alignItems: "center",
@@ -13396,7 +13439,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                         fontFamily: FONT,
                       }}
                     >
-                      <k.icon size={12} color="#00897b" /> {k.label}
+                      <k.icon size={12} color="#3b791e" /> {k.label}
                     </div>
                     {kpiLoading && k.value == null ? (
                       <div
@@ -13405,9 +13448,9 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                           fontWeight: 700,
                           padding: "5px 12px",
                           borderRadius: 9,
-                          background: "#f0fdf5",
+                          background: "#f0f5e8",
                           border: "1.5px dashed #a7f3d0",
-                          color: "#5a7a65",
+                          color: "#5C6B60",
                           display: "inline-block",
                           fontFamily: FONT,
                         }}
@@ -13419,7 +13462,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                         style={{
                           fontSize: 22,
                           fontWeight: 800,
-                          color: "#0d2b1e",
+                          color: "#12241B",
                           letterSpacing: "-0.5px",
                           fontFamily: FONT,
                         }}
@@ -13439,9 +13482,9 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                           fontWeight: 700,
                           padding: "5px 12px",
                           borderRadius: 9,
-                          background: "#f0fdf5",
+                          background: "#f0f5e8",
                           border: "1.5px dashed #a7f3d0",
-                          color: "#5a7a65",
+                          color: "#5C6B60",
                           display: "inline-block",
                           fontFamily: FONT,
                         }}
@@ -13452,7 +13495,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                   </div>
                   <SparkBar
                     values={values.slice(-7)}
-                    color="#00c853"
+                    color="#3b791e"
                     height={28}
                   />
                 </div>
@@ -13553,10 +13596,10 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                 cursor: "pointer",
                 paddingRight: 26,
                 userSelect: "none",
-                color: filterBrand ? "#0d2b1e" : "#5a7a65",
+                color: filterBrand ? "#12241B" : "#5C6B60",
               }}
             >
-              <Globe size={12} color="#00897b" />
+              <Globe size={12} color="#3b791e" />
               <span
                 style={{
                   flex: 1,
@@ -13570,7 +13613,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
               </span>
               <ChevronDown
                 size={10}
-                style={{ position: "absolute", right: 8, color: "#5a7a65" }}
+                style={{ position: "absolute", right: 8, color: "#5C6B60" }}
               />
             </div>
             {brandDropOpen && (
@@ -13578,7 +13621,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                 <div
                   style={{
                     padding: "6px 8px",
-                    borderBottom: "1px solid #b2dfdb",
+                    borderBottom: "1px solid #E1E6D8",
                     position: "sticky",
                     top: 0,
                     background: "#fff",
@@ -13592,7 +13635,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                         left: 7,
                         top: "50%",
                         transform: "translateY(-50%)",
-                        color: "#5a7a65",
+                        color: "#5C6B60",
                       }}
                     />
                     <input
@@ -13632,12 +13675,12 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                       setBrandQ("");
                     }}
                   >
-                    <Store size={12} color="#00897b" /> {b.name}
+                    <Store size={12} color="#3b791e" /> {b.name}
                     <span
                       style={{
                         marginLeft: "auto",
                         fontSize: 10,
-                        color: "#5a7a65",
+                        color: "#5C6B60",
                       }}
                     >
                       {(b.branches || []).length} branches
@@ -13672,10 +13715,10 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                 cursor: filterBrand ? "pointer" : "not-allowed",
                 paddingRight: 26,
                 userSelect: "none",
-                color: filterBranch ? "#0d2b1e" : "#5a7a65",
+                color: filterBranch ? "#12241B" : "#5C6B60",
               }}
             >
-              <Store size={12} color={filterBrand ? "#00897b" : "#5a7a65"} />
+              <Store size={12} color={filterBrand ? "#3b791e" : "#5C6B60"} />
               <span
                 style={{
                   flex: 1,
@@ -13691,7 +13734,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
               {filterBrand && (
                 <ChevronDown
                   size={10}
-                  style={{ position: "absolute", right: 8, color: "#5a7a65" }}
+                  style={{ position: "absolute", right: 8, color: "#5C6B60" }}
                 />
               )}
             </div>
@@ -13700,7 +13743,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                 <div
                   style={{
                     padding: "6px 8px",
-                    borderBottom: "1px solid #b2dfdb",
+                    borderBottom: "1px solid #E1E6D8",
                     position: "sticky",
                     top: 0,
                     background: "#fff",
@@ -13714,7 +13757,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                         left: 7,
                         top: "50%",
                         transform: "translateY(-50%)",
-                        color: "#5a7a65",
+                        color: "#5C6B60",
                       }}
                     />
                     <input
@@ -13752,7 +13795,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                       setBranchQ("");
                     }}
                   >
-                    <Store size={11} color="#00897b" /> {br}
+                    <Store size={11} color="#3b791e" /> {br}
                   </div>
                 ))}
               </div>
@@ -13772,9 +13815,9 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                     borderRadius: 20,
                     fontSize: 11,
                     fontWeight: 700,
-                    background: "#e0f2f1",
-                    color: "#00695c",
-                    border: "1px solid #b2dfdb",
+                    background: "#f0f5e8",
+                    color: "#2c5c16",
+                    border: "1px solid #E1E6D8",
                     cursor: "pointer",
                     fontFamily: FONT,
                   }}
@@ -13796,9 +13839,9 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                     borderRadius: 20,
                     fontSize: 11,
                     fontWeight: 700,
-                    background: "#e0f2f1",
-                    color: "#00695c",
-                    border: "1px solid #b2dfdb",
+                    background: "#f0f5e8",
+                    color: "#2c5c16",
+                    border: "1px solid #E1E6D8",
                     cursor: "pointer",
                     fontFamily: FONT,
                   }}
@@ -13843,7 +13886,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
             style={{
               display: "flex",
               gap: 3,
-              background: "#f0faf4",
+              background: "#F6F7F1",
               borderRadius: 10,
               padding: 3,
             }}
@@ -13865,7 +13908,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
 
           {/* Custom range */}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <Calendar size={12} color="#5a7a65" />
+            <Calendar size={12} color="#5C6B60" />
             <input
               type="date"
               value={customFrom}
@@ -13874,15 +13917,15 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
               style={{
                 padding: "6px 9px",
                 borderRadius: 8,
-                border: "1.5px solid #b2dfdb",
-                background: "#f0fdf5",
+                border: "1.5px solid #E1E6D8",
+                background: "#f0f5e8",
                 fontSize: 11,
                 fontFamily: FONT,
-                color: "#0d2b1e",
+                color: "#12241B",
                 outline: "none",
               }}
             />
-            <span style={{ color: "#5a7a65", fontSize: 11, fontFamily: FONT }}>
+            <span style={{ color: "#5C6B60", fontSize: 11, fontFamily: FONT }}>
               to
             </span>
             <input
@@ -13894,11 +13937,11 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
               style={{
                 padding: "6px 9px",
                 borderRadius: 8,
-                border: "1.5px solid #b2dfdb",
-                background: "#f0fdf5",
+                border: "1.5px solid #E1E6D8",
+                background: "#f0f5e8",
                 fontSize: 11,
                 fontFamily: FONT,
-                color: "#0d2b1e",
+                color: "#12241B",
                 outline: "none",
               }}
             />
@@ -13909,7 +13952,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                 padding: "6px 13px",
                 borderRadius: 8,
                 border: "none",
-                background: "linear-gradient(135deg,#00c853,#00897b)",
+                background: "linear-gradient(135deg,#3b791e,#3b791e)",
                 color: "#fff",
                 fontSize: 11,
                 fontWeight: 700,
@@ -13954,9 +13997,9 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
               gap: 6,
               padding: "7px 14px",
               borderRadius: 9,
-              border: "1.5px solid #b2dfdb",
-              background: showArchive ? "#e0f2f1" : "#fff",
-              color: "#00695c",
+              border: "1.5px solid #E1E6D8",
+              background: showArchive ? "#f0f5e8" : "#fff",
+              color: "#2c5c16",
               fontSize: 12,
               fontWeight: 700,
               cursor: "pointer",
@@ -13967,7 +14010,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
             {archives.length > 0 && (
               <span
                 style={{
-                  background: "#00897b",
+                  background: "#3b791e",
                   color: "#fff",
                   borderRadius: 10,
                   padding: "1px 6px",
@@ -14007,13 +14050,13 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                   fontFamily: FONT,
                   fontWeight: 800,
                   fontSize: 14,
-                  color: "#0d2b1e",
+                  color: "#12241B",
                   display: "flex",
                   alignItems: "center",
                   gap: 7,
                 }}
               >
-                <Archive size={15} color="#00897b" /> Yearly Archives
+                <Archive size={15} color="#3b791e" /> Yearly Archives
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <input
@@ -14026,11 +14069,11 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                   style={{
                     padding: "6px 9px",
                     borderRadius: 8,
-                    border: "1.5px solid #b2dfdb",
-                    background: "#f0fdf5",
+                    border: "1.5px solid #E1E6D8",
+                    background: "#f0f5e8",
                     fontSize: 12,
                     fontFamily: FONT,
-                    color: "#0d2b1e",
+                    color: "#12241B",
                     outline: "none",
                     width: 86,
                   }}
@@ -14044,7 +14087,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                     padding: "7px 14px",
                     borderRadius: 8,
                     border: "none",
-                    background: "linear-gradient(135deg,#2E7D32,#00897b)",
+                    background: "linear-gradient(135deg,#3b791e,#3b791e)",
                     color: "#fff",
                     fontSize: 12,
                     fontWeight: 700,
@@ -14078,7 +14121,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                     justifyContent: "space-between",
                     padding: "9px 13px",
                     borderRadius: 9,
-                    border: "1px solid #e0f2f1",
+                    border: "1px solid #f0f5e8",
                     marginBottom: 7,
                     background: "#f8fffe",
                   }}
@@ -14088,7 +14131,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                       style={{
                         fontWeight: 800,
                         fontSize: 13,
-                        color: "#0d2b1e",
+                        color: "#12241B",
                         fontFamily: FONT,
                       }}
                     >
@@ -14097,7 +14140,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                     <div
                       style={{
                         fontSize: 10.5,
-                        color: "#5a7a65",
+                        color: "#5C6B60",
                         marginTop: 2,
                         fontFamily: FONT,
                       }}
@@ -14118,10 +14161,10 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                         fontWeight: 700,
                         cursor: "pointer",
                         fontFamily: FONT,
-                        border: `1px solid ${viewArchive?.year === a.year ? "#00897b" : "#b2dfdb"}`,
+                        border: `1px solid ${viewArchive?.year === a.year ? "#3b791e" : "#E1E6D8"}`,
                         background:
-                          viewArchive?.year === a.year ? "#e0f2f1" : "#f8fffe",
-                        color: "#00695c",
+                          viewArchive?.year === a.year ? "#f0f5e8" : "#f8fffe",
+                        color: "#2c5c16",
                       }}
                     >
                       {viewArchive?.year === a.year ? "Viewing" : "View"}
@@ -14135,9 +14178,9 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                         fontWeight: 700,
                         cursor: "pointer",
                         fontFamily: FONT,
-                        border: "1px solid #fecaca",
+                        border: "1px solid #f2c9c4",
                         background: "#fff",
-                        color: "#ef4444",
+                        color: "#c0392b",
                       }}
                     >
                       Delete
@@ -14235,7 +14278,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                       Revenue Trend
                     </div>
                     <div
-                      style={{ fontSize: 11, color: "#6B7A65", marginTop: 3 }}
+                      style={{ fontSize: 11, color: "#5C6B60", marginTop: 3 }}
                     >
                       Actual revenue movement · {getRangeLabel()}
                     </div>
@@ -14287,7 +14330,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                 <div
                   style={{
                     fontSize: 11,
-                    color: "#6B7A65",
+                    color: "#5C6B60",
                     marginTop: 3,
                     marginBottom: 16,
                   }}
@@ -14352,7 +14395,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 11, color: "#6B7A65", marginTop: 4 }}>
+                  <div style={{ fontSize: 11, color: "#5C6B60", marginTop: 4 }}>
                     Revenue, gross profit, margin and transaction efficiency by
                     branch
                   </div>
@@ -14404,7 +14447,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                     <thead>
                       <tr style={{ background: "#F6FAF3" }}>
                         {[
-                          { label: "Branch", align: "left" },
+                          { label: "Branch / Brand", align: "left" },
                           { label: "Revenue", align: "right" },
                           { label: "Gross Profit", align: "right" },
                           { label: "Margin", align: "center" },
@@ -14442,7 +14485,7 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                               ? "#3b791e"
                               : row.margin >= 15
                                 ? "#d97706"
-                                : "#dc2626";
+                                : "#c0392b";
 
                         const marginBg = !hasProfitData
                           ? "#f8fafc"
@@ -14491,15 +14534,30 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
                                 >
                                   {index + 1}
                                 </span>
-                                <span
-                                  style={{
-                                    fontSize: 11.5,
-                                    fontWeight: 800,
-                                    color: "#12241B",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  {row.branch}
+                                <span style={{ minWidth: 0 }}>
+                                  <span
+                                    style={{
+                                      display: "block",
+                                      fontSize: 11.5,
+                                      fontWeight: 800,
+                                      color: "#12241B",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {row.branch}
+                                  </span>
+                                  <span
+                                    style={{
+                                      display: "block",
+                                      fontSize: 9.4,
+                                      fontWeight: 650,
+                                      color: "#5C6B60",
+                                      marginTop: 2,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {row.brand || "Unassigned Brand"}
+                                  </span>
                                 </span>
                               </div>
                             </td>
@@ -14729,8 +14787,8 @@ function FADashboardContent({ transactions, brands: propBrands = [], user }) {
               >
                 Use the actual revenue line, period summary, and branch
                 profitability below to understand sales movement. Corrective
-                recommendations are kept with the loss evidence in Ghost Stock
-                Anomalies.
+                recommendations are kept with the loss evidence in Ghost Stock /
+                Revenue Leakage.
               </div>
             </div>
 
