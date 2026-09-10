@@ -137,7 +137,7 @@ function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3, expectedOt
     if (!open) return;
     setOtp(["","","","","",""]); setAttempts(0); setError(""); setCountdown(60); setCanResend(false);
     auditLog.record("OTP_SENT", { mobile });
-  }, [open]);
+  }, [open, mobile]);
 
   useEffect(() => {
     if (!open || canResend) return;
@@ -248,7 +248,6 @@ function IdScannerModal({ open, onComplete, onClose }) {
 
   const frontRef = useRef();
   const backRef = useRef();
-  const faceFileRef = useRef();
 
   // ── Reset on close ──────────────────────────────────────────────
   useEffect(() => {
