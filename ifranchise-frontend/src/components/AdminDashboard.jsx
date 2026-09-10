@@ -4751,12 +4751,12 @@
     const text=String(value??"").trim();
     if(!/^[+-]?\d+(?:\.\d+)?$/.test(text))throw new Error("Missing or invalid monetary value");
     const negative=text.startsWith("-"),[whole,fraction=""]=text.replace(/^[+-]/,"").split(".");
-    let result=BigInt(whole)*100n+BigInt((fraction+"00").slice(0,2));
+    let result=window.BigInt(whole)*100n+window.BigInt((fraction+"00").slice(0,2));
     if(Number(fraction[2]||0)>=5)result++;
     return Number(negative?-result:result);
   };
   const b2bMoneySum = rows => rows.reduce((sum,value)=>sum+b2bCents(value??0),0)/100;
-  const b2bTargetAmount = (previous,growth) => previous>0?Number((BigInt(b2bCents(previous))*(1000000n+BigInt(Math.round(growth*10000)))+500000n)/1000000n)/100:null;
+  const b2bTargetAmount = (previous,growth) => previous>0?Number((window.BigInt(b2bCents(previous))*(1000000n+window.BigInt(Math.round(growth*10000)))+500000n)/1000000n)/100:null;
 
   const b2bShiftMonth = (monthKey, delta) => {
     const [y, m] = String(monthKey || "").split("-").map(Number);
