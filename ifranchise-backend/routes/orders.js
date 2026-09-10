@@ -19,6 +19,7 @@ const ALLOWED_TRANSITIONS = {
 // can ship it, but only the receiving branch confirms delivery.
 const FRANCHISEE_ROLES = ["Franchisee", "Manager", "Staff"];
 
+// Prefer relational order lines; legacy/demo imports store their item snapshot in orders.items.
 router.get("/orders", async (req, res) => {
   const { userId, branch, brand, role } = req.query;
   try {
@@ -61,9 +62,14 @@ router.get("/orders", async (req, res) => {
     }
 
     const result = await pool.query(`
-      SELECT o.id, o.status, o.total_amount, o.created_at, o.phone, o.brand, o.branch, o.address,
+      SELECT o.id, o.status, o.total_amount, o.created_at, o.received_at, o.phone, o.brand, o.branch, o.address,
         u.name AS user_name,
-        COALESCE(json_agg(json_build_object('shop_item_id', oi.shop_item_id, 'name',si.name,'qty',oi.quantity,'price',oi.price,'stock',si.stock)) FILTER (WHERE oi.id IS NOT NULL),'[]') AS items
+        CASE WHEN COUNT(oi.id) > 0 THEN
+          json_agg(json_build_object('shop_item_id', oi.shop_item_id, 'name',si.name,'qty',oi.quantity,'price',oi.price,'stock',si.stock,'unit',si.unit)) FILTER (WHERE oi.id IS NOT NULL)
+        ELSE
+          CASE WHEN jsonb_typeof(o.items::jsonb) = 'array'
+            THEN o.items::jsonb::json ELSE '[]'::json END
+        END AS items
       FROM orders o
       LEFT JOIN users u ON u.id=o.user_id
       LEFT JOIN order_items oi ON oi.order_id=o.id
@@ -83,10 +89,15 @@ router.get("/orders/:id", async (req, res) => {
   if (!userId) return res.status(400).json({ error: "userId is required" });
   try {
     const result = await pool.query(`
-      SELECT o.id, o.status, o.total_amount, o.created_at, o.phone, o.brand, o.branch, o.address,
+      SELECT o.id, o.status, o.total_amount, o.created_at, o.received_at, o.phone, o.brand, o.branch, o.address,
         o.user_id,
         u.name AS user_name,
-        COALESCE(json_agg(json_build_object('name',si.name,'qty',oi.quantity,'price',oi.price,'unit',si.unit,'image_url',si.image_url)) FILTER (WHERE oi.id IS NOT NULL),'[]') AS items
+        CASE WHEN COUNT(oi.id) > 0 THEN
+          json_agg(json_build_object('name',si.name,'qty',oi.quantity,'price',oi.price,'unit',si.unit,'image_url',si.image_url)) FILTER (WHERE oi.id IS NOT NULL)
+        ELSE
+          CASE WHEN jsonb_typeof(o.items::jsonb) = 'array'
+            THEN o.items::jsonb::json ELSE '[]'::json END
+        END AS items
       FROM orders o
       LEFT JOIN users u ON u.id=o.user_id
       LEFT JOIN order_items oi ON oi.order_id=o.id
