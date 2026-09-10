@@ -31,15 +31,22 @@ async function priceFromCost(brand, name, fallback) {
 router.get("/shop-items", async (req, res) => {
   try {
     const brand = (req.query.brand || "").trim();
-    const cols = `id, name, price, unit, image_url, is_visible, shop, brand, stock, branches, ingredient_id`;
+    const selectCols = `
+      si.id, si.name, si.price, si.unit, si.image_url, si.is_visible,
+      si.shop, si.brand, COALESCE(i.stock, si.stock) AS stock,
+      si.branches, si.ingredient_id
+    `;
+    const baseQuery = `
+      SELECT ${selectCols}
+      FROM shop_items si
+      LEFT JOIN ingredients i ON i.id = si.ingredient_id
+    `;
     const result = brand
       ? await pool.query(
-          `SELECT ${cols} FROM shop_items WHERE LOWER(TRIM(brand)) = LOWER(TRIM($1)) ORDER BY created_at DESC`,
+          `${baseQuery} WHERE LOWER(TRIM(si.brand)) = LOWER(TRIM($1)) ORDER BY si.created_at DESC`,
           [brand],
         )
-      : await pool.query(
-          `SELECT ${cols} FROM shop_items ORDER BY created_at DESC`,
-        );
+      : await pool.query(`${baseQuery} ORDER BY si.created_at DESC`);
     res.json(result.rows);
   } catch (err) {
     console.error("GET /shop-items error:", err.message);
@@ -252,8 +259,9 @@ router.patch("/shop-items/:id/deduct-stock", async (req, res) => {
     }
 
     const itemRes = await client.query(
-      `UPDATE shop_items SET stock = stock - $1 WHERE id = $2 AND stock >= $1 RETURNING *`,
-      [qty, req.params.id],
+      `UPDATE shop_items SET stock = $1, price = ROUND($2::numeric * 1.10, 2)
+WHERE ingredient_id = $3`,
+      [updatedItem.stock, updatedItem.cost_per_unit, req.params.id],
     );
     if (itemRes.rows.length === 0) {
       const cur = await client.query(

@@ -208,7 +208,7 @@ router.post("/ingredients", async (req, res) => {
       await client.query(
         `INSERT INTO shop_items (name, price, unit, shop, brand, stock, is_visible, ingredient_id)
          VALUES ($1,$2,$3,$4,$5,$6,true,$7)
-         ON CONFLICT (ingredient_id) DO UPDATE SET name=$1, price=$2, unit=$3, shop=$4, brand=$5, stock=$6`,
+ON CONFLICT (ingredient_id) DO UPDATE SET name=$1, price=$2, unit=$3, shop=$4, brand=$5, stock=$6`,
         [
           name,
           parseFloat(shop_price),
@@ -320,13 +320,8 @@ router.put("/ingredients/:id", async (req, res) => {
     );
 
     await client.query(
-      `UPDATE shop_items SET stock = $1, price = ROUND($2::numeric * 1.10, 2) WHERE brand = $3 AND name = $4`,
-      [
-        updatedItem.stock,
-        updatedItem.cost_per_unit,
-        updatedItem.brand,
-        updatedItem.name,
-      ],
+      `UPDATE shop_items SET stock = $1, price = ROUND($2::numeric * 1.10, 2) WHERE ingredient_id = $3`,
+      [updatedItem.stock, updatedItem.cost_per_unit, req.params.id],
     );
 
     await client.query("COMMIT");
