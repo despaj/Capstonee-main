@@ -11,7 +11,7 @@ import SalesAdmin from "./SalesAdmin";
 import { Eye, EyeOff, CheckCircle } from "lucide-react";
 
 const TEST_ACCOUNTS = [
-  { email: "superadmin@test.com", password: "Superadmin123!" },
+  { email: "genmanager@test.com", password: "Genmanager123!" },
   { email: "foa@test.com", password: "FOAdmin123!" },
   { email: "salesadmin@test.com", password: "Salesadmin123!" },
   { email: "franchisee@test.com", password: "Franchisee123!" },
@@ -36,15 +36,40 @@ const getBrowserLocation = () => {
         console.warn("Geolocation denied or failed:", err.message);
         resolve(null);
       },
-      { timeout: 5000, maximumAge: 60000 }
+      { timeout: 5000, maximumAge: 60000 },
     );
   });
 };
 
-const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error, attempts, onVerify, resendEndpoint, resendBody, verifyLabel = "CONTINUE", loading, loadingKey, resendKey, showSmsSwitch, onSwitchMethod, extraButton,
-  trustDeviceCheckbox, handleOtpChange, handleOtpKeyDown, handleOtpPaste, setResendDisabled, setResendTimer, setLoading, resendDisabled, resendTimer, OTP_MAX_ATTEMPTS
+const OtpEntryBlock = ({
+  otpArr,
+  setOtpArr,
+  refs,
+  isLocked,
+  lockRemaining,
+  error,
+  attempts,
+  onVerify,
+  resendEndpoint,
+  resendBody,
+  verifyLabel = "CONTINUE",
+  loading,
+  loadingKey,
+  resendKey,
+  showSmsSwitch,
+  onSwitchMethod,
+  extraButton,
+  trustDeviceCheckbox,
+  handleOtpChange,
+  handleOtpKeyDown,
+  handleOtpPaste,
+  setResendDisabled,
+  setResendTimer,
+  setLoading,
+  resendDisabled,
+  resendTimer,
+  OTP_MAX_ATTEMPTS,
 }) => {
-
   const hasFocused = useRef(false);
   const isVerifying = loading === loadingKey;
 
@@ -57,7 +82,11 @@ const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error
 
   return (
     <>
-      {isLocked && <div className="error general locked-banner">Too many attempts. Locked for <strong>{lockRemaining}</strong>.</div>}
+      {isLocked && (
+        <div className="error general locked-banner">
+          Too many attempts. Locked for <strong>{lockRemaining}</strong>.
+        </div>
+      )}
       {error && !isLocked && <p className="error general">{error}</p>}
       <div className="otp-box-wrap">
         {otpArr.map((digit, i) => (
@@ -87,7 +116,10 @@ const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error
             }}
             onPaste={(e) => {
               e.preventDefault();
-              const p = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+              const p = e.clipboardData
+                .getData("text")
+                .replace(/\D/g, "")
+                .slice(0, 6);
               if (p.length === 6) {
                 setOtpArr(p.split(""));
                 refs.current[5]?.focus();
@@ -112,19 +144,24 @@ const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error
 
       <button
         className="link-resend"
-        disabled={resendDisabled || !!isLocked || loading === resendKey || isVerifying}
+        disabled={
+          resendDisabled || !!isLocked || loading === resendKey || isVerifying
+        }
         onClick={async () => {
           if (resendDisabled || isLocked) return;
           setResendDisabled(true);
           setResendTimer(30);
           setLoading(resendKey);
           try {
-            const res = await fetch(`${process.env.REACT_APP_API_URL}${resendEndpoint}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(resendBody),
-              credentials: "include",
-            });
+            const res = await fetch(
+              `${process.env.REACT_APP_API_URL}${resendEndpoint}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(resendBody),
+                credentials: "include",
+              },
+            );
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
             setTimeout(() => refs.current[0]?.focus(), 150);
@@ -135,17 +172,21 @@ const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error
           }
         }}
       >
-        {loading === resendKey
-          ? <><span className="sms-spinner" /> Sending...</>
-          : resendDisabled
-          ? `Resend OTP in ${resendTimer}s`
-          : "Resend OTP"}
+        {loading === resendKey ? (
+          <>
+            <span className="sms-spinner" /> Sending...
+          </>
+        ) : resendDisabled ? (
+          `Resend OTP in ${resendTimer}s`
+        ) : (
+          "Resend OTP"
+        )}
       </button>
     </>
   );
 };
 
-  function UnknownRoleScreen({ userRole, onBackToLogin }) {
+function UnknownRoleScreen({ userRole, onBackToLogin }) {
   const [secondsLeft, setSecondsLeft] = useState(3);
 
   useEffect(() => {
@@ -165,7 +206,17 @@ const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error
         Redirecting to login in {secondsLeft}s...
       </p>
       <button
-        style={{ padding: "10px 22px", background: "var(--green-900)", color: "white", border: "none", borderRadius: "999px", cursor: "pointer", marginTop: "1rem", fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+        style={{
+          padding: "10px 22px",
+          background: "var(--green-900)",
+          color: "white",
+          border: "none",
+          borderRadius: "999px",
+          cursor: "pointer",
+          marginTop: "1rem",
+          fontWeight: 700,
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}
         onClick={onBackToLogin}
       >
         ← Back to Login Now
@@ -205,7 +256,6 @@ export default function AdminLogin() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [resetError, setResetError] = useState("");
 
-
   const [errors, setErrors] = useState({});
   const [authError, setAuthError] = useState("");
   const [otpError, setOtpError] = useState("");
@@ -219,7 +269,12 @@ export default function AdminLogin() {
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutTime, setLockoutTime] = useState(null);
   const MAX_ATTEMPTS = 2;
-  const LOCKOUT_DURATIONS = [2 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 45 * 60 * 1000];
+  const LOCKOUT_DURATIONS = [
+    2 * 60 * 1000,
+    5 * 60 * 1000,
+    15 * 60 * 1000,
+    45 * 60 * 1000,
+  ];
   const [lockoutLevel, setLockoutLevel] = useState(0);
   const [showPasswordValidation, setShowPasswordValidation] = useState(false);
   const [passwordErrors, setPasswordErrors] = useState([]);
@@ -237,7 +292,10 @@ export default function AdminLogin() {
   // Start the existing location lookup while the user enters credentials.
   // Login still awaits its result, preserving the location payload contract.
   const prepareLocation = () => {
-    if (!locationRequest.current || Date.now() - locationRequest.current.startedAt > 60000) {
+    if (
+      !locationRequest.current ||
+      Date.now() - locationRequest.current.startedAt > 60000
+    ) {
       locationRequest.current = {
         startedAt: Date.now(),
         promise: getBrowserLocation(),
@@ -256,10 +314,10 @@ export default function AdminLogin() {
   };
 
   const clearDashboardSessions = () => {
-  sessionStorage.removeItem('sa_activeModule');
-  sessionStorage.removeItem('fa_activeModule');
-  sessionStorage.removeItem('bm_activeModule');
-};
+    sessionStorage.removeItem("sa_activeModule");
+    sessionStorage.removeItem("fa_activeModule");
+    sessionStorage.removeItem("bm_activeModule");
+  };
 
   const OTP_MAX_ATTEMPTS = 5;
   const OTP_LOCKOUT_DURATION = 2 * 60 * 60 * 1000;
@@ -279,61 +337,73 @@ export default function AdminLogin() {
   const [resetDoneCountdown, setResetDoneCountdown] = useState(3);
 
   // ── Block browser back button when logged in ──
-useEffect(() => {
-  if (!loggedIn) return;
+  useEffect(() => {
+    if (!loggedIn) return;
 
-  // Push a sentinel entry so there's something to intercept
-  window.history.pushState({ loggedIn: true }, "");
+    // Push a sentinel entry so there's something to intercept
+    window.history.pushState({ loggedIn: true }, "");
 
-  const handlePopState = () => {
-    if (loggedIn) {
-      // Re-push to keep them pinned — back button goes nowhere
-      window.history.pushState({ loggedIn: true }, "");
-    }
-  };
+    const handlePopState = () => {
+      if (loggedIn) {
+        // Re-push to keep them pinned — back button goes nowhere
+        window.history.pushState({ loggedIn: true }, "");
+      }
+    };
 
-  window.addEventListener("popstate", handlePopState);
-  return () => window.removeEventListener("popstate", handlePopState);
-}, [loggedIn]);
-
-useEffect(() => {
-  if (step !== "resetDone") {
-    setResetDoneCountdown(3); // reset for next time
-    return;
-  }
-
-  if (resetDoneCountdown <= 0) {
-    setForgotEmail(""); setForgotOtp(["","","","","",""]); setNewPassword(""); setConfirmPassword("");
-    setResetError(""); setChoiceError(""); setForgotOtpError(""); setStep("login");
-    return;
-  }
-
-  const timer = setTimeout(() => setResetDoneCountdown((s) => s - 1), 1000);
-  return () => clearTimeout(timer);
-}, [step, resetDoneCountdown]);
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [loggedIn]);
 
   useEffect(() => {
-  const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
+    if (step !== "resetDone") {
+      setResetDoneCountdown(3); // reset for next time
+      return;
+    }
 
-  if (stored) {
-    try {
-      const user = JSON.parse(stored);
-      if (user && user.role && user.sessionExpiry && Date.now() < user.sessionExpiry) {
-        setLoggedIn(true);
-        setUserRole(user.role);
-        // ← Add this
-        window.history.pushState({ loggedIn: true }, "");
-      } else {
+    if (resetDoneCountdown <= 0) {
+      setForgotEmail("");
+      setForgotOtp(["", "", "", "", "", ""]);
+      setNewPassword("");
+      setConfirmPassword("");
+      setResetError("");
+      setChoiceError("");
+      setForgotOtpError("");
+      setStep("login");
+      return;
+    }
+
+    const timer = setTimeout(() => setResetDoneCountdown((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [step, resetDoneCountdown]);
+
+  useEffect(() => {
+    const stored =
+      localStorage.getItem("user") || sessionStorage.getItem("user");
+
+    if (stored) {
+      try {
+        const user = JSON.parse(stored);
+        if (
+          user &&
+          user.role &&
+          user.sessionExpiry &&
+          Date.now() < user.sessionExpiry
+        ) {
+          setLoggedIn(true);
+          setUserRole(user.role);
+          // ← Add this
+          window.history.pushState({ loggedIn: true }, "");
+        } else {
+          localStorage.removeItem("user");
+          sessionStorage.removeItem("user");
+        }
+      } catch {
         localStorage.removeItem("user");
         sessionStorage.removeItem("user");
       }
-    } catch {
-      localStorage.removeItem("user");
-      sessionStorage.removeItem("user");
     }
-  }
-  setIsCheckingSession(false);
-}, []);
+    setIsCheckingSession(false);
+  }, []);
 
   // Keep the required three-second welcome splash.
   useEffect(() => {
@@ -344,34 +414,45 @@ useEffect(() => {
   // ── Login lockout from storage ──
   useEffect(() => {
     if (!email) return;
-    const storedLockout = localStorage.getItem(`loginLockout_${email.toLowerCase()}`);
-    const storedAttempts = localStorage.getItem(`loginAttempts_${email.toLowerCase()}`);
-    const storedLevel = localStorage.getItem(`lockoutLevel_${email.toLowerCase()}`);
+    const storedLockout = localStorage.getItem(
+      `loginLockout_${email.toLowerCase()}`,
+    );
+    const storedAttempts = localStorage.getItem(
+      `loginAttempts_${email.toLowerCase()}`,
+    );
+    const storedLevel = localStorage.getItem(
+      `lockoutLevel_${email.toLowerCase()}`,
+    );
     if (storedLockout) {
       const lockTime = parseInt(storedLockout);
       if (Date.now() < lockTime) {
-        setIsLocked(true); setLockoutTime(lockTime);
-        setLoginAttempts(MAX_ATTEMPTS); setLockoutLevel(parseInt(storedLevel) || 0);
+        setIsLocked(true);
+        setLockoutTime(lockTime);
+        setLoginAttempts(MAX_ATTEMPTS);
+        setLockoutLevel(parseInt(storedLevel) || 0);
       } else {
         localStorage.removeItem(`loginLockout_${email.toLowerCase()}`);
         localStorage.removeItem(`loginAttempts_${email.toLowerCase()}`);
-        setIsLocked(false); setLoginAttempts(0);
+        setIsLocked(false);
+        setLoginAttempts(0);
       }
     } else if (storedAttempts) {
       setLoginAttempts(parseInt(storedAttempts));
       setLockoutLevel(parseInt(storedLevel) || 0);
     } else {
-      setLoginAttempts(0); setIsLocked(false);
+      setLoginAttempts(0);
+      setIsLocked(false);
       setLockoutLevel(parseInt(storedLevel) || 0);
     }
   }, [email]);
-
 
   useEffect(() => {
     if (!isLocked || !lockoutTime || !email) return;
     const interval = setInterval(() => {
       if (Date.now() >= lockoutTime) {
-        setIsLocked(false); setLockoutTime(null); setLoginAttempts(0);
+        setIsLocked(false);
+        setLockoutTime(null);
+        setLoginAttempts(0);
         localStorage.removeItem(`loginLockout_${email.toLowerCase()}`);
         localStorage.removeItem(`loginAttempts_${email.toLowerCase()}`);
         setAuthError("");
@@ -385,10 +466,17 @@ useEffect(() => {
     if (!otpLockedUntil) return;
     const interval = setInterval(() => {
       const r = otpLockedUntil - Date.now();
-      if (r <= 0) { setOtpLockedUntil(null); setOtpAttempts(0); setOtpLockRemaining(""); }
-      else {
-        const h = Math.floor(r / 3600000), m = Math.floor((r % 3600000) / 60000), s = Math.floor((r % 60000) / 1000);
-        setOtpLockRemaining(`${h > 0 ? h + "h " : ""}${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`);
+      if (r <= 0) {
+        setOtpLockedUntil(null);
+        setOtpAttempts(0);
+        setOtpLockRemaining("");
+      } else {
+        const h = Math.floor(r / 3600000),
+          m = Math.floor((r % 3600000) / 60000),
+          s = Math.floor((r % 60000) / 1000);
+        setOtpLockRemaining(
+          `${h > 0 ? h + "h " : ""}${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`,
+        );
       }
     }, 1000);
     return () => clearInterval(interval);
@@ -399,10 +487,17 @@ useEffect(() => {
     if (!forgotOtpLockedUntil) return;
     const interval = setInterval(() => {
       const r = forgotOtpLockedUntil - Date.now();
-      if (r <= 0) { setForgotOtpLockedUntil(null); setForgotOtpAttempts(0); setForgotOtpLockRemaining(""); }
-      else {
-        const h = Math.floor(r / 3600000), m = Math.floor((r % 3600000) / 60000), s = Math.floor((r % 60000) / 1000);
-        setForgotOtpLockRemaining(`${h > 0 ? h + "h " : ""}${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`);
+      if (r <= 0) {
+        setForgotOtpLockedUntil(null);
+        setForgotOtpAttempts(0);
+        setForgotOtpLockRemaining("");
+      } else {
+        const h = Math.floor(r / 3600000),
+          m = Math.floor((r % 3600000) / 60000),
+          s = Math.floor((r % 60000) / 1000);
+        setForgotOtpLockRemaining(
+          `${h > 0 ? h + "h " : ""}${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`,
+        );
       }
     }, 1000);
     return () => clearInterval(interval);
@@ -411,7 +506,13 @@ useEffect(() => {
   useEffect(() => {
     if (!resendDisabled || resendTimer <= 0) return;
     const interval = setInterval(() => {
-      setResendTimer((p) => { if (p <= 1) { setResendDisabled(false); return 0; } return p - 1; });
+      setResendTimer((p) => {
+        if (p <= 1) {
+          setResendDisabled(false);
+          return 0;
+        }
+        return p - 1;
+      });
     }, 1000);
     return () => clearInterval(interval);
   }, [resendDisabled, resendTimer]);
@@ -426,22 +527,29 @@ useEffect(() => {
   const handleOtpChange = (index, value, arr, setArr, refs) => {
     if (!/^\d*$/.test(value)) return;
     const digit = value.slice(-1);
-    const n = [...arr]; 
-    n[index] = value.slice(-1); 
+    const n = [...arr];
+    n[index] = value.slice(-1);
     setArr(n);
-    if (digit && index < 5) refs.current[index + 1]?.focus(); 
+    if (digit && index < 5) refs.current[index + 1]?.focus();
   };
   const handleOtpKeyDown = (index, e, arr, setArr, refs) => {
-    if (e.key === "Backspace" && !arr[index] && index > 0) refs.current[index - 1]?.focus();
+    if (e.key === "Backspace" && !arr[index] && index > 0)
+      refs.current[index - 1]?.focus();
     if (e.key === "ArrowLeft" && index > 0) refs.current[index - 1]?.focus();
     if (e.key === "ArrowRight" && index < 5) refs.current[index + 1]?.focus();
   };
   const handleOtpPaste = (e, setArr, refs) => {
     e.preventDefault();
     const p = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    if (p.length === 6) { setArr(p.split("")); refs.current[5]?.focus(); }
+    if (p.length === 6) {
+      setArr(p.split(""));
+      refs.current[5]?.focus();
+    }
   };
-  const preventCopyPaste = (e) => { e.preventDefault(); return false; };
+  const preventCopyPaste = (e) => {
+    e.preventDefault();
+    return false;
+  };
 
   const validatePasswordStrength = (pw) => {
     const errs = [];
@@ -449,41 +557,55 @@ useEffect(() => {
     if (!/[A-Z]/.test(pw)) errs.push("uppercase");
     if (!/[a-z]/.test(pw)) errs.push("lowercase");
     if (!/\d/.test(pw)) errs.push("number");
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw)) errs.push("specialChar");
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw))
+      errs.push("specialChar");
     return { isValid: errs.length === 0, errors: errs };
   };
 
   const login = async () => {
-  if (loginInFlight.current || loading) return;
-  if (isLocked) { setAuthError(`Account locked. Try again in ${getRemainingLockoutTime()}`); return; }
-  setAuthError(""); setOtpError("");
-  const newErrors = {};
-  if (!email.trim()) newErrors.email = "Email is required";
-  if (!password) newErrors.password = "Password is required";
-  if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
+    if (loginInFlight.current || loading) return;
+    if (isLocked) {
+      setAuthError(`Account locked. Try again in ${getRemainingLockoutTime()}`);
+      return;
+    }
+    setAuthError("");
+    setOtpError("");
+    const newErrors = {};
+    if (!email.trim()) newErrors.email = "Email is required";
+    if (!password) newErrors.password = "Password is required";
+    if (Object.keys(newErrors).length) {
+      setErrors(newErrors);
+      return;
+    }
 
-  loginInFlight.current = true;
-  setErrors({});
-  setLoading("login");
-  try {
-    const locationCoords = await prepareLocation();
-    setCoords(locationCoords);
+    loginInFlight.current = true;
+    setErrors({});
+    setLoading("login");
+    try {
+      const locationCoords = await prepareLocation();
+      setCoords(locationCoords);
 
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Client": "web", "X-Device-ID": getOrCreateLocalDeviceId() },
-      body: JSON.stringify({
-        email: email.trim(),
-        password,
-        latitude: locationCoords?.latitude ?? null,
-        longitude: locationCoords?.longitude ?? null,
-      }),
-      credentials: "include",
-    });
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Client": "web",
+          "X-Device-ID": getOrCreateLocalDeviceId(),
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          latitude: locationCoords?.latitude ?? null,
+          longitude: locationCoords?.longitude ?? null,
+        }),
+        credentials: "include",
+      });
       const data = await res.json();
       if (!res.ok) {
         if (res.status >= 500 || res.status === 429) {
-          setAuthError(data.message || "The server is busy. Please try again shortly.");
+          setAuthError(
+            data.message || "The server is busy. Please try again shortly.",
+          );
         } else {
           incrementAttempts();
         }
@@ -497,28 +619,43 @@ useEffect(() => {
 
         sessionStorage.setItem("tempUser", JSON.stringify(data.user));
 
-          if (data.skipOtp) {
-            const user = data.user;
-            rememberMe
-              ? localStorage.setItem("user", JSON.stringify({ ...user, sessionExpiry: Date.now() + 30*24*60*60*1000 }))
-              : sessionStorage.setItem("user", JSON.stringify({ ...user, sessionExpiry: Date.now() + 24*60*60*1000 }));
-            sessionStorage.removeItem("tempUser");
-            clearDashboardSessions();
-            setLoggedIn(true);
-            setUserRole(user.role);
-            return;
-          }
+        if (data.skipOtp) {
+          const user = data.user;
+          rememberMe
+            ? localStorage.setItem(
+                "user",
+                JSON.stringify({
+                  ...user,
+                  sessionExpiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+                }),
+              )
+            : sessionStorage.setItem(
+                "user",
+                JSON.stringify({
+                  ...user,
+                  sessionExpiry: Date.now() + 24 * 60 * 60 * 1000,
+                }),
+              );
+          sessionStorage.removeItem("tempUser");
+          clearDashboardSessions();
+          setLoggedIn(true);
+          setUserRole(user.role);
+          return;
+        }
 
-          await sendOtpSilent(email.trim());
-          setStep("otp");
-       } else {
-         setAuthError(data.message || "Unable to sign in. Please check your credentials.");
-       }
-    } catch { setAuthError("Connection error. Please try again."); 
-     } finally {
-    loginInFlight.current = false;
-    setLoading("");
-     }
+        await sendOtpSilent(email.trim());
+        setStep("otp");
+      } else {
+        setAuthError(
+          data.message || "Unable to sign in. Please check your credentials.",
+        );
+      }
+    } catch {
+      setAuthError("Connection error. Please try again.");
+    } finally {
+      loginInFlight.current = false;
+      setLoading("");
+    }
   };
 
   const incrementAttempts = () => {
@@ -528,334 +665,481 @@ useEffect(() => {
     if (n >= MAX_ATTEMPTS) {
       const lvl = Math.min(lockoutLevel, LOCKOUT_DURATIONS.length - 1);
       const lockTime = Date.now() + LOCKOUT_DURATIONS[lvl];
-      setIsLocked(true); setLockoutTime(lockTime);
-      localStorage.setItem(`loginLockout_${email.toLowerCase()}`, lockTime.toString());
+      setIsLocked(true);
+      setLockoutTime(lockTime);
+      localStorage.setItem(
+        `loginLockout_${email.toLowerCase()}`,
+        lockTime.toString(),
+      );
       const nextLvl = Math.min(lvl + 1, LOCKOUT_DURATIONS.length - 1);
-      localStorage.setItem(`lockoutLevel_${email.toLowerCase()}`, nextLvl.toString());
+      localStorage.setItem(
+        `lockoutLevel_${email.toLowerCase()}`,
+        nextLvl.toString(),
+      );
       setLockoutLevel(nextLvl);
       const mins = Math.floor(LOCKOUT_DURATIONS[lvl] / 60000);
-      setAuthError(`Too many failed attempts. Account locked for ${mins} minute${mins !== 1 ? "s" : ""}.`);
+      setAuthError(
+        `Too many failed attempts. Account locked for ${mins} minute${mins !== 1 ? "s" : ""}.`,
+      );
     } else {
       const rem = MAX_ATTEMPTS - n;
-      setAuthError(`Invalid credentials. ${rem} attempt${rem !== 1 ? "s" : ""} remaining.`);
+      setAuthError(
+        `Invalid credentials. ${rem} attempt${rem !== 1 ? "s" : ""} remaining.`,
+      );
     }
   };
   const sendOtpSilent = async (e, method = "email") => {
     try {
       const endpoint =
-        method === "sms"
-          ? "/send-login-sms-otp"
-          : "/send-otp-after-login";
+        method === "sms" ? "/send-login-sms-otp" : "/send-otp-after-login";
 
-    const res = await fetch(`${process.env.REACT_APP_API_URL}${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: e }),
-      credentials: "include",
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      setOtpError(data.message || "Failed to send OTP");
-      return;
-    }
-
-    if (method === "sms" && data.maskedPhone) {
-      setMaskedOtpPhone(data.maskedPhone);
-    }
-
-    setOtpMethod(method);
-  } catch {
-    setOtpError("Failed to send OTP. Try again.");
-  }
-};
-
-const verifyOtp = async (overrideVal) => {
-  if (otpInFlight.current || loading) return;
-  setOtpError("");
-  if (otpLockedUntil && Date.now() < otpLockedUntil) {
-    setOtpError(`Too many attempts. Try again in ${otpLockRemaining}.`);
-    return;
-  }
-  const val = overrideVal || otp.join(""); 
-  if (val.length !== 6) { setOtpError("Please enter a valid 6-digit OTP"); return; }
-
-  otpInFlight.current = true;
-  setLoading("otp");
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-otp-login`, {
-      method: "POST", headers: { "Content-Type": "application/json", "X-Device-ID": getOrCreateLocalDeviceId() },
-      body: JSON.stringify({ email: otpEmail.trim(), otp: val, trustDevice: !!trustDevice, latitude: coords?.latitude || null, longitude: coords?.longitude || null }),
-      credentials: "include",
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      const n = otpAttempts + 1; setOtpAttempts(n);
-      if (n >= OTP_MAX_ATTEMPTS) {
-        setOtpLockedUntil(Date.now() + OTP_LOCKOUT_DURATION);
-        setOtpError("Maximum OTP attempts reached. You are locked out for 2 hours.");
-      } else {
-        setOtpError(`Invalid OTP. ${OTP_MAX_ATTEMPTS - n} attempt(s) remaining.`);
-      }
-      return;
-    }
-
-    setOtpAttempts(0); setOtpLockedUntil(null);
-    const user = data.user;
-
-     if (rememberMe) {
-        localStorage.setItem("user", JSON.stringify({
-          ...user,
-          sessionExpiry: Date.now() + 30 * 24 * 60 * 60 * 1000
-        }));
-      } else {
-        sessionStorage.setItem("user", JSON.stringify({
-          ...user,
-          sessionExpiry: Date.now() + 24 * 60 * 60 * 1000
-        }));
-      }
-        sessionStorage.removeItem("tempUser");
-        clearDashboardSessions();
-        setLoggedIn(true); 
-        setUserRole(user.role);
-      } catch { setOtpError("OTP verification failed"); 
-      } finally { otpInFlight.current = false; setLoading(""); }
-    };
-
-
- const handleForgotPasswordOpen = async () => {
-  setChoiceError("");
-  setForgotEmail(email.trim());
-  setMaskedPhone("your registered number");
-  setStep("forgotPassword");
-
-  if (email.trim()) {
-    setIsFetchingPhone(true);
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/get-contact-number`, {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: e }),
         credentials: "include",
       });
+
       const data = await res.json();
-      if (res.ok && data.contact_number) {
-        const raw = data.contact_number.toString().replace(/\D/g, "");
-        setMaskedPhone("*".repeat(raw.length - 2) + raw.slice(-2));
+
+      if (!res.ok) {
+        setOtpError(data.message || "Failed to send OTP");
+        return;
       }
+
+      if (method === "sms" && data.maskedPhone) {
+        setMaskedOtpPhone(data.maskedPhone);
+      }
+
+      setOtpMethod(method);
     } catch {
-      /* no phone found — SMS option will be disabled */
-    } finally {
-      setIsFetchingPhone(false);
+      setOtpError("Failed to send OTP. Try again.");
     }
-  }
-};
+  };
+
+  const verifyOtp = async (overrideVal) => {
+    if (otpInFlight.current || loading) return;
+    setOtpError("");
+    if (otpLockedUntil && Date.now() < otpLockedUntil) {
+      setOtpError(`Too many attempts. Try again in ${otpLockRemaining}.`);
+      return;
+    }
+    const val = overrideVal || otp.join("");
+    if (val.length !== 6) {
+      setOtpError("Please enter a valid 6-digit OTP");
+      return;
+    }
+
+    otpInFlight.current = true;
+    setLoading("otp");
+    try {
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/verify-otp-login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Device-ID": getOrCreateLocalDeviceId(),
+          },
+          body: JSON.stringify({
+            email: otpEmail.trim(),
+            otp: val,
+            trustDevice: !!trustDevice,
+            latitude: coords?.latitude || null,
+            longitude: coords?.longitude || null,
+          }),
+          credentials: "include",
+        },
+      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        const n = otpAttempts + 1;
+        setOtpAttempts(n);
+        if (n >= OTP_MAX_ATTEMPTS) {
+          setOtpLockedUntil(Date.now() + OTP_LOCKOUT_DURATION);
+          setOtpError(
+            "Maximum OTP attempts reached. You are locked out for 2 hours.",
+          );
+        } else {
+          setOtpError(
+            `Invalid OTP. ${OTP_MAX_ATTEMPTS - n} attempt(s) remaining.`,
+          );
+        }
+        return;
+      }
+
+      setOtpAttempts(0);
+      setOtpLockedUntil(null);
+      const user = data.user;
+
+      if (rememberMe) {
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            ...user,
+            sessionExpiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+          }),
+        );
+      } else {
+        sessionStorage.setItem(
+          "user",
+          JSON.stringify({
+            ...user,
+            sessionExpiry: Date.now() + 24 * 60 * 60 * 1000,
+          }),
+        );
+      }
+      sessionStorage.removeItem("tempUser");
+      clearDashboardSessions();
+      setLoggedIn(true);
+      setUserRole(user.role);
+    } catch {
+      setOtpError("OTP verification failed");
+    } finally {
+      otpInFlight.current = false;
+      setLoading("");
+    }
+  };
+
+  const handleForgotPasswordOpen = async () => {
+    setChoiceError("");
+    setForgotEmail(email.trim());
+    setMaskedPhone("your registered number");
+    setStep("forgotPassword");
+
+    if (email.trim()) {
+      setIsFetchingPhone(true);
+      try {
+        const res = await fetch(
+          `${process.env.REACT_APP_API_URL}/get-contact-number`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email.trim() }),
+            credentials: "include",
+          },
+        );
+        const data = await res.json();
+        if (res.ok && data.contact_number) {
+          const raw = data.contact_number.toString().replace(/\D/g, "");
+          setMaskedPhone("*".repeat(raw.length - 2) + raw.slice(-2));
+        }
+      } catch {
+        /* no phone found — SMS option will be disabled */
+      } finally {
+        setIsFetchingPhone(false);
+      }
+    }
+  };
 
   const handleChooseEmail = async () => {
     setChoiceError("");
     if (forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil) {
-      setChoiceError(`You are currently locked out. Try again in ${forgotOtpLockRemaining}.`); return;
+      setChoiceError(
+        `You are currently locked out. Try again in ${forgotOtpLockRemaining}.`,
+      );
+      return;
     }
-    
+
     setLoading("choiceEmail");
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/send-forgot-password-otp`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: forgotEmail.trim() }), credentials: "include",
-      });
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/send-forgot-password-otp`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: forgotEmail.trim() }),
+          credentials: "include",
+        },
+      );
       const data = await res.json();
-      if (!res.ok) { setChoiceError(data.message || "Failed to send OTP"); return; }
+      if (!res.ok) {
+        setChoiceError(data.message || "Failed to send OTP");
+        return;
+      }
       setForgotOtpMethod("email");
       setForgotOtp(["", "", "", "", "", ""]);
       setForgotOtpError("");
       setResendDisabled(false);
       setStep("forgotEmailOtp");
-    } catch { setChoiceError("Failed to send OTP. Please try again."); }
-    finally { setLoading(""); }
+    } catch {
+      setChoiceError("Failed to send OTP. Please try again.");
+    } finally {
+      setLoading("");
+    }
   };
 
   const handleChooseSms = async () => {
     setChoiceError("");
     if (forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil) {
-      setChoiceError(`You are currently locked out. Try again in ${forgotOtpLockRemaining}.`); return;
+      setChoiceError(
+        `You are currently locked out. Try again in ${forgotOtpLockRemaining}.`,
+      );
+      return;
     }
 
     setLoading("choiceSms");
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/send-login-sms-otp`, { // ← change this
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: forgotEmail.trim() }), credentials: "include",
-      });
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/send-login-sms-otp`,
+        {
+          // ← change this
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: forgotEmail.trim() }),
+          credentials: "include",
+        },
+      );
       const data = await res.json();
-      if (!res.ok) { setChoiceError(data.message || "Failed to send SMS OTP"); return; }
+      if (!res.ok) {
+        setChoiceError(data.message || "Failed to send SMS OTP");
+        return;
+      }
       setForgotOtpMethod("sms");
       setForgotOtp(["", "", "", "", "", ""]);
       setForgotOtpError("");
       setResendDisabled(false);
       setStep("forgotSmsOtp");
-    } catch { setChoiceError("Failed to send SMS OTP. Please try again."); }
-    finally { setLoading(""); }
+    } catch {
+      setChoiceError("Failed to send SMS OTP. Please try again.");
+    } finally {
+      setLoading("");
+    }
   };
-  
-const verifyForgotEmailOtp = async (overrideVal) => {
-  setForgotOtpError("");
-  if (forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil) {
-    setForgotOtpError(`Too many attempts. Try again in ${forgotOtpLockRemaining}.`); return;
-  }
-  const val = overrideVal || forgotOtp.join("");   // ← use passed value if provided
-  if (val.length !== 6) { setForgotOtpError("Please enter a valid 6-digit OTP"); return; }
 
-  setLoading("forgotOtp");
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-otp-login`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: forgotEmail.trim(), otp: val, purpose: "reset" }),
-      credentials: "include",
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      const n = forgotOtpAttempts + 1; setForgotOtpAttempts(n);
-      if (n >= OTP_MAX_ATTEMPTS) {
-        setForgotOtpLockedUntil(Date.now() + OTP_LOCKOUT_DURATION);
-        setForgotOtpError("Maximum OTP attempts reached. Locked out for 2 hours.");
-      } else {
-        setForgotOtpError(`Invalid OTP. ${OTP_MAX_ATTEMPTS - n} attempt(s) remaining.`);
+  const verifyForgotEmailOtp = async (overrideVal) => {
+    setForgotOtpError("");
+    if (forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil) {
+      setForgotOtpError(
+        `Too many attempts. Try again in ${forgotOtpLockRemaining}.`,
+      );
+      return;
+    }
+    const val = overrideVal || forgotOtp.join(""); // ← use passed value if provided
+    if (val.length !== 6) {
+      setForgotOtpError("Please enter a valid 6-digit OTP");
+      return;
+    }
+
+    setLoading("forgotOtp");
+    try {
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/verify-otp-login`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: forgotEmail.trim(),
+            otp: val,
+            purpose: "reset",
+          }),
+          credentials: "include",
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        const n = forgotOtpAttempts + 1;
+        setForgotOtpAttempts(n);
+        if (n >= OTP_MAX_ATTEMPTS) {
+          setForgotOtpLockedUntil(Date.now() + OTP_LOCKOUT_DURATION);
+          setForgotOtpError(
+            "Maximum OTP attempts reached. Locked out for 2 hours.",
+          );
+        } else {
+          setForgotOtpError(
+            `Invalid OTP. ${OTP_MAX_ATTEMPTS - n} attempt(s) remaining.`,
+          );
+        }
+        return;
       }
-      return;
+      setResetToken(data.resetToken || "");
+      setForgotOtpAttempts(0);
+      setForgotOtpLockedUntil(null);
+      setResetError("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowPasswordValidation(false);
+      setPasswordErrors([]);
+      setStep("forgotReset");
+    } catch {
+      setForgotOtpError("Verification failed. Please try again.");
+    } finally {
+      setLoading("");
     }
-    setResetToken(data.resetToken || "");
-    setForgotOtpAttempts(0); setForgotOtpLockedUntil(null);
-    setResetError(""); setNewPassword(""); setConfirmPassword("");
-    setShowPasswordValidation(false); setPasswordErrors([]);
-    setStep("forgotReset");
-  } catch { setForgotOtpError("Verification failed. Please try again."); }
-  finally { setLoading(""); }
-};
+  };
 
-const handleSwitchToSmsOtp = async () => {
-  setOtpError("");
-
-  if (otpLockedUntil && Date.now() < otpLockedUntil) {
-    setOtpError(`You are currently locked out. Try again in ${otpLockRemaining}.`);
-    return;
-  }
-
-  setLoading("sms");
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/send-login-sms-otp`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: otpEmail.trim() }),
-      credentials: "include",
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      setOtpError(data.message || "Failed to send SMS OTP");
-      return;
-    }
-
-    if (data.maskedPhone) setMaskedOtpPhone(data.maskedPhone);
-    setOtpMethod("sms");
-    setOtp(["", "", "", "", "", ""]);
+  const handleSwitchToSmsOtp = async () => {
     setOtpError("");
-    setResendDisabled(true);
-    setResendTimer(30);
-  } catch {
-    setOtpError("Failed to send SMS OTP. Please try again.");
-  } finally {
-    setLoading("");
-  }
-};
 
-const verifyForgotSmsOtp = async (overrideVal) => {
-  setForgotOtpError("");
-  if (forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil) {
-    setForgotOtpError(`Too many attempts. Try again in ${forgotOtpLockRemaining}.`); return;
-  }
-  const val = overrideVal || forgotOtp.join("");   // ← use passed value if provided
-  if (val.length !== 6) { setForgotOtpError("Please enter a valid 6-digit OTP"); return; }
-
-  setLoading("forgotOtp");
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-sms-otp`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: forgotEmail.trim(), otp: val, purpose: "reset" }),
-      credentials: "include",
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      const n = forgotOtpAttempts + 1; setForgotOtpAttempts(n);
-      if (n >= OTP_MAX_ATTEMPTS) {
-        setForgotOtpLockedUntil(Date.now() + OTP_LOCKOUT_DURATION);
-        setForgotOtpError("Maximum OTP attempts reached. Locked out for 2 hours.");
-      } else {
-        setForgotOtpError(`Invalid OTP. ${OTP_MAX_ATTEMPTS - n} attempt(s) remaining.`);
-      }
+    if (otpLockedUntil && Date.now() < otpLockedUntil) {
+      setOtpError(
+        `You are currently locked out. Try again in ${otpLockRemaining}.`,
+      );
       return;
     }
-    setResetToken(data.resetToken || "");   // ← store the token
-    setForgotOtpAttempts(0); setForgotOtpLockedUntil(null);
-    setResetError(""); setNewPassword(""); setConfirmPassword("");
-    setShowPasswordValidation(false); setPasswordErrors([]);
-    setStep("forgotReset");
-  } catch { setForgotOtpError("Verification failed. Please try again."); }
-  finally { setLoading(""); }
-};
 
-const resetPassword = async () => {
-  setResetError("");
-  if (!newPassword) { setResetError("Please enter a new password"); return; }
+    setLoading("sms");
+    try {
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/send-login-sms-otp`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: otpEmail.trim() }),
+          credentials: "include",
+        },
+      );
+      const data = await res.json();
 
-  const check = validatePasswordStrength(newPassword);
-  if (!check.isValid) {
-    const msgs = {
-      minLength: " at least 8 characters",
-      uppercase: " at least 1 uppercase letter",
-      lowercase: " at least 1 lowercase letter",
-      number: " at least 1 number",
-      specialChar: " at least 1 special character",
-    };
-    setResetError("Password must contain" + check.errors.map((e) => msgs[e]).join("\n"));
-    return;
-  }
-  if (newPassword === password) {
-    setResetError("New password must be different from your current password");
-    return;
-  }
-  if (newPassword !== confirmPassword) {
-    setResetError("Passwords do not match");
-    return;
-  }
+      if (!res.ok) {
+        setOtpError(data.message || "Failed to send SMS OTP");
+        return;
+      }
 
-  setLoading("reset");
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/reset-password`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: forgotEmail.trim(), newPassword, resetToken }),
-      credentials: "include",
-    });
-    const data = await res.json();
-    if (!res.ok) { setResetError(data.message || "Failed to reset password"); return; }
-    setResetToken("");
-    setStep("resetDone");
-  } catch {
-    setResetError("Failed to reset password. Please try again.");
-  } finally {
-    setLoading("");
-  }
-};
+      if (data.maskedPhone) setMaskedOtpPhone(data.maskedPhone);
+      setOtpMethod("sms");
+      setOtp(["", "", "", "", "", ""]);
+      setOtpError("");
+      setResendDisabled(true);
+      setResendTimer(30);
+    } catch {
+      setOtpError("Failed to send SMS OTP. Please try again.");
+    } finally {
+      setLoading("");
+    }
+  };
+
+  const verifyForgotSmsOtp = async (overrideVal) => {
+    setForgotOtpError("");
+    if (forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil) {
+      setForgotOtpError(
+        `Too many attempts. Try again in ${forgotOtpLockRemaining}.`,
+      );
+      return;
+    }
+    const val = overrideVal || forgotOtp.join(""); // ← use passed value if provided
+    if (val.length !== 6) {
+      setForgotOtpError("Please enter a valid 6-digit OTP");
+      return;
+    }
+
+    setLoading("forgotOtp");
+    try {
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/verify-sms-otp`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: forgotEmail.trim(),
+            otp: val,
+            purpose: "reset",
+          }),
+          credentials: "include",
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        const n = forgotOtpAttempts + 1;
+        setForgotOtpAttempts(n);
+        if (n >= OTP_MAX_ATTEMPTS) {
+          setForgotOtpLockedUntil(Date.now() + OTP_LOCKOUT_DURATION);
+          setForgotOtpError(
+            "Maximum OTP attempts reached. Locked out for 2 hours.",
+          );
+        } else {
+          setForgotOtpError(
+            `Invalid OTP. ${OTP_MAX_ATTEMPTS - n} attempt(s) remaining.`,
+          );
+        }
+        return;
+      }
+      setResetToken(data.resetToken || ""); // ← store the token
+      setForgotOtpAttempts(0);
+      setForgotOtpLockedUntil(null);
+      setResetError("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowPasswordValidation(false);
+      setPasswordErrors([]);
+      setStep("forgotReset");
+    } catch {
+      setForgotOtpError("Verification failed. Please try again.");
+    } finally {
+      setLoading("");
+    }
+  };
+
+  const resetPassword = async () => {
+    setResetError("");
+    if (!newPassword) {
+      setResetError("Please enter a new password");
+      return;
+    }
+
+    const check = validatePasswordStrength(newPassword);
+    if (!check.isValid) {
+      const msgs = {
+        minLength: " at least 8 characters",
+        uppercase: " at least 1 uppercase letter",
+        lowercase: " at least 1 lowercase letter",
+        number: " at least 1 number",
+        specialChar: " at least 1 special character",
+      };
+      setResetError(
+        "Password must contain" + check.errors.map((e) => msgs[e]).join("\n"),
+      );
+      return;
+    }
+    if (newPassword === password) {
+      setResetError(
+        "New password must be different from your current password",
+      );
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setResetError("Passwords do not match");
+      return;
+    }
+
+    setLoading("reset");
+    try {
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/reset-password`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: forgotEmail.trim(),
+            newPassword,
+            resetToken,
+          }),
+          credentials: "include",
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setResetError(data.message || "Failed to reset password");
+        return;
+      }
+      setResetToken("");
+      setStep("resetDone");
+    } catch {
+      setResetError("Failed to reset password. Please try again.");
+    } finally {
+      setLoading("");
+    }
+  };
 
   const getOrCreateLocalDeviceId = () => {
-  let deviceId = localStorage.getItem("device_id");
-  if (!deviceId) {
-    deviceId = crypto.randomUUID();
-    localStorage.setItem("device_id", deviceId);
-  }
-  return deviceId;
-};
+    let deviceId = localStorage.getItem("device_id");
+    if (!deviceId) {
+      deviceId = crypto.randomUUID();
+      localStorage.setItem("device_id", deviceId);
+    }
+    return deviceId;
+  };
 
   const handleLogout = async () => {
     if (!window.confirm("Are you sure you want to logout?")) return;
@@ -873,7 +1157,7 @@ const resetPassword = async () => {
     sessionStorage.removeItem("user");
     sessionStorage.removeItem("tempUser");
     window.history.replaceState(null, "", window.location.href);
-    navigate("/"); 
+    navigate("/");
     setLoggedIn(false);
     setUserRole(null);
     setEmail("");
@@ -891,46 +1175,55 @@ const resetPassword = async () => {
     return -1;
   };
 
-  if (isCheckingSession) return (
-    <div className="splash" role="status" aria-label="Checking session">
-      <img src={logo} alt="iFranchise" className="splash-logo" />
-      <style>{styles(welcome)}</style>
-    </div>
-  );
+  if (isCheckingSession)
+    return (
+      <div className="splash" role="status" aria-label="Checking session">
+        <img src={logo} alt="iFranchise" className="splash-logo" />
+        <style>{styles(welcome)}</style>
+      </div>
+    );
 
   if (loggedIn && userRole) {
-  switch (userRole) {
-    case "Super Admin": return <AdminDashboard onLogout={handleLogout} />;
-    case "Franchisee Operations Admin": return <FranchiseAdminDashboard onLogout={handleLogout} />;
-    case "Sales Admin":     return <SalesAdmin onLogout={handleLogout} />;
-    case "Franchisee":    return <FranchiseeDashboard onLogout={handleLogout} />;
-    case "Manager":       return <ManagerDashboard onLogout={handleLogout} />;
-    case "Staff":         return <StaffDashboard onLogout={handleLogout} />;
-    default:
-      return (
-        <UnknownRoleScreen
-          userRole={userRole}
-          onBackToLogin={() => {
-            localStorage.removeItem("rememberedUser");
-            localStorage.removeItem("user");
-            sessionStorage.removeItem("user");
-            setLoggedIn(false);
-            setUserRole(null);
-          }}
-        />
-      );
+    switch (userRole) {
+      case "Super Admin":
+        return <AdminDashboard onLogout={handleLogout} />;
+      case "Franchisee Operations Admin":
+        return <FranchiseAdminDashboard onLogout={handleLogout} />;
+      case "Sales Admin":
+        return <SalesAdmin onLogout={handleLogout} />;
+      case "Franchisee":
+        return <FranchiseeDashboard onLogout={handleLogout} />;
+      case "Manager":
+        return <ManagerDashboard onLogout={handleLogout} />;
+      case "Staff":
+        return <StaffDashboard onLogout={handleLogout} />;
+      default:
+        return (
+          <UnknownRoleScreen
+            userRole={userRole}
+            onBackToLogin={() => {
+              localStorage.removeItem("rememberedUser");
+              localStorage.removeItem("user");
+              sessionStorage.removeItem("user");
+              setLoggedIn(false);
+              setUserRole(null);
+            }}
+          />
+        );
+    }
   }
-}
 
-  if (showSplash) return (
-    <div className="splash">
-      <img src={logo} alt="iFranchise" className="splash-logo" />
-      <style>{styles(welcome)}</style>
-    </div>
-  );
+  if (showSplash)
+    return (
+      <div className="splash">
+        <img src={logo} alt="iFranchise" className="splash-logo" />
+        <style>{styles(welcome)}</style>
+      </div>
+    );
 
   const otpIsLocked = otpLockedUntil && Date.now() < otpLockedUntil;
-  const forgotOtpIsLocked = forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil;
+  const forgotOtpIsLocked =
+    forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil;
 
   // Reusable step bar for forgot password (4 steps)
   const ForgotStepBar = () => (
@@ -938,12 +1231,22 @@ const resetPassword = async () => {
       {["Method", "Verify", "Reset", "Done"].map((label, i) => (
         <React.Fragment key={label}>
           <div className="step-item">
-            <div className={`step-circle ${getForgotStepIndex() >= i ? "step-active" : ""} ${getForgotStepIndex() > i ? "step-done" : ""}`}>
+            <div
+              className={`step-circle ${getForgotStepIndex() >= i ? "step-active" : ""} ${getForgotStepIndex() > i ? "step-done" : ""}`}
+            >
               {getForgotStepIndex() > i ? "✓" : i + 1}
             </div>
-            <span className={`step-label ${getForgotStepIndex() >= i ? "step-label-active" : ""}`}>{label}</span>
+            <span
+              className={`step-label ${getForgotStepIndex() >= i ? "step-label-active" : ""}`}
+            >
+              {label}
+            </span>
           </div>
-          {i < 3 && <div className={`step-line ${getForgotStepIndex() > i ? "step-line-active" : ""}`} />}
+          {i < 3 && (
+            <div
+              className={`step-line ${getForgotStepIndex() > i ? "step-line-active" : ""}`}
+            />
+          )}
         </React.Fragment>
       ))}
     </div>
@@ -955,7 +1258,7 @@ const resetPassword = async () => {
       <div className="blob blob-a" />
       <div className="blob blob-b" />
 
-        {loading === "sms" && (
+      {loading === "sms" && (
         <>
           <style>{`
             @keyframes spin {
@@ -963,28 +1266,61 @@ const resetPassword = async () => {
               100% { transform: rotate(360deg); }
             }
           `}</style>
-          <div style={{
-            position: "fixed", inset: 0, background: "rgba(18,36,27,0.55)",
-            zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center",
-            backdropFilter: "blur(6px)"
-          }}>
-            <div style={{
-              background: "var(--white)", borderRadius: 24, padding: "40px 48px",
-              display: "flex", flexDirection: "column", alignItems: "center",
-              gap: 16, boxShadow: "0 24px 80px var(--shadow-strong)", minWidth: 260,
-              border: "1px solid var(--line)"
-            }}>
-              <div style={{
-                width: 56, height: 56,
-                border: "5px solid var(--pale)",
-                borderTop: "5px solid var(--green-900)",
-                borderRadius: "50%",
-                animation: "spin 0.9s linear infinite",
-              }} />
-              <p style={{ margin: 0, fontWeight: 700, fontSize: 16, color: "var(--green-900)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(18,36,27,0.55)",
+              zIndex: 9999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(6px)",
+            }}
+          >
+            <div
+              style={{
+                background: "var(--white)",
+                borderRadius: 24,
+                padding: "40px 48px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 16,
+                boxShadow: "0 24px 80px var(--shadow-strong)",
+                minWidth: 260,
+                border: "1px solid var(--line)",
+              }}
+            >
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  border: "5px solid var(--pale)",
+                  borderTop: "5px solid var(--green-900)",
+                  borderRadius: "50%",
+                  animation: "spin 0.9s linear infinite",
+                }}
+              />
+              <p
+                style={{
+                  margin: 0,
+                  fontWeight: 700,
+                  fontSize: 16,
+                  color: "var(--green-900)",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}
+              >
                 Sending SMS OTP...
               </p>
-              <p style={{ margin: 0, fontSize: 12, color: "var(--muted)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 12,
+                  color: "var(--muted)",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}
+              >
                 Please wait a moment
               </p>
             </div>
@@ -994,15 +1330,31 @@ const resetPassword = async () => {
 
       <img src={logo} alt="logo" className="logo" />
       <div className="card">
-
         {/* Back button */}
         {step !== "login" && step !== "resetDone" && (
-          <button type="button" className="back-btn" onClick={() => {
-            if (step === "otp") { setStep("login"); setOtp(["","","","","",""]); setOtpError(""); }
-            else if (step === "forgotPassword") { setStep("login"); setChoiceError(""); }
-            else if (step === "forgotEmailOtp" || step === "forgotSmsOtp") { setStep("forgotPassword"); setForgotOtp(["","","","","",""]); setForgotOtpError(""); }
-            else if (step === "forgotReset") { setStep(forgotOtpMethod === "sms" ? "forgotSmsOtp" : "forgotEmailOtp"); setResetError(""); }
-          }}>
+          <button
+            type="button"
+            className="back-btn"
+            onClick={() => {
+              if (step === "otp") {
+                setStep("login");
+                setOtp(["", "", "", "", "", ""]);
+                setOtpError("");
+              } else if (step === "forgotPassword") {
+                setStep("login");
+                setChoiceError("");
+              } else if (step === "forgotEmailOtp" || step === "forgotSmsOtp") {
+                setStep("forgotPassword");
+                setForgotOtp(["", "", "", "", "", ""]);
+                setForgotOtpError("");
+              } else if (step === "forgotReset") {
+                setStep(
+                  forgotOtpMethod === "sms" ? "forgotSmsOtp" : "forgotEmailOtp",
+                );
+                setResetError("");
+              }
+            }}
+          >
             ← Back
           </button>
         )}
@@ -1010,37 +1362,117 @@ const resetPassword = async () => {
         {/* ── LOGIN ── */}
         {step === "login" && (
           <>
-            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-             <button type="button" className="back-btn" disabled={!!loading} onClick={() => navigate("/")}>← Back</button>
+            <link
+              href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+              rel="stylesheet"
+            />
+            <button
+              type="button"
+              className="back-btn"
+              disabled={!!loading}
+              onClick={() => navigate("/")}
+            >
+              ← Back
+            </button>
             <span className="eyebrow">Welcome, Partner!</span>
             <h2 style={{ marginTop: 8 }}>LOGIN</h2>
             <p className="login-subtext">Enter your credentials below</p>
             {authError && <p className="error general">{authError}</p>}
             <div className="input-container">
-              <input type="email" name="email" aria-label="Email" autoComplete="username" autoCapitalize="none" spellCheck={false} onFocus={prepareLocation} disabled={!!loading} placeholder="Email" value={email}
-                onChange={(e) => { setEmail(e.target.value); setErrors({ ...errors, email: "" }); setAuthError(""); }}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); login(); } }} />
-              {errors.email && <span className="field-error">{errors.email}</span>}
+              <input
+                type="email"
+                name="email"
+                aria-label="Email"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                onFocus={prepareLocation}
+                disabled={!!loading}
+                placeholder="Email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setErrors({ ...errors, email: "" });
+                  setAuthError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    login();
+                  }
+                }}
+              />
+              {errors.email && (
+                <span className="field-error">{errors.email}</span>
+              )}
             </div>
             <div className="input-container">
               <div className="password-wrap">
-                <input type={showPassword ? "text" : "password"} placeholder="Password" name="password" aria-label="Password" autoComplete="current-password" onFocus={prepareLocation} disabled={!!loading} value={password}
-                  onChange={(e) => { setPassword(e.target.value); setErrors({ ...errors, password: "" }); setAuthError(""); }}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); login(); } }}
-                  className="password-input" />
-                <button type="button" className="eye-btn" onClick={() => setShowPassword(!showPassword)}>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  name="password"
+                  aria-label="Password"
+                  autoComplete="current-password"
+                  onFocus={prepareLocation}
+                  disabled={!!loading}
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setErrors({ ...errors, password: "" });
+                    setAuthError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      login();
+                    }
+                  }}
+                  className="password-input"
+                />
+                <button
+                  type="button"
+                  className="eye-btn"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-              {errors.password && <span className="field-error">{errors.password}</span>}
-              <button className="forgot-link" disabled={!!loading} onClick={handleForgotPasswordOpen}>Forgot Password?</button>
+              {errors.password && (
+                <span className="field-error">{errors.password}</span>
+              )}
+              <button
+                className="forgot-link"
+                disabled={!!loading}
+                onClick={handleForgotPasswordOpen}
+              >
+                Forgot Password?
+              </button>
             </div>
-            <button className="btn" onClick={login} disabled={!!loading || isLocked}>
-              {loading === "login" ? <><span className="sms-spinner" /> Logging in...</> : "LOGIN"}
+            <button
+              className="btn"
+              onClick={login}
+              disabled={!!loading || isLocked}
+            >
+              {loading === "login" ? (
+                <>
+                  <span className="sms-spinner" /> Logging in...
+                </>
+              ) : (
+                "LOGIN"
+              )}
             </button>
-            <aside className="survey-test-box" aria-label="Survey test credentials">
-              <strong className="survey-test-title">FOR TESTING PURPOSES ONLY:</strong>
-              <p className="survey-test-note">Default accounts for survey purposes only. Select an account to fill the fields, then click LOGIN.</p>
+            <aside
+              className="survey-test-box"
+              aria-label="Survey test credentials"
+            >
+              <strong className="survey-test-title">
+                FOR TESTING PURPOSES ONLY:
+              </strong>
+              <p className="survey-test-note">
+                Default accounts for survey purposes only. Select an account to
+                fill the fields, then click LOGIN.
+              </p>
               {TEST_ACCOUNTS.map((account) => (
                 <button
                   key={account.email}
@@ -1050,36 +1482,38 @@ const resetPassword = async () => {
                   onClick={() => fillTestAccount(account)}
                   aria-label={`Use ${account.email}`}
                 >
-                  <span>{account.email}</span>{" - "}<strong>{account.password}</strong>
+                  <span>{account.email}</span>
+                  {" - "}
+                  <strong>{account.password}</strong>
                 </button>
               ))}
             </aside>
           </>
         )}
 
-        {/* ── LOGIN OTP ── */} 
-      {step === "otp" && (
-        <>
-          <span className="eyebrow">Verification</span>
-          <h2 style={{ marginTop: 8 }}>
-            Verify OTP
-          </h2>
+        {/* ── LOGIN OTP ── */}
+        {step === "otp" && (
+          <>
+            <span className="eyebrow">Verification</span>
+            <h2 style={{ marginTop: 8 }}>Verify OTP</h2>
 
-          <p className="step-subtitle">
-            {otpMethod === "email" ? (
-              <>
-                A 6-digit code was sent to:{" "}
-                <strong style={{ color: "var(--green-900)" }}>{otpEmail}</strong>
-              </>
-            ) : (
-              <>
-                A 6-digit SMS OTP was sent to:{" "}
-                <strong style={{ color: "var(--green-900)" }}>
-                  {maskedOtpPhone || "your registered mobile number"}
-                </strong>
-              </>
-            )}
-          </p>
+            <p className="step-subtitle">
+              {otpMethod === "email" ? (
+                <>
+                  A 6-digit code was sent to:{" "}
+                  <strong style={{ color: "var(--green-900)" }}>
+                    {otpEmail}
+                  </strong>
+                </>
+              ) : (
+                <>
+                  A 6-digit SMS OTP was sent to:{" "}
+                  <strong style={{ color: "var(--green-900)" }}>
+                    {maskedOtpPhone || "your registered mobile number"}
+                  </strong>
+                </>
+              )}
+            </p>
 
             <OtpEntryBlock
               otpArr={otp}
@@ -1097,8 +1531,10 @@ const resetPassword = async () => {
               }
               resendBody={{ email: otpEmail }}
               verifyLabel="VERIFY OTP"
-              loading={loading} loadingKey="otp" resendKey="resend" 
-               handleOtpChange={handleOtpChange}
+              loading={loading}
+              loadingKey="otp"
+              resendKey="resend"
+              handleOtpChange={handleOtpChange}
               handleOtpKeyDown={handleOtpKeyDown}
               handleOtpPaste={handleOtpPaste}
               setResendDisabled={setResendDisabled}
@@ -1107,43 +1543,55 @@ const resetPassword = async () => {
               resendDisabled={resendDisabled}
               resendTimer={resendTimer}
               OTP_MAX_ATTEMPTS={OTP_MAX_ATTEMPTS}
-
               trustDeviceCheckbox={
-                <div style={{ textAlign:"left", marginBottom:12 }}>
-                  <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:"var(--muted)", cursor:"pointer" }}>
+                <div style={{ textAlign: "left", marginBottom: 12 }}>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontSize: 12,
+                      color: "var(--muted)",
+                      cursor: "pointer",
+                    }}
+                  >
                     <input
                       type="checkbox"
                       checked={trustDevice}
                       onChange={(e) => setTrustDevice(e.target.checked)}
-                      style={{ accentColor:"var(--green-900)", width:15, height:15, flexShrink:0 }}
+                      style={{
+                        accentColor: "var(--green-900)",
+                        width: 15,
+                        height: 15,
+                        flexShrink: 0,
+                      }}
                     />
                     Don't ask again on this device for 30 days
                   </label>
                 </div>
               }
-
-               extraButton={
-                  otpMethod === "email" ? (
-                    <button
-                      type="button"
-                      className="switch-method-link"
-                      onClick={handleSwitchToSmsOtp}
-                      disabled={!!loading}
-                    >
-                      Use SMS instead
-                    </button>
-                  ) : null
-                }
+              extraButton={
+                otpMethod === "email" ? (
+                  <button
+                    type="button"
+                    className="switch-method-link"
+                    onClick={handleSwitchToSmsOtp}
+                    disabled={!!loading}
+                  >
+                    Use SMS instead
+                  </button>
+                ) : null
+              }
             />
-      
-            {loading === "sms" &&(
-            <div className="sms-loading-overlay">
-              <div className="sms-loading-box">
-                <div className="sms-spinner-large" />
-                <p className="sms-loading-text">Sending SMS OTP...</p>
-                <p className="sms-loading-sub">Please wait a moment</p>
+
+            {loading === "sms" && (
+              <div className="sms-loading-overlay">
+                <div className="sms-loading-box">
+                  <div className="sms-spinner-large" />
+                  <p className="sms-loading-text">Sending SMS OTP...</p>
+                  <p className="sms-loading-sub">Please wait a moment</p>
+                </div>
               </div>
-            </div>
             )}
           </>
         )}
@@ -1152,35 +1600,58 @@ const resetPassword = async () => {
           <>
             <ForgotStepBar />
             <h2 style={{ fontSize: "21px", marginTop: 12 }}>Reset Password</h2>
-            <p className="step-subtitle">Choose how you would like to receive your OTP.</p>
+            <p className="step-subtitle">
+              Choose how you would like to receive your OTP.
+            </p>
 
             {forgotOtpIsLocked && (
               <div className="error general locked-banner">
-                Account locked due to too many attempts. Try again in <strong>{forgotOtpLockRemaining}</strong>.
+                Account locked due to too many attempts. Try again in{" "}
+                <strong>{forgotOtpLockRemaining}</strong>.
               </div>
             )}
-            {choiceError && !forgotOtpIsLocked && <p className="error general">{choiceError}</p>}
+            {choiceError && !forgotOtpIsLocked && (
+              <p className="error general">{choiceError}</p>
+            )}
 
             <button
               className={`method-btn ${forgotOtpIsLocked ? "btn-disabled" : ""}`}
               onClick={!forgotOtpIsLocked ? handleChooseEmail : undefined}
-              disabled={!!forgotOtpIsLocked || !!loading}>
+              disabled={!!forgotOtpIsLocked || !!loading}
+            >
               <div className="method-btn-title">
-                {loading === "choiceEmail" ? <><span className="sms-spinner" /> Sending...</> : "Send via Email"}
+                {loading === "choiceEmail" ? (
+                  <>
+                    <span className="sms-spinner" /> Sending...
+                  </>
+                ) : (
+                  "Send via Email"
+                )}
               </div>
-              <div className="method-btn-sub">{forgotEmail || "your registered email"}</div>
+              <div className="method-btn-sub">
+                {forgotEmail || "your registered email"}
+              </div>
             </button>
 
-          <button
-            className={`method-btn ${forgotOtpIsLocked || loading ? "btn-disabled" : ""}`}
-            onClick={!forgotOtpIsLocked && !loading ? handleChooseSms : undefined}
-            disabled={!!forgotOtpIsLocked || !!loading}
-            style={{ marginTop: 12 }}>
-            <div className="method-btn-title">
-              {loading === "choiceSms" ? <><span className="sms-spinner" /> Sending...</> : "Send via SMS"}
-            </div>
-            <div className="method-btn-sub">your registered number</div>
-          </button>
+            <button
+              className={`method-btn ${forgotOtpIsLocked || loading ? "btn-disabled" : ""}`}
+              onClick={
+                !forgotOtpIsLocked && !loading ? handleChooseSms : undefined
+              }
+              disabled={!!forgotOtpIsLocked || !!loading}
+              style={{ marginTop: 12 }}
+            >
+              <div className="method-btn-title">
+                {loading === "choiceSms" ? (
+                  <>
+                    <span className="sms-spinner" /> Sending...
+                  </>
+                ) : (
+                  "Send via SMS"
+                )}
+              </div>
+              <div className="method-btn-sub">your registered number</div>
+            </button>
           </>
         )}
 
@@ -1189,15 +1660,27 @@ const resetPassword = async () => {
           <>
             <ForgotStepBar />
             <h2>Verify OTP</h2>
-            <p className="step-subtitle">A 6-digit code was sent to: <strong style={{ color: "var(--green-900)" }}>{forgotEmail}</strong></p>
+            <p className="step-subtitle">
+              A 6-digit code was sent to:{" "}
+              <strong style={{ color: "var(--green-900)" }}>
+                {forgotEmail}
+              </strong>
+            </p>
             <OtpEntryBlock
-              otpArr={forgotOtp} setOtpArr={setForgotOtp} refs={forgotOtpRefs}
-              isLocked={forgotOtpIsLocked} lockRemaining={forgotOtpLockRemaining}
-              error={forgotOtpError} attempts={forgotOtpAttempts}
-              onVerify={verifyForgotEmailOtp} 
-              resendEndpoint="/send-forgot-password-otp" resendBody={{ email: forgotEmail }}
-              loading={loading} loadingKey="forgotOtp" resendKey="resend" 
-               handleOtpChange={handleOtpChange}
+              otpArr={forgotOtp}
+              setOtpArr={setForgotOtp}
+              refs={forgotOtpRefs}
+              isLocked={forgotOtpIsLocked}
+              lockRemaining={forgotOtpLockRemaining}
+              error={forgotOtpError}
+              attempts={forgotOtpAttempts}
+              onVerify={verifyForgotEmailOtp}
+              resendEndpoint="/send-forgot-password-otp"
+              resendBody={{ email: forgotEmail }}
+              loading={loading}
+              loadingKey="forgotOtp"
+              resendKey="resend"
+              handleOtpChange={handleOtpChange}
               handleOtpKeyDown={handleOtpKeyDown}
               handleOtpPaste={handleOtpPaste}
               setResendDisabled={setResendDisabled}
@@ -1215,15 +1698,26 @@ const resetPassword = async () => {
           <>
             <ForgotStepBar />
             <h2>Verify OTP</h2>
-            <p className="step-subtitle">A 6-digit code was sent to: <strong style={{ color: "var(--green-900)" }}>{maskedPhone}</strong></p>
+            <p className="step-subtitle">
+              A 6-digit code was sent to:{" "}
+              <strong style={{ color: "var(--green-900)" }}>
+                {maskedPhone}
+              </strong>
+            </p>
             <OtpEntryBlock
-              otpArr={forgotOtp} setOtpArr={setForgotOtp} refs={forgotOtpRefs}
-              isLocked={forgotOtpIsLocked} lockRemaining={forgotOtpLockRemaining}
-              error={forgotOtpError} attempts={forgotOtpAttempts}
-              onVerify={verifyForgotSmsOtp}  
-              resendEndpoint="/send-sms-otp" 
+              otpArr={forgotOtp}
+              setOtpArr={setForgotOtp}
+              refs={forgotOtpRefs}
+              isLocked={forgotOtpIsLocked}
+              lockRemaining={forgotOtpLockRemaining}
+              error={forgotOtpError}
+              attempts={forgotOtpAttempts}
+              onVerify={verifyForgotSmsOtp}
+              resendEndpoint="/send-sms-otp"
               resendBody={{ email: forgotEmail }}
-              loading={loading} loadingKey="forgotOtp" resendKey="resend"
+              loading={loading}
+              loadingKey="forgotOtp"
+              resendKey="resend"
               handleOtpChange={handleOtpChange}
               handleOtpKeyDown={handleOtpKeyDown}
               handleOtpPaste={handleOtpPaste}
@@ -1242,34 +1736,71 @@ const resetPassword = async () => {
           <>
             <ForgotStepBar />
             <h2>New Password</h2>
-            <p className="step-subtitle">Enter and confirm your new password below.</p>
-            {resetError && <p className="error general" style={{ whiteSpace: "pre-line" }}>{resetError}</p>}
+            <p className="step-subtitle">
+              Enter and confirm your new password below.
+            </p>
+            {resetError && (
+              <p className="error general" style={{ whiteSpace: "pre-line" }}>
+                {resetError}
+              </p>
+            )}
 
             <div className="input-container">
               <div className="password-wrap">
-                <input type={showNewPassword ? "text" : "password"} placeholder="New Password" value={newPassword}
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  placeholder="New Password"
+                  value={newPassword}
                   onChange={(e) => {
-                    const v = e.target.value; setNewPassword(v); setResetError("");
-                    if (v) { setShowPasswordValidation(true); setPasswordErrors(validatePasswordStrength(v).errors); }
-                    else { setShowPasswordValidation(false); setPasswordErrors([]); }
+                    const v = e.target.value;
+                    setNewPassword(v);
+                    setResetError("");
+                    if (v) {
+                      setShowPasswordValidation(true);
+                      setPasswordErrors(validatePasswordStrength(v).errors);
+                    } else {
+                      setShowPasswordValidation(false);
+                      setPasswordErrors([]);
+                    }
                   }}
-                  onCopy={preventCopyPaste} onPaste={preventCopyPaste} onCut={preventCopyPaste}
-                  className="password-input" />
-                <button type="button" className="eye-btn" onClick={() => setShowNewPassword(!showNewPassword)}>
+                  onCopy={preventCopyPaste}
+                  onPaste={preventCopyPaste}
+                  onCut={preventCopyPaste}
+                  className="password-input"
+                />
+                <button
+                  type="button"
+                  className="eye-btn"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                >
                   {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
               {showPasswordValidation && (
                 <div className="pw-checklist">
-                  <div className="pw-checklist-title">Password must contain:</div>
+                  <div className="pw-checklist-title">
+                    Password must contain:
+                  </div>
                   {[
-                    { key: "minLength",   label: "At least 8 characters" },
-                    { key: "uppercase",   label: "At least one uppercase letter (A-Z)" },
-                    { key: "lowercase",   label: "At least one lowercase letter (a-z)" },
-                    { key: "number",      label: "At least one number (0-9)" },
-                    { key: "specialChar", label: "At least one special character (!@#$%^&*...)" },
+                    { key: "minLength", label: "At least 8 characters" },
+                    {
+                      key: "uppercase",
+                      label: "At least one uppercase letter (A-Z)",
+                    },
+                    {
+                      key: "lowercase",
+                      label: "At least one lowercase letter (a-z)",
+                    },
+                    { key: "number", label: "At least one number (0-9)" },
+                    {
+                      key: "specialChar",
+                      label: "At least one special character (!@#$%^&*...)",
+                    },
                   ].map(({ key, label }) => (
-                    <div key={key} className={`pw-check-row ${!passwordErrors.includes(key) ? "pw-check-pass" : "pw-check-fail"}`}>
+                    <div
+                      key={key}
+                      className={`pw-check-row ${!passwordErrors.includes(key) ? "pw-check-pass" : "pw-check-fail"}`}
+                    >
                       {passwordErrors.includes(key) ? "x" : "✓"} {label}
                     </div>
                   ))}
@@ -1279,34 +1810,65 @@ const resetPassword = async () => {
 
             <div className="input-container">
               <div className="password-wrap">
-                <input type={showConfirmPassword ? "text" : "password"} placeholder="Confirm New Password" value={confirmPassword}
-                  onChange={(e) => { setConfirmPassword(e.target.value); setResetError(""); }}
-                  onCopy={preventCopyPaste} onPaste={preventCopyPaste} onCut={preventCopyPaste}
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm New Password"
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setResetError("");
+                  }}
+                  onCopy={preventCopyPaste}
+                  onPaste={preventCopyPaste}
+                  onCut={preventCopyPaste}
                   onKeyPress={(e) => e.key === "Enter" && resetPassword()}
-                  className="password-input" />
-                <button type="button" className="eye-btn" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
-                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  className="password-input"
+                />
+                <button
+                  type="button"
+                  className="eye-btn"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff size={18} />
+                  ) : (
+                    <Eye size={18} />
+                  )}
                 </button>
               </div>
             </div>
 
-            <button className="btn yellow" onClick={resetPassword} disabled={loading === "reset"}>
-              {loading === "reset" ? <><span className="sms-spinner" /> Resetting...</> : "RESET PASSWORD"}
+            <button
+              className="btn yellow"
+              onClick={resetPassword}
+              disabled={loading === "reset"}
+            >
+              {loading === "reset" ? (
+                <>
+                  <span className="sms-spinner" /> Resetting...
+                </>
+              ) : (
+                "RESET PASSWORD"
+              )}
             </button>
           </>
         )}
 
         {step === "resetDone" && (
           <div className="done-wrap">
-            <div className="done-icon"><CheckCircle size={60} color="var(--green-900)" /></div>
+            <div className="done-icon">
+              <CheckCircle size={60} color="var(--green-900)" />
+            </div>
             <h2>Password Reset!</h2>
-            <p className="step-subtitle">Your password has been updated. You can now log in with your new password.</p>
+            <p className="step-subtitle">
+              Your password has been updated. You can now log in with your new
+              password.
+            </p>
             <p style={{ color: "var(--muted)", fontSize: 15, marginTop: -8 }}>
               Redirecting to login in {resetDoneCountdown}s...
             </p>
           </div>
         )}
-
       </div>
       <style>{styles(welcome)}</style>
     </div>
