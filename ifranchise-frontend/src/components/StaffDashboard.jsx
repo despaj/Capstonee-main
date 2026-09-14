@@ -1517,30 +1517,24 @@ export function POSContent({ user }) {
   const [voidTarget, setVoidTarget] = useState(null);
   const [modal, setModal] = useState({ show: false });
 
-  const [stockProducts, setStockProducts] = useState([]);
+  const getAvailableUnits = (product) => {
+    if (!product) return ["Pc"];
 
-  const fetchStockProducts = useCallback(async () => {
-    if (!userBranch) return;
-    try {
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/pos-ingredients?branch=${encodeURIComponent(userBranch)}`,
-      );
-      const d = await res.json();
-      setStockProducts(Array.isArray(d) ? d : []);
-    } catch {
-      setStockProducts([]);
+    const pcsPerStrip = Number(product.pcs_per_strip) || 0;
+    const stripsPerBox = Number(product.strips_per_box) || 0;
+
+    const units = ["Pc"];
+
+    if (pcsPerStrip > 0) {
+      units.push("Strip");
     }
-  }, [userBranch]);
 
-  useEffect(() => {
-    fetchStockProducts();
-  }, [fetchStockProducts]);
+    if (pcsPerStrip > 0 && stripsPerBox > 0) {
+      units.push("Box");
+    }
 
-  useEffect(() => {
-    const handler = () => fetchStockProducts();
-    window.addEventListener("stock-inventory-updated", handler);
-    return () => window.removeEventListener("stock-inventory-updated", handler);
-  }, [fetchStockProducts]);
+    return units;
+  };
 
   const isIpharmaBrand = (brand) =>
     (brand || "").toLowerCase().includes("ipharma");
@@ -1552,11 +1546,37 @@ export function POSContent({ user }) {
   const closeModal = () => setModal((m) => ({ ...m, show: false }));
 
   const pcsForUnit = (product, unit) => {
-    const strip = Number(product.pcs_per_strip) || 1;
-    const box = strip * (Number(product.strips_per_box) || 1);
-    if (unit === "Strip") return strip;
-    if (unit === "Box") return box;
-    return 1; // Pc
+    const pcsPerStrip = Number(product?.pcs_per_strip) || 0;
+    const stripsPerBox = Number(product?.strips_per_box) || 0;
+
+    if (unit === "Strip") {
+      return pcsPerStrip || 1;
+    }
+
+    if (unit === "Box") {
+      if (!pcsPerStrip || !stripsPerBox) return 1;
+      return pcsPerStrip * stripsPerBox;
+    }
+
+    return 1;
+  };
+
+  // product.price is the BOX price (bulk unit) — same convention as
+  // shop-items' priceFromCost. Strip/Pc prices are derived by dividing
+  // the box price down, e.g. box = ₱100, 4 strips/box → strip = ₱25.
+  const getUnitPrice = (product, unit) => {
+    if (!product) return 0;
+
+    if (unit === "Box") {
+      return Number(product.price_box || 0);
+    }
+
+    if (unit === "Strip") {
+      return Number(product.price_strip || 0);
+    }
+
+    // Pc
+    return Number(product.price_pc ?? product.price ?? 0);
   };
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
@@ -1611,23 +1631,27 @@ export function POSContent({ user }) {
 
   const allProducts = useMemo(() => {
     const q = searchProduct.toLowerCase();
-    const menu = menuItems.map((m) => ({
-      ...m,
-      source: "menu",
-      displayName: m.name,
-    }));
-    const stock = stockProducts.map((s) => ({
-      ...s,
-      source: "ingredient",
-      displayName: s.name,
-    }));
-    return [...menu, ...stock].filter(
-      (p) =>
-        !q ||
-        p.displayName.toLowerCase().includes(q) ||
-        (p.category || "").toLowerCase().includes(q),
-    );
-  }, [menuItems, stockProducts, searchProduct]);
+
+    return menuItems
+      .map((m) => ({
+        ...m,
+        source: "menu",
+        displayName: m.name,
+
+        pcs_per_strip: Number(m.pcs_per_strip) || 0,
+        strips_per_box: Number(m.strips_per_box) || 0,
+
+        price_pc: Number(m.price_pc ?? m.price ?? 0),
+        price_strip: m.price_strip != null ? Number(m.price_strip) : null,
+        price_box: m.price_box != null ? Number(m.price_box) : null,
+      }))
+      .filter(
+        (p) =>
+          !q ||
+          (p.displayName || "").toLowerCase().includes(q) ||
+          (p.category || "").toLowerCase().includes(q),
+      );
+  }, [menuItems, searchProduct]);
 
   const openUnitPicker = (product) => {
     setUnitPickerProduct(product);
@@ -1638,14 +1662,7 @@ export function POSContent({ user }) {
     const product = unitPickerProduct;
     const pcsPerUnit = pcsForUnit(product, unitType);
 
-    // Use the pre-computed, unit-specific price from the backend instead of
-    // scaling the rounded Pc price — avoids rounding drift on Strip/Box.
-    const price =
-      unitType === "Strip"
-        ? Number(product.price_strip ?? product.price * pcsPerUnit)
-        : unitType === "Box"
-          ? Number(product.price_box ?? product.price * pcsPerUnit)
-          : Number(product.price_pc ?? product.price);
+    const price = getUnitPrice(product, unitType);
 
     const compositeId = `${product.id}-${unitType}`;
     const label =
@@ -1878,11 +1895,16 @@ export function POSContent({ user }) {
         items: cart.map((c) => ({
           id: c.baseProductId ?? c.id,
           source: c.source || "menu",
+
           name: c.displayName,
-          price: c.price,
-          qty: c.qty,
-          unit_pcs: c.unitPcs || 1,
-          subtotal: c.price * c.qty,
+          price: Number(c.price),
+
+          qty: Number(c.qty),
+
+          unit_type: c.unitType || c.unit || "Pc",
+          unit_pcs: Number(c.unitPcs || 1),
+
+          subtotal: Number(c.price) * Number(c.qty),
         })),
       };
 
@@ -1906,7 +1928,6 @@ export function POSContent({ user }) {
         clearCart();
         fetchTransactions();
         fetchProducts();
-        fetchStockProducts();
       } else {
         showAlert(
           "Transaction Failed",
@@ -2070,7 +2091,7 @@ export function POSContent({ user }) {
               Choose selling unit for this sale.
             </div>
             <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-              {["Pc", "Strip", "Box"].map((u) => (
+              {getAvailableUnits(unitPickerProduct).map((u) => (
                 <button
                   key={u}
                   onClick={() => setUnitType(u)}
@@ -2100,17 +2121,7 @@ export function POSContent({ user }) {
               }}
             >
               {pcsForUnit(unitPickerProduct, unitType)} pcs —{" "}
-              {fmtPeso(
-                unitType === "Strip"
-                  ? (unitPickerProduct.price_strip ??
-                      unitPickerProduct.price *
-                        pcsForUnit(unitPickerProduct, unitType))
-                  : unitType === "Box"
-                    ? (unitPickerProduct.price_box ??
-                      unitPickerProduct.price *
-                        pcsForUnit(unitPickerProduct, unitType))
-                    : (unitPickerProduct.price_pc ?? unitPickerProduct.price),
-              )}
+              {fmtPeso(getUnitPrice(unitPickerProduct, unitType))}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button

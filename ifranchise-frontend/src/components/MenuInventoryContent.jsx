@@ -1,53 +1,122 @@
-
 //copy here design
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import * as XLSX from "xlsx";
 import {
-  RefreshCw, AlertTriangle, Check, X, Trash2, Search, Pencil, Plus, Store,
-  FileText, Tag, ChevronDown, ChevronUp, History, RotateCcw, Activity, ArrowLeft,
-  ArrowRight, Eye, AlertCircle, Info, Link2, PackageCheck
+  RefreshCw,
+  AlertTriangle,
+  Check,
+  X,
+  Trash2,
+  Search,
+  Pencil,
+  Plus,
+  Store,
+  FileText,
+  Tag,
+  ChevronDown,
+  ChevronUp,
+  History,
+  RotateCcw,
+  Activity,
+  ArrowLeft,
+  ArrowRight,
+  Eye,
+  AlertCircle,
+  Info,
+  Link2,
+  PackageCheck,
 } from "lucide-react";
 
 // ─── Design tokens — copied 1:1 from Stock Inventory ──────────────────────────
 const C = {
-  green:"#3b791e", greenDk:"#2c5c16", greenLt:"#f0f5e8", greenMid:"#c9dba0",
-  teal:"#509820", lime:"#bdd43c", limeInk:"#24310C", ink:"#12241B", muted:"#5C6B60", border:"#E1E6D8",
-  bg:"#F6F7F1", white:"#ffffff", warn:"#b45309", warnBg:"#fff7ed",
-  ok:"#2c5c16", okBg:"#f0f5e8", red:"#c0392b", redBg:"#fdf1f0",
-  amber:"#d97706", amberBg:"#fff7ed", amberBorder:"#fed7aa",
+  green: "#3b791e",
+  greenDk: "#2c5c16",
+  greenLt: "#f0f5e8",
+  greenMid: "#c9dba0",
+  teal: "#509820",
+  lime: "#bdd43c",
+  limeInk: "#24310C",
+  ink: "#12241B",
+  muted: "#5C6B60",
+  border: "#E1E6D8",
+  bg: "#F6F7F1",
+  white: "#ffffff",
+  warn: "#b45309",
+  warnBg: "#fff7ed",
+  ok: "#2c5c16",
+  okBg: "#f0f5e8",
+  red: "#c0392b",
+  redBg: "#fdf1f0",
+  amber: "#d97706",
+  amberBg: "#fff7ed",
+  amberBorder: "#fed7aa",
 };
 
 const invInputSt = {
-  height:38, padding:"0 13px", borderRadius:11,
-  border:`1.5px solid ${C.border}`, background:C.white,
-  fontSize:13, color:C.ink, outline:"none",
-  fontFamily:"inherit", boxSizing:"border-box", width:"100%",
-  transition:"border-color .15s",
+  height: 38,
+  padding: "0 13px",
+  borderRadius: 11,
+  border: `1.5px solid ${C.border}`,
+  background: C.white,
+  fontSize: 13,
+  color: C.ink,
+  outline: "none",
+  fontFamily: "inherit",
+  boxSizing: "border-box",
+  width: "100%",
+  transition: "border-color .15s",
 };
 const invLabelSt = {
-  display:"block", fontSize:11, fontWeight:700,
-  color:C.muted, marginBottom:5, letterSpacing:"0.04em",
+  display: "block",
+  fontSize: 11,
+  fontWeight: 700,
+  color: C.muted,
+  marginBottom: 5,
+  letterSpacing: "0.04em",
 };
 const btnSt = {
-  display:"inline-flex", alignItems:"center", gap:6,
-  height:38, padding:"0 18px", borderRadius:999,
-  border:`1px solid ${C.border}`, background:C.white,
-  fontSize:13, fontWeight:600, cursor:"pointer",
-  fontFamily:"inherit", whiteSpace:"nowrap", color:C.ink,
-  transition:"background .15s, border-color .15s",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  height: 38,
+  padding: "0 18px",
+  borderRadius: 999,
+  border: `1px solid ${C.border}`,
+  background: C.white,
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  whiteSpace: "nowrap",
+  color: C.ink,
+  transition: "background .15s, border-color .15s",
 };
 const btnPrimarySt = {
   ...btnSt,
-  background:C.green,
-  color:C.white, border:"none",
-  boxShadow:"0 10px 24px rgba(59,121,30,0.22)",
+  background: C.green,
+  color: C.white,
+  border: "none",
+  boxShadow: "0 10px 24px rgba(59,121,30,0.22)",
 };
 const smallBtnSt = {
-  display:"inline-flex", alignItems:"center", gap:4,
-  height:28, padding:"0 12px", borderRadius:999,
-  fontSize:12, fontWeight:600, cursor:"pointer",
-  fontFamily:"inherit", background:"transparent",
-  transition:"background .12s, color .12s",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 4,
+  height: 28,
+  padding: "0 12px",
+  borderRadius: 999,
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  background: "transparent",
+  transition: "background .12s, color .12s",
 };
 
 const DEFAULT_PROFIT_MARGIN = 40;
@@ -55,29 +124,68 @@ const DIRECT_OPERATIONS_MARGIN = 30;
 const DIRECT_PROFIT_MARGIN = 40;
 const computeDirectSellingPrice = (cost) => {
   const base = Number(cost || 0);
-  return base > 0 ? Math.round(base * (1 + DIRECT_OPERATIONS_MARGIN / 100 + DIRECT_PROFIT_MARGIN / 100) * 100) / 100 : 0;
+  return base > 0
+    ? Math.round(
+        base *
+          (1 + DIRECT_OPERATIONS_MARGIN / 100 + DIRECT_PROFIT_MARGIN / 100) *
+          100,
+      ) / 100
+    : 0;
 };
-const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
+const UNITS = [
+  "pcs",
+  "kg",
+  "g",
+  "liters",
+  "ml",
+  "tbsp",
+  "tsp",
+  "cups",
+  "bottles",
+  "packs",
+  "bags",
+  "boxes",
+  "cans",
+];
 
-const fmtPeso = n => "₱" + Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtPeso = (n) =>
+  "₱" +
+  Number(n || 0).toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 const PAGE_SIZE = 20;
-const fmtTs   = d  => new Date(d).toLocaleString("en-PH",{ month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" });
-const FONT     = "'Plus Jakarta Sans', sans-serif";
+const fmtTs = (d) =>
+  new Date(d).toLocaleString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+const FONT = "'Plus Jakarta Sans', sans-serif";
 
 const SortAscIcon = ChevronUp;
 const SortDescIcon = ChevronDown;
 
-const normalizeName = str => {
+const normalizeName = (str) => {
   if (!str) return "";
-  return str.toLowerCase().trim().replace(/\s+/g," ").replace(/[''']/g,"").replace(/s$/,"");
+  return str
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[''']/g, "")
+    .replace(/s$/, "");
 };
 const findDuplicate = (name, branch, existingItems) => {
   const normalizedNew = normalizeName(name);
   if (!normalizedNew) return null;
-  return existingItems.find(item => {
-    if (item.branch !== branch) return false;
-    return normalizeName(item.name) === normalizedNew;
-  }) || null;
+  return (
+    existingItems.find((item) => {
+      if (item.branch !== branch) return false;
+      return normalizeName(item.name) === normalizedNew;
+    }) || null
+  );
 };
 
 // ─── Icons — Lucide React only ───────────────────────────────────────────────
@@ -89,7 +197,12 @@ const PlusIcon = Plus;
 const StoreIcon = Store;
 const FileIcon = FileText;
 const TagIcon = Tag;
-const ChevronIcon = ({ size=12, dir="down", ...props }) => dir === "up" ? <ChevronUp size={size} {...props}/> : <ChevronDown size={size} {...props}/>;
+const ChevronIcon = ({ size = 12, dir = "down", ...props }) =>
+  dir === "up" ? (
+    <ChevronUp size={size} {...props} />
+  ) : (
+    <ChevronDown size={size} {...props} />
+  );
 const HistoryIcon = History;
 const RestoreIcon = RotateCcw;
 const ActivityIcon = Activity;
@@ -98,19 +211,37 @@ const ArrowRightIcon = ArrowRight;
 const EyeIcon = Eye;
 const AlertCircleIcon = AlertCircle;
 
-const isPharmaBrandName = name => String(name || "").toLowerCase().includes("ipharma");
-const isFuelBrandName = name => String(name || "").toLowerCase().includes("ifuel");
-const isDirectBrandName = name => isPharmaBrandName(name) || isFuelBrandName(name);
+const isPharmaBrandName = (name) =>
+  String(name || "")
+    .toLowerCase()
+    .includes("ipharma");
+const isFuelBrandName = (name) =>
+  String(name || "")
+    .toLowerCase()
+    .includes("ifuel");
+const isDirectBrandName = (name) =>
+  isPharmaBrandName(name) || isFuelBrandName(name);
 
-const getBrandCategories = brandObj => {
+const getBrandCategories = (brandObj) => {
   const raw = brandObj?.categories;
-  if (Array.isArray(raw)) return [...new Set(raw.map(c => String(c || "").trim()).filter(Boolean))];
+  if (Array.isArray(raw))
+    return [...new Set(raw.map((c) => String(c || "").trim()).filter(Boolean))];
   if (typeof raw === "string" && raw.trim()) {
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return [...new Set(parsed.map(c => String(c || "").trim()).filter(Boolean))];
+      if (Array.isArray(parsed))
+        return [
+          ...new Set(parsed.map((c) => String(c || "").trim()).filter(Boolean)),
+        ];
     } catch {}
-    return [...new Set(raw.split(",").map(c => c.trim()).filter(Boolean))];
+    return [
+      ...new Set(
+        raw
+          .split(",")
+          .map((c) => c.trim())
+          .filter(Boolean),
+      ),
+    ];
   }
   return [];
 };
@@ -122,20 +253,22 @@ const readStockCategoryMap = () => {
   try {
     const raw = window.localStorage.getItem(STOCK_CATEGORY_STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : {};
   } catch {
     return {};
   }
 };
 
-const getPersistedStockCategory = itemId => {
+const getPersistedStockCategory = (itemId) => {
   if (itemId === null || itemId === undefined || itemId === "") return "";
   return String(readStockCategoryMap()[String(itemId)] || "").trim();
 };
 
-const normalizeCatalogueStockItem = row => {
+const normalizeCatalogueStockItem = (row) => {
   const backendCategory = String(
-    row?.category ?? row?.product_category ?? row?.category_name ?? ""
+    row?.category ?? row?.product_category ?? row?.category_name ?? "",
   ).trim();
 
   return {
@@ -150,21 +283,44 @@ const normalizeCatalogueStockItem = row => {
 
 const getBrowserLocation = () => {
   return new Promise((resolve) => {
-    if (!navigator.geolocation) { resolve(null); return; }
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
-      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      (position) =>
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        }),
       () => resolve(null),
-      { timeout: 5000, maximumAge: 60000 }
+      { timeout: 5000, maximumAge: 60000 },
     );
   });
 };
 
 // ─── MiniBar ───────────────────────────────────────────────────────────────────
-function MiniBar({ pct, color, track="#eef6f1", height=6 }) {
+function MiniBar({ pct, color, track = "#eef6f1", height = 6 }) {
   const w = Math.max(0, Math.min(100, pct ?? 0));
   return (
-    <div style={{ background:track, borderRadius:20, height, overflow:"hidden", width:"100%" }}>
-      <div style={{ width:`${w}%`, height:"100%", background:color, borderRadius:20, transition:"width .3s ease" }}/>
+    <div
+      style={{
+        background: track,
+        borderRadius: 20,
+        height,
+        overflow: "hidden",
+        width: "100%",
+      }}
+    >
+      <div
+        style={{
+          width: `${w}%`,
+          height: "100%",
+          background: color,
+          borderRadius: 20,
+          transition: "width .3s ease",
+        }}
+      />
     </div>
   );
 }
@@ -172,41 +328,126 @@ function MiniBar({ pct, color, track="#eef6f1", height=6 }) {
 // ─── Chip ──────────────────────────────────────────────────────────────────────
 function Chip({ label, color, bg, onRemove }) {
   return (
-    <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, color, background:bg }}>
-      {label} <XIcon size={9} style={{ cursor:"pointer", marginLeft:2 }} onClick={onRemove}/>
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "3px 9px",
+        borderRadius: 20,
+        fontSize: 11,
+        fontWeight: 700,
+        color,
+        background: bg,
+      }}
+    >
+      {label}{" "}
+      <XIcon
+        size={9}
+        style={{ cursor: "pointer", marginLeft: 2 }}
+        onClick={onRemove}
+      />
     </span>
   );
 }
 
 // ─── BranchSearchSelect ───────────────────────────────────────────────────────
 function BranchSearchSelect({ value, onChange, allBranches }) {
-  const [query, setQuery] = useState(value||"");
-  const [open, setOpen]   = useState(false);
+  const [query, setQuery] = useState(value || "");
+  const [open, setOpen] = useState(false);
   const ref = useRef(null);
-  useEffect(()=>{ setQuery(value||""); },[value]);
-  useEffect(()=>{
-    const fn=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
-    document.addEventListener("mousedown",fn);
-    return()=>document.removeEventListener("mousedown",fn);
-  },[]);
-  const filtered = allBranches.filter(({branch,brand})=>!query||branch.toLowerCase().includes(query.toLowerCase())||brand.toLowerCase().includes(query.toLowerCase()));
+  useEffect(() => {
+    setQuery(value || "");
+  }, [value]);
+  useEffect(() => {
+    const fn = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+  const filtered = allBranches.filter(
+    ({ branch, brand }) =>
+      !query ||
+      branch.toLowerCase().includes(query.toLowerCase()) ||
+      brand.toLowerCase().includes(query.toLowerCase()),
+  );
   return (
-    <div ref={ref} style={{ position:"relative" }}>
-      <div style={{ position:"relative" }}>
-        <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
-        <input type="text" value={query} placeholder="Search branch…"
-          onChange={e=>{setQuery(e.target.value);setOpen(true);}}
-          onFocus={()=>setOpen(true)}
-          style={{ ...invInputSt, paddingLeft:30 }}/>
+    <div ref={ref} style={{ position: "relative" }}>
+      <div style={{ position: "relative" }}>
+        <div
+          style={{
+            position: "absolute",
+            left: 10,
+            top: "50%",
+            transform: "translateY(-50%)",
+            color: C.muted,
+          }}
+        >
+          <SearchIcon size={12} />
+        </div>
+        <input
+          type="text"
+          value={query}
+          placeholder="Search branch…"
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          style={{ ...invInputSt, paddingLeft: 30 }}
+        />
       </div>
-      {open && filtered.length>0 && (
-        <div style={{ position:"absolute", top:"calc(100% + 3px)", left:0, right:0, zIndex:400, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 6px 20px rgba(0,0,0,0.1)", maxHeight:190, overflowY:"auto" }}>
-          {filtered.map(({branch,brand})=>(
-            <div key={branch} onMouseDown={e=>{e.preventDefault();onChange(branch);setQuery(branch);setOpen(false);}}
-              onMouseEnter={e=>e.currentTarget.style.background=C.bg} onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-              style={{ padding:"9px 13px", cursor:"pointer", fontSize:13, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <span style={{ fontWeight:600, color:C.ink }}>{branch}</span>
-              <span style={{ fontSize:11, color:C.muted, background:C.greenLt, padding:"2px 8px", borderRadius:20 }}>{brand}</span>
+      {open && filtered.length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 3px)",
+            left: 0,
+            right: 0,
+            zIndex: 400,
+            background: C.white,
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            boxShadow: "0 6px 20px rgba(0,0,0,0.1)",
+            maxHeight: 190,
+            overflowY: "auto",
+          }}
+        >
+          {filtered.map(({ branch, brand }) => (
+            <div
+              key={branch}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChange(branch);
+                setQuery(branch);
+                setOpen(false);
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = C.bg)}
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "transparent")
+              }
+              style={{
+                padding: "9px 13px",
+                cursor: "pointer",
+                fontSize: 13,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span style={{ fontWeight: 600, color: C.ink }}>{branch}</span>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: C.muted,
+                  background: C.greenLt,
+                  padding: "2px 8px",
+                  borderRadius: 20,
+                }}
+              >
+                {brand}
+              </span>
             </div>
           ))}
         </div>
@@ -218,43 +459,137 @@ function BranchSearchSelect({ value, onChange, allBranches }) {
 // ─── Searchable single-branch filter — copied from Stock Inventory ───────────
 function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
   const [branchQ, setBranchQ] = useState("");
-  const [open, setOpen]       = useState(false);
+  const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
   useEffect(() => {
-    const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const fn = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
     document.addEventListener("mousedown", fn);
     return () => document.removeEventListener("mousedown", fn);
   }, []);
 
-  const filteredBranches = branches.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
+  const filteredBranches = branches.filter(
+    (br) => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()),
+  );
 
-  const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:300, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:230, overflowY:"auto" };
-  const optSt  = (active) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8 });
+  const dropSt = {
+    position: "absolute",
+    top: "calc(100% + 4px)",
+    left: 0,
+    right: 0,
+    zIndex: 300,
+    background: C.white,
+    border: `1px solid ${C.border}`,
+    borderRadius: 10,
+    boxShadow: "0 8px 28px rgba(0,0,0,0.10)",
+    maxHeight: 230,
+    overflowY: "auto",
+  };
+  const optSt = (active) => ({
+    padding: "9px 14px",
+    cursor: "pointer",
+    fontSize: 13,
+    color: C.ink,
+    fontWeight: active ? 700 : 500,
+    background: active ? C.greenLt : "transparent",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  });
 
   return (
-    <div ref={ref} style={{ position:"relative", minWidth:150 }}>
-      <div onClick={() => { setOpen(v=>!v); setBranchQ(""); }}
-        style={{ ...invInputSt, height:30, fontSize:11, display:"flex", alignItems:"center", gap:6, cursor:"pointer", paddingRight:26, userSelect:"none", color:activeBranch?C.ink:C.muted }}>
-        <StoreIcon size={11} color={C.green}/>
-        <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+    <div ref={ref} style={{ position: "relative", minWidth: 150 }}>
+      <div
+        onClick={() => {
+          setOpen((v) => !v);
+          setBranchQ("");
+        }}
+        style={{
+          ...invInputSt,
+          height: 30,
+          fontSize: 11,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          cursor: "pointer",
+          paddingRight: 26,
+          userSelect: "none",
+          color: activeBranch ? C.ink : C.muted,
+        }}
+      >
+        <StoreIcon size={11} color={C.green} />
+        <span
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
           {activeBranch || "All Branches"}
         </span>
-        <ChevronIcon size={10} dir={open?"up":"down"}/>
+        <ChevronIcon size={10} dir={open ? "up" : "down"} />
       </div>
       {open && (
         <div style={dropSt}>
-          <div style={{ padding:"6px 8px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
-            <div style={{ position:"relative" }}>
-              <div style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={11}/></div>
-              <input autoFocus type="text" value={branchQ} onChange={e=>setBranchQ(e.target.value)} placeholder="Search branch…" onClick={e=>e.stopPropagation()}
-                style={{ ...invInputSt, height:28, fontSize:11, paddingLeft:26 }}/>
+          <div
+            style={{
+              padding: "6px 8px",
+              borderBottom: `1px solid ${C.border}`,
+              position: "sticky",
+              top: 0,
+              background: C.white,
+            }}
+          >
+            <div style={{ position: "relative" }}>
+              <div
+                style={{
+                  position: "absolute",
+                  left: 8,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: C.muted,
+                }}
+              >
+                <SearchIcon size={11} />
+              </div>
+              <input
+                autoFocus
+                type="text"
+                value={branchQ}
+                onChange={(e) => setBranchQ(e.target.value)}
+                placeholder="Search branch…"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  ...invInputSt,
+                  height: 28,
+                  fontSize: 11,
+                  paddingLeft: 26,
+                }}
+              />
             </div>
           </div>
-          <div style={optSt(!activeBranch)} onMouseDown={() => { onChangeBranch(""); setOpen(false); }}>All Branches</div>
-          {filteredBranches.map(br => (
-            <div key={br} style={optSt(activeBranch===br)} onMouseDown={() => { onChangeBranch(br); setOpen(false); }}>
-              <StoreIcon size={11} color={C.green}/> {br}
+          <div
+            style={optSt(!activeBranch)}
+            onMouseDown={() => {
+              onChangeBranch("");
+              setOpen(false);
+            }}
+          >
+            All Branches
+          </div>
+          {filteredBranches.map((br) => (
+            <div
+              key={br}
+              style={optSt(activeBranch === br)}
+              onMouseDown={() => {
+                onChangeBranch(br);
+                setOpen(false);
+              }}
+            >
+              <StoreIcon size={11} color={C.green} /> {br}
             </div>
           ))}
         </div>
@@ -270,25 +605,81 @@ function CategorySelect({ value, onChange, categories, onAddCategory }) {
   const handleAdd = () => {
     const t = newCat.trim();
     if (!t) return;
-    onAddCategory(t); onChange(t);
-    setNewCat(""); setAdding(false);
+    onAddCategory(t);
+    onChange(t);
+    setNewCat("");
+    setAdding(false);
   };
   return (
     <div>
-      <div style={{ display:"flex", gap:6 }}>
-        <select value={value} onChange={e=>onChange(e.target.value)} style={{ ...invInputSt, flex:1 }}>
+      <div style={{ display: "flex", gap: 6 }}>
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{ ...invInputSt, flex: 1 }}
+        >
           <option value="">Select category…</option>
-          {categories.map(c=><option key={c} value={c}>{c}</option>)}
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
         </select>
-        <button type="button" onClick={()=>setAdding(v=>!v)} style={{ ...smallBtnSt, height:38, width:38, justifyContent:"center", border:`1px solid ${C.border}`, color:adding?C.green:C.muted }}>
-          <TagIcon size={14}/>
+        <button
+          type="button"
+          onClick={() => setAdding((v) => !v)}
+          style={{
+            ...smallBtnSt,
+            height: 38,
+            width: 38,
+            justifyContent: "center",
+            border: `1px solid ${C.border}`,
+            color: adding ? C.green : C.muted,
+          }}
+        >
+          <TagIcon size={14} />
         </button>
       </div>
       {adding && (
-        <div style={{ display:"flex", gap:6, marginTop:6 }}>
-          <input autoFocus type="text" value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();handleAdd();}}} placeholder="New category…" style={{ ...invInputSt, flex:1 }}/>
-          <button type="button" onClick={handleAdd} style={{ ...btnPrimarySt, padding:"0 14px" }}>Add</button>
-          <button type="button" onClick={()=>{setAdding(false);setNewCat("");}} style={{ ...smallBtnSt, height:38, width:38, justifyContent:"center", border:"1px solid #fecaca", color:C.red }}><XIcon size={13}/></button>
+        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+          <input
+            autoFocus
+            type="text"
+            value={newCat}
+            onChange={(e) => setNewCat(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAdd();
+              }
+            }}
+            placeholder="New category…"
+            style={{ ...invInputSt, flex: 1 }}
+          />
+          <button
+            type="button"
+            onClick={handleAdd}
+            style={{ ...btnPrimarySt, padding: "0 14px" }}
+          >
+            Add
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAdding(false);
+              setNewCat("");
+            }}
+            style={{
+              ...smallBtnSt,
+              height: 38,
+              width: 38,
+              justifyContent: "center",
+              border: "1px solid #fecaca",
+              color: C.red,
+            }}
+          >
+            <XIcon size={13} />
+          </button>
         </div>
       )}
     </div>
@@ -299,33 +690,148 @@ function CategorySelect({ value, onChange, categories, onAddCategory }) {
 function DeleteConfirmModal({ target, onConfirm, onClose, deleting = false }) {
   if (!target) return null;
   return (
-    <div onClick={deleting ? undefined : onClose} style={{ position:"fixed", inset:0, background:"rgba(18,36,27,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2500, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:"1px solid #fecaca", fontFamily:FONT, overflow:"hidden" }}>
-        <div style={{ background:C.redBg, padding:"20px 24px 16px", borderBottom:"1px solid #fecaca", display:"flex", alignItems:"flex-start", gap:13 }}>
-          <div style={{ flexShrink:0, marginTop:1 }}><AlertCircleIcon size={26} color={C.red}/></div>
-          <div style={{ flex:1 }}>
-            <div style={{ fontSize:15, fontWeight:800, color:"#991b1b", marginBottom:5 }}>Delete Item</div>
-            <div style={{ fontSize:13, color:C.ink, lineHeight:1.6 }}>
-              Are you sure you want to delete <strong>"{target.name}"</strong>{target.branch ? <> from <strong>{target.branch}</strong></> : null}?
+    <div
+      onClick={deleting ? undefined : onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(18,36,27,0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2500,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: C.white,
+          borderRadius: 16,
+          width: "100%",
+          maxWidth: 420,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.16)",
+          border: "1px solid #fecaca",
+          fontFamily: FONT,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            background: C.redBg,
+            padding: "20px 24px 16px",
+            borderBottom: "1px solid #fecaca",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 13,
+          }}
+        >
+          <div style={{ flexShrink: 0, marginTop: 1 }}>
+            <AlertCircleIcon size={26} color={C.red} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                color: "#991b1b",
+                marginBottom: 5,
+              }}
+            >
+              Delete Item
+            </div>
+            <div style={{ fontSize: 13, color: C.ink, lineHeight: 1.6 }}>
+              Are you sure you want to delete <strong>"{target.name}"</strong>
+              {target.branch ? (
+                <>
+                  {" "}
+                  from <strong>{target.branch}</strong>
+                </>
+              ) : null}
+              ?
             </div>
             {target.ingredientCount > 0 && (
-              <div style={{ marginTop:8, background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"8px 12px", fontSize:12, color:"#7f1d1d" }}>
-                This item has {target.ingredientCount} linked ingredient{target.ingredientCount!==1?"s":""}.
+              <div
+                style={{
+                  marginTop: 8,
+                  background: "#fff5f5",
+                  border: "1px solid #fecaca",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 12,
+                  color: "#7f1d1d",
+                }}
+              >
+                This item has {target.ingredientCount} linked ingredient
+                {target.ingredientCount !== 1 ? "s" : ""}.
               </div>
             )}
-            <div style={{ marginTop:8, fontSize:11.5, color:C.muted }}>You can recover this from Delete History.</div>
+            <div style={{ marginTop: 8, fontSize: 11.5, color: C.muted }}>
+              You can recover this from Delete History.
+            </div>
           </div>
-          <button onClick={onClose} disabled={deleting} style={{ flexShrink:0, width:28, height:28, borderRadius:"50%", border:"1px solid #fecaca", background:"transparent", cursor:deleting?"not-allowed":"pointer", color:C.muted, display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <XIcon size={13}/>
+          <button
+            onClick={onClose}
+            disabled={deleting}
+            style={{
+              flexShrink: 0,
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              border: "1px solid #fecaca",
+              background: "transparent",
+              cursor: deleting ? "not-allowed" : "pointer",
+              color: C.muted,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <XIcon size={13} />
           </button>
         </div>
-        <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
-          <button onClick={onClose} disabled={deleting} style={{ ...btnSt, opacity: deleting ? 0.5 : 1 }}>Cancel</button>
-          <button onClick={onConfirm} disabled={deleting}
-            style={{ ...btnSt, background:C.red, color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(192,57,43,0.25)", opacity: deleting ? 0.7 : 1, cursor: deleting ? "not-allowed" : "pointer" }}>
-            {deleting
-              ? <><RefreshCw size={13} style={{ animation:"spin .8s linear infinite" }}/> Deleting…</>
-              : <><TrashIcon size={13}/> Delete</>}
+        <div
+          style={{
+            padding: "14px 24px",
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+          }}
+        >
+          <button
+            onClick={onClose}
+            disabled={deleting}
+            style={{ ...btnSt, opacity: deleting ? 0.5 : 1 }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={deleting}
+            style={{
+              ...btnSt,
+              background: C.red,
+              color: "#fff",
+              border: "none",
+              boxShadow: "0 2px 8px rgba(192,57,43,0.25)",
+              opacity: deleting ? 0.7 : 1,
+              cursor: deleting ? "not-allowed" : "pointer",
+            }}
+          >
+            {deleting ? (
+              <>
+                <RefreshCw
+                  size={13}
+                  style={{ animation: "spin .8s linear infinite" }}
+                />{" "}
+                Deleting…
+              </>
+            ) : (
+              <>
+                <TrashIcon size={13} /> Delete
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -334,72 +840,270 @@ function DeleteConfirmModal({ target, onConfirm, onClose, deleting = false }) {
 }
 
 // ─── Delete History Panel — Stock Inventory's grid-row chrome ────────────────
-function InventoryDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
+function InventoryDeleteHistoryPanel({
+  history,
+  onRestore,
+  restoringId,
+  onClose,
+}) {
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(18,36,27,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:18, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:`1px solid ${C.greenMid}`, fontFamily:FONT }}>
-
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(18,36,27,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2000,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: C.white,
+          borderRadius: 18,
+          padding: "28px 32px",
+          width: "100%",
+          maxWidth: 780,
+          maxHeight: "82vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: `1px solid ${C.greenMid}`,
+          fontFamily: FONT,
+        }}
+      >
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <h2 style={{ fontSize:16, fontWeight:800, color:C.ink, margin:0 }}>Delete History</h2>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 18,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h2
+              style={{ fontSize: 16, fontWeight: 800, color: C.ink, margin: 0 }}
+            >
+              Delete History
+            </h2>
             {history.length > 0 && (
-              <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#fee2e2", color:C.red }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: "3px 10px",
+                  borderRadius: 20,
+                  background: "#fee2e2",
+                  color: C.red,
+                }}
+              >
                 {history.length} deleted
               </span>
             )}
           </div>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:C.greenLt, cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <XIcon size={15}/>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              border: `1px solid ${C.border}`,
+              background: C.greenLt,
+              cursor: "pointer",
+              color: C.green,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <XIcon size={15} />
           </button>
         </div>
 
         {history.length > 0 && (
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 70px 80px 110px 100px", gap:8, padding:"6px 0 10px", borderBottom:`2px solid ${C.greenLt}`, fontSize:10, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em" }}>
-            <span>Item</span><span>Branch</span><span>Stock</span><span>Price</span><span>Deleted At</span><span></span>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 90px 70px 80px 110px 100px",
+              gap: 8,
+              padding: "6px 0 10px",
+              borderBottom: `2px solid ${C.greenLt}`,
+              fontSize: 10,
+              fontWeight: 700,
+              color: C.muted,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}
+          >
+            <span>Item</span>
+            <span>Branch</span>
+            <span>Stock</span>
+            <span>Price</span>
+            <span>Deleted At</span>
+            <span></span>
           </div>
         )}
 
-        <div style={{ overflowY:"auto", flex:1 }}>
+        <div style={{ overflowY: "auto", flex: 1 }}>
           {history.length === 0 ? (
-            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No deleted items yet.</div>
-          ) : history.map((entry, i) => {
-            const d    = entry.inventory_data   || {};
-            const ings = entry.ingredients_data || [];
-            return (
-              <div key={entry.id} style={{ padding:"14px 0", borderBottom: i < history.length-1 ? `1px solid ${C.bg}` : "none" }}>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 70px 80px 110px 100px", gap:8, alignItems:"center" }}>
-                  <div>
-                    <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.name}</div>
-                    <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{d.category}</div>
+            <div
+              style={{
+                padding: "40px 0",
+                textAlign: "center",
+                color: "#9ca3af",
+                fontSize: 13,
+                fontStyle: "italic",
+              }}
+            >
+              No deleted items yet.
+            </div>
+          ) : (
+            history.map((entry, i) => {
+              const d = entry.inventory_data || {};
+              const ings = entry.ingredients_data || [];
+              return (
+                <div
+                  key={entry.id}
+                  style={{
+                    padding: "14px 0",
+                    borderBottom:
+                      i < history.length - 1 ? `1px solid ${C.bg}` : "none",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 90px 70px 80px 110px 100px",
+                      gap: 8,
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          fontSize: 13,
+                          color: C.ink,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {d.name}
+                      </div>
+                      <div
+                        style={{ fontSize: 11, color: C.muted, marginTop: 2 }}
+                      >
+                        {d.category}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: C.muted,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {d.branch}
+                    </div>
+                    <div
+                      style={{ fontSize: 12, color: C.ink, fontWeight: 600 }}
+                    >
+                      {d.stock}
+                    </div>
+                    <div
+                      style={{ fontSize: 12, color: C.green, fontWeight: 700 }}
+                    >
+                      {fmtPeso(d.price || 0)}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#9ca3af" }}>
+                      {entry.deleted_at ? fmtTs(entry.deleted_at) : "—"}
+                    </div>
+                    <button
+                      onClick={() => onRestore(entry)}
+                      disabled={restoringId === entry.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 5,
+                        padding: "7px 12px",
+                        borderRadius: 8,
+                        border: `1.5px solid ${C.green}`,
+                        background: C.greenLt,
+                        color: C.greenDk,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        fontFamily: "inherit",
+                        whiteSpace: "nowrap",
+                        opacity: restoringId === entry.id ? 0.7 : 1,
+                        cursor:
+                          restoringId === entry.id ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {restoringId === entry.id ? (
+                        <RefreshCw
+                          size={12}
+                          style={{ animation: "spin 0.8s linear infinite" }}
+                        />
+                      ) : (
+                        <RestoreIcon />
+                      )}
+                      {restoringId === entry.id ? "Restoring…" : "Restore"}
+                    </button>
                   </div>
-                  <div style={{ fontSize:12, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.branch}</div>
-                  <div style={{ fontSize:12, color:C.ink, fontWeight:600 }}>{d.stock}</div>
-                  <div style={{ fontSize:12, color:C.green, fontWeight:700 }}>{fmtPeso(d.price||0)}</div>
-                  <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.deleted_at ? fmtTs(entry.deleted_at) : "—"}</div>
-                  <button onClick={() => onRestore(entry)} disabled={restoringId === entry.id}
-                   style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, border:`1.5px solid ${C.green}`, background:C.greenLt, color:C.greenDk, fontSize:12, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap",
-                      opacity: restoringId === entry.id ? 0.7 : 1, cursor: restoringId === entry.id ? "not-allowed" : "pointer" }}>
-                    {restoringId === entry.id
-                      ? <RefreshCw size={12} style={{ animation:"spin 0.8s linear infinite" }}/>
-                      : <RestoreIcon/>}
-                    {restoringId === entry.id ? "Restoring…" : "Restore"}
-                  </button>
-                </div>
-                {ings.length > 0 && (
-                  <div style={{ marginTop:8, display:"flex", flexWrap:"wrap", gap:5, paddingLeft:4 }}>
-                    <span style={{ fontSize:10, color:"#9ca3af", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", alignSelf:"center" }}>Ingredients:</span>
-                    {ings.map((ing, idx) => (
-                      <span key={idx} style={{ fontSize:11, padding:"2px 9px", borderRadius:20, background:C.greenLt, color:C.greenDk, fontWeight:600, border:`1px solid ${C.greenMid}` }}>
-                        {ing.name} × {ing.qty_required} {ing.unit}
+                  {ings.length > 0 && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 5,
+                        paddingLeft: 4,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 10,
+                          color: "#9ca3af",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                          alignSelf: "center",
+                        }}
+                      >
+                        Ingredients:
                       </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                      {ings.map((ing, idx) => (
+                        <span
+                          key={idx}
+                          style={{
+                            fontSize: 11,
+                            padding: "2px 9px",
+                            borderRadius: 20,
+                            background: C.greenLt,
+                            color: C.greenDk,
+                            fontWeight: 600,
+                            border: `1px solid ${C.greenMid}`,
+                          }}
+                        >
+                          {ing.name} × {ing.qty_required} {ing.unit}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>
@@ -408,52 +1112,171 @@ function InventoryDeleteHistoryPanel({ history, onRestore, restoringId, onClose 
 
 // ─── Activity Log Panel — Stock Inventory's grid-row chrome ──────────────────
 function InventoryActivityLogPanel({ log, onClose }) {
-  const [search, setSearch]         = useState("");
+  const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
 
-  const filtered = log.filter(entry => {
+  const filtered = log.filter((entry) => {
     if (typeFilter !== "all" && entry.action !== typeFilter) return false;
     if (search) {
       const q = search.toLowerCase();
-      if (!entry.itemName?.toLowerCase().includes(q) &&
-          !(entry.performedBy||"").toLowerCase().includes(q) &&
-          !(entry.branch||"").toLowerCase().includes(q)) return false;
+      if (
+        !entry.itemName?.toLowerCase().includes(q) &&
+        !(entry.performedBy || "").toLowerCase().includes(q) &&
+        !(entry.branch || "").toLowerCase().includes(q)
+      )
+        return false;
     }
     return true;
   });
 
-  const actionBadge = action => {
+  const actionBadge = (action) => {
     const map = {
-      add:    { bg:"rgba(16,185,129,0.12)",  color:"#059669", label:"Added"   },
-      edit:   { bg:"rgba(59,130,246,0.12)",  color:"#1d4ed8", label:"Edited"  },
-      import: { bg:"rgba(139,92,246,0.12)",  color:"#7c3aed", label:"Imported"},
-      delete: { bg:"rgba(239,68,68,0.12)",   color:"#dc2626", label:"Deleted" },
+      add: { bg: "rgba(16,185,129,0.12)", color: "#059669", label: "Added" },
+      edit: { bg: "rgba(59,130,246,0.12)", color: "#1d4ed8", label: "Edited" },
+      import: {
+        bg: "rgba(139,92,246,0.12)",
+        color: "#7c3aed",
+        label: "Imported",
+      },
+      delete: {
+        bg: "rgba(239,68,68,0.12)",
+        color: "#dc2626",
+        label: "Deleted",
+      },
     };
     const s = map[action] || map.edit;
-    return <span style={{ padding:"2px 9px", borderRadius:4, fontSize:10, fontWeight:700, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>{s.label}</span>;
+    return (
+      <span
+        style={{
+          padding: "2px 9px",
+          borderRadius: 4,
+          fontSize: 10,
+          fontWeight: 700,
+          background: s.bg,
+          color: s.color,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {s.label}
+      </span>
+    );
   };
 
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(18,36,27,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:18, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:`1px solid ${C.greenMid}`, fontFamily:FONT }}>
-
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <h2 style={{ fontSize:16, fontWeight:800, color:C.ink, margin:0 }}>Activity Log</h2>
-            <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:C.greenLt, color:C.greenDk }}>{filtered.length} entries</span>
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(18,36,27,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2000,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: C.white,
+          borderRadius: 18,
+          padding: "28px 32px",
+          width: "100%",
+          maxWidth: 780,
+          maxHeight: "82vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: `1px solid ${C.greenMid}`,
+          fontFamily: FONT,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h2
+              style={{ fontSize: 16, fontWeight: 800, color: C.ink, margin: 0 }}
+            >
+              Activity Log
+            </h2>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                padding: "3px 10px",
+                borderRadius: 20,
+                background: C.greenLt,
+                color: C.greenDk,
+              }}
+            >
+              {filtered.length} entries
+            </span>
           </div>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:C.greenLt, cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <XIcon size={15}/>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              border: `1px solid ${C.border}`,
+              background: C.greenLt,
+              cursor: "pointer",
+              color: C.green,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <XIcon size={15} />
           </button>
         </div>
 
-        <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
-          <div style={{ position:"relative", flex:"1 1 200px" }}>
-            <div style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
-            <input type="text" placeholder="Search item, user, branch…" value={search} onChange={e=>setSearch(e.target.value)}
-              style={{ ...invInputSt, paddingLeft:28, height:32, fontSize:12 }}/>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            marginBottom: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ position: "relative", flex: "1 1 200px" }}>
+            <div
+              style={{
+                position: "absolute",
+                left: 9,
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: C.muted,
+              }}
+            >
+              <SearchIcon size={12} />
+            </div>
+            <input
+              type="text"
+              placeholder="Search item, user, branch…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                ...invInputSt,
+                paddingLeft: 28,
+                height: 32,
+                fontSize: 12,
+              }}
+            />
           </div>
-          <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} style={{ ...invInputSt, width:140, height:32, fontSize:12 }}>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            style={{ ...invInputSt, width: 140, height: 32, fontSize: 12 }}
+          >
             <option value="all">All Actions</option>
             <option value="add">Added</option>
             <option value="edit">Edited</option>
@@ -462,25 +1285,112 @@ function InventoryActivityLogPanel({ log, onClose }) {
           </select>
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:`2px solid ${C.greenLt}`, fontSize:10, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em" }}>
-          <span>Action</span><span>Item</span><span>Branch</span><span>By</span><span>Timestamp</span>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "80px 1fr 100px 120px 160px",
+            gap: 8,
+            padding: "6px 0 8px",
+            borderBottom: `2px solid ${C.greenLt}`,
+            fontSize: 10,
+            fontWeight: 700,
+            color: C.muted,
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+          }}
+        >
+          <span>Action</span>
+          <span>Item</span>
+          <span>Branch</span>
+          <span>By</span>
+          <span>Timestamp</span>
         </div>
 
-        <div style={{ overflowY:"auto", flex:1 }}>
+        <div style={{ overflowY: "auto", flex: 1 }}>
           {filtered.length === 0 ? (
-            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No activity yet.</div>
-          ) : filtered.map((entry, i) => (
-            <div key={entry.id || i} style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, alignItems:"center", padding:"11px 0", borderBottom: i < filtered.length-1 ? `1px solid ${C.bg}` : "none" }}>
-              <div>{actionBadge(entry.action)}</div>
-              <div>
-              <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.itemName}</div>
-                {entry.changes && <div style={{ fontSize:10, color:C.muted, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.changes}</div>}
-              </div>
-              <div style={{ fontSize:11, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.branch || "—"}</div>
-              <div style={{ fontSize:12, fontWeight:600, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.performedBy || "System"}</div>
-              <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.timestamp ? fmtTs(entry.timestamp) : "—"}</div>
+            <div
+              style={{
+                padding: "40px 0",
+                textAlign: "center",
+                color: "#9ca3af",
+                fontSize: 13,
+                fontStyle: "italic",
+              }}
+            >
+              No activity yet.
             </div>
-          ))}
+          ) : (
+            filtered.map((entry, i) => (
+              <div
+                key={entry.id || i}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "80px 1fr 100px 120px 160px",
+                  gap: 8,
+                  alignItems: "center",
+                  padding: "11px 0",
+                  borderBottom:
+                    i < filtered.length - 1 ? `1px solid ${C.bg}` : "none",
+                }}
+              >
+                <div>{actionBadge(entry.action)}</div>
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 13,
+                      color: C.ink,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {entry.itemName}
+                  </div>
+                  {entry.changes && (
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: C.muted,
+                        marginTop: 2,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {entry.changes}
+                    </div>
+                  )}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: C.muted,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {entry.branch || "—"}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: C.ink,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {entry.performedBy || "System"}
+                </div>
+                <div style={{ fontSize: 11, color: "#9ca3af" }}>
+                  {entry.timestamp ? fmtTs(entry.timestamp) : "—"}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
@@ -490,33 +1400,71 @@ function InventoryActivityLogPanel({ log, onClose }) {
 function LogPagination({ page, totalPages, onChange }) {
   if (totalPages <= 1) return null;
   const pageBtn = (active, disabled) => ({
-    minWidth: 32, height: 32, padding: '0 8px', borderRadius: 999,
-    border: `1px solid ${active ? 'transparent' : C.border}`,
+    minWidth: 32,
+    height: 32,
+    padding: "0 8px",
+    borderRadius: 999,
+    border: `1px solid ${active ? "transparent" : C.border}`,
     background: active ? C.green : C.white,
-    color: active ? '#fff' : disabled ? '#cbd5c9' : C.ink,
-    fontSize: 12.5, fontWeight: active ? 800 : 600,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    boxShadow: active ? '0 3px 10px rgba(59,121,30,0.25)' : 'none',
-    transition: 'transform .12s ease, box-shadow .12s ease, background .12s ease',
+    color: active ? "#fff" : disabled ? "#cbd5c9" : C.ink,
+    fontSize: 12.5,
+    fontWeight: active ? 800 : 600,
+    cursor: disabled ? "not-allowed" : "pointer",
+    fontFamily: FONT,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: active ? "0 3px 10px rgba(59,121,30,0.25)" : "none",
+    transition:
+      "transform .12s ease, box-shadow .12s ease, background .12s ease",
   });
-  const pages = Array.from({ length: totalPages }, (_, i) => i).filter(i => Math.abs(i - page) <= 2 || i === 0 || i === totalPages - 1);
+  const pages = Array.from({ length: totalPages }, (_, i) => i).filter(
+    (i) => Math.abs(i - page) <= 2 || i === 0 || i === totalPages - 1,
+  );
   const withGaps = [];
   pages.forEach((p, idx) => {
-    if (idx > 0 && p - pages[idx - 1] > 1) withGaps.push('gap');
+    if (idx > 0 && p - pages[idx - 1] > 1) withGaps.push("gap");
     withGaps.push(p);
   });
   return (
-    <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-      <button onClick={() => onChange(Math.max(0, page - 1))} disabled={page === 0} style={pageBtn(false, page === 0)}>‹</button>
+    <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+      <button
+        onClick={() => onChange(Math.max(0, page - 1))}
+        disabled={page === 0}
+        style={pageBtn(false, page === 0)}
+      >
+        ‹
+      </button>
       {withGaps.map((p, i) =>
-        p === 'gap' ? (
-          <span key={`gap-${i}`} style={{ width: 20, textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>···</span>
+        p === "gap" ? (
+          <span
+            key={`gap-${i}`}
+            style={{
+              width: 20,
+              textAlign: "center",
+              color: "#94a3b8",
+              fontSize: 12,
+            }}
+          >
+            ···
+          </span>
         ) : (
-          <button key={p} onClick={() => onChange(p)} style={pageBtn(p === page, false)}>{p + 1}</button>
-        )
+          <button
+            key={p}
+            onClick={() => onChange(p)}
+            style={pageBtn(p === page, false)}
+          >
+            {p + 1}
+          </button>
+        ),
       )}
-      <button onClick={() => onChange(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} style={pageBtn(false, page >= totalPages - 1)}>›</button>
+      <button
+        onClick={() => onChange(Math.min(totalPages - 1, page + 1))}
+        disabled={page >= totalPages - 1}
+        style={pageBtn(false, page >= totalPages - 1)}
+      >
+        ›
+      </button>
     </div>
   );
 }
@@ -526,19 +1474,94 @@ function Pagination({ page, setPage, total, pageSize }) {
   const totalPgs = Math.max(1, Math.ceil(total / pageSize));
   if (totalPgs <= 1) return null;
   return (
-    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 18px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
-      <span style={{ fontSize:12, color:C.muted }}>
-        Showing <strong style={{ color:C.ink }}>{(page*pageSize+1).toLocaleString()}–{Math.min((page+1)*pageSize,total).toLocaleString()}</strong> of <strong style={{ color:C.ink }}>{total.toLocaleString()}</strong>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "12px 18px",
+        borderTop: `1px solid ${C.border}`,
+        background: "#f9fefb",
+      }}
+    >
+      <span style={{ fontSize: 12, color: C.muted }}>
+        Showing{" "}
+        <strong style={{ color: C.ink }}>
+          {(page * pageSize + 1).toLocaleString()}–
+          {Math.min((page + 1) * pageSize, total).toLocaleString()}
+        </strong>{" "}
+        of <strong style={{ color: C.ink }}>{total.toLocaleString()}</strong>
       </span>
-      <div style={{ display:"flex", gap:4 }}>
-        {[{l:"«",a:()=>setPage(0),d:page===0},{l:"‹",a:()=>setPage(p=>Math.max(0,p-1)),d:page===0}].map(({l,a,d})=>(
-          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1, background:C.white }}>{l}</button>
+      <div style={{ display: "flex", gap: 4 }}>
+        {[
+          { l: "«", a: () => setPage(0), d: page === 0 },
+          {
+            l: "‹",
+            a: () => setPage((p) => Math.max(0, p - 1)),
+            d: page === 0,
+          },
+        ].map(({ l, a, d }) => (
+          <button
+            key={l}
+            onClick={a}
+            disabled={d}
+            style={{
+              ...smallBtnSt,
+              height: 30,
+              width: 30,
+              justifyContent: "center",
+              border: `1px solid ${C.border}`,
+              opacity: d ? 0.35 : 1,
+              background: C.white,
+            }}
+          >
+            {l}
+          </button>
         ))}
-        {Array.from({length:totalPgs},(_,i)=>i).filter(i=>Math.abs(i-page)<=2).map(i=>(
-          <button key={i} onClick={()=>setPage(i)} style={{ ...smallBtnSt, height:30, minWidth:30, justifyContent:"center", fontWeight:i===page?800:600, border:i===page?"none":`1px solid ${C.border}`, background:i===page?C.green:C.white, color:i===page?C.white:C.ink }}>{i+1}</button>
-        ))}
-        {[{l:"›",a:()=>setPage(p=>Math.min(totalPgs-1,p+1)),d:page>=totalPgs-1},{l:"»",a:()=>setPage(totalPgs-1),d:page>=totalPgs-1}].map(({l,a,d})=>(
-          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1, background:C.white }}>{l}</button>
+        {Array.from({ length: totalPgs }, (_, i) => i)
+          .filter((i) => Math.abs(i - page) <= 2)
+          .map((i) => (
+            <button
+              key={i}
+              onClick={() => setPage(i)}
+              style={{
+                ...smallBtnSt,
+                height: 30,
+                minWidth: 30,
+                justifyContent: "center",
+                fontWeight: i === page ? 800 : 600,
+                border: i === page ? "none" : `1px solid ${C.border}`,
+                background: i === page ? C.green : C.white,
+                color: i === page ? C.white : C.ink,
+              }}
+            >
+              {i + 1}
+            </button>
+          ))}
+        {[
+          {
+            l: "›",
+            a: () => setPage((p) => Math.min(totalPgs - 1, p + 1)),
+            d: page >= totalPgs - 1,
+          },
+          { l: "»", a: () => setPage(totalPgs - 1), d: page >= totalPgs - 1 },
+        ].map(({ l, a, d }) => (
+          <button
+            key={l}
+            onClick={a}
+            disabled={d}
+            style={{
+              ...smallBtnSt,
+              height: 30,
+              width: 30,
+              justifyContent: "center",
+              border: `1px solid ${C.border}`,
+              opacity: d ? 0.35 : 1,
+              background: C.white,
+            }}
+          >
+            {l}
+          </button>
         ))}
       </div>
     </div>
@@ -547,120 +1570,396 @@ function Pagination({ page, setPage, total, pageSize }) {
 
 // ─── InventoryTable (kept for parity — same token-driven styling now) ────────
 function InventoryTable({ items, onEdit, onRequestDelete, deletingId }) {
-  const [sort, setSort]             = useState({ col:"name", asc:true });
-  const [page, setPage]             = useState(0);
+  const [sort, setSort] = useState({ col: "name", asc: true });
+  const [page, setPage] = useState(0);
   const [expandedRows, setExpanded] = useState({});
 
-  useEffect(() => { setPage(0); }, [items]);
+  useEffect(() => {
+    setPage(0);
+  }, [items]);
 
   const sorted = useMemo(() => {
-    return [...items].sort((a,b) => {
-      let va=a[sort.col]??"", vb=b[sort.col]??"";
-      if(typeof va==="string") va=va.toLowerCase();
-      if(typeof vb==="string") vb=vb.toLowerCase();
-      return sort.asc?(va<vb?-1:va>vb?1:0):(va>vb?-1:va<vb?1:0);
+    return [...items].sort((a, b) => {
+      let va = a[sort.col] ?? "",
+        vb = b[sort.col] ?? "";
+      if (typeof va === "string") va = va.toLowerCase();
+      if (typeof vb === "string") vb = vb.toLowerCase();
+      return sort.asc
+        ? va < vb
+          ? -1
+          : va > vb
+            ? 1
+            : 0
+        : va > vb
+          ? -1
+          : va < vb
+            ? 1
+            : 0;
     });
   }, [items, sort]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const pageItems  = sorted.slice(page * PAGE_SIZE, (page+1) * PAGE_SIZE);
+  const pageItems = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-  const Th = ({ col, label, style:s }) => {
+  const Th = ({ col, label, style: s }) => {
     const active = sort.col === col;
     return (
-      <th onClick={()=>{setSort(st=>({col,asc:st.col===col?!st.asc:true}));setPage(0);}}
-        style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:active?C.green:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`2px solid ${C.greenLt}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#f8fffe", ...s }}>
-        <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
-          {label} {active?(sort.asc?<SortAscIcon/>:<SortDescIcon/>):<span style={{ opacity:0.25 }}><SortDescIcon/></span>}
+      <th
+        onClick={() => {
+          setSort((st) => ({ col, asc: st.col === col ? !st.asc : true }));
+          setPage(0);
+        }}
+        style={{
+          padding: "9px 12px",
+          textAlign: "left",
+          fontWeight: 800,
+          fontSize: 10.5,
+          color: active ? C.green : C.muted,
+          letterSpacing: "0.07em",
+          textTransform: "uppercase",
+          borderBottom: `2px solid ${C.greenLt}`,
+          cursor: "pointer",
+          userSelect: "none",
+          whiteSpace: "nowrap",
+          background: "#f8fffe",
+          ...s,
+        }}
+      >
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+          {label}{" "}
+          {active ? (
+            sort.asc ? (
+              <SortAscIcon />
+            ) : (
+              <SortDescIcon />
+            )
+          ) : (
+            <span style={{ opacity: 0.25 }}>
+              <SortDescIcon />
+            </span>
+          )}
         </span>
       </th>
     );
   };
-  const ThStatic = ({ label, style:s }) => (
-    <th style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`2px solid ${C.greenLt}`, whiteSpace:"nowrap", background:"#f8fffe", ...s }}>{label}</th>
+  const ThStatic = ({ label, style: s }) => (
+    <th
+      style={{
+        padding: "9px 12px",
+        textAlign: "left",
+        fontWeight: 800,
+        fontSize: 10.5,
+        color: C.muted,
+        letterSpacing: "0.07em",
+        textTransform: "uppercase",
+        borderBottom: `2px solid ${C.greenLt}`,
+        whiteSpace: "nowrap",
+        background: "#f8fffe",
+        ...s,
+      }}
+    >
+      {label}
+    </th>
   );
 
-  if (!items.length) return <div style={{ padding:"36px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No items match your filters.</div>;
+  if (!items.length)
+    return (
+      <div
+        style={{
+          padding: "36px 0",
+          textAlign: "center",
+          color: C.muted,
+          fontSize: 13,
+          fontStyle: "italic",
+        }}
+      >
+        No items match your filters.
+      </div>
+    );
 
   return (
     <div>
-      <div style={{ overflowX:"auto" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+      <div style={{ overflowX: "auto" }}>
+        <table
+          style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
+        >
           <thead>
             <tr>
-              <Th col="name"      label="Item Name"   style={{ minWidth:160 }}/>
-              <Th col="category"  label="Category"    style={{ minWidth:110 }}/>
-              <Th col="branch"    label="Branch"      style={{ minWidth:130 }}/>
-              <Th col="stock"     label="Stock"       style={{ minWidth:72  }}/>
-              <Th col="min_stock" label="Min Stock"   style={{ minWidth:80  }}/>
-              <Th col="cost"      label="Cost"        style={{ minWidth:90  }}/>
-              <Th col="price"     label="Price"       style={{ minWidth:90  }}/>
-              <ThStatic           label="Ingredients" style={{ minWidth:140 }}/>
-              <th style={{ padding:"9px 12px", background:"#f8fffe", borderBottom:`2px solid ${C.greenLt}`, minWidth:150 }}/>
+              <Th col="name" label="Item Name" style={{ minWidth: 160 }} />
+              <Th col="category" label="Category" style={{ minWidth: 110 }} />
+              <Th col="branch" label="Branch" style={{ minWidth: 130 }} />
+              <Th col="stock" label="Stock" style={{ minWidth: 72 }} />
+              <Th col="min_stock" label="Min Stock" style={{ minWidth: 80 }} />
+              <Th col="cost" label="Cost" style={{ minWidth: 90 }} />
+              <Th col="price" label="Price" style={{ minWidth: 90 }} />
+              <ThStatic label="Ingredients" style={{ minWidth: 140 }} />
+              <th
+                style={{
+                  padding: "9px 12px",
+                  background: "#f8fffe",
+                  borderBottom: `2px solid ${C.greenLt}`,
+                  minWidth: 150,
+                }}
+              />
             </tr>
           </thead>
           <tbody>
-            {pageItems.map(item => {
-              const low        = Number(item.stock) <= Number(item.min_stock);
+            {pageItems.map((item) => {
+              const low = Number(item.stock) <= Number(item.min_stock);
               const isDeleting = deletingId === item.id;
-              const ingredients= item.ingredients || [];
+              const ingredients = item.ingredients || [];
               const isExpanded = expandedRows[item.id];
               return (
                 <React.Fragment key={item.id}>
-                  <tr style={{ borderBottom: isExpanded?"none":`1px solid ${C.bg}` }}
-                    onMouseEnter={e=>e.currentTarget.style.background="#fafcf7"}
-                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
-                    <td style={{ padding:"10px 12px" }}>
-                      <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:C.greenLt, color:C.greenDk }}>{item.category}</span>
+                  <tr
+                    style={{
+                      borderBottom: isExpanded ? "none" : `1px solid ${C.bg}`,
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "#fafcf7")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "transparent")
+                    }
+                  >
+                    <td
+                      style={{
+                        padding: "10px 12px",
+                        fontWeight: 700,
+                        color: C.ink,
+                      }}
+                    >
+                      {item.name}
                     </td>
-                    <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>
-                      <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><StoreIcon size={11} color={C.green}/> {item.branch}</span>
-                    </td>
-                    <td style={{ padding:"10px 12px" }}>
-                      <span style={{ color:low?C.warn:C.ink, fontWeight:low?700:500, display:"inline-flex", alignItems:"center", gap:5 }}>
-                        {item.stock}
-                        {low && <span style={{ background:C.warnBg, color:C.warn, fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>LOW</span>}
+                    <td style={{ padding: "10px 12px" }}>
+                      <span
+                        style={{
+                          padding: "3px 9px",
+                          borderRadius: 20,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          background: C.greenLt,
+                          color: C.greenDk,
+                        }}
+                      >
+                        {item.category}
                       </span>
                     </td>
-                    <td style={{ padding:"10px 12px", color:C.muted }}>{item.min_stock}</td>
-                    <td style={{ padding:"10px 12px", color:C.muted }}>{fmtPeso(item.cost||0)}</td>
-                    <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
-                    <td style={{ padding:"10px 12px" }}>
+                    <td
+                      style={{
+                        padding: "10px 12px",
+                        color: C.muted,
+                        fontSize: 12,
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <StoreIcon size={11} color={C.green} /> {item.branch}
+                      </span>
+                    </td>
+                    <td style={{ padding: "10px 12px" }}>
+                      <span
+                        style={{
+                          color: low ? C.warn : C.ink,
+                          fontWeight: low ? 700 : 500,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                        }}
+                      >
+                        {item.stock}
+                        {low && (
+                          <span
+                            style={{
+                              background: C.warnBg,
+                              color: C.warn,
+                              fontSize: 10,
+                              fontWeight: 800,
+                              padding: "2px 7px",
+                              borderRadius: 20,
+                            }}
+                          >
+                            LOW
+                          </span>
+                        )}
+                      </span>
+                    </td>
+                    <td style={{ padding: "10px 12px", color: C.muted }}>
+                      {item.min_stock}
+                    </td>
+                    <td style={{ padding: "10px 12px", color: C.muted }}>
+                      {fmtPeso(item.cost || 0)}
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px 12px",
+                        fontWeight: 700,
+                        color: C.green,
+                      }}
+                    >
+                      {fmtPeso(item.price)}
+                    </td>
+                    <td style={{ padding: "10px 12px" }}>
                       {ingredients.length === 0 ? (
-                        <span style={{ fontSize:11, color:C.muted, fontStyle:"italic" }}>—</span>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: C.muted,
+                            fontStyle: "italic",
+                          }}
+                        >
+                          —
+                        </span>
                       ) : (
-                        <button onClick={()=>setExpanded(p=>({...p,[item.id]:!p[item.id]}))}
-                          style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:isExpanded?C.greenMid:C.greenLt, color:C.greenDk, border:`1px solid ${C.greenMid}`, cursor:"pointer" }}>
-                          {ingredients.length} ingredient{ingredients.length!==1?"s":""}
-                          <ChevronIcon size={10} dir={isExpanded?"up":"down"}/>
+                        <button
+                          onClick={() =>
+                            setExpanded((p) => ({
+                              ...p,
+                              [item.id]: !p[item.id],
+                            }))
+                          }
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 5,
+                            padding: "3px 9px",
+                            borderRadius: 20,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            background: isExpanded ? C.greenMid : C.greenLt,
+                            color: C.greenDk,
+                            border: `1px solid ${C.greenMid}`,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {ingredients.length} ingredient
+                          {ingredients.length !== 1 ? "s" : ""}
+                          <ChevronIcon
+                            size={10}
+                            dir={isExpanded ? "up" : "down"}
+                          />
                         </button>
                       )}
                     </td>
-                    <td style={{ padding:"10px 12px" }}>
-                      <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
-                       <button onClick={()=>onEdit(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green, opacity: isDeleting ? 0.5 : 1, cursor: isDeleting ? "not-allowed" : "pointer" }}><EditIcon/> Edit</button>
-                        <button onClick={()=>onRequestDelete(item)} disabled={isDeleting}
-                        style={{ ...smallBtnSt, border:"1px solid #fecaca", color:C.red, opacity: isDeleting ? 0.6 : 1, cursor: isDeleting ? "not-allowed" : "pointer" }}>
-                        {isDeleting && <RefreshCw size={11} style={{ animation:"spin 0.8s linear infinite" }}/>}
-                        {isDeleting ? "Deleting…" : "Delete"}
-                      </button>
+                    <td style={{ padding: "10px 12px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 5,
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        <button
+                          onClick={() => onEdit(item)}
+                          disabled={isDeleting}
+                          style={{
+                            ...smallBtnSt,
+                            border: `1px solid ${C.border}`,
+                            color: C.green,
+                            opacity: isDeleting ? 0.5 : 1,
+                            cursor: isDeleting ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          <EditIcon /> Edit
+                        </button>
+                        <button
+                          onClick={() => onRequestDelete(item)}
+                          disabled={isDeleting}
+                          style={{
+                            ...smallBtnSt,
+                            border: "1px solid #fecaca",
+                            color: C.red,
+                            opacity: isDeleting ? 0.6 : 1,
+                            cursor: isDeleting ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          {isDeleting && (
+                            <RefreshCw
+                              size={11}
+                              style={{ animation: "spin 0.8s linear infinite" }}
+                            />
+                          )}
+                          {isDeleting ? "Deleting…" : "Delete"}
+                        </button>
                       </div>
                     </td>
                   </tr>
                   {isExpanded && ingredients.length > 0 && (
-                    <tr style={{ borderBottom:`1px solid ${C.bg}` }}>
-                      <td colSpan={9} style={{ padding:"0 12px 12px 12px", background:"#f9fefb" }}>
-                        <div style={{ display:"flex", flexWrap:"wrap", gap:6, padding:"10px 14px", background:C.greenLt, borderRadius:10, border:`1px solid ${C.greenMid}` }}>
-                          <span style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", width:"100%", marginBottom:4 }}>
+                    <tr style={{ borderBottom: `1px solid ${C.bg}` }}>
+                      <td
+                        colSpan={9}
+                        style={{
+                          padding: "0 12px 12px 12px",
+                          background: "#f9fefb",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: 6,
+                            padding: "10px 14px",
+                            background: C.greenLt,
+                            borderRadius: 10,
+                            border: `1px solid ${C.greenMid}`,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 800,
+                              color: C.muted,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.07em",
+                              width: "100%",
+                              marginBottom: 4,
+                            }}
+                          >
                             Ingredients required per unit:
                           </span>
                           {ingredients.map((ing, idx) => (
-                            <span key={idx} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:20, fontSize:12, fontWeight:600, background:C.white, color:C.ink, border:`1px solid ${C.border}` }}>
-                              <span style={{ color:C.green, fontWeight:700 }}>{ing.name}</span>
-                              <span style={{ color:C.muted }}>×</span>
-                              <span style={{ fontWeight:800, color:C.greenDk }}>{ing.qty_required}</span>
-                              {ing.unit && <span style={{ fontSize:11, color:C.muted, background:C.bg, padding:"1px 6px", borderRadius:20 }}>{ing.unit}</span>}
+                            <span
+                              key={idx}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 5,
+                                padding: "4px 10px",
+                                borderRadius: 20,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                background: C.white,
+                                color: C.ink,
+                                border: `1px solid ${C.border}`,
+                              }}
+                            >
+                              <span style={{ color: C.green, fontWeight: 700 }}>
+                                {ing.name}
+                              </span>
+                              <span style={{ color: C.muted }}>×</span>
+                              <span
+                                style={{ fontWeight: 800, color: C.greenDk }}
+                              >
+                                {ing.qty_required}
+                              </span>
+                              {ing.unit && (
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    color: C.muted,
+                                    background: C.bg,
+                                    padding: "1px 6px",
+                                    borderRadius: 20,
+                                  }}
+                                >
+                                  {ing.unit}
+                                </span>
+                              )}
                             </span>
                           ))}
                         </div>
@@ -673,7 +1972,14 @@ function InventoryTable({ items, onEdit, onRequestDelete, deletingId }) {
           </tbody>
         </table>
       </div>
-      {totalPages > 1 && <Pagination page={page} setPage={setPage} total={sorted.length} pageSize={PAGE_SIZE}/>}
+      {totalPages > 1 && (
+        <Pagination
+          page={page}
+          setPage={setPage}
+          total={sorted.length}
+          pageSize={PAGE_SIZE}
+        />
+      )}
     </div>
   );
 }
@@ -692,49 +1998,93 @@ function Toast({ toast, onClose }) {
   const isLoading = toast.type === "loading";
 
   return (
-    <div style={{
-      position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
-      maxWidth:380, padding:"16px 18px", borderRadius:14,
-      background: isErr ? C.redBg : C.okBg,
-      borderLeft: `5px solid ${isErr ? C.red : C.green}`,
-      border: `1px solid ${isErr ? "#fecaca" : C.greenMid}`,
-      borderLeftWidth: 5,
-      boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
-      fontFamily:FONT,
-      animation:"toastIn .22s ease",
-    }}>
-      <div style={{
-        flexShrink:0, width:32, height:32, borderRadius:"50%", display:"flex",
-        alignItems:"center", justifyContent:"center",
-        background: isErr ? C.red : C.green, color:"#fff",
-        boxShadow: `0 4px 10px ${isErr ? "rgba(192,57,43,0.4)" : "rgba(59,121,30,0.4)"}`,
-      }}>
-        {isErr
-          ? <AlertTriangle size={16}/>
-          : isLoading
-            ? <RefreshCw size={16} style={{ animation:"spin 0.8s linear infinite" }}/>
-            : <Check size={16}/>}
+    <div
+      style={{
+        position: "fixed",
+        top: 22,
+        right: 22,
+        zIndex: 4000,
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 12,
+        maxWidth: 380,
+        padding: "16px 18px",
+        borderRadius: 14,
+        background: isErr ? C.redBg : C.okBg,
+        borderLeft: `5px solid ${isErr ? C.red : C.green}`,
+        border: `1px solid ${isErr ? "#fecaca" : C.greenMid}`,
+        borderLeftWidth: 5,
+        boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
+        fontFamily: FONT,
+        animation: "toastIn .22s ease",
+      }}
+    >
+      <div
+        style={{
+          flexShrink: 0,
+          width: 32,
+          height: 32,
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: isErr ? C.red : C.green,
+          color: "#fff",
+          boxShadow: `0 4px 10px ${isErr ? "rgba(192,57,43,0.4)" : "rgba(59,121,30,0.4)"}`,
+        }}
+      >
+        {isErr ? (
+          <AlertTriangle size={16} />
+        ) : isLoading ? (
+          <RefreshCw
+            size={16}
+            style={{ animation: "spin 0.8s linear infinite" }}
+          />
+        ) : (
+          <Check size={16} />
+        )}
       </div>
 
-      <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : C.ink }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 800,
+            color: isErr ? "#7f1d1d" : C.ink,
+          }}
+        >
           {toast.title}
         </div>
         {toast.message && (
-          <div style={{ fontSize:12.5, color: isErr ? "#991b1b" : C.muted, marginTop:3, lineHeight:1.4 }}>
+          <div
+            style={{
+              fontSize: 12.5,
+              color: isErr ? "#991b1b" : C.muted,
+              marginTop: 3,
+              lineHeight: 1.4,
+            }}
+          >
             {toast.message}
           </div>
         )}
       </div>
 
       {!isLoading && (
-        <button onClick={onClose} style={{
-          background:"none", border:"none",
-          color: isErr ? "#991b1b" : C.muted,
-          cursor:"pointer", padding:2, flexShrink:0,
-          display:"flex", alignItems:"center", justifyContent:"center",
-        }}>
-          <X size={14}/>
+        <button
+          onClick={onClose}
+          style={{
+            background: "none",
+            border: "none",
+            color: isErr ? "#991b1b" : C.muted,
+            cursor: "pointer",
+            padding: 2,
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <X size={14} />
         </button>
       )}
     </div>
@@ -742,46 +2092,181 @@ function Toast({ toast, onClose }) {
 }
 
 // ─── BrandOverviewCard — Stock Inventory's ink-icon / 2-stat card ─────────────
-function BrandOverviewCard({ brand, branchCount, itemCount, lowCount, onClick }) {
+function BrandOverviewCard({
+  brand,
+  branchCount,
+  itemCount,
+  lowCount,
+  onClick,
+}) {
   return (
     <div
       role="button"
       tabIndex={0}
       className="stock-brand-overview-card"
       onClick={onClick}
-      onKeyDown={e => {
+      onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           onClick();
         }
       }}
       style={{
-        textAlign:"left", width:"100%", minWidth:0, minHeight:148, height:"auto",
-        padding:0, appearance:"none", display:"flex", flexDirection:"column",
-        alignItems:"stretch", justifyContent:"flex-start", gap:0, boxSizing:"border-box",
-        whiteSpace:"normal", background:C.white, border:`1px solid ${C.border}`, borderRadius:18,
-        overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,.05)", cursor:"pointer",
-        transition:"transform .2s ease, box-shadow .2s ease, border-color .2s ease",
-        fontFamily:"inherit",
+        textAlign: "left",
+        width: "100%",
+        minWidth: 0,
+        minHeight: 148,
+        height: "auto",
+        padding: 0,
+        appearance: "none",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "stretch",
+        justifyContent: "flex-start",
+        gap: 0,
+        boxSizing: "border-box",
+        whiteSpace: "normal",
+        background: C.white,
+        border: `1px solid ${C.border}`,
+        borderRadius: 18,
+        overflow: "hidden",
+        boxShadow: "0 2px 10px rgba(50,109,32,.05)",
+        cursor: "pointer",
+        transition:
+          "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
+        fontFamily: "inherit",
       }}
-      onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 14px 32px rgba(50,109,32,.12)";e.currentTarget.style.borderColor=C.greenMid;}}
-      onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 2px 10px rgba(50,109,32,.05)";e.currentTarget.style.borderColor=C.border;}}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-3px)";
+        e.currentTarget.style.boxShadow = "0 14px 32px rgba(50,109,32,.12)";
+        e.currentTarget.style.borderColor = C.greenMid;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "";
+        e.currentTarget.style.boxShadow = "0 2px 10px rgba(50,109,32,.05)";
+        e.currentTarget.style.borderColor = C.border;
+      }}
     >
-      <div style={{ width:"100%", minHeight:75, boxSizing:"border-box", flexShrink:0, padding:"18px 18px 15px", borderBottom:`1px solid ${C.border}`, background:"#fbfcf8", display:"flex", alignItems:"center", gap:12 }}>
-        <div style={{ width:42, height:42, borderRadius:12, background:C.ink, color:C.lime, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-          <StoreIcon size={19} color={C.lime}/>
+      <div
+        style={{
+          width: "100%",
+          minHeight: 75,
+          boxSizing: "border-box",
+          flexShrink: 0,
+          padding: "18px 18px 15px",
+          borderBottom: `1px solid ${C.border}`,
+          background: "#fbfcf8",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 12,
+            background: C.ink,
+            color: C.lime,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <StoreIcon size={19} color={C.lime} />
         </div>
-        <div style={{ minWidth:0, flex:1 }}>
-          <div style={{ fontSize:15, fontWeight:800, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{brand.name}</div>
-          <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{branchCount} branch{branchCount===1?"":"es"}</div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 800,
+              color: C.ink,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {brand.name}
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
+            {branchCount} branch{branchCount === 1 ? "" : "es"}
+          </div>
         </div>
-        <div style={{ width:30, height:30, flexShrink:0, borderRadius:9, background:C.bg, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", color:C.greenDk }}>
-          <ArrowRightIcon size={13}/>
+        <div
+          style={{
+            width: 30,
+            height: 30,
+            flexShrink: 0,
+            borderRadius: 9,
+            background: C.bg,
+            border: `1px solid ${C.border}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: C.greenDk,
+          }}
+        >
+          <ArrowRightIcon size={13} />
         </div>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(2,minmax(0,1fr))", width:"100%", minHeight:71, boxSizing:"border-box", gap:8, padding:"16px 18px" }}>
-        <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Items</div><div style={{ fontSize:18, fontWeight:800, color:C.ink, marginTop:3 }}>{itemCount}</div></div>
-        <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Low</div><div style={{ fontSize:18, fontWeight:800, color:lowCount?C.red:C.green, marginTop:3 }}>{lowCount}</div></div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+          width: "100%",
+          minHeight: 71,
+          boxSizing: "border-box",
+          gap: 8,
+          padding: "16px 18px",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: 10,
+              color: C.muted,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: ".05em",
+            }}
+          >
+            Items
+          </div>
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 800,
+              color: C.ink,
+              marginTop: 3,
+            }}
+          >
+            {itemCount}
+          </div>
+        </div>
+        <div>
+          <div
+            style={{
+              fontSize: 10,
+              color: C.muted,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: ".05em",
+            }}
+          >
+            Low
+          </div>
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 800,
+              color: lowCount ? C.red : C.green,
+              marginTop: 3,
+            }}
+          >
+            {lowCount}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -791,94 +2276,389 @@ function BrandOverviewCard({ brand, branchCount, itemCount, lowCount, onClick })
 function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
   if (!item) return null;
 
-  const low        = item.is_low;
+  const low = item.is_low;
   const isDeleting = deletingId === item.id;
   const ingredients = item.ingredients || [];
-  const directProduct = item.product_type === "DIRECT" || item.product_type === "FUEL" || isDirectBrandName(item.brand);
+  const directProduct =
+    item.product_type === "DIRECT" ||
+    item.product_type === "FUEL" ||
+    isDirectBrandName(item.brand);
 
   return (
     <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14, gap:8 }}>
-        <div style={{ flex:1, background:low?C.warnBg:C.okBg, borderRadius:10, padding:"10px 14px" }}>
-  <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{directProduct ? "Available Stock" : "Can Make"}</div>
-  <div style={{ fontSize:18, fontWeight:800, color:low?C.warn:C.ink, display:"flex", alignItems:"center", gap:6 }}>
-    {item.available_stock != null ? item.available_stock : "—"}
-    {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:C.warnBg, padding:"2px 7px", borderRadius:20 }}>LOW</span>}
-  </div>
-</div>
-        <div style={{ minWidth:0 }}>
-          <div style={{ fontSize:16, fontWeight:800, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</div>
-          <div style={{ fontSize:11, color:C.muted, marginTop:3, display:"flex", alignItems:"center", gap:5 }}>
-            <StoreIcon size={11} color={C.green}/> {item.branch}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          marginBottom: 14,
+          gap: 8,
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            background: low ? C.warnBg : C.okBg,
+            borderRadius: 10,
+            padding: "10px 14px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 9.5,
+              fontWeight: 800,
+              color: C.muted,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              marginBottom: 4,
+            }}
+          >
+            {directProduct ? "Available Stock" : "Can Make"}
+          </div>
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 800,
+              color: low ? C.warn : C.ink,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            {item.available_stock != null ? item.available_stock : "—"}
+            {low && (
+              <span
+                style={{
+                  fontSize: 9,
+                  fontWeight: 800,
+                  color: C.warn,
+                  background: C.warnBg,
+                  padding: "2px 7px",
+                  borderRadius: 20,
+                }}
+              >
+                LOW
+              </span>
+            )}
           </div>
         </div>
-        <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 16,
+              fontWeight: 800,
+              color: C.ink,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {item.name}
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: C.muted,
+              marginTop: 3,
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            <StoreIcon size={11} color={C.green} /> {item.branch}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           {directProduct ? (
-            <span style={{ ...smallBtnSt, border:`1px solid ${C.greenMid}`, background:C.greenLt, color:C.greenDk, cursor:"default" }}>
-              <Link2 size={11}/> Managed in Stock Inventory
+            <span
+              style={{
+                ...smallBtnSt,
+                border: `1px solid ${C.greenMid}`,
+                background: C.greenLt,
+                color: C.greenDk,
+                cursor: "default",
+              }}
+            >
+              <Link2 size={11} /> Managed in Stock Inventory
             </span>
           ) : (
             <>
-              <button onClick={()=>onEdit(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green, opacity:isDeleting?0.5:1, cursor:isDeleting?"not-allowed":"pointer" }}><EditIcon size={11}/> Edit</button>
-              <button onClick={()=>onRequestDelete(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:"1px solid #fecaca", color:C.red, opacity:isDeleting?0.6:1, cursor:isDeleting?"not-allowed":"pointer" }}>
-                {isDeleting && <RefreshCw size={11} style={{ animation:"spin 0.8s linear infinite" }}/>} 
-                {isDeleting ? "Deleting…" : <><TrashIcon size={11}/> Delete</>}
+              <button
+                onClick={() => onEdit(item)}
+                disabled={isDeleting}
+                style={{
+                  ...smallBtnSt,
+                  border: `1px solid ${C.border}`,
+                  color: C.green,
+                  opacity: isDeleting ? 0.5 : 1,
+                  cursor: isDeleting ? "not-allowed" : "pointer",
+                }}
+              >
+                <EditIcon size={11} /> Edit
+              </button>
+              <button
+                onClick={() => onRequestDelete(item)}
+                disabled={isDeleting}
+                style={{
+                  ...smallBtnSt,
+                  border: "1px solid #fecaca",
+                  color: C.red,
+                  opacity: isDeleting ? 0.6 : 1,
+                  cursor: isDeleting ? "not-allowed" : "pointer",
+                }}
+              >
+                {isDeleting && (
+                  <RefreshCw
+                    size={11}
+                    style={{ animation: "spin 0.8s linear infinite" }}
+                  />
+                )}
+                {isDeleting ? (
+                  "Deleting…"
+                ) : (
+                  <>
+                    <TrashIcon size={11} /> Delete
+                  </>
+                )}
               </button>
             </>
           )}
         </div>
       </div>
       {item.low_ingredients?.length > 0 && (
-  <div style={{ fontSize:11, color:C.warn, marginTop:8 }}>
-    Low on: {item.low_ingredients.join(", ")}
-  </div>
-)}
-
-      {item.image_url && (
-        <img src={item.image_url} alt={item.name}
-          style={{ width:"100%", maxWidth:280, height:170, objectFit:"cover", borderRadius:12, border:`1px solid ${C.border}`, marginBottom:14 }}
-          onError={e => e.target.style.display="none"}/>
+        <div style={{ fontSize: 11, color: C.warn, marginTop: 8 }}>
+          Low on: {item.low_ingredients.join(", ")}
+        </div>
       )}
 
-      <div style={{ display:"flex", gap:10, marginBottom:16 }}>
-        <div style={{ flex:1, background:C.greenLt, borderRadius:10, padding:"10px 14px" }}>
-          <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{directProduct ? "Auto Selling Price" : "Price"}</div>
-          <div style={{ fontSize:18, fontWeight:800, color:C.greenDk }}>{fmtPeso(item.price)}</div>
-          {directProduct && <div style={{ fontSize:9.5, color:C.muted, marginTop:3 }}>Cost + 30% operations + 40% profit</div>}
+      {item.image_url && (
+        <img
+          src={item.image_url}
+          alt={item.name}
+          style={{
+            width: "100%",
+            maxWidth: 280,
+            height: 170,
+            objectFit: "cover",
+            borderRadius: 12,
+            border: `1px solid ${C.border}`,
+            marginBottom: 14,
+          }}
+          onError={(e) => (e.target.style.display = "none")}
+        />
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <div
+          style={{
+            flex: 1,
+            background: C.greenLt,
+            borderRadius: 10,
+            padding: "10px 14px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 9.5,
+              fontWeight: 800,
+              color: C.muted,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              marginBottom: 4,
+            }}
+          >
+            {directProduct ? "Auto Selling Price" : "Price"}
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: C.greenDk }}>
+            {fmtPeso(item.price)}
+          </div>
+          {directProduct && (
+            <div style={{ fontSize: 9.5, color: C.muted, marginTop: 3 }}>
+              Cost + 30% operations + 40% profit
+            </div>
+          )}
         </div>
         {item.category && (
-          <div style={{ flex:1, background:C.bg, borderRadius:10, padding:"10px 14px" }}>
-            <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Category</div>
-            <div style={{ fontSize:14, fontWeight:800, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.category}</div>
+          <div
+            style={{
+              flex: 1,
+              background: C.bg,
+              borderRadius: 10,
+              padding: "10px 14px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 9.5,
+                fontWeight: 800,
+                color: C.muted,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                marginBottom: 4,
+              }}
+            >
+              Category
+            </div>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 800,
+                color: C.ink,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {item.category}
+            </div>
           </div>
         )}
       </div>
 
       {directProduct && (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,minmax(0,1fr))", gap:8, marginBottom:16 }}>
-          <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px" }}>
-            <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em" }}>Cost / Unit</div>
-            <div style={{ fontSize:14, fontWeight:800, color:C.ink, marginTop:4 }}>{fmtPeso(item.cost_per_unit ?? item.cost)}</div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+            gap: 8,
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              background: C.bg,
+              border: `1px solid ${C.border}`,
+              borderRadius: 10,
+              padding: "10px 12px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 9.5,
+                fontWeight: 800,
+                color: C.muted,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Cost / Unit
+            </div>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 800,
+                color: C.ink,
+                marginTop: 4,
+              }}
+            >
+              {fmtPeso(item.cost_per_unit ?? item.cost)}
+            </div>
           </div>
-          <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px" }}>
-            <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em" }}>Unit</div>
-            <div style={{ fontSize:14, fontWeight:800, color:C.ink, marginTop:4 }}>{item.unit || "—"}</div>
+          <div
+            style={{
+              background: C.bg,
+              border: `1px solid ${C.border}`,
+              borderRadius: 10,
+              padding: "10px 12px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 9.5,
+                fontWeight: 800,
+                color: C.muted,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Unit
+            </div>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 800,
+                color: C.ink,
+                marginTop: 4,
+              }}
+            >
+              {item.unit || "—"}
+            </div>
           </div>
-          <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px" }}>
-            <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em" }}>Minimum Stock</div>
-            <div style={{ fontSize:14, fontWeight:800, color:C.ink, marginTop:4 }}>{Number(item.min_stock || 0).toLocaleString("en-PH")}</div>
+          <div
+            style={{
+              background: C.bg,
+              border: `1px solid ${C.border}`,
+              borderRadius: 10,
+              padding: "10px 12px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 9.5,
+                fontWeight: 800,
+                color: C.muted,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Minimum Stock
+            </div>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 800,
+                color: C.ink,
+                marginTop: 4,
+              }}
+            >
+              {Number(item.min_stock || 0).toLocaleString("en-PH")}
+            </div>
           </div>
         </div>
       )}
 
       <div>
-        <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8 }}>{directProduct ? "Stock Inventory Source" : "Ingredients"}</div>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 800,
+            color: C.muted,
+            textTransform: "uppercase",
+            letterSpacing: "0.07em",
+            marginBottom: 8,
+          }}
+        >
+          {directProduct ? "Stock Inventory Source" : "Ingredients"}
+        </div>
         {directProduct ? (
-          <div style={{ background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:11, padding:"11px 13px", display:"flex", alignItems:"flex-start", gap:9 }}>
-            <PackageCheck size={16} color={C.greenDk} style={{ marginTop:1, flexShrink:0 }}/>
+          <div
+            style={{
+              background: C.greenLt,
+              border: `1px solid ${C.greenMid}`,
+              borderRadius: 11,
+              padding: "11px 13px",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 9,
+            }}
+          >
+            <PackageCheck
+              size={16}
+              color={C.greenDk}
+              style={{ marginTop: 1, flexShrink: 0 }}
+            />
             <div>
-              <div style={{ fontSize:12.5, fontWeight:800, color:C.ink }}>{item.name}</div>
-              <div style={{ fontSize:11.5, color:C.muted, lineHeight:1.5, marginTop:3 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink }}>
+                {item.name}
+              </div>
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: C.muted,
+                  lineHeight: 1.5,
+                  marginTop: 3,
+                }}
+              >
                 {item.product_type === "FUEL"
                   ? "Same product as Stock Inventory. Inventory movement and costing follow the FIFO delivery queue; this page only displays the product details and calculated pricing."
                   : "Same product as Stock Inventory. Inventory movement and costing follow the FEFO batch queue; this page only displays the product details and calculated pricing."}
@@ -886,15 +2666,47 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
             </div>
           </div>
         ) : ingredients.length === 0 ? (
-          <div style={{ fontSize:12, color:C.muted, fontStyle:"italic" }}>No ingredients linked.</div>
+          <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic" }}>
+            No ingredients linked.
+          </div>
         ) : (
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {ingredients.map((ing, idx) => (
-              <span key={idx} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"5px 11px", borderRadius:20, fontSize:12, fontWeight:600, background:C.white, color:C.ink, border:`1px solid ${C.border}` }}>
-                <span style={{ color:C.green, fontWeight:700 }}>{ing.name}</span>
-                <span style={{ color:C.muted }}>×</span>
-                <span style={{ fontWeight:800, color:C.greenDk }}>{ing.qty_required}</span>
-                {ing.unit && <span style={{ fontSize:11, color:C.muted, background:C.bg, padding:"1px 6px", borderRadius:20 }}>{ing.unit}</span>}
+              <span
+                key={idx}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "5px 11px",
+                  borderRadius: 20,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  background: C.white,
+                  color: C.ink,
+                  border: `1px solid ${C.border}`,
+                }}
+              >
+                <span style={{ color: C.green, fontWeight: 700 }}>
+                  {ing.name}
+                </span>
+                <span style={{ color: C.muted }}>×</span>
+                <span style={{ fontWeight: 800, color: C.greenDk }}>
+                  {ing.qty_required}
+                </span>
+                {ing.unit && (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: C.muted,
+                      background: C.bg,
+                      padding: "1px 6px",
+                      borderRadius: 20,
+                    }}
+                  >
+                    {ing.unit}
+                  </span>
+                )}
               </span>
             ))}
           </div>
@@ -904,91 +2716,301 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
   );
 }
 
-function ItemDetailModal({ item, onClose, onEdit, onRequestDelete, deletingId }) {
+function ItemDetailModal({
+  item,
+  onClose,
+  onEdit,
+  onRequestDelete,
+  deletingId,
+}) {
   if (!item) return null;
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(18,36,27,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:18, padding:"26px 28px", width:"100%", maxWidth:520, maxHeight:"86vh", overflowY:"auto", boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:`1px solid ${C.greenMid}`, fontFamily:FONT }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-          <h2 style={{ fontSize:16, fontWeight:800, color:C.ink, margin:0, display:"flex", alignItems:"center", gap:8 }}>
-            <EyeIcon size={15}/> Item Details
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(18,36,27,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2000,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: C.white,
+          borderRadius: 18,
+          padding: "26px 28px",
+          width: "100%",
+          maxWidth: 520,
+          maxHeight: "86vh",
+          overflowY: "auto",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.16)",
+          border: `1px solid ${C.greenMid}`,
+          fontFamily: FONT,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
+          <h2
+            style={{
+              fontSize: 16,
+              fontWeight: 800,
+              color: C.ink,
+              margin: 0,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <EyeIcon size={15} /> Item Details
           </h2>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:C.greenLt, cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <XIcon size={15}/>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              border: `1px solid ${C.border}`,
+              background: C.greenLt,
+              cursor: "pointer",
+              color: C.green,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <XIcon size={15} />
           </button>
         </div>
-        <ItemDetailPanel item={item} onEdit={onEdit} onRequestDelete={onRequestDelete} deletingId={deletingId}/>
+        <ItemDetailPanel
+          item={item}
+          onEdit={onEdit}
+          onRequestDelete={onRequestDelete}
+          deletingId={deletingId}
+        />
       </div>
     </div>
   );
 }
 
 function MenuBrandListCard({ items, onEdit, onRequestDelete, deletingId }) {
-  const [search, setSearch]   = useState("");
+  const [search, setSearch] = useState("");
   const [statusF, setStatusF] = useState("");
   const [selectedId, setSelectedId] = useState(null);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return items
-      .filter(i => {
+      .filter((i) => {
         if (q && !i.name.toLowerCase().includes(q)) return false;
-        if (statusF === "low" && Number(i.stock) > Number(i.min_stock)) return false;
-        if (statusF === "ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
+        if (statusF === "low" && Number(i.stock) > Number(i.min_stock))
+          return false;
+        if (statusF === "ok" && Number(i.stock) <= Number(i.min_stock))
+          return false;
         return true;
       })
-      .sort((a,b) => a.name.localeCompare(b.name));
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [items, search, statusF]);
 
   useEffect(() => {
-    if (selectedId && !items.find(i => i.id === selectedId)) setSelectedId(null);
+    if (selectedId && !items.find((i) => i.id === selectedId))
+      setSelectedId(null);
   }, [items, selectedId]);
 
-  const selected = items.find(i => i.id === selectedId) || null;
+  const selected = items.find((i) => i.id === selectedId) || null;
 
   return (
     <div>
-      <div style={{ padding:"10px 20px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:8, flexWrap:"wrap", background:"#fbfcf8" }}>
-        <div style={{ position:"relative", flex:"1 1 180px", minWidth:140 }}>
-          <div style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search item…" style={{ ...invInputSt, height:32, fontSize:12, paddingLeft:28 }}/>
+      <div
+        style={{
+          padding: "10px 20px",
+          borderBottom: `1px solid ${C.border}`,
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          background: "#fbfcf8",
+        }}
+      >
+        <div style={{ position: "relative", flex: "1 1 180px", minWidth: 140 }}>
+          <div
+            style={{
+              position: "absolute",
+              left: 9,
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: C.muted,
+            }}
+          >
+            <SearchIcon size={12} />
+          </div>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search item…"
+            style={{ ...invInputSt, height: 32, fontSize: 12, paddingLeft: 28 }}
+          />
         </div>
-        <select value={statusF} onChange={e=>setStatusF(e.target.value)} style={{ ...invInputSt, height:32, fontSize:12, width:120 }}>
+        <select
+          value={statusF}
+          onChange={(e) => setStatusF(e.target.value)}
+          style={{ ...invInputSt, height: 32, fontSize: 12, width: 120 }}
+        >
           <option value="">All Status</option>
           <option value="low">Low Stock</option>
           <option value="ok">In Stock</option>
         </select>
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", minHeight:420, maxHeight:560 }}>
-        <div style={{ borderRight:`1px solid ${C.border}`, overflowY:"auto", maxHeight:560 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "300px 1fr",
+          minHeight: 420,
+          maxHeight: 560,
+        }}
+      >
+        <div
+          style={{
+            borderRight: `1px solid ${C.border}`,
+            overflowY: "auto",
+            maxHeight: 560,
+          }}
+        >
           {filtered.length === 0 ? (
-            <div style={{ padding:"30px 14px", textAlign:"center", color:C.muted, fontSize:12 }}>No items found.</div>
-          ) : filtered.map(item => {
+            <div
+              style={{
+                padding: "30px 14px",
+                textAlign: "center",
+                color: C.muted,
+                fontSize: 12,
+              }}
+            >
+              No items found.
+            </div>
+          ) : (
+            filtered.map((item) => {
               const low = item.is_low;
               const active = item.id === selectedId;
               return (
-              <div key={item.id} onClick={() => setSelectedId(item.id)}
-                style={{ padding:"11px 16px", cursor:"pointer", borderLeft:`3px solid ${active?C.lime:"transparent"}`, background:active?"#f6f8ef":C.white, borderBottom:`1px solid ${C.bg}` }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:6 }}>
-                  <span style={{ fontSize:13, fontWeight:active?800:600, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
-                  {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:C.warnBg, padding:"1px 6px", borderRadius:4, flexShrink:0 }}>LOW</span>}
+                <div
+                  key={item.id}
+                  onClick={() => setSelectedId(item.id)}
+                  style={{
+                    padding: "11px 16px",
+                    cursor: "pointer",
+                    borderLeft: `3px solid ${active ? C.lime : "transparent"}`,
+                    background: active ? "#f6f8ef" : C.white,
+                    borderBottom: `1px solid ${C.bg}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: active ? 800 : 600,
+                        color: C.ink,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {item.name}
+                    </span>
+                    {low && (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 800,
+                          color: C.warn,
+                          background: C.warnBg,
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                          flexShrink: 0,
+                        }}
+                      >
+                        LOW
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: C.muted,
+                      marginTop: 3,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 6,
+                    }}
+                  >
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {item.branch}
+                    </span>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        color: C.greenDk,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {fmtPeso(item.price)}
+                    </span>
+                  </div>
                 </div>
-                <div style={{ fontSize:11, color:C.muted, marginTop:3, display:"flex", justifyContent:"space-between", gap:6 }}>
-                  <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.branch}</span>
-                  <span style={{ fontWeight:700, color:C.greenDk, flexShrink:0 }}>{fmtPeso(item.price)}</span>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
 
-        <div style={{ padding:20, overflowY:"auto", maxHeight:560 }}>
+        <div style={{ padding: 20, overflowY: "auto", maxHeight: 560 }}>
           {selected ? (
-            <ItemDetailPanel item={selected} onEdit={onEdit} onRequestDelete={onRequestDelete} deletingId={deletingId}/>
+            <ItemDetailPanel
+              item={selected}
+              onEdit={onEdit}
+              onRequestDelete={onRequestDelete}
+              deletingId={deletingId}
+            />
           ) : (
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", minHeight:300, color:C.muted, fontSize:12.5, textAlign:"center" }}>
-              <div>Select an item on the left<br/>to view its stock link and pricing.</div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                minHeight: 300,
+                color: C.muted,
+                fontSize: 12.5,
+                textAlign: "center",
+              }}
+            >
+              <div>
+                Select an item on the left
+                <br />
+                to view its stock link and pricing.
+              </div>
             </div>
           )}
         </div>
@@ -998,7 +3020,8 @@ function MenuBrandListCard({ items, onEdit, onRequestDelete, deletingId }) {
 }
 
 function computeAvailability(ingredients) {
-  if (!ingredients || ingredients.length === 0) return { available: null, lowIngredients: [] };
+  if (!ingredients || ingredients.length === 0)
+    return { available: null, lowIngredients: [] };
 
   let minPortions = Infinity;
   const lowIngredients = [];
@@ -1022,23 +3045,54 @@ function computeAvailability(ingredients) {
   };
 }
 
-// ─── MenuBrandCard — header/filter row restyled flat like Stock Inventory's BrandCard ─
 function MenuBrandCard({
-  brandName, items, branchOptions, categories,
-  onEdit, onRequestDelete, deletingId, onQuickAdd, onBack,
-  onOpenDeleteHistory, deleteHistoryCount,
-  onImportExcel, excelRef,
+  brandName,
+  items,
+  branchOptions,
+  categories,
+  onEdit,
+  onRequestDelete,
+  deletingId,
+  onQuickAdd,
+  onBack,
+  onOpenDeleteHistory,
+  deleteHistoryCount,
+  onImportExcel,
+  excelRef,
+  restrictBranch = "",
 }) {
-  const [search, setSearch]         = useState("");
-  const [branchF, setBranchF]       = useState("");
-  const [statusF, setStatusF]       = useState("");
-  const [categoryF, setCategoryF]   = useState("");
+  const [search, setSearch] = useState("");
+  const [branchF, setBranchF] = useState(restrictBranch || "");
+  const [statusF, setStatusF] = useState("");
+  const [categoryF, setCategoryF] = useState("");
   const [selectedId, setSelectedId] = useState(null);
-  const didSetDefaultBranch = useRef(false)
+  const didSetDefaultBranch = useRef(false);
 
-   useEffect(() => {
+  useEffect(() => {
+    if (restrictBranch) {
+      setBranchF(restrictBranch);
+      didSetDefaultBranch.current = true;
+      return;
+    }
+
     if (!didSetDefaultBranch.current && branchOptions.length > 0) {
-      const headOffice = branchOptions.find(b => b.toLowerCase() === "head office");
+      const headOffice = branchOptions.find(
+        (b) => b.toLowerCase() === "head office",
+      );
+
+      if (headOffice) {
+        setBranchF(headOffice);
+      }
+
+      didSetDefaultBranch.current = true;
+    }
+  }, [restrictBranch, branchOptions]);
+
+  useEffect(() => {
+    if (!didSetDefaultBranch.current && branchOptions.length > 0) {
+      const headOffice = branchOptions.find(
+        (b) => b.toLowerCase() === "head office",
+      );
       if (headOffice) setBranchF(headOffice);
       didSetDefaultBranch.current = true;
     }
@@ -1047,133 +3101,481 @@ function MenuBrandCard({
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return items
-      .filter(i => {
+      .filter((i) => {
         if (q && !i.name.toLowerCase().includes(q)) return false;
         if (branchF && i.branch !== branchF) return false;
         if (categoryF && i.category !== categoryF) return false;
         if (statusF === "low" && !i.is_low) return false;
-        if (statusF === "ok"  && i.is_low) return false;
+        if (statusF === "ok" && i.is_low) return false;
         return true;
       })
-      .sort((a,b) => a.name.localeCompare(b.name));
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [items, search, branchF, categoryF, statusF]);
 
   useEffect(() => {
-    if (selectedId && !items.find(i => i.id === selectedId)) setSelectedId(null);
+    if (selectedId && !items.find((i) => i.id === selectedId))
+      setSelectedId(null);
   }, [items, selectedId]);
 
-  const selected = items.find(i => i.id === selectedId) || null;
-  const lowCount = items.filter(i => i.is_low).length;
+  const selected = items.find((i) => i.id === selectedId) || null;
+  const lowCount = items.filter((i) => i.is_low).length;
   const directBrand = isDirectBrandName(brandName);
 
   return (
-    <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,.05)", display:"flex", flexDirection:"column" }}>
+    <div
+      style={{
+        background: C.white,
+        border: `1px solid ${C.border}`,
+        borderRadius: 18,
+        overflow: "hidden",
+        boxShadow: "0 2px 10px rgba(50,109,32,.05)",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
       {/* header — flat, matches Stock Inventory's BrandCard */}
-      <div style={{ padding:"16px 22px", background:"#fbfcf8", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.ink, flexWrap:"wrap", gap:8 }}>
-        <span style={{ display:"flex", alignItems:"center", gap:10 }}>
+      <div
+        style={{
+          padding: "16px 22px",
+          background: "#fbfcf8",
+          borderBottom: `1px solid ${C.border}`,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          color: C.ink,
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {onBack ? (
-            <button onClick={onBack} title="Back to all brands"
-              style={{ display:"inline-flex", alignItems:"center", gap:6, height:34, padding:"0 14px", borderRadius:9, border:`1px solid ${C.border}`, background:C.white, color:C.greenDk, fontSize:13, fontWeight:800, fontFamily:"inherit", cursor:"pointer" }}>
-              <ArrowLeftIcon size={16} strokeWidth={2.5}/>
+            <button
+              onClick={onBack}
+              title="Back to all brands"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                height: 34,
+                padding: "0 14px",
+                borderRadius: 9,
+                border: `1px solid ${C.border}`,
+                background: C.white,
+                color: C.greenDk,
+                fontSize: 13,
+                fontWeight: 800,
+                fontFamily: "inherit",
+                cursor: "pointer",
+              }}
+            >
+              <ArrowLeftIcon size={16} strokeWidth={2.5} />
             </button>
           ) : (
-            <StoreIcon size={17} color={C.green}/>
+            <StoreIcon size={17} color={C.green} />
           )}
-          <span style={{ fontWeight:800, fontSize:17 }}>{brandName}</span>
+          <span style={{ fontWeight: 800, fontSize: 17 }}>{brandName}</span>
         </span>
-        <span style={{ display:"flex", alignItems:"center", gap:10, fontSize:11 }}>
-          <span style={{ opacity:0.85, color:C.muted }}>{items.length} item{items.length===1?"":"s"}{lowCount>0?` · ${lowCount} low`:""}</span>
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            fontSize: 11,
+          }}
+        >
+          <span style={{ opacity: 0.85, color: C.muted }}>
+            {items.length} item{items.length === 1 ? "" : "s"}
+            {lowCount > 0 ? ` · ${lowCount} low` : ""}
+          </span>
           {directBrand ? (
-            <span style={{ display:"inline-flex", alignItems:"center", gap:6, height:28, padding:"0 11px", borderRadius:8, border:`1px solid ${C.greenMid}`, background:C.greenLt, color:C.greenDk, fontSize:10.5, fontWeight:800, whiteSpace:"nowrap" }}>
-              <Link2 size={12}/> Auto-synced from Stock Inventory
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                height: 28,
+                padding: "0 11px",
+                borderRadius: 8,
+                border: `1px solid ${C.greenMid}`,
+                background: C.greenLt,
+                color: C.greenDk,
+                fontSize: 10.5,
+                fontWeight: 800,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <Link2 size={12} /> Auto-synced from Stock Inventory
             </span>
           ) : (
-            <button onClick={onQuickAdd} title="Add a new menu item"
-              style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 12px", borderRadius:7, border:"none", background:C.green, color:C.white, fontSize:11, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              <PlusIcon size={12}/> Add Item
+            <button
+              onClick={onQuickAdd}
+              title="Add a new menu item"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                height: 26,
+                padding: "0 12px",
+                borderRadius: 7,
+                border: "none",
+                background: C.green,
+                color: C.white,
+                fontSize: 11,
+                fontWeight: 700,
+                fontFamily: "inherit",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <PlusIcon size={12} /> Add Item
             </button>
           )}
         </span>
       </div>
 
       {/* filter row */}
-      <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:6, flexWrap:"wrap", background:"#fbfcf8" }}>
-        <div style={{ position:"relative", flex:"1 1 160px", minWidth:100 }}>
-          <div style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={11}/></div>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:24 }}/>
+      <div
+        style={{
+          padding: "12px 18px",
+          borderBottom: `1px solid ${C.border}`,
+          display: "flex",
+          gap: 6,
+          flexWrap: "wrap",
+          background: "#fbfcf8",
+        }}
+      >
+        <div style={{ position: "relative", flex: "1 1 160px", minWidth: 100 }}>
+          <div
+            style={{
+              position: "absolute",
+              left: 8,
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: C.muted,
+            }}
+          >
+            <SearchIcon size={11} />
+          </div>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search…"
+            style={{ ...invInputSt, height: 30, fontSize: 12, paddingLeft: 24 }}
+          />
         </div>
-        <BranchOnlyFilter branches={branchOptions} activeBranch={branchF} onChangeBranch={setBranchF}/>
-        <select value={categoryF} onChange={e=>setCategoryF(e.target.value)} style={{ ...invInputSt, height:30, fontSize:11, width:140 }}>
+        {restrictBranch ? (
+          <div
+            style={{
+              ...invInputSt,
+              height: 30,
+              minWidth: 150,
+              width: "auto",
+              fontSize: 11,
+              padding: "0 10px",
+              background: C.bg,
+              color: C.ink,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: "default",
+            }}
+            title="Assigned branch"
+          >
+            <StoreIcon size={11} color={C.green} />
+            {restrictBranch}
+          </div>
+        ) : (
+          <BranchOnlyFilter
+            branches={branchOptions}
+            activeBranch={branchF}
+            onChangeBranch={setBranchF}
+          />
+        )}
+        <select
+          value={categoryF}
+          onChange={(e) => setCategoryF(e.target.value)}
+          style={{ ...invInputSt, height: 30, fontSize: 11, width: 140 }}
+        >
           <option value="">All Categories</option>
-          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
         </select>
-        <select value={statusF} onChange={e=>setStatusF(e.target.value)} style={{ ...invInputSt, height:30, fontSize:11, width:110 }}>
+        <select
+          value={statusF}
+          onChange={(e) => setStatusF(e.target.value)}
+          style={{ ...invInputSt, height: 30, fontSize: 11, width: 110 }}
+        >
           <option value="">All Status</option>
           <option value="low">Low Stock</option>
           <option value="ok">In Stock</option>
         </select>
-        <div style={{ flex:1 }}/>
+        <div style={{ flex: 1 }} />
         {!directBrand && (
-          <button onClick={onOpenDeleteHistory} style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1.5px solid ${C.red}`, color:C.red, gap:5, background:C.white }}>
-            <HistoryIcon size={11}/> Delete History
+          <button
+            onClick={onOpenDeleteHistory}
+            style={{
+              ...smallBtnSt,
+              height: 30,
+              padding: "0 11px",
+              border: `1.5px solid ${C.red}`,
+              color: C.red,
+              gap: 5,
+              background: C.white,
+            }}
+          >
+            <HistoryIcon size={11} /> Delete History
             {deleteHistoryCount > 0 && (
-              <span style={{ background:C.red, color:"#fff", fontSize:9, fontWeight:800, padding:"1px 6px", borderRadius:20 }}>{deleteHistoryCount}</span>
+              <span
+                style={{
+                  background: C.red,
+                  color: "#fff",
+                  fontSize: 9,
+                  fontWeight: 800,
+                  padding: "1px 6px",
+                  borderRadius: 20,
+                }}
+              >
+                {deleteHistoryCount}
+              </span>
             )}
           </button>
         )}
         {!directBrand && (
-          <label style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1px solid ${C.border}`, cursor:"pointer", gap:5, background:C.white }}>
-            <FileIcon size={11}/> Import Excel
-            <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={onImportExcel} style={{ display:"none" }}/>
+          <label
+            style={{
+              ...smallBtnSt,
+              height: 30,
+              padding: "0 11px",
+              border: `1px solid ${C.border}`,
+              cursor: "pointer",
+              gap: 5,
+              background: C.white,
+            }}
+          >
+            <FileIcon size={11} /> Import Excel
+            <input
+              ref={excelRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={onImportExcel}
+              style={{ display: "none" }}
+            />
           </label>
         )}
       </div>
 
       {/* two columns: left = scrollable item list, right = scrollable ingredients panel */}
-      <div style={{ display:"grid", gridTemplateColumns:"420px 1fr", minHeight:540, maxHeight:700 }}>
-        <div style={{ borderRight:`1px solid ${C.border}`, overflowY:"auto", maxHeight:700, minHeight:0 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "420px 1fr",
+          minHeight: 540,
+          maxHeight: 700,
+        }}
+      >
+        <div
+          style={{
+            borderRight: `1px solid ${C.border}`,
+            overflowY: "auto",
+            maxHeight: 700,
+            minHeight: 0,
+          }}
+        >
           {filtered.length === 0 ? (
-            <div style={{ padding:"30px 14px", textAlign:"center", color:C.muted, fontSize:12 }}>No items found.</div>
-          ) : filtered.map(item => {
-            const low = Number(item.stock) <= Number(item.min_stock);
-            const active = item.id === selectedId;
-            const stockPct = Number(item.min_stock) > 0 ? Math.min(100, Math.round((Number(item.stock||0) / (Number(item.min_stock)*2)) * 100)) : (Number(item.stock)>0?100:0);
-            return (
-              <div key={item.id} onClick={() => setSelectedId(item.id)}
-                style={{ padding:"10px 14px", cursor:"pointer", borderLeft:`3px solid ${active?C.lime:"transparent"}`, background:active?"#f6f8ef":C.white, borderBottom:`1px solid ${C.bg}` }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:6 }}>
-                  <span style={{ fontSize:12.5, fontWeight:active?800:600, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
-                  {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:C.warnBg, padding:"1px 6px", borderRadius:4, flexShrink:0 }}>LOW</span>}
-                </div>
-                <div style={{ fontSize:10.5, color:C.muted, marginTop:3 }}>
-                  <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.branch}</span>
-                </div>
-                <div style={{ marginTop:5 }}>
-                  <MiniBar pct={stockPct} color={low?C.warn:C.green} height={4}/>
-                </div>
-                <div style={{ display:"flex", gap:6, marginTop:7 }}>
-                  {directBrand ? (
-                    <span style={{ display:"inline-flex", alignItems:"center", gap:5, height:24, padding:"0 9px", fontSize:10.5, border:`1px solid ${C.greenMid}`, borderRadius:999, background:C.greenLt, color:C.greenDk, fontWeight:700 }}>
-                      <Link2 size={10}/> Managed in Stock Inventory
+            <div
+              style={{
+                padding: "30px 14px",
+                textAlign: "center",
+                color: C.muted,
+                fontSize: 12,
+              }}
+            >
+              No items found.
+            </div>
+          ) : (
+            filtered.map((item) => {
+              const low = Number(item.stock) <= Number(item.min_stock);
+              const active = item.id === selectedId;
+              const stockPct =
+                Number(item.min_stock) > 0
+                  ? Math.min(
+                      100,
+                      Math.round(
+                        (Number(item.stock || 0) /
+                          (Number(item.min_stock) * 2)) *
+                          100,
+                      ),
+                    )
+                  : Number(item.stock) > 0
+                    ? 100
+                    : 0;
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => setSelectedId(item.id)}
+                  style={{
+                    padding: "10px 14px",
+                    cursor: "pointer",
+                    borderLeft: `3px solid ${active ? C.lime : "transparent"}`,
+                    background: active ? "#f6f8ef" : C.white,
+                    borderBottom: `1px solid ${C.bg}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 12.5,
+                        fontWeight: active ? 800 : 600,
+                        color: C.ink,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {item.name}
                     </span>
-                  ) : (
-                    <>
-                      <button onClick={e=>{ e.stopPropagation(); onEdit(item); }} className="edit-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:`1px solid ${C.border}`, color:C.green }}><EditIcon size={10}/> Edit</button>
-                      <button onClick={e=>{ e.stopPropagation(); onRequestDelete(item); }} className="del-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:"1px solid #fecaca", color:C.red }}><TrashIcon size={10}/> Delete</button>
-                    </>
-                  )}
+                    {low && (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 800,
+                          color: C.warn,
+                          background: C.warnBg,
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                          flexShrink: 0,
+                        }}
+                      >
+                        LOW
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3 }}>
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {item.branch}
+                    </span>
+                  </div>
+                  <div style={{ marginTop: 5 }}>
+                    <MiniBar
+                      pct={stockPct}
+                      color={low ? C.warn : C.green}
+                      height={4}
+                    />
+                  </div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 7 }}>
+                    {directBrand ? (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          height: 24,
+                          padding: "0 9px",
+                          fontSize: 10.5,
+                          border: `1px solid ${C.greenMid}`,
+                          borderRadius: 999,
+                          background: C.greenLt,
+                          color: C.greenDk,
+                          fontWeight: 700,
+                        }}
+                      >
+                        <Link2 size={10} /> Managed in Stock Inventory
+                      </span>
+                    ) : (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEdit(item);
+                          }}
+                          className="edit-btn"
+                          style={{
+                            ...smallBtnSt,
+                            height: 24,
+                            padding: "0 9px",
+                            fontSize: 10.5,
+                            border: `1px solid ${C.border}`,
+                            color: C.green,
+                          }}
+                        >
+                          <EditIcon size={10} /> Edit
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRequestDelete(item);
+                          }}
+                          className="del-btn"
+                          style={{
+                            ...smallBtnSt,
+                            height: 24,
+                            padding: "0 9px",
+                            fontSize: 10.5,
+                            border: "1px solid #fecaca",
+                            color: C.red,
+                          }}
+                        >
+                          <TrashIcon size={10} /> Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
 
-        <div style={{ padding:20, overflowY:"auto", maxHeight:700, minHeight:0 }}>
+        <div
+          style={{
+            padding: 20,
+            overflowY: "auto",
+            maxHeight: 700,
+            minHeight: 0,
+          }}
+        >
           {selected ? (
-            <ItemDetailPanel item={selected} onEdit={onEdit} onRequestDelete={onRequestDelete} deletingId={deletingId}/>
+            <ItemDetailPanel
+              item={selected}
+              onEdit={onEdit}
+              onRequestDelete={onRequestDelete}
+              deletingId={deletingId}
+            />
           ) : (
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", minHeight:300, color:C.muted, fontSize:12.5, textAlign:"center", padding:20 }}>
-              <div>Select an item on the left<br/>to view its product details.</div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                minHeight: 300,
+                color: C.muted,
+                fontSize: 12.5,
+                textAlign: "center",
+                padding: 20,
+              }}
+            >
+              <div>
+                Select an item on the left
+                <br />
+                to view its product details.
+              </div>
             </div>
           )}
         </div>
@@ -1183,20 +3585,34 @@ function MenuBrandCard({
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
-export default function MenuInventoryContent({ user, brands: propBrands = [] }) {
-  const isAdmin    = user?.role === "Super Admin" || user?.role === "Sales Admin";
-  const userBranch = user?.branch || "";
-  const userName   = user?.name   || "Unknown";
+export default function MenuInventoryContent({
+  user,
+  brands: propBrands = [],
+}) {
+  const isAdmin = user?.role === "Super Admin" || user?.role === "Sales Admin";
+
+  const isManager = user?.role === "Manager";
+
+  const userBranch = String(user?.branch || "").trim();
+
+  const userBrand = String(
+    user?.brand || user?.brand_name || user?.brandName || "",
+  ).trim();
+
+  const userName = user?.name || "Unknown";
 
   const [branchFilter, setBranchFilter] = useState("");
 
-  const brandList   = propBrands.length > 0 ? propBrands : [];
+  const brandList = propBrands.length > 0 ? propBrands : [];
   const allBranches = useMemo(() => {
     const out = [];
-    brandList.forEach(b => (b.branches||[]).forEach(br => {
-      const name = typeof br==="string"?br:br.name;
-      if (!out.find(x=>x.branch===name)) out.push({ brand:b.name, branch:name });
-    }));
+    brandList.forEach((b) =>
+      (b.branches || []).forEach((br) => {
+        const name = typeof br === "string" ? br : br.name;
+        if (!out.find((x) => x.branch === name))
+          out.push({ brand: b.name, branch: name });
+      }),
+    );
     return out;
   }, [brandList]);
 
@@ -1204,12 +3620,14 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   // Shared branches such as Head Office must never decide product ownership.
   const branchToBrand = useMemo(() => {
     const owners = {};
-    brandList.forEach(b => (b.branches||[]).forEach(br => {
-      const name = typeof br === "string" ? br : br?.name;
-      if (!name) return;
-      if (!owners[name]) owners[name] = [];
-      owners[name].push(b.name);
-    }));
+    brandList.forEach((b) =>
+      (b.branches || []).forEach((br) => {
+        const name = typeof br === "string" ? br : br?.name;
+        if (!name) return;
+        if (!owners[name]) owners[name] = [];
+        owners[name].push(b.name);
+      }),
+    );
 
     const map = {};
     Object.entries(owners).forEach(([branchName, brandNames]) => {
@@ -1219,58 +3637,77 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     return map;
   }, [brandList]);
 
-  const [inventory,       setInventory]       = useState([]);
-  const [stockItems,      setStockItems]       = useState([]);
+  const [inventory, setInventory] = useState([]);
+  const [stockItems, setStockItems] = useState([]);
   const [catalogStockItems, setCatalogStockItems] = useState([]);
-  const [loading,         setLoading]         = useState(false);
-  const [filterBrandName, setFilterBrandName] = useState("");
-  const [filterCategory,  setFilterCategory]  = useState("");
-  const [filterStatus,    setFilterStatus]    = useState("");
-  const [searchQuery,     setSearchQuery]     = useState("");
+  const [loading, setLoading] = useState(false);
+  const [filterBrandName, setFilterBrandName] = useState(() => {
+    return isAdmin ? "" : userBrand;
+  });
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [brandBranchFilter, setBrandBranchFilter] = useState({});
-  const [showAddModal,    setShowAddModal]    = useState(false);
-  const [showEditModal,   setShowEditModal]   = useState(false);
-  const [editingItem,     setEditingItem]     = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [activeScreen, setActiveScreen] = useState(isAdmin ? "brands" : "inventory");
-  const [filterBrand, setFilterBrand]   = useState(null);
+  const [activeScreen, setActiveScreen] = useState(
+    isAdmin ? "brands" : "inventory",
+  );
+  const [filterBrand, setFilterBrand] = useState(null);
 
-  const [saving,          setSaving]          = useState(false);
-  const [deletingId,      setDeletingId]      = useState(null);
-  const [restoringId,     setRestoringId]     = useState(null);
-  const [toast,           setToast]           = useState(null);
-  const showToast = (type, title, message) => setToast({ type, title, message });
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [restoringId, setRestoringId] = useState(null);
+  const [toast, setToast] = useState(null);
+  const showToast = (type, title, message) =>
+    setToast({ type, title, message });
 
-  const [deleteHistory,     setDeleteHistory]     = useState([]);
+  const [deleteHistory, setDeleteHistory] = useState([]);
   const [showDeleteHistory, setShowDeleteHistory] = useState(false);
-  const [activityLog,       setActivityLog]       = useState([]);
-  const [showActivityLog,   setShowActivityLog]   = useState(false);
+  const [activityLog, setActivityLog] = useState([]);
+  const [showActivityLog, setShowActivityLog] = useState(false);
 
-  const [ingSearch,   setIngSearch]   = useState("");
-  const [ingQty,      setIngQty]      = useState("1");
-  const [ingUnit,     setIngUnit]     = useState("");
-  const [ingPicked,   setIngPicked]   = useState(null);
+  const [ingSearch, setIngSearch] = useState("");
+  const [ingQty, setIngQty] = useState("1");
+  const [ingUnit, setIngUnit] = useState("");
+  const [ingPicked, setIngPicked] = useState(null);
   const [ingDropOpen, setIngDropOpen] = useState(false);
   const ingRef = useRef(null);
 
-const emptyForm = useCallback(() => ({
-  name:"", category:"", branch:isAdmin?"":userBranch, branches: isAdmin ? [] : [userBranch], brand:"",
-  cost:"", price:"", ingredients:[], image_url:"",
-}), [isAdmin, userBranch]);
+  const emptyForm = useCallback(
+    () => ({
+      name: "",
+      category: "",
+      branch: isAdmin ? "" : userBranch,
+      branches: isAdmin ? [] : [userBranch],
+      brand: "",
+      cost: "",
+      price: "",
+      ingredients: [],
+      image_url: "",
+    }),
+    [isAdmin, userBranch],
+  );
 
   const excelRef = useRef(null);
 
-  const [formData,    setFormData]    = useState(emptyForm);
+  const [formData, setFormData] = useState(emptyForm);
   const [formBrandId, setFormBrandId] = useState("");
 
   const inventoryCategories = useMemo(() => {
-    return [...new Set(brandList.flatMap(b => b.categories || []).filter(Boolean))].sort();
+    return [
+      ...new Set(brandList.flatMap((b) => b.categories || []).filter(Boolean)),
+    ].sort();
   }, [brandList]);
 
   const formBrand = useMemo(() => {
     if (!formData.branch) return null;
-    return brandList.find(b =>
-      (b.branches || []).some(br => (typeof br === "string" ? br : br.name) === formData.branch)
+    return brandList.find((b) =>
+      (b.branches || []).some(
+        (br) => (typeof br === "string" ? br : br.name) === formData.branch,
+      ),
     );
   }, [formData.branch, brandList]);
 
@@ -1281,103 +3718,190 @@ const emptyForm = useCallback(() => ({
   }, [formBrand, inventoryCategories]);
 
   useEffect(() => {
-    const fn = e => { if(ingRef.current && !ingRef.current.contains(e.target)) setIngDropOpen(false); };
+    const fn = (e) => {
+      if (ingRef.current && !ingRef.current.contains(e.target))
+        setIngDropOpen(false);
+    };
     document.addEventListener("mousedown", fn);
     return () => document.removeEventListener("mousedown", fn);
   }, []);
 
+  useEffect(() => {
+    if (!isAdmin && userBrand) {
+      setFilterBrandName(userBrand);
+    }
+  }, [isAdmin, userBrand]);
+
   const fetchInventory = useCallback(async (branch) => {
     setLoading(true);
     try {
-      const q   = branch ? `?branch=${encodeURIComponent(branch)}` : "";
+      const q = branch ? `?branch=${encodeURIComponent(branch)}` : "";
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory${q}`);
-      const d   = await res.json();
+      const d = await res.json();
       setInventory(Array.isArray(d) ? d : []);
-    } catch { setInventory([]); }
-    finally { setLoading(false); }
+    } catch {
+      setInventory([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-const fetchStockItems = useCallback(async (branch, brand) => {
-  try {
-    const params = new URLSearchParams();
-    if (branch) params.set("branch", branch);
-    if (brand)  params.set("brand", brand);
-    const q = params.toString() ? `?${params.toString()}` : "";
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients${q}`);
-    const d   = await res.json();
-    setStockItems(Array.isArray(d) ? d : []);
-  } catch { setStockItems([]); }
-}, []);
+  const fetchStockItems = useCallback(async (branch, brand) => {
+    try {
+      const params = new URLSearchParams();
+      if (branch) params.set("branch", branch);
+      if (brand) params.set("brand", brand);
+      const q = params.toString() ? `?${params.toString()}` : "";
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/ingredients${q}`,
+      );
+      const d = await res.json();
+      setStockItems(Array.isArray(d) ? d : []);
+    } catch {
+      setStockItems([]);
+    }
+  }, []);
 
-const fetchCatalogStockItems = useCallback(async () => {
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`);
-    const d = await res.json();
-    setCatalogStockItems(Array.isArray(d) ? d.map(normalizeCatalogueStockItem) : []);
-  } catch {
-    setCatalogStockItems([]);
-  }
-}, []);
+  const fetchCatalogStockItems = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+
+      if (!isAdmin) {
+        if (userBranch) {
+          params.set("branch", userBranch);
+        }
+
+        if (userBrand) {
+          params.set("brand", userBrand);
+        }
+      }
+
+      const query = params.toString() ? `?${params.toString()}` : "";
+
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/ingredients${query}`,
+      );
+
+      const data = await res.json();
+
+      const rows = Array.isArray(data)
+        ? data.map(normalizeCatalogueStockItem).filter((item) => {
+            if (isAdmin) {
+              return true;
+            }
+
+            const branchOK =
+              !userBranch ||
+              String(item.branch || "")
+                .trim()
+                .toLowerCase() === userBranch.toLowerCase();
+
+            const brandOK =
+              !userBrand ||
+              String(item.brand || "")
+                .trim()
+                .toLowerCase() === userBrand.toLowerCase();
+
+            return branchOK && brandOK;
+          })
+        : [];
+
+      setCatalogStockItems(rows);
+    } catch (err) {
+      console.error("Failed to fetch manager catalogue stock:", err);
+
+      setCatalogStockItems([]);
+    }
+  }, [isAdmin, userBranch, userBrand]);
 
   const fetchDeleteHistory = useCallback(async () => {
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory-delete-history`);
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/inventory-delete-history`,
+      );
       const data = await res.json();
-      setDeleteHistory(Array.isArray(data) ? data.map(row => ({
-        id:               row.id,
-        inventory_data:   row.inventory_data,
-        ingredients_data: row.ingredients_data || [],
-        deleted_at:       row.deleted_at,
-        deleted_by:       row.deleted_by,
-      })) : []);
-    } catch (err) { console.error("Failed to fetch inventory delete history:", err); }
+      setDeleteHistory(
+        Array.isArray(data)
+          ? data.map((row) => ({
+              id: row.id,
+              inventory_data: row.inventory_data,
+              ingredients_data: row.ingredients_data || [],
+              deleted_at: row.deleted_at,
+              deleted_by: row.deleted_by,
+            }))
+          : [],
+      );
+    } catch (err) {
+      console.error("Failed to fetch inventory delete history:", err);
+    }
   }, []);
 
-    useEffect(() => {
-  if (!formData.branch && !formBrandId) return;
-  const brandObj = brandList.find(b => String(b.id) === String(formBrandId));
-  fetchStockItems(formData.branch, brandObj?.name || "");
-}, [formData.branch, formBrandId, brandList, fetchStockItems]);
+  useEffect(() => {
+    if (!formData.branch && !formBrandId) return;
+    const brandObj = brandList.find(
+      (b) => String(b.id) === String(formBrandId),
+    );
+    fetchStockItems(formData.branch, brandObj?.name || "");
+  }, [formData.branch, formBrandId, brandList, fetchStockItems]);
 
   const fetchActivityLog = useCallback(async () => {
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/menu-activity-log`);
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/menu-activity-log`,
+      );
       const data = await res.json();
-      setActivityLog(Array.isArray(data) ? data.map(row => ({
-        id: row.id, action: row.action,
-        itemName: row.item_name ?? row.itemName,
-        performedBy: row.performed_by ?? row.performedBy,
-        branch: row.branch,
-        role: row.role,
-        changes: row.changes,
-        location: row.location,
-        timestamp: row.created_at ?? row.timestamp,
-      })) : []);
+      setActivityLog(
+        Array.isArray(data)
+          ? data.map((row) => ({
+              id: row.id,
+              action: row.action,
+              itemName: row.item_name ?? row.itemName,
+              performedBy: row.performed_by ?? row.performedBy,
+              branch: row.branch,
+              role: row.role,
+              changes: row.changes,
+              location: row.location,
+              timestamp: row.created_at ?? row.timestamp,
+            }))
+          : [],
+      );
     } catch (err) {
       console.error("Failed to fetch menu activity log:", err);
     }
   }, []);
 
   useEffect(() => {
-    if (!isAdmin) { fetchInventory(userBranch); return; }
+    if (!isAdmin) {
+      fetchInventory(userBranch);
+      return;
+    }
     fetchInventory();
   }, [isAdmin, userBranch, fetchInventory]);
 
-  useEffect(() => { fetchStockItems(); fetchCatalogStockItems(); }, [fetchStockItems, fetchCatalogStockItems]);
+  useEffect(() => {
+    fetchStockItems();
+    fetchCatalogStockItems();
+  }, [fetchStockItems, fetchCatalogStockItems]);
   useEffect(() => {
     const refreshDirectCatalogue = () => fetchCatalogStockItems();
     window.addEventListener("focus", refreshDirectCatalogue);
     window.addEventListener("stock-inventory-updated", refreshDirectCatalogue);
     return () => {
       window.removeEventListener("focus", refreshDirectCatalogue);
-      window.removeEventListener("stock-inventory-updated", refreshDirectCatalogue);
+      window.removeEventListener(
+        "stock-inventory-updated",
+        refreshDirectCatalogue,
+      );
     };
   }, [fetchCatalogStockItems]);
-  useEffect(() => { fetchDeleteHistory(); fetchActivityLog(); }, [fetchDeleteHistory, fetchActivityLog]);
+  useEffect(() => {
+    fetchDeleteHistory();
+    fetchActivityLog();
+  }, [fetchDeleteHistory, fetchActivityLog]);
 
   const refetch = () => fetchInventory(isAdmin ? undefined : userBranch);
 
-const inventoryForCatalogue = useMemo(() => {
+  const inventoryForCatalogue = useMemo(() => {
     /*
       ONE SOURCE OF TRUTH FOR DIRECT PRODUCTS
       ---------------------------------------
@@ -1392,42 +3916,57 @@ const inventoryForCatalogue = useMemo(() => {
     */
 
     const regularMenuItems = inventory
-      .map(item => {
-        const itemBrand = item.brand || branchToBrand[item.branch] || "Unassigned";
+      .map((item) => {
+        const itemBrand =
+          item.brand || branchToBrand[item.branch] || "Unassigned";
 
         // Ignore old/stale iFuel and iPharma records that may still exist in
         // the Menu Inventory table. Direct products are rendered ONLY from
         // Stock Inventory below.
         if (isDirectBrandName(itemBrand)) return null;
 
-        const brandObj = brandList.find(b => b.name === itemBrand);
-        const activeBranches = (brandObj?.branches || []).map(br => typeof br === "string" ? br : br.name);
+        const brandObj = brandList.find((b) => b.name === itemBrand);
+        const activeBranches = (brandObj?.branches || []).map((br) =>
+          typeof br === "string" ? br : br.name,
+        );
 
         // Brand & Branch remains authoritative for normal menu items too.
         if (brandObj && !activeBranches.includes(item.branch)) return null;
 
-        return { ...item, brand:itemBrand };
+        return { ...item, brand: itemBrand };
       })
       .filter(Boolean);
 
     const directStockProducts = catalogStockItems
-      .map(stock => {
+      .map((stock) => {
         // Stored brand is authoritative. Only fall back to branch when the
         // branch belongs to exactly one brand. Head Office is commonly shared,
         // so it cannot cause Coffee Spot/iPharma/iFuel products to mix.
-        const itemBrand = String(stock.brand || "").trim() || branchToBrand[stock.branch] || "Unassigned";
+        const itemBrand =
+          String(stock.brand || "").trim() ||
+          branchToBrand[stock.branch] ||
+          "Unassigned";
         if (!isDirectBrandName(itemBrand)) return null;
 
-        const brandObj = brandList.find(b => b.name === itemBrand);
+        const brandObj = brandList.find((b) => b.name === itemBrand);
         if (!brandObj) return null;
 
-        const activeBranches = (brandObj.branches || []).map(br => typeof br === "string" ? br : br?.name).filter(Boolean);
+        const activeBranches = (brandObj.branches || [])
+          .map((br) => (typeof br === "string" ? br : br?.name))
+          .filter(Boolean);
         if (!activeBranches.includes(stock.branch)) return null;
 
         const activeCategories = getBrandCategories(brandObj);
         const storedCategory = String(stock.category || "").trim();
-        const canonicalCategory = activeCategories.find(cat => cat.toLowerCase() === storedCategory.toLowerCase());
-        const displayCategory = canonicalCategory || storedCategory || (activeCategories.length === 1 ? activeCategories[0] : "Uncategorized");
+        const canonicalCategory = activeCategories.find(
+          (cat) => cat.toLowerCase() === storedCategory.toLowerCase(),
+        );
+        const displayCategory =
+          canonicalCategory ||
+          storedCategory ||
+          (activeCategories.length === 1
+            ? activeCategories[0]
+            : "Uncategorized");
 
         const cost = Number(stock.cost_per_unit || 0);
         const availableStock = Number(stock.stock || 0);
@@ -1435,46 +3974,52 @@ const inventoryForCatalogue = useMemo(() => {
         const productType = isFuelBrandName(itemBrand) ? "FUEL" : "DIRECT";
 
         return {
-          id:`stock-${stock.id}`,
-          source_stock_id:stock.id,
-          source_type:"STOCK_INVENTORY",
-          read_only_catalogue:true,
+          id: `stock-${stock.id}`,
+          source_stock_id: stock.id,
+          source_type: "STOCK_INVENTORY",
+          read_only_catalogue: true,
 
-          name:stock.name,
-          brand:itemBrand,
-          branch:stock.branch,
-          category:displayCategory,
-          image_url:stock.image_url || "",
-          unit:stock.unit || (isFuelBrandName(itemBrand) ? "liters" : "pcs"),
+          name: stock.name,
+          brand: itemBrand,
+          branch: stock.branch,
+          category: displayCategory,
+          image_url: stock.image_url || "",
+          unit: stock.unit || (isFuelBrandName(itemBrand) ? "liters" : "pcs"),
 
           cost,
-          cost_per_unit:cost,
-          price:computeDirectSellingPrice(cost),
-          operations_markup:DIRECT_OPERATIONS_MARGIN,
-          profit_markup:DIRECT_PROFIT_MARGIN,
+          cost_per_unit: cost,
+          price: computeDirectSellingPrice(cost),
+          operations_markup: DIRECT_OPERATIONS_MARGIN,
+          profit_markup: DIRECT_PROFIT_MARGIN,
 
-          stock:availableStock,
-          available_stock:availableStock,
-          min_stock:minStock,
-          is_low:availableStock <= minStock,
-          product_type:productType,
+          stock: availableStock,
+          available_stock: availableStock,
+          min_stock: minStock,
+          is_low: availableStock <= minStock,
+          product_type: productType,
 
-          ingredients:[{
-            stock_item_id:stock.id,
-            name:stock.name,
-            qty_required:1,
-            unit:stock.unit,
-            cost_per_unit:cost,
-            stock:availableStock,
-            min_stock:minStock,
-          }],
+          ingredients: [
+            {
+              stock_item_id: stock.id,
+              name: stock.name,
+              qty_required: 1,
+              unit: stock.unit,
+              cost_per_unit: cost,
+              stock: availableStock,
+              min_stock: minStock,
+            },
+          ],
         };
       })
       .filter(Boolean)
       .sort((a, b) => {
-        const byBrand = String(a.brand || "").localeCompare(String(b.brand || ""));
+        const byBrand = String(a.brand || "").localeCompare(
+          String(b.brand || ""),
+        );
         if (byBrand !== 0) return byBrand;
-        const byCategory = String(a.category || "").localeCompare(String(b.category || ""));
+        const byCategory = String(a.category || "").localeCompare(
+          String(b.category || ""),
+        );
         if (byCategory !== 0) return byCategory;
         return String(a.name || "").localeCompare(String(b.name || ""));
       });
@@ -1482,557 +4027,947 @@ const inventoryForCatalogue = useMemo(() => {
     return [...regularMenuItems, ...directStockProducts];
   }, [inventory, branchToBrand, brandList, catalogStockItems]);
 
-const filteredItems = useMemo(() => {
+  const filteredItems = useMemo(() => {
     const q = searchQuery.toLowerCase();
     return inventoryForCatalogue
-      .filter(i => {
+      .filter((i) => {
         const itemBrand = i.brand || branchToBrand[i.branch] || "Unassigned";
         if (filterBrandName && itemBrand !== filterBrandName) return false;
-        if (q && !i.name.toLowerCase().includes(q) && !String(i.category || "").toLowerCase().includes(q) && !String(i.branch || "").toLowerCase().includes(q)) return false;
-        if (filterCategory && i.category!==filterCategory) return false;
-        if (filterStatus==="low" && Number(i.stock) >  Number(i.min_stock)) return false;
-        if (filterStatus==="ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
+        if (
+          q &&
+          !i.name.toLowerCase().includes(q) &&
+          !String(i.category || "")
+            .toLowerCase()
+            .includes(q) &&
+          !String(i.branch || "")
+            .toLowerCase()
+            .includes(q)
+        )
+          return false;
+        if (filterCategory && i.category !== filterCategory) return false;
+        if (filterStatus === "low" && Number(i.stock) > Number(i.min_stock))
+          return false;
+        if (filterStatus === "ok" && Number(i.stock) <= Number(i.min_stock))
+          return false;
         return true;
       })
       .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
-  }, [inventoryForCatalogue, searchQuery, filterCategory, filterStatus, filterBrandName, branchToBrand]);
+  }, [
+    inventoryForCatalogue,
+    searchQuery,
+    filterCategory,
+    filterStatus,
+    filterBrandName,
+    branchToBrand,
+  ]);
 
   const filteredCategories = useMemo(() => {
     if (filterBrandName) {
-      const brand = brandList.find(b => b.name === filterBrandName);
+      const brand = brandList.find((b) => b.name === filterBrandName);
       return brand?.categories || [];
     }
-    return [...new Set(brandList.flatMap(b => b.categories || []).filter(Boolean))].sort();
+    return [
+      ...new Set(brandList.flatMap((b) => b.categories || []).filter(Boolean)),
+    ].sort();
   }, [filterBrandName, brandList]);
 
   const brandGroups = useMemo(() => {
     const map = {};
-    filteredItems.forEach(item => {
-      const brandName = item.brand || branchToBrand[item.branch] || "Unassigned";
+    filteredItems.forEach((item) => {
+      const brandName =
+        item.brand || branchToBrand[item.branch] || "Unassigned";
       if (!map[brandName]) map[brandName] = [];
       map[brandName].push(item);
     });
-    let names = brandList.map(b => b.name).filter(n => map[n]);
+    let names = brandList.map((b) => b.name).filter((n) => map[n]);
     if (map["Unassigned"]) names.push("Unassigned");
-    if (filterBrandName) names = names.filter(n => n === filterBrandName);
-    return names.map(name => ({
+    if (filterBrandName) names = names.filter((n) => n === filterBrandName);
+    return names.map((name) => ({
       name,
       items: (map[name] || []).slice().sort((a, b) => {
-        const byCategory = String(a.category || "").localeCompare(String(b.category || ""));
+        const byCategory = String(a.category || "").localeCompare(
+          String(b.category || ""),
+        );
         if (byCategory !== 0) return byCategory;
         return String(a.name || "").localeCompare(String(b.name || ""));
       }),
     }));
   }, [filteredItems, branchToBrand, brandList, filterBrandName]);
-  
+
   const UNIT_GROUPS = {
-  g:      { base: "kg",      factor: 0.001 },
-  kg:     { base: "kg",      factor: 1 },
-  ml:     { base: "liters",  factor: 0.001 },
-  liters: { base: "liters",  factor: 1 },
-  pcs:    { base: "pcs",     factor: 1 },
-};
+    g: { base: "kg", factor: 0.001 },
+    kg: { base: "kg", factor: 1 },
+    ml: { base: "liters", factor: 0.001 },
+    liters: { base: "liters", factor: 1 },
+    pcs: { base: "pcs", factor: 1 },
+  };
 
-function convertUnit(quantity, fromUnit, toUnit) {
-  if (fromUnit === toUnit) return quantity;
-  const from = UNIT_GROUPS[fromUnit];
-  const to = UNIT_GROUPS[toUnit];
-  if (!from || !to || from.base !== to.base) return quantity; // fail-safe: don't crash the form
-  return (quantity * from.factor) / to.factor;
-}
-
-const currentFormBrandName = formData.brand || branchToBrand[formData.branch] || "";
-const directStockSource = useMemo(() => {
-  if (!isDirectBrandName(currentFormBrandName) || !formData.name) return null;
-  return stockItems.find(stock =>
-    normalizeName(stock.name) === normalizeName(formData.name) &&
-    (!formData.branch || stock.branch === formData.branch)
-  ) || null;
-}, [currentFormBrandName, formData.name, formData.branch, stockItems]);
-
-const computedCost = useMemo(() => {
-  if (isDirectBrandName(currentFormBrandName)) {
-    return Number(directStockSource?.cost_per_unit || 0);
+  function convertUnit(quantity, fromUnit, toUnit) {
+    if (fromUnit === toUnit) return quantity;
+    const from = UNIT_GROUPS[fromUnit];
+    const to = UNIT_GROUPS[toUnit];
+    if (!from || !to || from.base !== to.base) return quantity; // fail-safe: don't crash the form
+    return (quantity * from.factor) / to.factor;
   }
-  if (!formData.ingredients || formData.ingredients.length === 0) return 0;
-  return formData.ingredients.reduce((total, ing) => {
-    const stock = stockItems.find(s => s.id === ing.stock_item_id);
-    if (!stock) return total;
-    const qtyInStockUnit = convertUnit(parseFloat(ing.qty_required||0), ing.unit, stock.unit);
-    return total + (parseFloat(stock.cost_per_unit||0) * qtyInStockUnit);
-  }, 0);
-}, [formData.ingredients, stockItems, currentFormBrandName, directStockSource]);
+
+  const currentFormBrandName =
+    formData.brand || branchToBrand[formData.branch] || "";
+  const directStockSource = useMemo(() => {
+    if (!isDirectBrandName(currentFormBrandName) || !formData.name) return null;
+    return (
+      stockItems.find(
+        (stock) =>
+          normalizeName(stock.name) === normalizeName(formData.name) &&
+          (!formData.branch || stock.branch === formData.branch),
+      ) || null
+    );
+  }, [currentFormBrandName, formData.name, formData.branch, stockItems]);
+
+  const computedCost = useMemo(() => {
+    if (isDirectBrandName(currentFormBrandName)) {
+      return Number(directStockSource?.cost_per_unit || 0);
+    }
+    if (!formData.ingredients || formData.ingredients.length === 0) return 0;
+    return formData.ingredients.reduce((total, ing) => {
+      const stock = stockItems.find((s) => s.id === ing.stock_item_id);
+      if (!stock) return total;
+      const qtyInStockUnit = convertUnit(
+        parseFloat(ing.qty_required || 0),
+        ing.unit,
+        stock.unit,
+      );
+      return total + parseFloat(stock.cost_per_unit || 0) * qtyInStockUnit;
+    }, 0);
+  }, [
+    formData.ingredients,
+    stockItems,
+    currentFormBrandName,
+    directStockSource,
+  ]);
 
   useEffect(() => {
     const cost = computedCost.toFixed(2);
     const numericCost = parseFloat(cost) || 0;
-    const price = numericCost > 0
-      ? (isDirectBrandName(currentFormBrandName)
+    const price =
+      numericCost > 0
+        ? isDirectBrandName(currentFormBrandName)
           ? computeDirectSellingPrice(numericCost).toFixed(2)
-          : (numericCost * (1 + DEFAULT_PROFIT_MARGIN / 100)).toFixed(2))
-      : "";
-    setFormData(prev => ({
+          : (numericCost * (1 + DEFAULT_PROFIT_MARGIN / 100)).toFixed(2)
+        : "";
+    setFormData((prev) => ({
       ...prev,
       cost,
       price,
-      ...(isDirectBrandName(currentFormBrandName) && directStockSource ? {
-        stock:Number(directStockSource.stock || 0),
-        minStock:Number(directStockSource.min_stock || 0),
-      } : {}),
+      ...(isDirectBrandName(currentFormBrandName) && directStockSource
+        ? {
+            stock: Number(directStockSource.stock || 0),
+            minStock: Number(directStockSource.min_stock || 0),
+          }
+        : {}),
     }));
   }, [computedCost, currentFormBrandName, directStockSource]);
 
-const handleAddItem = async e => {
-  e.preventDefault();
-  const targetBranches = isAdmin ? (formData.branches || []) : [userBranch];
-  const requestedBrand = formData.brand || branchToBrand[targetBranches[0]] || "";
-  if (isDirectBrandName(requestedBrand)) {
-    showToast("info", "Use Stock Inventory", "Add iFuel and iPharma products in Stock Inventory. Menu Inventory mirrors them automatically.");
-    return;
-  }
-
-  const missing = [];
-  if (!formData.name?.trim())      missing.push("Name");
-  if (!formData.category?.trim())  missing.push("Category");
-  if (isAdmin && targetBranches.length === 0) missing.push("At least one branch");
-  if (!formData.brand?.trim())     missing.push("Brand");
-  if (formData.cost === "" || formData.cost == null)   missing.push("Cost");
-  if (formData.price === "" || formData.price == null) missing.push("Price");
-  if (!formData.image_url?.trim()) missing.push("Image");
-  const directProduct = isDirectBrandName(requestedBrand);
-  if (directProduct && (formData.minStock === "" || formData.minStock == null)) missing.push("Min stock");
-  if (!directProduct) {
-    if (!formData.ingredients || formData.ingredients.length === 0) {
-      missing.push("At least one ingredient");
-    } else {
-      const badIngredient = formData.ingredients.some(
-        ing => !ing.stock_item_id || !ing.qty_required || !ing.unit
+  const handleAddItem = async (e) => {
+    e.preventDefault();
+    const targetBranches = isAdmin ? formData.branches || [] : [userBranch];
+    const requestedBrand =
+      formData.brand || branchToBrand[targetBranches[0]] || "";
+    if (isDirectBrandName(requestedBrand)) {
+      showToast(
+        "info",
+        "Use Stock Inventory",
+        "Add iFuel and iPharma products in Stock Inventory. Menu Inventory mirrors them automatically.",
       );
-      if (badIngredient) missing.push("All ingredient fields (item, quantity, unit)");
-    }
-  } else if (!directStockSource) {
-    missing.push("Matching Stock Inventory source");
-  }
-
-  if (missing.length > 0) {
-    showToast("error", "Missing required fields", missing.join(", "));
-    return;
-  }
-
-  setSaving(true);
-  const coords = await getBrowserLocation();
-  const results = [];
-
-  for (const branch of targetBranches) {
-    const duplicate = findDuplicate(formData.name, branch, inventory);
-    if (duplicate) {
-      results.push({ ok:false, branch, reason:"already exists in this branch" });
-      continue;
+      return;
     }
 
-    const payload = {
-      ...formData,
-      branch,
-      min_stock: formData.minStock,
-      performed_by: userName,
-      performed_by_role: user?.role || "Unknown",
-      latitude: coords?.latitude,
-      longitude: coords?.longitude,
-      ...(directProduct ? { product_type: isFuelBrandName(formData.brand) ? "FUEL" : "DIRECT" } : {}),
-    };
-
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
-        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
-      });
-      const d = await res.json();
-      if (d.success) {
-        if (!directProduct && formData.ingredients && formData.ingredients.length > 0) {
-          const ingRes = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
-            method:"POST", headers:{"Content-Type":"application/json"},
-            body: JSON.stringify({
-              ingredients: formData.ingredients.map(ing => ({
-                ingredient_id: ing.stock_item_id,
-                quantity:      ing.qty_required,
-                unit:          ing.unit,
-              }))
-            })
-          });
-          const ingData = await ingRes.json();
-          if (!ingData.success) {
-            results.push({ ok:false, branch, reason:"ingredients failed to save" });
-            continue;
-          }
-        }
-        results.push({ ok:true, branch });
+    const missing = [];
+    if (!formData.name?.trim()) missing.push("Name");
+    if (!formData.category?.trim()) missing.push("Category");
+    if (isAdmin && targetBranches.length === 0)
+      missing.push("At least one branch");
+    if (!formData.brand?.trim()) missing.push("Brand");
+    if (formData.cost === "" || formData.cost == null) missing.push("Cost");
+    if (formData.price === "" || formData.price == null) missing.push("Price");
+    if (!formData.image_url?.trim()) missing.push("Image");
+    const directProduct = isDirectBrandName(requestedBrand);
+    if (
+      directProduct &&
+      (formData.minStock === "" || formData.minStock == null)
+    )
+      missing.push("Min stock");
+    if (!directProduct) {
+      if (!formData.ingredients || formData.ingredients.length === 0) {
+        missing.push("At least one ingredient");
       } else {
-        results.push({ ok:false, branch, reason: d.error || "failed to save" });
+        const badIngredient = formData.ingredients.some(
+          (ing) => !ing.stock_item_id || !ing.qty_required || !ing.unit,
+        );
+        if (badIngredient)
+          missing.push("All ingredient fields (item, quantity, unit)");
       }
-    } catch {
-      results.push({ ok:false, branch, reason:"connection error" });
+    } else if (!directStockSource) {
+      missing.push("Matching Stock Inventory source");
     }
-  }
 
-  await refetch();
-  await fetchActivityLog();
-  setSaving(false);
+    if (missing.length > 0) {
+      showToast("error", "Missing required fields", missing.join(", "));
+      return;
+    }
 
-  const succeeded = results.filter(r => r.ok);
-  const failed = results.filter(r => !r.ok);
+    setSaving(true);
+    const coords = await getBrowserLocation();
+    const results = [];
 
-  if (succeeded.length > 0 && failed.length === 0) {
-    setShowAddModal(false); setFormData(emptyForm()); setFormBrandId(""); resetIngPicker();
-    showToast("success", "Item added",
-      succeeded.length === 1
-        ? `"${formData.name}" was added to ${succeeded[0].branch}.`
-        : `"${formData.name}" was added to ${succeeded.length} branches.`);
-  } else if (succeeded.length > 0 && failed.length > 0) {
-    setShowAddModal(false); setFormData(emptyForm()); setFormBrandId(""); resetIngPicker();
-    showToast("info", "Added with some skips",
-      `Added to ${succeeded.length} branch${succeeded.length===1?"":"es"}. Skipped: ${failed.map(f=>`${f.branch} (${f.reason})`).join(", ")}`);
-  } else {
-    showToast("error", "Failed to add item", failed.map(f=>`${f.branch}: ${f.reason}`).join("; ") || "Something went wrong.");
-  }
-};
+    for (const branch of targetBranches) {
+      const duplicate = findDuplicate(formData.name, branch, inventory);
+      if (duplicate) {
+        results.push({
+          ok: false,
+          branch,
+          reason: "already exists in this branch",
+        });
+        continue;
+      }
 
-  const handleEditItem = async e => {
-  e.preventDefault();
-  const originalBranch = editingItem.branch;
-  const selectedBranches = isAdmin ? (formData.branches || []) : [userBranch];
+      const payload = {
+        ...formData,
+        branch,
+        min_stock: formData.minStock,
+        performed_by: userName,
+        performed_by_role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+        ...(directProduct
+          ? {
+              product_type: isFuelBrandName(formData.brand) ? "FUEL" : "DIRECT",
+            }
+          : {}),
+      };
 
-  if (isAdmin && !selectedBranches.includes(originalBranch)) {
-    showToast("error", "Please fix the following", "The current branch can't be removed.");
-    return;
-  }
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const d = await res.json();
+        if (d.success) {
+          if (
+            !directProduct &&
+            formData.ingredients &&
+            formData.ingredients.length > 0
+          ) {
+            const ingRes = await fetch(
+              `${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  ingredients: formData.ingredients.map((ing) => ({
+                    ingredient_id: ing.stock_item_id,
+                    quantity: ing.qty_required,
+                    unit: ing.unit,
+                  })),
+                }),
+              },
+            );
+            const ingData = await ingRes.json();
+            if (!ingData.success) {
+              results.push({
+                ok: false,
+                branch,
+                reason: "ingredients failed to save",
+              });
+              continue;
+            }
+          }
+          results.push({ ok: true, branch });
+        } else {
+          results.push({
+            ok: false,
+            branch,
+            reason: d.error || "failed to save",
+          });
+        }
+      } catch {
+        results.push({ ok: false, branch, reason: "connection error" });
+      }
+    }
 
-  const directProduct = isDirectBrandName(formData.brand || branchToBrand[originalBranch] || "");
-  const otherItems = inventory.filter(i => i.id !== editingItem.id);
-  const duplicate  = findDuplicate(formData.name, originalBranch, otherItems);
-  if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
+    await refetch();
+    await fetchActivityLog();
+    setSaving(false);
 
-  setSaving(true);
-  const coords = await getBrowserLocation();
-  const payload = {
-    ...formData,
-    branch: originalBranch,
-    min_stock: formData.minStock,
-    performed_by: userName,
-    performed_by_role: user?.role || "Unknown",
-    latitude: coords?.latitude,
-    longitude: coords?.longitude,
-    ...(directProduct ? { product_type: isFuelBrandName(formData.brand) ? "FUEL" : "DIRECT" } : {}),
+    const succeeded = results.filter((r) => r.ok);
+    const failed = results.filter((r) => !r.ok);
+
+    if (succeeded.length > 0 && failed.length === 0) {
+      setShowAddModal(false);
+      setFormData(emptyForm());
+      setFormBrandId("");
+      resetIngPicker();
+      showToast(
+        "success",
+        "Item added",
+        succeeded.length === 1
+          ? `"${formData.name}" was added to ${succeeded[0].branch}.`
+          : `"${formData.name}" was added to ${succeeded.length} branches.`,
+      );
+    } else if (succeeded.length > 0 && failed.length > 0) {
+      setShowAddModal(false);
+      setFormData(emptyForm());
+      setFormBrandId("");
+      resetIngPicker();
+      showToast(
+        "info",
+        "Added with some skips",
+        `Added to ${succeeded.length} branch${succeeded.length === 1 ? "" : "es"}. Skipped: ${failed.map((f) => `${f.branch} (${f.reason})`).join(", ")}`,
+      );
+    } else {
+      showToast(
+        "error",
+        "Failed to add item",
+        failed.map((f) => `${f.branch}: ${f.reason}`).join("; ") ||
+          "Something went wrong.",
+      );
+    }
   };
 
-  let editSucceeded = false;
+  const handleEditItem = async (e) => {
+    e.preventDefault();
+    const originalBranch = editingItem.branch;
+    const selectedBranches = isAdmin ? formData.branches || [] : [userBranch];
 
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, {
-      method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
-    });
-    const d = await res.json();
-    if (d.success) {
-      if (!directProduct) {
-        const ingRes = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}/ingredients`, {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({
-            ingredients: (formData.ingredients||[]).map(ing => ({
-              ingredient_id: ing.stock_item_id,
-              quantity:      ing.qty_required,
-              unit:          ing.unit,
-            }))
-          })
-        });
-        const ingData = await ingRes.json();
-        if (!ingData.success) {
-          setSaving(false);
-          showToast("error", "Ingredients not saved", ingData.error || "The item was updated but its ingredients failed to save.");
-          return;
-        }
-      }
-      editSucceeded = true;
-    }
-  } catch {}
-
-  if (!editSucceeded) {
-    setSaving(false);
-    showToast("error", "Failed to update item", "Something went wrong. Please try again.");
-    return;
-  }
-
-  /* Fan out to newly-selected additional branches */
-  const extraBranches = selectedBranches.filter(b => b !== originalBranch);
-  const results = [];
-
-  for (const branch of extraBranches) {
-    const duplicateInBranch = findDuplicate(formData.name, branch, inventory);
-    if (duplicateInBranch) {
-      results.push({ ok:false, branch, reason:"already exists in this branch" });
-      continue;
+    if (isAdmin && !selectedBranches.includes(originalBranch)) {
+      showToast(
+        "error",
+        "Please fix the following",
+        "The current branch can't be removed.",
+      );
+      return;
     }
 
-    const extraPayload = {
+    const directProduct = isDirectBrandName(
+      formData.brand || branchToBrand[originalBranch] || "",
+    );
+    const otherItems = inventory.filter((i) => i.id !== editingItem.id);
+    const duplicate = findDuplicate(formData.name, originalBranch, otherItems);
+    if (duplicate) {
+      showToast(
+        "error",
+        "Duplicate item",
+        `"${duplicate.name}" already exists in this branch.`,
+      );
+      return;
+    }
+
+    setSaving(true);
+    const coords = await getBrowserLocation();
+    const payload = {
       ...formData,
-      branch,
+      branch: originalBranch,
       min_stock: formData.minStock,
       performed_by: userName,
       performed_by_role: user?.role || "Unknown",
       latitude: coords?.latitude,
       longitude: coords?.longitude,
-      ...(directProduct ? { product_type: isFuelBrandName(formData.brand) ? "FUEL" : "DIRECT" } : {}),
+      ...(directProduct
+        ? { product_type: isFuelBrandName(formData.brand) ? "FUEL" : "DIRECT" }
+        : {}),
     };
 
+    let editSucceeded = false;
+
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
-        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(extraPayload)
-      });
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
       const d = await res.json();
       if (d.success) {
-        if (!directProduct && formData.ingredients && formData.ingredients.length > 0) {
-          await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
-            method:"POST", headers:{"Content-Type":"application/json"},
-            body: JSON.stringify({
-              ingredients: formData.ingredients.map(ing => ({
-                ingredient_id: ing.stock_item_id,
-                quantity:      ing.qty_required,
-                unit:          ing.unit,
-              }))
-            })
+        if (!directProduct) {
+          const ingRes = await fetch(
+            `${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}/ingredients`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                ingredients: (formData.ingredients || []).map((ing) => ({
+                  ingredient_id: ing.stock_item_id,
+                  quantity: ing.qty_required,
+                  unit: ing.unit,
+                })),
+              }),
+            },
+          );
+          const ingData = await ingRes.json();
+          if (!ingData.success) {
+            setSaving(false);
+            showToast(
+              "error",
+              "Ingredients not saved",
+              ingData.error ||
+                "The item was updated but its ingredients failed to save.",
+            );
+            return;
+          }
+        }
+        editSucceeded = true;
+      }
+    } catch {}
+
+    if (!editSucceeded) {
+      setSaving(false);
+      showToast(
+        "error",
+        "Failed to update item",
+        "Something went wrong. Please try again.",
+      );
+      return;
+    }
+
+    /* Fan out to newly-selected additional branches */
+    const extraBranches = selectedBranches.filter((b) => b !== originalBranch);
+    const results = [];
+
+    for (const branch of extraBranches) {
+      const duplicateInBranch = findDuplicate(formData.name, branch, inventory);
+      if (duplicateInBranch) {
+        results.push({
+          ok: false,
+          branch,
+          reason: "already exists in this branch",
+        });
+        continue;
+      }
+
+      const extraPayload = {
+        ...formData,
+        branch,
+        min_stock: formData.minStock,
+        performed_by: userName,
+        performed_by_role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+        ...(directProduct
+          ? {
+              product_type: isFuelBrandName(formData.brand) ? "FUEL" : "DIRECT",
+            }
+          : {}),
+      };
+
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(extraPayload),
+        });
+        const d = await res.json();
+        if (d.success) {
+          if (
+            !directProduct &&
+            formData.ingredients &&
+            formData.ingredients.length > 0
+          ) {
+            await fetch(
+              `${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  ingredients: formData.ingredients.map((ing) => ({
+                    ingredient_id: ing.stock_item_id,
+                    quantity: ing.qty_required,
+                    unit: ing.unit,
+                  })),
+                }),
+              },
+            );
+          }
+          results.push({ ok: true, branch });
+        } else {
+          results.push({
+            ok: false,
+            branch,
+            reason: d.error || "failed to save",
           });
         }
-        results.push({ ok:true, branch });
-      } else {
-        results.push({ ok:false, branch, reason: d.error || "failed to save" });
+      } catch {
+        results.push({ ok: false, branch, reason: "connection error" });
       }
-    } catch {
-      results.push({ ok:false, branch, reason:"connection error" });
     }
-  }
 
-  await refetch();
-  await fetchActivityLog();
-  setSaving(false);
-  setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); setFormBrandId(""); resetIngPicker();
+    await refetch();
+    await fetchActivityLog();
+    setSaving(false);
+    setShowEditModal(false);
+    setEditingItem(null);
+    setFormData(emptyForm());
+    setFormBrandId("");
+    resetIngPicker();
 
-  const succeeded = results.filter(r => r.ok);
-  const failed = results.filter(r => !r.ok);
+    const succeeded = results.filter((r) => r.ok);
+    const failed = results.filter((r) => !r.ok);
 
-  if (extraBranches.length === 0) {
-    showToast("success", "Item updated", `"${formData.name}" was saved.`);
-  } else if (failed.length === 0) {
-    showToast("success", "Item updated", `"${formData.name}" updated, and added to ${succeeded.length} more branch${succeeded.length===1?"":"es"}.`);
-  } else {
-    showToast("info", "Updated with some skips", `"${formData.name}" was updated. ${succeeded.length} additional branch${succeeded.length===1?"":"es"} added, ${failed.length} skipped: ${failed.map(f=>`${f.branch} (${f.reason})`).join(", ")}`);
-  }
-};
+    if (extraBranches.length === 0) {
+      showToast("success", "Item updated", `"${formData.name}" was saved.`);
+    } else if (failed.length === 0) {
+      showToast(
+        "success",
+        "Item updated",
+        `"${formData.name}" updated, and added to ${succeeded.length} more branch${succeeded.length === 1 ? "" : "es"}.`,
+      );
+    } else {
+      showToast(
+        "info",
+        "Updated with some skips",
+        `"${formData.name}" was updated. ${succeeded.length} additional branch${succeeded.length === 1 ? "" : "es"} added, ${failed.length} skipped: ${failed.map((f) => `${f.branch} (${f.reason})`).join(", ")}`,
+      );
+    }
+  };
 
-  const handleDeleteItem = async id => {
+  const handleDeleteItem = async (id) => {
     setDeletingId(id);
     try {
       const coords = await getBrowserLocation();
-     const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deleted_by: userName,
-          performed_by_role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-        }),
-      });
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/inventory/${id}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            deleted_by: userName,
+            performed_by_role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+          }),
+        },
+      );
       const d = await res.json();
       if (d.success) {
         await refetch();
         await fetchDeleteHistory();
         await fetchActivityLog();
         showToast("success", "Item deleted", "The item was removed.");
-          } else showToast("error", "Failed to delete", d.error || "Something went wrong.");
-        } catch { showToast("error", "Failed to delete", "Something went wrong. Please try again."); }
-        finally { setDeletingId(null); }
+      } else
+        showToast(
+          "error",
+          "Failed to delete",
+          d.error || "Something went wrong.",
+        );
+    } catch {
+      showToast(
+        "error",
+        "Failed to delete",
+        "Something went wrong. Please try again.",
+      );
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleRestore = async (entry) => {
     setRestoringId(entry.id);
     try {
-      const d    = entry.inventory_data;
+      const d = entry.inventory_data;
       const ings = entry.ingredients_data || [];
       const coords = await getBrowserLocation();
 
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
-        method:"POST", headers:{"Content-Type":"application/json"},
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name:      d.name,
-          category:  d.category,
-          branch:    d.branch,
-          brand:     d.brand,
-          stock:     d.stock,
+          name: d.name,
+          category: d.category,
+          branch: d.branch,
+          brand: d.brand,
+          stock: d.stock,
           min_stock: d.min_stock,
-          cost:      d.cost,
-          price:     d.price,
+          cost: d.cost,
+          price: d.price,
           performed_by: userName,
           performed_by_role: user?.role || "Unknown",
-          latitude:  coords?.latitude,
+          latitude: coords?.latitude,
           longitude: coords?.longitude,
-          restored:  true,
+          restored: true,
         }),
       });
       const result = await res.json();
       if (result.success) {
         if (ings.length > 0) {
-          await fetch(`${process.env.REACT_APP_API_URL}/inventory/${result.item.id}/ingredients`, {
-            method:"POST", headers:{"Content-Type":"application/json"},
-            body: JSON.stringify({
-              ingredients: ings.map(ing => ({
-                ingredient_id: ing.stock_item_id,
-                quantity:      ing.qty_required,
-                unit:          ing.unit,
-              })),
-            }),
-          });
+          await fetch(
+            `${process.env.REACT_APP_API_URL}/inventory/${result.item.id}/ingredients`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                ingredients: ings.map((ing) => ({
+                  ingredient_id: ing.stock_item_id,
+                  quantity: ing.qty_required,
+                  unit: ing.unit,
+                })),
+              }),
+            },
+          );
         }
-        await fetch(`${process.env.REACT_APP_API_URL}/inventory-delete-history/${entry.id}`, { method:"DELETE" });
+        await fetch(
+          `${process.env.REACT_APP_API_URL}/inventory-delete-history/${entry.id}`,
+          { method: "DELETE" },
+        );
         await refetch();
         await fetchDeleteHistory();
         await fetchActivityLog();
-        showToast("success", "Item restored", `"${d.name}" is back with ${ings.length} ingredient(s).`);
-      } else showToast("error", "Failed to restore", result.error || "Something went wrong.");
-    } catch { showToast("error", "Failed to restore", "Something went wrong. Please try again."); }
-    finally { setRestoringId(null); }
+        showToast(
+          "success",
+          "Item restored",
+          `"${d.name}" is back with ${ings.length} ingredient(s).`,
+        );
+      } else
+        showToast(
+          "error",
+          "Failed to restore",
+          result.error || "Something went wrong.",
+        );
+    } catch {
+      showToast(
+        "error",
+        "Failed to restore",
+        "Something went wrong. Please try again.",
+      );
+    } finally {
+      setRestoringId(null);
+    }
   };
 
-const openEditModal = item => {
-  if (item?.read_only_catalogue || isDirectBrandName(item?.brand)) {
-    showToast("info", "Managed in Stock Inventory", "iFuel and iPharma product records are edited from Stock Inventory only.");
-    return;
-  }
-  setEditingItem(item);
-  const branch = item.branch;
-  const brandForItem = filterBrandName || branchToBrand[item.branch] || ""; 
-  setFormData({
-    name:item.name, category:item.category, branch, branches:[branch], brand:brandForItem,
-    cost:item.cost||"", price:item.price,
-    stock:item.stock ?? item.available_stock ?? 0,
-    minStock:item.min_stock ?? 0,
-    image_url: item.image_url || "",
-    ingredients: (item.ingredients||[]).map(ing => ({
-      stock_item_id: ing.stock_item_id || ing.id,
-      name:          ing.name,
-      qty_required:  ing.qty_required,
-      unit:          ing.unit,
-    })),
-  });
-  const brandObj = brandList.find(b => b.name === brandForItem);
-  setFormBrandId(brandObj ? String(brandObj.id) : "");
-  fetchStockItems(branch, brandForItem);
-  setShowEditModal(true);
-};
+  const openEditModal = (item) => {
+    if (item?.read_only_catalogue || isDirectBrandName(item?.brand)) {
+      showToast(
+        "info",
+        "Managed in Stock Inventory",
+        "iFuel and iPharma product records are edited from Stock Inventory only.",
+      );
 
-const openAddModal = () => {
-  const branch = isAdmin ? "Head Office" : userBranch;
-  const brandName = selectedBrandObj ? selectedBrandObj.name : "";
-  setFormData({ ...emptyForm(), branch, brand: brandName });
-  fetchStockItems(branch, brandName);
-  setFormBrandId(selectedBrandObj ? String(selectedBrandObj.id) : "");
-  setShowAddModal(true);
-};
+      return;
+    }
 
-  const handleInputChange = e => {
+    /*
+    Extra protection:
+    manager cannot open an item
+    belonging to another brand/branch.
+  */
+    if (!isAdmin) {
+      const sameBranch =
+        String(item.branch || "")
+          .trim()
+          .toLowerCase() === userBranch.toLowerCase();
+
+      const sameBrand =
+        String(item.brand || "")
+          .trim()
+          .toLowerCase() === userBrand.toLowerCase();
+
+      if (!sameBranch || !sameBrand) {
+        showToast(
+          "error",
+          "Access Restricted",
+          "This product belongs to another brand or branch.",
+        );
+
+        return;
+      }
+    }
+
+    setEditingItem(item);
+
+    const branchName = isAdmin ? item.branch : userBranch;
+
+    const brandName = isAdmin ? item.brand || filterBrandName || "" : userBrand;
+
+    setFormData({
+      name: item.name,
+
+      category: item.category || "",
+
+      branch: branchName,
+
+      branches: branchName ? [branchName] : [],
+
+      brand: brandName,
+
+      cost: item.cost || "",
+
+      price: item.price,
+
+      stock: item.stock ?? item.available_stock ?? 0,
+
+      minStock: item.min_stock ?? 0,
+
+      image_url: item.image_url || "",
+
+      ingredients: (item.ingredients || []).map((ingredient) => ({
+        stock_item_id: ingredient.stock_item_id || ingredient.id,
+
+        name: ingredient.name,
+
+        qty_required: ingredient.qty_required,
+
+        unit: ingredient.unit,
+      })),
+    });
+
+    const matchedBrand = brandList.find(
+      (brand) =>
+        String(brand.name || "")
+          .trim()
+          .toLowerCase() ===
+        String(brandName || "")
+          .trim()
+          .toLowerCase(),
+    );
+
+    setFormBrandId(matchedBrand ? String(matchedBrand.id) : "");
+
+    fetchStockItems(branchName, brandName);
+
+    resetIngPicker();
+
+    setShowEditModal(true);
+  };
+
+  const openAddModal = () => {
+    const branchName = isAdmin ? "" : userBranch;
+
+    const brandName = isAdmin
+      ? selectedBrandObj?.name || filterBrandName || ""
+      : userBrand;
+
+    const matchedBrand = brandList.find(
+      (brand) =>
+        String(brand.name || "")
+          .trim()
+          .toLowerCase() ===
+        String(brandName || "")
+          .trim()
+          .toLowerCase(),
+    );
+
+    setFormData({
+      ...emptyForm(),
+
+      branch: branchName,
+
+      branches: isAdmin ? [] : branchName ? [branchName] : [],
+
+      brand: brandName,
+
+      category:
+        getBrandCategories(matchedBrand).length === 1
+          ? getBrandCategories(matchedBrand)[0]
+          : "",
+    });
+
+    setFormBrandId(matchedBrand ? String(matchedBrand.id) : "");
+
+    fetchStockItems(branchName, brandName);
+
+    resetIngPicker();
+
+    setShowAddModal(true);
+  };
+
+  const handleInputChange = (e) => {
     let { name, value } = e.target;
-    if (name === "name") value = value.replace(/\b\w/g, c => c.toUpperCase());
-    setFormData(p => ({ ...p, [name]: value }));
+    if (name === "name") value = value.replace(/\b\w/g, (c) => c.toUpperCase());
+    setFormData((p) => ({ ...p, [name]: value }));
   };
 
-  const resetIngPicker = () => { setIngSearch(""); setIngQty("1"); setIngUnit(""); setIngPicked(null); setIngDropOpen(false); };
+  const resetIngPicker = () => {
+    setIngSearch("");
+    setIngQty("1");
+    setIngUnit("");
+    setIngPicked(null);
+    setIngDropOpen(false);
+  };
 
   const addIngredient = () => {
     if (!ingPicked) return;
-    if ((formData.ingredients||[]).find(x=>x.stock_item_id===ingPicked.id)) { showToast("error", "Already linked", "This stock item is already linked to the product."); return; }
-    setFormData(f => ({
-      ...f, ingredients:[...(f.ingredients||[]), {
-        stock_item_id: ingPicked.id,
-        name:          ingPicked.name,
-        qty_required:  parseFloat(ingQty)||1,
-        unit:          ingUnit||ingPicked.unit,
-      }],
+    if (
+      (formData.ingredients || []).find((x) => x.stock_item_id === ingPicked.id)
+    ) {
+      showToast(
+        "error",
+        "Already linked",
+        "This stock item is already linked to the product.",
+      );
+      return;
+    }
+    setFormData((f) => ({
+      ...f,
+      ingredients: [
+        ...(f.ingredients || []),
+        {
+          stock_item_id: ingPicked.id,
+          name: ingPicked.name,
+          qty_required: parseFloat(ingQty) || 1,
+          unit: ingUnit || ingPicked.unit,
+        },
+      ],
     }));
     resetIngPicker();
   };
 
-  const removeIngredient = idx => setFormData(f=>({...f, ingredients:f.ingredients.filter((_,i)=>i!==idx)}));
-  const updateIngQty     = (idx,qty) => setFormData(f=>({...f, ingredients:f.ingredients.map((ing,i)=>i===idx?{...ing,qty_required:parseFloat(qty)||0}:ing)}));
+  const removeIngredient = (idx) =>
+    setFormData((f) => ({
+      ...f,
+      ingredients: f.ingredients.filter((_, i) => i !== idx),
+    }));
+  const updateIngQty = (idx, qty) =>
+    setFormData((f) => ({
+      ...f,
+      ingredients: f.ingredients.map((ing, i) =>
+        i === idx ? { ...ing, qty_required: parseFloat(qty) || 0 } : ing,
+      ),
+    }));
 
-  const ingFiltered = stockItems.filter(s => {
-    if (ingSearch && !s.name.toLowerCase().includes(ingSearch.toLowerCase())) return false;
+  const ingFiltered = stockItems.filter((s) => {
+    if (ingSearch && !s.name.toLowerCase().includes(ingSearch.toLowerCase()))
+      return false;
 
     if (formData.branch) return s.branch === formData.branch;
 
     // No branch chosen yet (e.g. admin hasn't picked one) — fall back to brand.
     const brandName = formBrandId
-      ? brandList.find(b => String(b.id) === String(formBrandId))?.name
-      : (filterBrandName || "");
+      ? brandList.find((b) => String(b.id) === String(formBrandId))?.name
+      : filterBrandName || "";
     if (brandName) return s.brand === brandName;
 
     return true;
   });
 
-  const importExcel = e => {
+  const importExcel = (e) => {
     const file = e.target.files[0];
-    const toTitleCase = str => str.replace(/\b\w/g, c => c.toUpperCase());
+    const toTitleCase = (str) => str.replace(/\b\w/g, (c) => c.toUpperCase());
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = async ev => {
-      const wb    = XLSX.read(ev.target.result, { type:"array" });
+    reader.onload = async (ev) => {
+      const wb = XLSX.read(ev.target.result, { type: "array" });
       const items = [];
-      wb.SheetNames.forEach(sheetName => {
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval:"" });
-        rows.forEach(row => {
-          const name = toTitleCase(String(row.name || row.Name || row["ITEM NAME"] || "").trim());
+      wb.SheetNames.forEach((sheetName) => {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {
+          defval: "",
+        });
+        rows.forEach((row) => {
+          const name = toTitleCase(
+            String(row.name || row.Name || row["ITEM NAME"] || "").trim(),
+          );
           if (!name) return;
-          const category  = toTitleCase(String(row.category || row.Category || "Other").trim());
-          const cost      = parseFloat(row.cost  || row.Cost  || 0) || 0;
-          const rawPrice  = parseFloat(row.price || row.Price || 0) || 0;
-          const price     = rawPrice > 0 ? rawPrice : (cost > 0 ? parseFloat((cost * 1.4).toFixed(2)) : 0);
-          const stock     = parseInt(row.stock     || row.Stock     || 0) || 0;
-          const minStock  = parseInt(row.min_stock || row["Min Stock"] || 0) || 0;
-          const branch    = String(row.branch || row.Branch || "").trim();
-          const rawIng    = String(row.ingredients || row.Ingredients || "").trim();
+          const category = toTitleCase(
+            String(row.category || row.Category || "Other").trim(),
+          );
+          const cost = parseFloat(row.cost || row.Cost || 0) || 0;
+          const rawPrice = parseFloat(row.price || row.Price || 0) || 0;
+          const price =
+            rawPrice > 0
+              ? rawPrice
+              : cost > 0
+                ? parseFloat((cost * 1.4).toFixed(2))
+                : 0;
+          const stock = parseInt(row.stock || row.Stock || 0) || 0;
+          const minStock =
+            parseInt(row.min_stock || row["Min Stock"] || 0) || 0;
+          const branch = String(row.branch || row.Branch || "").trim();
+          const rawIng = String(
+            row.ingredients || row.Ingredients || "",
+          ).trim();
           const ingredients = rawIng
-            ? rawIng.split("|").map(seg => {
-                const [ingName, qty, unit] = seg.split(":").map(s => s.trim());
-                return ingName ? { name:ingName, qty_required:parseFloat(qty)||1, unit:unit||"" } : null;
-              }).filter(Boolean)
+            ? rawIng
+                .split("|")
+                .map((seg) => {
+                  const [ingName, qty, unit] = seg
+                    .split(":")
+                    .map((s) => s.trim());
+                  return ingName
+                    ? {
+                        name: ingName,
+                        qty_required: parseFloat(qty) || 1,
+                        unit: unit || "",
+                      }
+                    : null;
+                })
+                .filter(Boolean)
             : [];
-          items.push({ name, category, branch:branch||"Unknown", cost, stock, min_stock:minStock, price, ingredients });
+          items.push({
+            name,
+            category,
+            branch: branch || "Unknown",
+            cost,
+            stock,
+            min_stock: minStock,
+            price,
+            ingredients,
+          });
         });
       });
 
       let currentInventory = [...inventory];
-      let saved = 0, skipped = 0;
+      let saved = 0,
+        skipped = 0;
       const skippedNames = [];
 
       for (const item of items) {
-        const combined  = [...currentInventory];
+        const combined = [...currentInventory];
         const duplicate = findDuplicate(item.name, item.branch, combined);
-        if (duplicate) { skipped++; skippedNames.push(`${item.name} (${item.branch})`); continue; }
+        if (duplicate) {
+          skipped++;
+          skippedNames.push(`${item.name} (${item.branch})`);
+          continue;
+        }
 
         try {
           const { ingredients, ...itemData } = item;
-          const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
-            method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(itemData)
-          });
+          const res = await fetch(
+            `${process.env.REACT_APP_API_URL}/inventory`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(itemData),
+            },
+          );
           const d = await res.json();
           if (d.success) {
             saved++;
-            currentInventory.push({ ...itemData, id:d.item.id });
+            currentInventory.push({ ...itemData, id: d.item.id });
             if (ingredients.length > 0) {
-              const ingPayload = ingredients.map(ing => {
-                const match = stockItems.find(s => s.name.toLowerCase()===ing.name.toLowerCase() && s.branch===itemData.branch);
-                return match ? { ingredient_id:match.id, quantity:ing.qty_required, unit:ing.unit||match.unit } : null;
-              }).filter(Boolean);
+              const ingPayload = ingredients
+                .map((ing) => {
+                  const match = stockItems.find(
+                    (s) =>
+                      s.name.toLowerCase() === ing.name.toLowerCase() &&
+                      s.branch === itemData.branch,
+                  );
+                  return match
+                    ? {
+                        ingredient_id: match.id,
+                        quantity: ing.qty_required,
+                        unit: ing.unit || match.unit,
+                      }
+                    : null;
+                })
+                .filter(Boolean);
               if (ingPayload.length > 0) {
-                await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
-                  method:"POST", headers:{"Content-Type":"application/json"},
-                  body: JSON.stringify({ ingredients:ingPayload })
-                });
+                await fetch(
+                  `${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ ingredients: ingPayload }),
+                  },
+                );
               }
             }
           }
@@ -2040,7 +4975,10 @@ const openAddModal = () => {
       }
 
       e.target.value = "";
-      const details = skipped > 0 ? `Saved ${saved} item(s). Skipped ${skipped} duplicate(s): ${skippedNames.join(", ")}` : `Saved ${saved} item(s).`;
+      const details =
+        skipped > 0
+          ? `Saved ${saved} item(s). Skipped ${skipped} duplicate(s): ${skippedNames.join(", ")}`
+          : `Saved ${saved} item(s).`;
       showToast("success", "Import complete", details);
       await refetch();
       await fetchActivityLog();
@@ -2049,60 +4987,217 @@ const openAddModal = () => {
   };
 
   const renderIngredientPicker = () => (
-    <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px", marginTop:4 }}>
-      <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:10 }}>Ingredients Required</div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 90px auto", gap:8, marginBottom:10 }}>
-        <div ref={ingRef} style={{ position:"relative" }}>
-          <input style={invInputSt} value={ingSearch}
-            onChange={e=>{setIngSearch(e.target.value);setIngPicked(null);setIngDropOpen(true);}}
-            onFocus={()=>setIngDropOpen(true)}
-            placeholder="Search stock ingredient…"/>
+    <div
+      style={{
+        background: C.bg,
+        border: `1px solid ${C.border}`,
+        borderRadius: 12,
+        padding: "14px 16px",
+        marginTop: 4,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: C.muted,
+          textTransform: "uppercase",
+          letterSpacing: "0.07em",
+          marginBottom: 10,
+        }}
+      >
+        Ingredients Required
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 90px 90px auto",
+          gap: 8,
+          marginBottom: 10,
+        }}
+      >
+        <div ref={ingRef} style={{ position: "relative" }}>
+          <input
+            style={invInputSt}
+            value={ingSearch}
+            onChange={(e) => {
+              setIngSearch(e.target.value);
+              setIngPicked(null);
+              setIngDropOpen(true);
+            }}
+            onFocus={() => setIngDropOpen(true)}
+            placeholder="Search stock ingredient…"
+          />
           {ingDropOpen && ingFiltered.length > 0 && (
-            <div style={{ position:"absolute", top:"calc(100% + 3px)", left:0, right:0, zIndex:500, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 6px 20px rgba(0,0,0,0.10)", maxHeight:160, overflowY:"auto" }}>
-              {ingFiltered.map(s=>(
-                <div key={s.id}
-                  onMouseDown={e=>{e.preventDefault();setIngPicked(s);setIngSearch(s.name);setIngUnit(s.unit);setIngDropOpen(false);}}
-                  onMouseEnter={e=>e.currentTarget.style.background=C.bg}
-                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                  style={{ padding:"8px 12px", cursor:"pointer", fontSize:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                  <span style={{ fontWeight:600, color:C.ink }}>{s.name}</span>
-                  <span style={{ fontSize:11, color:C.muted, background:C.greenLt, padding:"2px 8px", borderRadius:20 }}>{s.unit} · {s.branch}</span>
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(100% + 3px)",
+                left: 0,
+                right: 0,
+                zIndex: 500,
+                background: C.white,
+                border: `1px solid ${C.border}`,
+                borderRadius: 10,
+                boxShadow: "0 6px 20px rgba(0,0,0,0.10)",
+                maxHeight: 160,
+                overflowY: "auto",
+              }}
+            >
+              {ingFiltered.map((s) => (
+                <div
+                  key={s.id}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIngPicked(s);
+                    setIngSearch(s.name);
+                    setIngUnit(s.unit);
+                    setIngDropOpen(false);
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = C.bg)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
+                  style={{
+                    padding: "8px 12px",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span style={{ fontWeight: 600, color: C.ink }}>
+                    {s.name}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: C.muted,
+                      background: C.greenLt,
+                      padding: "2px 8px",
+                      borderRadius: 20,
+                    }}
+                  >
+                    {s.unit} · {s.branch}
+                  </span>
                 </div>
               ))}
             </div>
           )}
         </div>
-        <input type="number" style={invInputSt} value={ingQty} min="0" step="any" onChange={e=>setIngQty(e.target.value)} placeholder="Qty"/>
-        <select style={invInputSt} value={ingUnit} onChange={e=>setIngUnit(e.target.value)}>
+        <input
+          type="number"
+          style={invInputSt}
+          value={ingQty}
+          min="0"
+          step="any"
+          onChange={(e) => setIngQty(e.target.value)}
+          placeholder="Qty"
+        />
+        <select
+          style={invInputSt}
+          value={ingUnit}
+          onChange={(e) => setIngUnit(e.target.value)}
+        >
           <option value="">unit</option>
-          {UNITS.map(u=><option key={u} value={u}>{u}</option>)}
+          {UNITS.map((u) => (
+            <option key={u} value={u}>
+              {u}
+            </option>
+          ))}
         </select>
-        <button type="button" onClick={addIngredient} style={{ ...btnPrimarySt, height:38, padding:"0 14px", flexShrink:0 }}>
-          <PlusIcon/> Add
+        <button
+          type="button"
+          onClick={addIngredient}
+          style={{
+            ...btnPrimarySt,
+            height: 38,
+            padding: "0 14px",
+            flexShrink: 0,
+          }}
+        >
+          <PlusIcon /> Add
         </button>
       </div>
-      {(!formData.ingredients || formData.ingredients.length === 0) ? (
-        <div style={{ textAlign:"center", padding:"12px 0", color:C.muted, fontSize:12, fontStyle:"italic" }}>No ingredients linked yet.</div>
+      {!formData.ingredients || formData.ingredients.length === 0 ? (
+        <div
+          style={{
+            textAlign: "center",
+            padding: "12px 0",
+            color: C.muted,
+            fontSize: 12,
+            fontStyle: "italic",
+          }}
+        >
+          No ingredients linked yet.
+        </div>
       ) : (
-        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-          {formData.ingredients.map((ing,idx)=>(
-            <div key={idx} style={{ display:"grid", gridTemplateColumns:"1fr 100px 70px auto", gap:8, alignItems:"center", background:C.white, border:`1px solid ${C.border}`, borderRadius:9, padding:"8px 12px" }}>
-              <span style={{ fontSize:13, fontWeight:700, color:C.ink }}>{ing.name}</span>
-              <input type="number" value={ing.qty_required} min="0" step="any"
-                onChange={e=>updateIngQty(idx,e.target.value)}
-                style={{ ...invInputSt, textAlign:"center" }}/>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {formData.ingredients.map((ing, idx) => (
+            <div
+              key={idx}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 100px 70px auto",
+                gap: 8,
+                alignItems: "center",
+                background: C.white,
+                border: `1px solid ${C.border}`,
+                borderRadius: 9,
+                padding: "8px 12px",
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>
+                {ing.name}
+              </span>
+              <input
+                type="number"
+                value={ing.qty_required}
+                min="0"
+                step="any"
+                onChange={(e) => updateIngQty(idx, e.target.value)}
+                style={{ ...invInputSt, textAlign: "center" }}
+              />
               <select
-  value={ing.unit}
-  onChange={e => setFormData(f => ({
-    ...f,
-    ingredients: f.ingredients.map((row,i) => i===idx ? { ...row, unit: e.target.value } : row)
-  }))}
-  style={{ ...invInputSt, height:28, fontSize:11, padding:"0 8px" }}>
-  {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-</select>
-              <button type="button" onClick={()=>removeIngredient(idx)}
-                style={{ ...smallBtnSt, height:28, width:28, justifyContent:"center", border:"1px solid #fecaca", color:C.red, flexShrink:0 }}>
-                <XIcon size={11}/>
+                value={ing.unit}
+                onChange={(e) =>
+                  setFormData((f) => ({
+                    ...f,
+                    ingredients: f.ingredients.map((row, i) =>
+                      i === idx ? { ...row, unit: e.target.value } : row,
+                    ),
+                  }))
+                }
+                style={{
+                  ...invInputSt,
+                  height: 28,
+                  fontSize: 11,
+                  padding: "0 8px",
+                }}
+              >
+                {UNITS.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => removeIngredient(idx)}
+                style={{
+                  ...smallBtnSt,
+                  height: 28,
+                  width: 28,
+                  justifyContent: "center",
+                  border: "1px solid #fecaca",
+                  color: C.red,
+                  flexShrink: 0,
+                }}
+              >
+                <XIcon size={11} />
               </button>
             </div>
           ))}
@@ -2111,271 +5206,977 @@ const openAddModal = () => {
     </div>
   );
 
-const renderFormFields = () => {
-   const currentBrandName = formData.brand || selectedBrandObj?.name || filterBrandName || "";
-   const directProduct = isDirectBrandName(currentBrandName);
-   const directSource = directStockSource;
+  const renderFormFields = () => {
+    const currentBrandName =
+      formData.brand || selectedBrandObj?.name || filterBrandName || "";
+    const directProduct = isDirectBrandName(currentBrandName);
+    const directSource = directStockSource;
 
     return (
-    <>
-      <div style={{ marginBottom:13 }}>
-        <label style={invLabelSt}>Item Name</label>
-        {directProduct ? (
-          showAddModal ? (
-            <select
-              value={directStockSource?.id || ""}
-              onChange={e => {
-                const source = stockItems.find(stock => String(stock.id) === String(e.target.value));
-                if (!source) {
-                  setFormData(prev => ({ ...prev, name:"", cost:"", price:"", stock:0, minStock:0 }));
-                  return;
-                }
-                setFormData(prev => ({
-                  ...prev,
-                  name:source.name,
-                  branch:source.branch || prev.branch,
-                  category:String(source.category || "").trim() || (getBrandCategories(selectedBrandObj).length === 1 ? getBrandCategories(selectedBrandObj)[0] : ""),
-                  stock:Number(source.stock || 0),
-                  minStock:Number(source.min_stock || 0),
-                }));
-              }}
+      <>
+        <div style={{ marginBottom: 13 }}>
+          <label style={invLabelSt}>Item Name</label>
+          {directProduct ? (
+            showAddModal ? (
+              <select
+                value={directStockSource?.id || ""}
+                onChange={(e) => {
+                  const source = stockItems.find(
+                    (stock) => String(stock.id) === String(e.target.value),
+                  );
+                  if (!source) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      name: "",
+                      cost: "",
+                      price: "",
+                      stock: 0,
+                      minStock: 0,
+                    }));
+                    return;
+                  }
+                  setFormData((prev) => ({
+                    ...prev,
+                    name: source.name,
+                    branch: source.branch || prev.branch,
+                    category:
+                      String(source.category || "").trim() ||
+                      (getBrandCategories(selectedBrandObj).length === 1
+                        ? getBrandCategories(selectedBrandObj)[0]
+                        : ""),
+                    stock: Number(source.stock || 0),
+                    minStock: Number(source.min_stock || 0),
+                  }));
+                }}
+                style={invInputSt}
+              >
+                <option value="">Select Stock Inventory product…</option>
+                {stockItems
+                  .filter((stock) =>
+                    isDirectBrandName(stock.brand || currentBrandName),
+                  )
+                  .map((stock) => (
+                    <option key={stock.id} value={stock.id}>
+                      {stock.name} ({stock.branch})
+                    </option>
+                  ))}
+              </select>
+            ) : (
+              <div
+                style={{
+                  ...invInputSt,
+                  height: "auto",
+                  minHeight: 38,
+                  padding: "9px 12px",
+                  background: "#f5f5f5",
+                  color: C.ink,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                {formData.name || "—"}
+              </div>
+            )
+          ) : (
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
               style={invInputSt}
+              placeholder="Product name"
+            />
+          )}
+        </div>
+        <div style={{ marginBottom: 13 }}>
+          <label style={invLabelSt}>Product Image</label>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <div style={{ flex: 1 }}>
+              <input
+                type="text"
+                placeholder="Paste image URL or upload below…"
+                value={formData.image_url || ""}
+                onChange={(e) =>
+                  setFormData((p) => ({ ...p, image_url: e.target.value }))
+                }
+                style={invInputSt}
+              />
+            </div>
+            <label style={{ ...btnSt, cursor: "pointer", flexShrink: 0 }}>
+              <FileIcon size={13} /> Upload
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={async (e) => {
+                  const file = e.target.files[0];
+                  if (!file) return;
+                  const fd = new FormData();
+                  fd.append("image", file);
+                  try {
+                    const res = await fetch(
+                      `${process.env.REACT_APP_API_URL}/api/upload-menu-image`,
+                      {
+                        method: "POST",
+                        body: fd,
+                      },
+                    );
+                    const d = await res.json();
+                    if (d.url) setFormData((p) => ({ ...p, image_url: d.url }));
+                    else
+                      showToast(
+                        "error",
+                        "Upload failed",
+                        "The product image could not be uploaded.",
+                      );
+                  } catch {
+                    showToast(
+                      "error",
+                      "Upload failed",
+                      "The product image could not be uploaded.",
+                    );
+                  }
+                }}
+              />
+            </label>
+          </div>
+
+          {formData.image_url && (
+            <div
+              style={{
+                marginTop: 8,
+                position: "relative",
+                display: "inline-block",
+              }}
             >
-              <option value="">Select Stock Inventory product…</option>
-              {stockItems.filter(stock => isDirectBrandName(stock.brand || currentBrandName)).map(stock => (
-                <option key={stock.id} value={stock.id}>{stock.name} ({stock.branch})</option>
+              <img
+                src={formData.image_url}
+                alt="preview"
+                style={{
+                  width: 80,
+                  height: 80,
+                  objectFit: "cover",
+                  borderRadius: 10,
+                  border: `1px solid ${C.border}`,
+                }}
+                onError={(e) => (e.target.style.display = "none")}
+              />
+              <button
+                type="button"
+                onClick={() => setFormData((p) => ({ ...p, image_url: "" }))}
+                style={{
+                  position: "absolute",
+                  top: -6,
+                  right: -6,
+                  width: 18,
+                  height: 18,
+                  borderRadius: "50%",
+                  border: "none",
+                  background: C.red,
+                  color: "#fff",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0,
+                }}
+              >
+                <XIcon size={9} />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* =========================================================
+    BRAND + BRANCH
+    Admin  = editable brand / multi-branch
+    Manager = locked to account brand + branch
+   ========================================================= */}
+
+        {/* BRAND */}
+        <div style={{ marginBottom: 13 }}>
+          <label style={invLabelSt}>Brand</label>
+
+          {isAdmin ? (
+            <select
+              value={formBrandId || ""}
+              onChange={(e) => {
+                const brandId = e.target.value;
+
+                setFormBrandId(brandId);
+
+                const selectedBrand = brandList.find(
+                  (brand) => String(brand.id) === String(brandId),
+                );
+
+                const brandName = selectedBrand?.name || "";
+
+                setFormData((prev) => ({
+                  ...prev,
+
+                  // Admin may select another brand.
+                  brand: brandName,
+
+                  // Reset branches because branches
+                  // depend on the selected brand.
+                  branch: "",
+                  branches: [],
+
+                  // Reset category because categories
+                  // also depend on the selected brand.
+                  category: "",
+
+                  // Remove previous linked ingredients
+                  // when changing the product brand.
+                  ingredients: [],
+                }));
+
+                /*
+          Load only stock items belonging to
+          the newly selected brand.
+
+          For admin no branch is selected yet,
+          so branch argument stays blank.
+        */
+                if (brandName) {
+                  fetchStockItems("", brandName);
+                } else {
+                  setStockItems([]);
+                }
+
+                resetIngPicker();
+              }}
+              style={{
+                ...invInputSt,
+                width: "100%",
+              }}
+            >
+              <option value="">Select Brand</option>
+
+              {brandList.map((brand) => (
+                <option key={brand.id} value={brand.id}>
+                  {brand.name}
+                </option>
               ))}
             </select>
           ) : (
-            <div style={{ ...invInputSt, height:"auto", minHeight:38, padding:"9px 12px", background:"#f5f5f5", color:C.ink, fontWeight:700, display:"flex", alignItems:"center" }}>{formData.name || "—"}</div>
-          )
-        ) : (
-          <input type="text" name="name" value={formData.name} onChange={handleInputChange} style={invInputSt} placeholder="Product name"/>
-        )}
-      </div>
-      <div style={{ marginBottom:13 }}>
-        <label style={invLabelSt}>Product Image</label>
-        <div style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
-          <div style={{ flex:1 }}>
-            <input
-              type="text"
-              placeholder="Paste image URL or upload below…"
-              value={formData.image_url || ""}
-              onChange={e => setFormData(p => ({ ...p, image_url: e.target.value }))}
-              style={invInputSt}
-            />
-          </div>
-          <label style={{ ...btnSt, cursor:"pointer", flexShrink:0 }}>
-            <FileIcon size={13}/> Upload
-            <input
-              type="file"
-              accept="image/*"
-              style={{ display:"none" }}
-              onChange={async e => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const fd = new FormData();
-                fd.append("image", file);
-                try {
-                  const res = await fetch(`${process.env.REACT_APP_API_URL}/api/upload-menu-image`, {
-  method: "POST",
-  body: fd,
-});
-                  const d = await res.json();
-                  if (d.url) setFormData(p => ({ ...p, image_url: d.url }));
-                  else showToast("error", "Upload failed", "The product image could not be uploaded.");
-                } catch { showToast("error", "Upload failed", "The product image could not be uploaded."); }
+            /*
+      MANAGER VIEW
+
+      Manager must NEVER be able to
+      change the product brand.
+
+      Account user.brand is authoritative.
+    */
+            <div
+              style={{
+                ...invInputSt,
+
+                width: "100%",
+
+                height: "auto",
+                minHeight: 38,
+
+                padding: "9px 12px",
+
+                background: "#f5f5f5",
+
+                color: C.ink,
+
+                fontWeight: 700,
+
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+
+                cursor: "not-allowed",
               }}
-            />
-          </label>
-        </div>
+            >
+              <StoreIcon size={13} color={C.green} />
 
-        {formData.image_url && (
-          <div style={{ marginTop:8, position:"relative", display:"inline-block" }}>
-            <img
-              src={formData.image_url}
-              alt="preview"
-              style={{ width:80, height:80, objectFit:"cover", borderRadius:10, border:`1px solid ${C.border}` }}
-              onError={e => e.target.style.display="none"}
-            />
-            <button
-              type="button"
-              onClick={() => setFormData(p => ({ ...p, image_url: "" }))}
-              style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", border:"none", background:C.red, color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
-              <XIcon size={9}/>
-            </button>
-          </div>
-        )}
-      </div>
-
- <div style={{ marginBottom:13 }}>
-        <label style={invLabelSt}>Brand</label>
-        <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>
-          {currentBrandName || "—"}
-        </div>
-      </div>
-
-      {isAdmin ? (
-  <div style={{ marginBottom:13 }}>
-    <label style={invLabelSt}>Branches * <span style={{ fontWeight:400, color:C.muted }}>(select one or more)</span></label>
-    {(() => {
-      const selectedBrandObjForBranch = brandList.find(b => b.name === formData.brand);
-      const filteredBranches = selectedBrandObjForBranch
-        ? (selectedBrandObjForBranch.branches || []).map(br => typeof br === "string" ? br : br.name)
-        : [];
-      if (!formData.brand) {
-        return <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, display:"flex", alignItems:"center" }}>Select a brand first…</div>;
-      }
-      if (filteredBranches.length === 0) {
-        return <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, display:"flex", alignItems:"center" }}>No branches found for this brand.</div>;
-      }
-      const lockedBranch = showEditModal ? editingItem?.branch : null;
-      const currentBranches = formData.branches || [];
-      const allSelected = filteredBranches.every(br => currentBranches.includes(br));
-      return (
-        <div style={{ border:`1.5px solid ${C.border}`, borderRadius:11, padding:"8px 4px", maxHeight:180, overflowY:"auto" }}>
-          <label style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", cursor:"pointer", fontSize:12.5, fontWeight:700, color:C.greenDk, borderBottom:`1px solid ${C.border}`, marginBottom:4 }}>
-            <input type="checkbox" checked={allSelected}
-              onChange={e => setFormData(f => ({
-                ...f,
-                branches: e.target.checked ? filteredBranches : (lockedBranch ? [lockedBranch] : []),
-              }))}/>
-            Select all branches
-          </label>
-          {filteredBranches.map(br => {
-            const locked = br === lockedBranch;
-            return (
-              <label key={br} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", cursor: locked ? "default" : "pointer", fontSize:13, color:C.ink, opacity: locked ? 0.75 : 1 }}>
-                <input type="checkbox" checked={currentBranches.includes(br)} disabled={locked}
-                  onChange={e => setFormData(f => ({
-                    ...f,
-                    branches: e.target.checked ? [...(f.branches||[]), br] : (f.branches||[]).filter(x => x !== br),
-                    branch: f.branch || br,
-                  }))}/>
-                {br}{locked && <span style={{ fontSize:10.5, fontWeight:700, color:C.greenDk, marginLeft:4 }}>(current — can't remove)</span>}
-              </label>
-            );
-          })}
-        </div>
-      );
-    })()}
-    {(formData.branches||[]).length > 0 && (
-      <div style={{ fontSize:11, color:C.muted, marginTop:5 }}>
-        {showEditModal
-          ? (formData.branches.length === 1
-              ? "Only updating the current branch."
-              : `Updating "${editingItem?.branch}" and adding this item to ${formData.branches.length - 1} more branch${formData.branches.length - 1 === 1 ? "" : "es"}: ${formData.branches.filter(b => b !== editingItem?.branch).join(", ")}`)
-          : `Will add this item to ${formData.branches.length} branch${formData.branches.length===1?"":"es"}: ${formData.branches.join(", ")}`}
-      </div>
-    )}
-  </div>
-) : (
-  <div style={{ marginBottom:13 }}>
-    <label style={invLabelSt}>Branch</label>
-    <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>{userBranch||"—"}</div>
-  </div>
-)}
-
-      <div style={{ marginBottom:13 }}>
-        <label style={invLabelSt}>Category</label>
-        {directProduct ? (
-          <div style={{ ...invInputSt, height:"auto", minHeight:38, padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>{formData.category || "Uncategorized"}</div>
-        ) : (
-          <CategorySelect
-            value={formData.category}
-            onChange={val=>setFormData(p=>({...p,category:val}))}
-            categories={formCategories}
-            onAddCategory={cat=>setFormCategories(prev=>prev.includes(cat)?prev:[...prev,cat])}
-          />
-        )}
-      </div>
-      <div style={{ display:"grid", gridTemplateColumns:directProduct?"1fr 1fr 1fr":"1fr 1fr", gap:10, marginBottom:13 }}>
-        <div>
-          <label style={invLabelSt}>Product Cost (₱)</label>
-          <input type="number" name="cost" value={formData.cost} readOnly style={{ ...invInputSt, background:"#f5f5f5", color:C.muted }}/>
-        </div>
-        {directProduct && (
-          <div>
-            <label style={invLabelSt}>Operations Markup (%)</label>
-            <input type="number" value={DIRECT_OPERATIONS_MARGIN} readOnly disabled style={{ ...invInputSt, background:"#f5f5f5", color:C.muted, cursor:"not-allowed" }}/>
-          </div>
-        )}
-        <div>
-          <label style={invLabelSt}>Profit Markup (%)</label>
-          <input type="number" value={directProduct ? DIRECT_PROFIT_MARGIN : DEFAULT_PROFIT_MARGIN} readOnly disabled style={{ ...invInputSt, background:"#f5f5f5", color:C.muted, cursor:"not-allowed" }}/>
-        </div>
-      </div>
-      {formData.cost !== "" && parseFloat(formData.cost) > 0 && (
-        <div style={{ background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:9, padding:"9px 13px", marginBottom:13, fontSize:12, display:"flex", gap:8, alignItems:"center", color:C.ok, flexWrap:"wrap" }}>
-          {directProduct ? (
-            <>Cost: <strong>{fmtPeso(formData.cost)}</strong> + <strong>{DIRECT_OPERATIONS_MARGIN}% operations</strong> + <strong>{DIRECT_PROFIT_MARGIN}% profit</strong> = Auto selling price: <strong style={{ color:C.green, fontSize:13 }}>{fmtPeso(formData.price)}</strong></>
-          ) : (
-            <>Cost: <strong>{fmtPeso(formData.cost)}</strong> + <strong>{DEFAULT_PROFIT_MARGIN}%</strong> = Selling price: <strong style={{ color:C.green, fontSize:13 }}>{fmtPeso(formData.price)}</strong></>
+              {userBrand || formData.brand || "No assigned brand"}
+            </div>
           )}
         </div>
-      )}
-    <div style={{ marginBottom:13 }}>
-      <label style={invLabelSt}>{directProduct ? "Auto Selling Price (₱)" : "Selling Price (₱)"}</label>
-      <input type="number" name="price" value={formData.price} onChange={directProduct ? undefined : handleInputChange} readOnly={directProduct} step="0.01" min="0" style={{ ...invInputSt, ...(directProduct ? { background:"#f5f5f5", color:C.greenDk, fontWeight:800 } : {}) }} placeholder="Auto-calc"/>
-    </div>
-      <div style={{ marginBottom:13 }}>
-        <label style={invLabelSt}>{directProduct ? "Stock Inventory Source" : "Ingredients"}</label>
-        {directProduct ? (
-          <div style={{ background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:12, padding:"13px 14px", display:"flex", alignItems:"flex-start", gap:10 }}>
-            <PackageCheck size={17} color={C.greenDk} style={{ marginTop:1, flexShrink:0 }}/>
+
+        {/* BRANCH */}
+        <div style={{ marginBottom: 13 }}>
+          <label style={invLabelSt}>
+            {isAdmin ? (
+              <>
+                Branches *{" "}
+                <span
+                  style={{
+                    fontWeight: 400,
+                    color: C.muted,
+                  }}
+                >
+                  (select one or more)
+                </span>
+              </>
+            ) : (
+              "Branch"
+            )}
+          </label>
+
+          {isAdmin ? (
+            (() => {
+              /*
+        ADMIN BRANCHES
+
+        Find branches that actually belong
+        to the currently selected brand.
+      */
+              const selectedBrandObjForBranch = brandList.find(
+                (brand) =>
+                  String(brand.name || "")
+                    .trim()
+                    .toLowerCase() ===
+                  String(formData.brand || "")
+                    .trim()
+                    .toLowerCase(),
+              );
+
+              const filteredBranches = selectedBrandObjForBranch
+                ? (selectedBrandObjForBranch.branches || [])
+                    .map((branch) =>
+                      typeof branch === "string" ? branch : branch?.name,
+                    )
+                    .filter(Boolean)
+                : [];
+
+              /*
+        No brand selected.
+      */
+              if (!formData.brand) {
+                return (
+                  <div
+                    style={{
+                      ...invInputSt,
+
+                      height: "auto",
+                      minHeight: 38,
+
+                      padding: "9px 12px",
+
+                      background: "#f5f5f5",
+
+                      color: C.muted,
+
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    Select a brand first…
+                  </div>
+                );
+              }
+
+              /*
+        Brand exists but does not have
+        registered branches.
+      */
+              if (filteredBranches.length === 0) {
+                return (
+                  <div
+                    style={{
+                      ...invInputSt,
+
+                      height: "auto",
+                      minHeight: 38,
+
+                      padding: "9px 12px",
+
+                      background: "#f5f5f5",
+
+                      color: C.muted,
+
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    No branches found for this brand.
+                  </div>
+                );
+              }
+
+              /*
+        When editing an existing product,
+        do not allow its original branch
+        to be removed.
+      */
+              const lockedBranch = showEditModal ? editingItem?.branch : null;
+
+              const currentBranches = Array.isArray(formData.branches)
+                ? formData.branches
+                : [];
+
+              const allSelected =
+                filteredBranches.length > 0 &&
+                filteredBranches.every((branch) =>
+                  currentBranches.includes(branch),
+                );
+
+              return (
+                <>
+                  <div
+                    style={{
+                      border: `1.5px solid ${C.border}`,
+                      borderRadius: 11,
+
+                      padding: "8px 4px",
+
+                      maxHeight: 180,
+                      overflowY: "auto",
+
+                      background: C.white,
+                    }}
+                  >
+                    {/* SELECT ALL */}
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+
+                        padding: "7px 10px",
+
+                        cursor: "pointer",
+
+                        fontSize: 12.5,
+                        fontWeight: 700,
+
+                        color: C.greenDk,
+
+                        borderBottom: `1px solid ${C.border}`,
+                        marginBottom: 4,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+
+                          setFormData((prev) => {
+                            /*
+                      When editing, keep
+                      original branch selected.
+                    */
+                            let nextBranches = checked
+                              ? filteredBranches
+                              : lockedBranch
+                                ? [lockedBranch]
+                                : [];
+
+                            return {
+                              ...prev,
+
+                              branches: nextBranches,
+
+                              /*
+                        Keep branch as primary
+                        selected branch.
+                      */
+                              branch: lockedBranch || nextBranches[0] || "",
+                            };
+                          });
+
+                          resetIngPicker();
+                        }}
+                      />
+                      Select all branches
+                    </label>
+
+                    {/* EACH BRANCH */}
+                    {filteredBranches.map((branchName) => {
+                      const locked = branchName === lockedBranch;
+
+                      const selected = currentBranches.includes(branchName);
+
+                      return (
+                        <label
+                          key={branchName}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+
+                            padding: "7px 10px",
+
+                            cursor: locked ? "default" : "pointer",
+
+                            fontSize: 13,
+
+                            color: C.ink,
+
+                            opacity: locked ? 0.75 : 1,
+
+                            borderRadius: 7,
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            disabled={locked}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+
+                              setFormData((prev) => {
+                                const oldBranches = Array.isArray(prev.branches)
+                                  ? prev.branches
+                                  : [];
+
+                                let nextBranches;
+
+                                if (checked) {
+                                  nextBranches = [
+                                    ...new Set([...oldBranches, branchName]),
+                                  ];
+                                } else {
+                                  nextBranches = oldBranches.filter(
+                                    (branch) => branch !== branchName,
+                                  );
+                                }
+
+                                /*
+                              Original branch of
+                              an edited item must
+                              remain selected.
+                            */
+                                if (
+                                  lockedBranch &&
+                                  !nextBranches.includes(lockedBranch)
+                                ) {
+                                  nextBranches = [
+                                    lockedBranch,
+                                    ...nextBranches,
+                                  ];
+                                }
+
+                                return {
+                                  ...prev,
+
+                                  branches: nextBranches,
+
+                                  /*
+                                Existing branch stays
+                                primary while editing.
+
+                                For Add, first selected
+                                branch becomes primary.
+                              */
+                                  branch: lockedBranch || nextBranches[0] || "",
+                                };
+                              });
+
+                              /*
+                          Load Stock Inventory
+                          items specifically for
+                          selected brand.
+
+                          Ingredients are later
+                          restricted by branch.
+                        */
+                              fetchStockItems("", formData.brand);
+
+                              resetIngPicker();
+                            }}
+                          />
+
+                          <StoreIcon size={11} color={C.green} />
+
+                          <span>{branchName}</span>
+
+                          {locked && (
+                            <span
+                              style={{
+                                fontSize: 10.5,
+
+                                fontWeight: 700,
+
+                                color: C.greenDk,
+
+                                marginLeft: 4,
+                              }}
+                            >
+                              (current — can't remove)
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  {/* ADMIN BRANCH SUMMARY */}
+                  {currentBranches.length > 0 && (
+                    <div
+                      style={{
+                        fontSize: 11,
+
+                        color: C.muted,
+
+                        marginTop: 6,
+
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      {showEditModal ? (
+                        currentBranches.length === 1 ? (
+                          <>
+                            Only updating <strong>{editingItem?.branch}</strong>
+                            .
+                          </>
+                        ) : (
+                          <>
+                            Updating <strong>{editingItem?.branch}</strong> and
+                            adding this item to {currentBranches.length - 1}{" "}
+                            more branch
+                            {currentBranches.length - 1 === 1 ? "" : "es"}:{" "}
+                            {currentBranches
+                              .filter(
+                                (branch) => branch !== editingItem?.branch,
+                              )
+                              .join(", ")}
+                          </>
+                        )
+                      ) : (
+                        <>
+                          Will add this item to{" "}
+                          <strong>{currentBranches.length}</strong> branch
+                          {currentBranches.length === 1 ? "" : "es"}:{" "}
+                          {currentBranches.join(", ")}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()
+          ) : (
+            /*
+      ======================================
+      MANAGER BRANCH
+      ======================================
+
+      Manager cannot select another branch.
+      user.branch is authoritative.
+    */
+            <div
+              style={{
+                ...invInputSt,
+
+                width: "100%",
+
+                height: "auto",
+                minHeight: 38,
+
+                padding: "9px 12px",
+
+                background: "#f5f5f5",
+
+                color: C.ink,
+
+                fontWeight: 700,
+
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+
+                cursor: "not-allowed",
+              }}
+            >
+              <StoreIcon size={13} color={C.green} />
+
+              {userBranch || formData.branch || "No assigned branch"}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginBottom: 13 }}>
+          <label style={invLabelSt}>Category</label>
+          {directProduct ? (
+            <div
+              style={{
+                ...invInputSt,
+                height: "auto",
+                minHeight: 38,
+                padding: "9px 12px",
+                background: "#f5f5f5",
+                color: C.muted,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              {formData.category || "Uncategorized"}
+            </div>
+          ) : (
+            <CategorySelect
+              value={formData.category}
+              onChange={(val) => setFormData((p) => ({ ...p, category: val }))}
+              categories={formCategories}
+              onAddCategory={(cat) =>
+                setFormCategories((prev) =>
+                  prev.includes(cat) ? prev : [...prev, cat],
+                )
+              }
+            />
+          )}
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: directProduct ? "1fr 1fr 1fr" : "1fr 1fr",
+            gap: 10,
+            marginBottom: 13,
+          }}
+        >
+          <div>
+            <label style={invLabelSt}>Product Cost (₱)</label>
+            <input
+              type="number"
+              name="cost"
+              value={formData.cost}
+              readOnly
+              style={{ ...invInputSt, background: "#f5f5f5", color: C.muted }}
+            />
+          </div>
+          {directProduct && (
             <div>
-              <div style={{ fontSize:12.5, fontWeight:800, color:C.ink }}>{directSource?.name || formData.name || "Linked stock item"}</div>
-              <div style={{ fontSize:11.5, color:C.muted, lineHeight:1.5, marginTop:3 }}>
-                {isPharmaBrandName(currentBrandName)
-                  ? "Automatically linked to Stock Inventory. Cost and availability sync from batches, and POS deducts the earliest-expiring valid batch using FEFO."
-                  : "Automatically linked to Stock Inventory. Cost and availability sync from fuel deliveries, and POS deducts FIFO delivery layers for costing using liter quantities."}
+              <label style={invLabelSt}>Operations Markup (%)</label>
+              <input
+                type="number"
+                value={DIRECT_OPERATIONS_MARGIN}
+                readOnly
+                disabled
+                style={{
+                  ...invInputSt,
+                  background: "#f5f5f5",
+                  color: C.muted,
+                  cursor: "not-allowed",
+                }}
+              />
+            </div>
+          )}
+          <div>
+            <label style={invLabelSt}>Profit Markup (%)</label>
+            <input
+              type="number"
+              value={
+                directProduct ? DIRECT_PROFIT_MARGIN : DEFAULT_PROFIT_MARGIN
+              }
+              readOnly
+              disabled
+              style={{
+                ...invInputSt,
+                background: "#f5f5f5",
+                color: C.muted,
+                cursor: "not-allowed",
+              }}
+            />
+          </div>
+        </div>
+        {formData.cost !== "" && parseFloat(formData.cost) > 0 && (
+          <div
+            style={{
+              background: C.greenLt,
+              border: `1px solid ${C.greenMid}`,
+              borderRadius: 9,
+              padding: "9px 13px",
+              marginBottom: 13,
+              fontSize: 12,
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              color: C.ok,
+              flexWrap: "wrap",
+            }}
+          >
+            {directProduct ? (
+              <>
+                Cost: <strong>{fmtPeso(formData.cost)}</strong> +{" "}
+                <strong>{DIRECT_OPERATIONS_MARGIN}% operations</strong> +{" "}
+                <strong>{DIRECT_PROFIT_MARGIN}% profit</strong> = Auto selling
+                price:{" "}
+                <strong style={{ color: C.green, fontSize: 13 }}>
+                  {fmtPeso(formData.price)}
+                </strong>
+              </>
+            ) : (
+              <>
+                Cost: <strong>{fmtPeso(formData.cost)}</strong> +{" "}
+                <strong>{DEFAULT_PROFIT_MARGIN}%</strong> = Selling price:{" "}
+                <strong style={{ color: C.green, fontSize: 13 }}>
+                  {fmtPeso(formData.price)}
+                </strong>
+              </>
+            )}
+          </div>
+        )}
+        <div style={{ marginBottom: 13 }}>
+          <label style={invLabelSt}>
+            {directProduct ? "Auto Selling Price (₱)" : "Selling Price (₱)"}
+          </label>
+          <input
+            type="number"
+            name="price"
+            value={formData.price}
+            onChange={directProduct ? undefined : handleInputChange}
+            readOnly={directProduct}
+            step="0.01"
+            min="0"
+            style={{
+              ...invInputSt,
+              ...(directProduct
+                ? { background: "#f5f5f5", color: C.greenDk, fontWeight: 800 }
+                : {}),
+            }}
+            placeholder="Auto-calc"
+          />
+        </div>
+        <div style={{ marginBottom: 13 }}>
+          <label style={invLabelSt}>
+            {directProduct ? "Stock Inventory Source" : "Ingredients"}
+          </label>
+          {directProduct ? (
+            <div
+              style={{
+                background: C.greenLt,
+                border: `1px solid ${C.greenMid}`,
+                borderRadius: 12,
+                padding: "13px 14px",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+              }}
+            >
+              <PackageCheck
+                size={17}
+                color={C.greenDk}
+                style={{ marginTop: 1, flexShrink: 0 }}
+              />
+              <div>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink }}>
+                  {directSource?.name || formData.name || "Linked stock item"}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: C.muted,
+                    lineHeight: 1.5,
+                    marginTop: 3,
+                  }}
+                >
+                  {isPharmaBrandName(currentBrandName)
+                    ? "Automatically linked to Stock Inventory. Cost and availability sync from batches, and POS deducts the earliest-expiring valid batch using FEFO."
+                    : "Automatically linked to Stock Inventory. Cost and availability sync from fuel deliveries, and POS deducts FIFO delivery layers for costing using liter quantities."}
+                </div>
               </div>
             </div>
-          </div>
-        ) : renderIngredientPicker()}
-      </div>
-      <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
-        <button type="button" disabled={saving} onClick={()=>{ setShowAddModal(false); setShowEditModal(false); setFormData(emptyForm()); setFormBrandId(""); resetIngPicker(); }} style={{ ...btnSt, opacity: saving ? 0.5 : 1, cursor: saving ? "not-allowed" : "pointer" }}>Cancel</button>
-        <button type="submit" disabled={saving} style={{ ...btnPrimarySt, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
-          {saving && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
-          {saving ? (showEditModal ? "Saving…" : "Adding…") : "Save Item"}
-        </button>
-      </div>
-    </>
-  );
-}; 
+          ) : (
+            renderIngredientPicker()
+          )}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            marginTop: 8,
+            paddingTop: 14,
+            borderTop: `1px solid ${C.border}`,
+          }}
+        >
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => {
+              setShowAddModal(false);
+              setShowEditModal(false);
+              setFormData(emptyForm());
+              setFormBrandId("");
+              resetIngPicker();
+            }}
+            style={{
+              ...btnSt,
+              opacity: saving ? 0.5 : 1,
+              cursor: saving ? "not-allowed" : "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            style={{
+              ...btnPrimarySt,
+              opacity: saving ? 0.6 : 1,
+              cursor: saving ? "not-allowed" : "pointer",
+            }}
+          >
+            {saving && (
+              <RefreshCw
+                size={13}
+                style={{ animation: "spin 0.8s linear infinite" }}
+              />
+            )}
+            {saving ? (showEditModal ? "Saving…" : "Adding…") : "Save Item"}
+          </button>
+        </div>
+      </>
+    );
+  };
 
-  const selectedBrandObj = brandList.find(b => b.id === filterBrand) || null;
+  const selectedBrandObj = brandList.find((b) => b.id === filterBrand) || null;
   const currentCardDeleteHistory = useMemo(() => {
     const selectedBrandName = filterBrandName || selectedBrandObj?.name || "";
-    const branchNames = new Set((selectedBrandObj?.branches || []).map(br => typeof br === "string" ? br : br.name));
-    return deleteHistory.filter(entry => {
+    const branchNames = new Set(
+      (selectedBrandObj?.branches || []).map((br) =>
+        typeof br === "string" ? br : br.name,
+      ),
+    );
+    return deleteHistory.filter((entry) => {
       const d = entry?.inventory_data || {};
       if (selectedBrandName && d.brand === selectedBrandName) return true;
-      if (selectedBrandName && d.branch && branchNames.has(d.branch)) return true;
-      if (!selectedBrandName && userBranch && d.branch === userBranch) return true;
+      if (selectedBrandName && d.branch && branchNames.has(d.branch))
+        return true;
+      if (!selectedBrandName && userBranch && d.branch === userBranch)
+        return true;
       return false;
     });
   }, [deleteHistory, filterBrandName, selectedBrandObj, userBranch]);
-  const anyFilter = filterBrandName||filterCategory||filterStatus||searchQuery;
-  const clearAll  = () => { setFilterBrandName(""); setFilterCategory(""); setFilterStatus(""); setSearchQuery(""); };
+  const anyFilter =
+    filterBrandName || filterCategory || filterStatus || searchQuery;
 
-const goBackToBrands = () => {
-  setActiveScreen("brands");
-  setFilterBrand(null);
-  setFilterBrandName("");
-  setBranchFilter("");
-};
+  const clearAll = () => {
+    // Manager cannot clear
+    // assigned brand.
+    setFilterBrandName(isAdmin ? "" : userBrand);
 
-const openBrand = brandId => {
-  const brandObj = brandList.find(b => b.id === brandId);
-  setFilterBrand(brandId);
-  setFilterBrandName(brandObj ? brandObj.name : "");
-  setBranchFilter("");
-  setActiveScreen("inventory");
-};
+    setFilterCategory("");
+    setFilterStatus("");
+    setSearchQuery("");
+  };
 
-  const fontImport = <style>{`@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+  const goBackToBrands = () => {
+    setActiveScreen("brands");
+    setFilterBrand(null);
+    setFilterBrandName("");
+    setBranchFilter("");
+  };
+
+  const openBrand = (brandId) => {
+    const brandObj = brandList.find((b) => b.id === brandId);
+    setFilterBrand(brandId);
+    setFilterBrandName(brandObj ? brandObj.name : "");
+    setBranchFilter("");
+    setActiveScreen("inventory");
+  };
+
+  const fontImport = (
+    <style>{`@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes toastIn { from{opacity:0;transform:translateY(-6px);} to{opacity:1;transform:translateY(0);} }
     .inv-row:hover td { background: #F6F7F1 !important; }
@@ -2403,34 +6204,75 @@ const openBrand = brandId => {
     select, input { transition: border-color .15s ease, box-shadow .15s ease; }
     select:hover:not(:disabled), input:hover:not(:disabled) { border-color: ${C.green} !important; }
     select:focus, input:focus, textarea:focus { border-color: ${C.green} !important; box-shadow: 0 0 0 3px rgba(59,121,30,0.12); }
-  `}</style>;
+  `}</style>
+  );
 
-  const branchOptionsForCard = isAdmin && selectedBrandObj
-    ? (selectedBrandObj.branches || []).map(br => typeof br === "string" ? br : br.name)
-    : [];
+  const branchOptionsForCard =
+    isAdmin && selectedBrandObj
+      ? (selectedBrandObj.branches || []).map((br) =>
+          typeof br === "string" ? br : br.name,
+        )
+      : [];
 
   // ── Screen 1: Brand cards ─────────────────────────────────────────────────────
   if (activeScreen === "brands" && isAdmin) {
     return (
-      <div style={{ fontFamily:FONT, color:C.ink }}>
+      <div style={{ fontFamily: FONT, color: C.ink }}>
         {fontImport}
 
         {loading && brandList.length === 0 ? (
-          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading brands…</div>
+          <div
+            style={{
+              padding: "52px 0",
+              textAlign: "center",
+              color: C.muted,
+              fontSize: 14,
+              fontWeight: 700,
+            }}
+          >
+            Loading brands…
+          </div>
         ) : brandList.length === 0 ? (
-          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No brands found.</div>
+          <div
+            style={{
+              padding: "52px 0",
+              textAlign: "center",
+              color: C.muted,
+              fontSize: 13,
+              fontStyle: "italic",
+            }}
+          >
+            No brands found.
+          </div>
         ) : (
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,300px),1fr))", gap:14 }}>
-            {brandList.map(b => {
-              const branchNames = (b.branches||[]).map(br=>typeof br==="string"?br:br.name);
-              const brandItems  = inventoryForCatalogue.filter(i => (i.brand || branchToBrand[i.branch]) === b.name && branchNames.includes(i.branch));
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit,minmax(min(100%,300px),1fr))",
+              gap: 14,
+            }}
+          >
+            {brandList.map((b) => {
+              const branchNames = (b.branches || []).map((br) =>
+                typeof br === "string" ? br : br.name,
+              );
+              const brandItems = inventoryForCatalogue.filter(
+                (i) =>
+                  (i.brand || branchToBrand[i.branch]) === b.name &&
+                  branchNames.includes(i.branch),
+              );
               return (
                 <BrandOverviewCard
                   key={b.id}
                   brand={b}
                   branchCount={branchNames.length}
                   itemCount={brandItems.length}
-                  lowCount={brandItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length}
+                  lowCount={
+                    brandItems.filter(
+                      (i) => Number(i.stock) <= Number(i.min_stock),
+                    ).length
+                  }
                   onClick={() => openBrand(b.id)}
                 />
               );
@@ -2444,89 +6286,172 @@ const openBrand = brandId => {
   }
 
   // ── Screen 2: Row-list card (scoped to selected brand for admins) ─────────────
-return (
-  <div style={{ fontFamily:FONT, color:C.ink }}>
-    {fontImport}
+  return (
+    <div style={{ fontFamily: FONT, color: C.ink }}>
+      {fontImport}
 
-    {loading ? (
-      <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700, background:C.white, borderRadius:18, border:`1px solid ${C.border}` }}>
-        Loading inventory…
-      </div>
-    ) : (
-<MenuBrandCard
-  key={filterBrandName || "all"}
-  brandName={filterBrandName || "All Items"}
-  items={filteredItems}
-  branchOptions={branchOptionsForCard}
-  categories={filteredCategories}
-  onEdit={openEditModal}
-  onRequestDelete={setDeleteTarget}
-  deletingId={deletingId}
-  onQuickAdd={()=>{
-  const brandName = filterBrandName || "";
-  const branch = isAdmin ? "" : userBranch;
-  setFormData({...emptyForm(), branch, branches: isAdmin ? [] : [userBranch], brand: brandName});
-  fetchStockItems(branch, brandName);
-  setFormBrandId(filterBrand ? String(filterBrand) : "");
-  setShowAddModal(true);
-}}
-  onBack={isAdmin ? goBackToBrands : null}
-  onOpenDeleteHistory={()=>setShowDeleteHistory(true)}
-  deleteHistoryCount={currentCardDeleteHistory.length}
-  onImportExcel={importExcel}
-  excelRef={excelRef}
-/>
-    )}
-
-    {deleteTarget && !deleteTarget.read_only_catalogue && (
-      <DeleteConfirmModal
-        target={{
-          name: deleteTarget.name,
-          branch: deleteTarget.branch,
-          ingredientCount: (deleteTarget.ingredients || []).length,
-        }}
-        deleting={deletingId === deleteTarget.id}
-        onClose={() => { if (deletingId !== deleteTarget.id) setDeleteTarget(null); }}
-        onConfirm={async () => {
-          await handleDeleteItem(deleteTarget.id);
-          setDeleteTarget(null);
-        }}
-      />
+      {loading ? (
+        <div
+          style={{
+            padding: "52px 0",
+            textAlign: "center",
+            color: C.muted,
+            fontSize: 14,
+            fontWeight: 700,
+            background: C.white,
+            borderRadius: 18,
+            border: `1px solid ${C.border}`,
+          }}
+        >
+          Loading inventory…
+        </div>
+      ) : (
+        <MenuBrandCard
+          key={`${filterBrandName || "all"}-${isAdmin ? "admin" : userBranch}`}
+          brandName={filterBrandName || "All Items"}
+          items={filteredItems}
+          branchOptions={branchOptionsForCard}
+          categories={filteredCategories}
+          restrictBranch={isAdmin ? "" : userBranch}
+          onEdit={openEditModal}
+          onRequestDelete={setDeleteTarget}
+          deletingId={deletingId}
+          onQuickAdd={() => {
+            const brandName = filterBrandName || "";
+            const branch = isAdmin ? "" : userBranch;
+            setFormData({
+              ...emptyForm(),
+              branch,
+              branches: isAdmin ? [] : [userBranch],
+              brand: brandName,
+            });
+            fetchStockItems(branch, brandName);
+            setFormBrandId(filterBrand ? String(filterBrand) : "");
+            setShowAddModal(true);
+          }}
+          onBack={isAdmin ? goBackToBrands : null}
+          onOpenDeleteHistory={() => setShowDeleteHistory(true)}
+          deleteHistoryCount={currentCardDeleteHistory.length}
+          onImportExcel={importExcel}
+          excelRef={excelRef}
+        />
       )}
 
-    {/* Add / Edit Modal */}
-    {(showAddModal || showEditModal) && (
-      <div style={{ position:"fixed", inset:0, background:"rgba(18,36,27,0.32)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}
-        onClick={e=>{ if(e.target===e.currentTarget){setShowAddModal(false);setShowEditModal(false);setFormData(emptyForm());resetIngPicker();} }}>
-        <div style={{ background:C.white, borderRadius:18, padding:"26px 26px 20px", width:540, maxWidth:"95vw", maxHeight:"93vh", overflowY:"auto", boxShadow:"0 12px 48px rgba(0,0,0,0.16)" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-            <h2 style={{ margin:0, fontSize:16, fontWeight:800, color:C.ink }}>{showAddModal?"Add New Menu Item":"Edit Menu Item"}</h2>
-            <button onClick={()=>{setShowAddModal(false);setShowEditModal(false);setFormData(emptyForm());setFormBrandId("");resetIngPicker();}} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><XIcon size={18}/></button>
+      {deleteTarget && !deleteTarget.read_only_catalogue && (
+        <DeleteConfirmModal
+          target={{
+            name: deleteTarget.name,
+            branch: deleteTarget.branch,
+            ingredientCount: (deleteTarget.ingredients || []).length,
+          }}
+          deleting={deletingId === deleteTarget.id}
+          onClose={() => {
+            if (deletingId !== deleteTarget.id) setDeleteTarget(null);
+          }}
+          onConfirm={async () => {
+            await handleDeleteItem(deleteTarget.id);
+            setDeleteTarget(null);
+          }}
+        />
+      )}
+
+      {/* Add / Edit Modal */}
+      {(showAddModal || showEditModal) && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(18,36,27,0.32)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowAddModal(false);
+              setShowEditModal(false);
+              setFormData(emptyForm());
+              resetIngPicker();
+            }
+          }}
+        >
+          <div
+            style={{
+              background: C.white,
+              borderRadius: 18,
+              padding: "26px 26px 20px",
+              width: 540,
+              maxWidth: "95vw",
+              maxHeight: "93vh",
+              overflowY: "auto",
+              boxShadow: "0 12px 48px rgba(0,0,0,0.16)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: 16,
+                  fontWeight: 800,
+                  color: C.ink,
+                }}
+              >
+                {showAddModal ? "Add New Menu Item" : "Edit Menu Item"}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowAddModal(false);
+                  setShowEditModal(false);
+                  setFormData(emptyForm());
+                  setFormBrandId("");
+                  resetIngPicker();
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: C.muted,
+                  padding: 4,
+                }}
+              >
+                <XIcon size={18} />
+              </button>
+            </div>
+            <form
+              noValidate
+              onSubmit={showAddModal ? handleAddItem : handleEditItem}
+            >
+              {renderFormFields()}
+            </form>
           </div>
-          <form noValidate onSubmit={showAddModal ? handleAddItem : handleEditItem}>
-            {renderFormFields()}
-          </form>
         </div>
-      </div>
-    )}
+      )}
 
-    {showDeleteHistory && (
-      <InventoryDeleteHistoryPanel
-        history={currentCardDeleteHistory}
-        onRestore={handleRestore}
-        restoringId={restoringId}
-        onClose={() => setShowDeleteHistory(false)}
-      />
-    )}
+      {showDeleteHistory && (
+        <InventoryDeleteHistoryPanel
+          history={currentCardDeleteHistory}
+          onRestore={handleRestore}
+          restoringId={restoringId}
+          onClose={() => setShowDeleteHistory(false)}
+        />
+      )}
 
-    {showActivityLog && (
-      <InventoryActivityLogPanel
-        log={activityLog}
-        onClose={() => setShowActivityLog(false)}
-      />
-    )}
+      {showActivityLog && (
+        <InventoryActivityLogPanel
+          log={activityLog}
+          onClose={() => setShowActivityLog(false)}
+        />
+      )}
 
-     <Toast toast={toast} onClose={() => setToast(null)} />
-  </div>
-);
+      <Toast toast={toast} onClose={() => setToast(null)} />
+    </div>
+  );
 }

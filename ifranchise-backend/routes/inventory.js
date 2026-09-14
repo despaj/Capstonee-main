@@ -3,10 +3,17 @@ const router = express.Router();
 const pool = require("../db");
 const { logActivity } = require("../utils/activityLogger");
 const { convertUnit } = require("../utils/unitConversion");
-const { isPharmaBrand, isFuelBrand, isDirectCatalogueBrand, rotationMethod, allocateProductStock } = require("../utils/inventoryAutomation");
+const {
+  isPharmaBrand,
+  isFuelBrand,
+  isDirectCatalogueBrand,
+  rotationMethod,
+  allocateProductStock,
+} = require("../utils/inventoryAutomation");
 
 function computeAvailability(ingredients) {
-  if (!ingredients || ingredients.length === 0) return { available: null, lowIngredients: [] };
+  if (!ingredients || ingredients.length === 0)
+    return { available: null, lowIngredients: [] };
 
   let minPortions = Infinity;
   const lowIngredients = [];
@@ -15,7 +22,11 @@ function computeAvailability(ingredients) {
     const stock = parseFloat(ing.stock) || 0;
     let qtyRequired;
     try {
-      qtyRequired = convertUnit(parseFloat(ing.qty_required) || 0, ing.recipe_unit || ing.ingredient_unit, ing.ingredient_unit);
+      qtyRequired = convertUnit(
+        parseFloat(ing.qty_required) || 0,
+        ing.recipe_unit || ing.ingredient_unit,
+        ing.ingredient_unit,
+      );
     } catch {
       qtyRequired = parseFloat(ing.qty_required) || 0; // fall back to raw qty if conversion fails
     }
@@ -38,12 +49,16 @@ router.get("/inventory", async (req, res) => {
   try {
     const { branch } = req.query;
     const result = branch
-      ? await pool.query("SELECT * FROM inventory WHERE branch=$1 ORDER BY name", [branch])
+      ? await pool.query(
+          "SELECT * FROM inventory WHERE branch=$1 ORDER BY name",
+          [branch],
+        )
       : await pool.query("SELECT * FROM inventory ORDER BY name");
 
-    const items = await Promise.all(result.rows.map(async item => {
-      const ings = await pool.query(
-        `SELECT pi.quantity AS qty_required, pi.unit AS unit, pi.unit AS recipe_unit,
+    const items = await Promise.all(
+      result.rows.map(async (item) => {
+        const ings = await pool.query(
+          `SELECT pi.quantity AS qty_required, pi.unit AS unit, pi.unit AS recipe_unit,
                 i.id, i.name, i.stock, i.min_stock, i.unit AS ingredient_unit,
                 i.brand, i.perishable, i.cost_per_unit, i.extra_fields,
                 CASE
@@ -57,26 +72,117 @@ router.get("/inventory", async (req, res) => {
         FROM product_ingredients pi
         JOIN ingredients i ON i.id = pi.ingredient_id
         WHERE pi.inventory_id = $1`,
-        [item.id]
-      );
-      const { available, lowIngredients } = computeAvailability(ings.rows);
-      const direct = isDirectCatalogueBrand(item.brand);
-      const linked = ings.rows[0] || null;
-      const effectiveStock = direct && linked ? Number(linked.sellable_stock ?? linked.stock ?? 0) : available;
-      const productType = isPharmaBrand(item.brand) ? "DIRECT" : isFuelBrand(item.brand) ? "FUEL" : "RECIPE";
-      return {
-        ...item,
-        stock: effectiveStock != null ? effectiveStock : item.stock,
-        min_stock: direct && linked ? Number(linked.min_stock || 0) : item.min_stock,
-        ingredients: ings.rows,
-        available_stock: effectiveStock,
-        low_ingredients: lowIngredients,
-        is_low: direct && linked ? Number(linked.sellable_stock ?? linked.stock ?? 0) <= Number(linked.min_stock || 0) : lowIngredients.length > 0,
-        product_type: productType,
-        stock_unit: direct && linked ? linked.ingredient_unit : null,
-        rotation_method: linked ? rotationMethod(linked) : null,
-      };
-    }));
+          [item.id],
+        );
+        const { available, lowIngredients } = computeAvailability(ings.rows);
+
+        const direct = isDirectCatalogueBrand(item.brand);
+        const linked = ings.rows[0] || null;
+
+        const effectiveStock =
+          direct && linked
+            ? Number(linked.sellable_stock ?? linked.stock ?? 0)
+            : available;
+
+        const productType = isPharmaBrand(item.brand)
+          ? "DIRECT"
+          : isFuelBrand(item.brand)
+            ? "FUEL"
+            : "RECIPE";
+
+        let extraFields = {};
+
+        if (linked?.extra_fields) {
+          try {
+            extraFields =
+              typeof linked.extra_fields === "string"
+                ? JSON.parse(linked.extra_fields)
+                : linked.extra_fields;
+          } catch {
+            extraFields = {};
+          }
+        }
+
+        const pcsPerStrip = Number(extraFields?.pcs_per_strip) || 0;
+
+        const stripsPerBox = Number(extraFields?.strips_per_box) || 0;
+
+        const pcsPerBox =
+          pcsPerStrip > 0 && stripsPerBox > 0 ? pcsPerStrip * stripsPerBox : 0;
+
+        // Cost stored in Stock Inventory is cost per base unit / piece
+        const costPerPc = Number(linked?.cost_per_unit) || 0;
+
+        // Same direct-selling formula used by Stock Inventory
+        const DIRECT_COST_RATE = 0.35;
+
+        const computeDirectSellingPrice = (cost) => {
+          const base = Number(cost || 0);
+
+          return base > 0
+            ? Math.round((base / DIRECT_COST_RATE) * 100) / 100
+            : 0;
+        };
+
+        const pricePc =
+          direct && costPerPc > 0
+            ? computeDirectSellingPrice(costPerPc)
+            : Number(item.price || 0);
+
+        const priceStrip =
+          direct && pcsPerStrip > 0
+            ? computeDirectSellingPrice(costPerPc * pcsPerStrip)
+            : null;
+
+        const priceBox =
+          direct && pcsPerBox > 0
+            ? computeDirectSellingPrice(costPerPc * pcsPerBox)
+            : null;
+
+        return {
+          ...item,
+
+          stock: effectiveStock != null ? effectiveStock : item.stock,
+
+          min_stock:
+            direct && linked ? Number(linked.min_stock || 0) : item.min_stock,
+
+          ingredients: ings.rows,
+
+          available_stock: effectiveStock,
+
+          low_ingredients: lowIngredients,
+
+          is_low:
+            direct && linked
+              ? Number(linked.sellable_stock ?? linked.stock ?? 0) <=
+                Number(linked.min_stock || 0)
+              : lowIngredients.length > 0,
+
+          product_type: productType,
+
+          stock_unit: direct && linked ? linked.ingredient_unit : null,
+
+          rotation_method: linked ? rotationMethod(linked) : null,
+
+          ingredient_id: direct && linked ? linked.id : null,
+
+          pcs_per_strip: pcsPerStrip,
+
+          strips_per_box: stripsPerBox,
+
+          pcs_per_box: pcsPerBox,
+
+          price_pc: pricePc,
+
+          price_strip: priceStrip,
+
+          price_box: priceBox,
+
+          price: direct ? pricePc : Number(item.price || 0),
+        };
+      }),
+    );
 
     res.json(items);
   } catch (err) {
@@ -87,30 +193,60 @@ router.get("/inventory", async (req, res) => {
 
 router.put("/inventory/:id", async (req, res) => {
   try {
-    const { name, category, branch, brand, cost, price, image_url, latitude, longitude, performed_by_role } = req.body;
+    const {
+      name,
+      category,
+      branch,
+      brand,
+      cost,
+      price,
+      image_url,
+      latitude,
+      longitude,
+      performed_by_role,
+    } = req.body;
 
-    const before = await pool.query("SELECT * FROM inventory WHERE id=$1", [req.params.id]);
-    if (before.rows.length === 0) return res.status(404).json({ error: "Item not found" });
+    const before = await pool.query("SELECT * FROM inventory WHERE id=$1", [
+      req.params.id,
+    ]);
+    if (before.rows.length === 0)
+      return res.status(404).json({ error: "Item not found" });
     const oldItem = before.rows[0];
 
     const result = await pool.query(
       `UPDATE inventory
        SET name=$1, category=$2, branch=$3, brand=$4, cost=$5, price=$6, image_url=$7, updated_at=NOW()
        WHERE id=$8 RETURNING *`,
-      [name, category, branch, brand || null,
-       parseFloat(cost) || 0, parseFloat(price) || 0,
-       image_url || null, req.params.id]
+      [
+        name,
+        category,
+        branch,
+        brand || null,
+        parseFloat(cost) || 0,
+        parseFloat(price) || 0,
+        image_url || null,
+        req.params.id,
+      ],
     );
 
-    if (result.rows.length === 0) return res.status(404).json({ error: "Item not found" });
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Item not found" });
     const updatedItem = result.rows[0];
 
     const changes = {};
-    for (const field of ["name", "category", "branch", "brand", "cost", "price", "image_url"]) {
+    for (const field of [
+      "name",
+      "category",
+      "branch",
+      "brand",
+      "cost",
+      "price",
+      "image_url",
+    ]) {
       if (String(oldItem[field] ?? "") !== String(updatedItem[field] ?? ""))
         changes[field] = { from: oldItem[field], to: updatedItem[field] };
     }
-    
+
     await logActivity({
       action: "update",
       itemName: updatedItem.name,
@@ -125,7 +261,6 @@ router.put("/inventory/:id", async (req, res) => {
     });
 
     res.json({ success: true, item: updatedItem });
-
   } catch (err) {
     console.error("PUT /inventory/:id error:", err);
     res.status(500).json({ error: "Failed to update inventory item" });
@@ -135,8 +270,11 @@ router.put("/inventory/:id", async (req, res) => {
 router.delete("/inventory/:id", async (req, res) => {
   const { latitude, longitude, performed_by_role } = req.body;
   try {
-    const before = await pool.query("SELECT * FROM inventory WHERE id=$1", [req.params.id]);
-    if (before.rows.length === 0) return res.status(404).json({ error: "Item not found" });
+    const before = await pool.query("SELECT * FROM inventory WHERE id=$1", [
+      req.params.id,
+    ]);
+    if (before.rows.length === 0)
+      return res.status(404).json({ error: "Item not found" });
     const item = before.rows[0];
 
     const ings = await pool.query(
@@ -144,17 +282,25 @@ router.delete("/inventory/:id", async (req, res) => {
        FROM product_ingredients pi
        JOIN ingredients i ON i.id = pi.ingredient_id
        WHERE pi.inventory_id = $1`,
-      [item.id]
+      [item.id],
     );
 
     await pool.query(
       `INSERT INTO inventory_delete_history (inventory_data, ingredients_data, deleted_by, deleted_at)
        VALUES ($1,$2,$3,NOW())`,
       [
-        JSON.stringify({ name: item.name, category: item.category, branch: item.branch, brand: item.brand, cost: item.cost, price: item.price, image_url: item.image_url }),
+        JSON.stringify({
+          name: item.name,
+          category: item.category,
+          branch: item.branch,
+          brand: item.brand,
+          cost: item.cost,
+          price: item.price,
+          image_url: item.image_url,
+        }),
         JSON.stringify(ings.rows),
         req.body?.deleted_by || "Unknown",
-      ]
+      ],
     );
 
     await logActivity({
@@ -170,8 +316,8 @@ router.delete("/inventory/:id", async (req, res) => {
       role: performed_by_role || "Unknown",
     });
 
-    await pool.query("DELETE FROM inventory WHERE id=$1", [item.id]);  
-    res.json({ success: true });                               
+    await pool.query("DELETE FROM inventory WHERE id=$1", [item.id]);
+    res.json({ success: true });
   } catch (err) {
     console.error("DELETE /inventory/:id error:", err);
     res.status(500).json({ error: "Failed to delete inventory item" });
@@ -185,7 +331,7 @@ router.get("/menu-activity-log", async (req, res) => {
        WHERE module = $1
        ORDER BY created_at DESC
        LIMIT 300`,
-      ["Menu Inventory"]
+      ["Menu Inventory"],
     );
     res.json(result.rows);
   } catch (err) {
@@ -196,14 +342,24 @@ router.get("/menu-activity-log", async (req, res) => {
 
 router.get("/inventory-delete-history", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM inventory_delete_history ORDER BY deleted_at DESC");
-    res.json(result.rows.map(row => ({
-      id: row.id,
-      deleted_at: row.deleted_at,
-      deleted_by: row.deleted_by,
-      inventory_data: typeof row.inventory_data === "string" ? JSON.parse(row.inventory_data) : row.inventory_data,
-      ingredients_data: typeof row.ingredients_data === "string" ? JSON.parse(row.ingredients_data) : row.ingredients_data,
-    })));
+    const result = await pool.query(
+      "SELECT * FROM inventory_delete_history ORDER BY deleted_at DESC",
+    );
+    res.json(
+      result.rows.map((row) => ({
+        id: row.id,
+        deleted_at: row.deleted_at,
+        deleted_by: row.deleted_by,
+        inventory_data:
+          typeof row.inventory_data === "string"
+            ? JSON.parse(row.inventory_data)
+            : row.inventory_data,
+        ingredients_data:
+          typeof row.ingredients_data === "string"
+            ? JSON.parse(row.ingredients_data)
+            : row.ingredients_data,
+      })),
+    );
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch delete history" });
   }
@@ -211,7 +367,9 @@ router.get("/inventory-delete-history", async (req, res) => {
 
 router.delete("/inventory-delete-history/:id", async (req, res) => {
   try {
-    await pool.query("DELETE FROM inventory_delete_history WHERE id=$1", [req.params.id]);
+    await pool.query("DELETE FROM inventory_delete_history WHERE id=$1", [
+      req.params.id,
+    ]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to remove history entry" });
@@ -226,7 +384,7 @@ router.get("/inventory/:id/ingredients", async (req, res) => {
        FROM product_ingredients pi
        JOIN ingredients i ON i.id = pi.ingredient_id
        WHERE pi.inventory_id = $1 ORDER BY i.name`,
-      [req.params.id]
+      [req.params.id],
     );
     res.json(result.rows);
   } catch (err) {
@@ -241,14 +399,19 @@ router.post("/inventory/:id/ingredients", async (req, res) => {
 
     await client.query("BEGIN");
 
-    const check = await client.query("SELECT id FROM inventory WHERE id=$1", [req.params.id]);
+    const check = await client.query("SELECT id FROM inventory WHERE id=$1", [
+      req.params.id,
+    ]);
     if (check.rows.length === 0) {
       await client.query("ROLLBACK");
       return res.status(404).json({ error: "Item not found" });
     }
 
     // Replace the full ingredient list for this product
-    await client.query("DELETE FROM product_ingredients WHERE inventory_id=$1", [req.params.id]);
+    await client.query(
+      "DELETE FROM product_ingredients WHERE inventory_id=$1",
+      [req.params.id],
+    );
 
     if (Array.isArray(ingredients) && ingredients.length > 0) {
       const values = [];
@@ -256,11 +419,16 @@ router.post("/inventory/:id/ingredients", async (req, res) => {
       ingredients.forEach((ing, i) => {
         const base = i * 4;
         values.push(`($${base + 1},$${base + 2},$${base + 3},$${base + 4})`);
-        params.push(req.params.id, ing.ingredient_id, parseFloat(ing.quantity) || 0, ing.unit || ing.recipe_unit || "pcs");
+        params.push(
+          req.params.id,
+          ing.ingredient_id,
+          parseFloat(ing.quantity) || 0,
+          ing.unit || ing.recipe_unit || "pcs",
+        );
       });
       await client.query(
         `INSERT INTO product_ingredients (inventory_id, ingredient_id, quantity, unit) VALUES ${values.join(",")}`,
-        params
+        params,
       );
     }
 
@@ -277,14 +445,33 @@ router.post("/inventory/:id/ingredients", async (req, res) => {
 
 router.post("/inventory", async (req, res) => {
   try {
-    const { name, category, branch, brand, cost, price, image_url, latitude, longitude, restored, performed_by_role } = req.body;
+    const {
+      name,
+      category,
+      branch,
+      brand,
+      cost,
+      price,
+      image_url,
+      latitude,
+      longitude,
+      restored,
+      performed_by_role,
+    } = req.body;
     if (!branch) return res.status(400).json({ error: "Branch is required" });
 
     const result = await pool.query(
       `INSERT INTO inventory (name, category, branch, brand, cost, price, image_url)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [name, category, branch, brand || null,
-       parseFloat(cost) || 0, parseFloat(price) || 0, image_url || null]
+      [
+        name,
+        category,
+        branch,
+        brand || null,
+        parseFloat(cost) || 0,
+        parseFloat(price) || 0,
+        image_url || null,
+      ],
     );
 
     const newItem = result.rows[0];
@@ -294,7 +481,11 @@ router.post("/inventory", async (req, res) => {
       itemName: newItem.name,
       performedBy: req.body?.performed_by || "System",
       details: {
-        category, branch, brand, cost: newItem.cost, price: newItem.price,
+        category,
+        branch,
+        brand,
+        cost: newItem.cost,
+        price: newItem.price,
         ...(restored ? { note: "Restored from delete history" } : {}),
       },
       req,
@@ -317,7 +508,11 @@ router.post("/inventory/:id/sell", async (req, res) => {
   try {
     const quantity = Number(req.body?.quantity ?? 1);
     await client.query("BEGIN");
-    const allocation = await allocateProductStock(client, req.params.id, quantity);
+    const allocation = await allocateProductStock(
+      client,
+      req.params.id,
+      quantity,
+    );
     await client.query("COMMIT");
     res.json({
       success: true,

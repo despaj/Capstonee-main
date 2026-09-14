@@ -20913,9 +20913,6 @@ function generateTempPassword(length = 10) {
   return password.sort(() => Math.random() - 0.5).join("");
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// Delete confirmation modal (ported from ApplicationsContent)
-// ─────────────────────────────────────────────────────────────────────────
 function ApplicationConfirmModal({ app, onConfirm, onClose, deleting }) {
   if (!app) return null;
   return (
@@ -21386,7 +21383,7 @@ function FAApplicationsContent({
 
   const fetchActivityLog = useCallback(async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/applications-activity-log`,
       );
       const data = await res.json();
@@ -21420,7 +21417,9 @@ function FAApplicationsContent({
 
   const fetchApplications = async () => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications`);
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/applications`,
+      );
       const data = await res.json();
       setApplications(Array.isArray(data) ? data.map(normalizeApp) : []);
     } catch (err) {
@@ -21574,7 +21573,7 @@ function FAApplicationsContent({
           <style>
             @page { margin: 24px; }
             body {
-              font-family: Arial, sans-serif;
+              font-family:'Plus Jakarta Sans',sans-serif;
               padding: 24px;
               color: #111;
               font-size: 12px;
@@ -21782,7 +21781,7 @@ function FAApplicationsContent({
 
   const fetchAppDeleteHistory = async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/application-delete-history`,
       );
       const data = await res.json();
@@ -21824,7 +21823,7 @@ function FAApplicationsContent({
     setAlertModal({ title: "Approving application…", type: "loading" });
     try {
       const coords = await getBrowserLocation();
-      await fetch(
+      await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/applications/${id}/status`,
         {
           method: "PUT",
@@ -21870,7 +21869,7 @@ function FAApplicationsContent({
     setAlertModal({ title: "Rejecting application…", type: "loading" });
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/applications/${id}/status`,
         {
           method: "PUT",
@@ -21896,11 +21895,14 @@ function FAApplicationsContent({
 
       const app = applications.find((a) => a.id === id);
       if (app?.email) {
-        await fetch(`${process.env.REACT_APP_API_URL}/send-rejection`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ to: app.email, name: app.name }),
-        });
+        await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/send-rejection`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to: app.email, name: app.name }),
+          },
+        );
       }
 
       setApplications((prev) =>
@@ -21938,7 +21940,7 @@ function FAApplicationsContent({
     setAlertModal({ title: "Sending interview options…", type: "loading" });
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/applications/${app.id}/schedule-options`,
         {
           method: "PUT",
@@ -21965,18 +21967,21 @@ function FAApplicationsContent({
       }
 
       if (app.email) {
-        await fetch(`${process.env.REACT_APP_API_URL}/send-schedule-options`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: app.email,
-            name: app.name,
-            optionADate,
-            optionBDate,
-            optionCDate,
-            token: data.appointmentToken,
-          }),
-        });
+        await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/send-schedule-options`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: app.email,
+              name: app.name,
+              optionADate,
+              optionBDate,
+              optionCDate,
+              token: data.appointmentToken,
+            }),
+          },
+        );
       }
 
       const normalizedApp = normalizeApp(data.application);
@@ -22018,7 +22023,7 @@ function FAApplicationsContent({
       type: "loading",
     });
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/public/appointments/${app.appointmentToken}/reschedule-request`,
         {
           method: "POST",
@@ -22055,7 +22060,7 @@ function FAApplicationsContent({
     setAlertModal({ title: "Deleting application…", type: "loading" });
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/applications/${deleteTarget.id}`,
         {
           method: "DELETE",
@@ -22102,42 +22107,45 @@ function FAApplicationsContent({
     try {
       const d = entry.data;
       const coords = await getBrowserLocation();
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: d.name,
-          email: d.email,
-          phone: d.phone,
-          franchise: d.franchise,
-          paymentMode: d.payment_mode,
-          dob: d.dob,
-          civilStatus: d.civil_status,
-          gender: d.gender,
-          nationality: d.nationality,
-          address: d.address,
-          dependents: d.dependents,
-          spouseName: d.spouse_name,
-          spouseOccupation: d.spouse_occupation,
-          employmentType: d.employment_type,
-          yearsEmployer: d.years_employer,
-          income: d.income,
-          employerName: d.employer_name,
-          businessAddress: d.business_address,
-          position: d.position,
-          businessNature: d.business_nature,
-          signature: d.signature,
-          dateSigned: d.date_signed,
-          performed_by: user?.name || "System",
-          role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-          restored: true,
-        }),
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/applications`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: d.name,
+            email: d.email,
+            phone: d.phone,
+            franchise: d.franchise,
+            paymentMode: d.payment_mode,
+            dob: d.dob,
+            civilStatus: d.civil_status,
+            gender: d.gender,
+            nationality: d.nationality,
+            address: d.address,
+            dependents: d.dependents,
+            spouseName: d.spouse_name,
+            spouseOccupation: d.spouse_occupation,
+            employmentType: d.employment_type,
+            yearsEmployer: d.years_employer,
+            income: d.income,
+            employerName: d.employer_name,
+            businessAddress: d.business_address,
+            position: d.position,
+            businessNature: d.business_nature,
+            signature: d.signature,
+            dateSigned: d.date_signed,
+            performed_by: user?.name || "System",
+            role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+            restored: true,
+          }),
+        },
+      );
       const result = await res.json();
       if (result.success) {
-        await fetch(
+        await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/application-delete-history/${entry.id}`,
           { method: "DELETE" },
         );
@@ -22169,7 +22177,7 @@ function FAApplicationsContent({
       pending: { bg: "rgba(245,158,11,0.1)", color: "#d97706" },
       scheduled: { bg: "rgba(37,99,235,0.1)", color: "#2563eb" },
       approved: { bg: "rgba(16,185,129,0.1)", color: "#059669" },
-      rejected: { bg: "rgba(239,68,68,0.1)", color: "#dc2626" },
+      rejected: { bg: "rgba(239,68,68,0.1)", color: "#c0392b" },
     };
     const s = map[status] || map["pending"];
     return (
@@ -22235,7 +22243,7 @@ function FAApplicationsContent({
             flexDirection: "column",
             boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
             border: "1px solid rgba(0,168,76,0.15)",
-            fontFamily: "Montserrat, sans-serif",
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
           }}
         >
           {/* Header */}
@@ -22252,7 +22260,7 @@ function FAApplicationsContent({
                 style={{
                   fontSize: 17,
                   fontWeight: 800,
-                  color: "#0d2b1e",
+                  color: "#12241B",
                   margin: 0,
                 }}
               >
@@ -22265,8 +22273,8 @@ function FAApplicationsContent({
                     fontWeight: 700,
                     padding: "3px 10px",
                     borderRadius: 20,
-                    background: "#fee2e2",
-                    color: "#dc2626",
+                    background: "#fdf1f0",
+                    color: "#c0392b",
                   }}
                 >
                   {appDeleteHistory.length} deleted
@@ -22279,10 +22287,10 @@ function FAApplicationsContent({
                 width: 32,
                 height: 32,
                 borderRadius: "50%",
-                border: "1px solid #b2dfdb",
-                background: "#e0f2f1",
+                border: "1px solid #E1E6D8",
+                background: "#f0f5e8",
                 cursor: "pointer",
-                color: "#00695c",
+                color: "#2c5c16",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -22328,7 +22336,7 @@ function FAApplicationsContent({
                         style={{
                           fontWeight: 700,
                           fontSize: 13,
-                          color: "#0d2b1e",
+                          color: "#12241B",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
@@ -22337,7 +22345,7 @@ function FAApplicationsContent({
                         {app.name || "—"}
                       </div>
                       <div
-                        style={{ fontSize: 11, color: "#5a7a65", marginTop: 2 }}
+                        style={{ fontSize: 11, color: "#5C6B60", marginTop: 2 }}
                       >
                         {app.email} · {app.franchise}
                       </div>
@@ -22356,15 +22364,15 @@ function FAApplicationsContent({
                         gap: 5,
                         padding: "7px 14px",
                         borderRadius: 9,
-                        border: "1.5px solid #00897b",
+                        border: "1.5px solid #3b791e",
                         background:
-                          restoringId === entry.id ? "#f0fdf5" : "#e0f2f1",
-                        color: "#00695c",
+                          restoringId === entry.id ? "#f0f5e8" : "#f0f5e8",
+                        color: "#2c5c16",
                         fontSize: 12,
                         fontWeight: 700,
                         cursor:
                           restoringId !== null ? "not-allowed" : "pointer",
-                        fontFamily: "inherit",
+                        fontFamily: "'Plus Jakarta Sans', sans-serif",
                         whiteSpace: "nowrap",
                         opacity:
                           restoringId !== null
@@ -22452,7 +22460,7 @@ function FAApplicationsContent({
                 border: "1px solid rgba(0,168,76,0.15)",
                 maxHeight: "90vh",
                 overflowY: "auto",
-                fontFamily: "Montserrat, sans-serif",
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
                 position: "relative",
               }}
             >
@@ -22465,10 +22473,10 @@ function FAApplicationsContent({
                   width: 32,
                   height: 32,
                   borderRadius: "50%",
-                  border: "1px solid #b2dfdb",
-                  background: "#e0f2f1",
+                  border: "1px solid #E1E6D8",
+                  background: "#f0f5e8",
                   cursor: "pointer",
-                  color: "#00695c",
+                  color: "#2c5c16",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -22489,10 +22497,10 @@ function FAApplicationsContent({
               >
                 <h2
                   style={{
-                    fontFamily: "Montserrat,sans-serif",
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
                     fontSize: 18,
                     fontWeight: 800,
-                    color: "#0d2b1e",
+                    color: "#12241B",
                     margin: 0,
                   }}
                 >
@@ -22507,13 +22515,13 @@ function FAApplicationsContent({
                       gap: 6,
                       padding: "8px 16px",
                       borderRadius: 9,
-                      border: "1.5px solid #b2dfdb",
-                      background: "#f0fdf5",
-                      color: "#5a7a65",
+                      border: "1.5px solid #E1E6D8",
+                      background: "#f0f5e8",
+                      color: "#5C6B60",
                       fontSize: 12,
                       fontWeight: 700,
                       cursor: "pointer",
-                      fontFamily: "inherit",
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
                     }}
                   >
                     <Printer size={13} /> Print
@@ -22529,12 +22537,12 @@ function FAApplicationsContent({
                       style={{
                         fontSize: 10,
                         fontWeight: 800,
-                        color: "#00897b",
+                        color: "#3b791e",
                         letterSpacing: "0.1em",
                         textTransform: "uppercase",
                         marginBottom: 10,
                         paddingBottom: 6,
-                        borderBottom: "1.5px solid #e0f2f1",
+                        borderBottom: "1.5px solid #f0f5e8",
                       }}
                     >
                       {title}
@@ -22569,11 +22577,11 @@ function FAApplicationsContent({
                       style={{
                         fontSize: 13,
                         fontWeight: 600,
-                        color: value ? "#0d2b1e" : "#9ca3af",
+                        color: value ? "#12241B" : "#9ca3af",
                         padding: "7px 10px",
                         background: "#f8fffe",
                         borderRadius: 8,
-                        border: "1px solid #e0f2f1",
+                        border: "1px solid #f0f5e8",
                         fontStyle: value ? "normal" : "italic",
                       }}
                     >
@@ -22829,12 +22837,12 @@ function FAApplicationsContent({
                         style={{
                           fontSize: 10,
                           fontWeight: 800,
-                          color: "#00897b",
+                          color: "#3b791e",
                           letterSpacing: "0.1em",
                           textTransform: "uppercase",
                           marginBottom: 10,
                           paddingBottom: 6,
-                          borderBottom: "1.5px solid #e0f2f1",
+                          borderBottom: "1.5px solid #f0f5e8",
                         }}
                       >
                         Required Documents
@@ -22856,40 +22864,22 @@ function FAApplicationsContent({
                         </div>
                         {viewApp.letterOfIntent ? (
                           <button
-                            onClick={() => {
-                              let base64 = viewApp.letterOfIntent;
-
-                              // Strip the data URL prefix if present
-                              if (base64.includes(",")) {
-                                base64 = base64.split(",")[1];
-                              }
-
-                              const byteCharacters = atob(base64);
-                              const byteNumbers = new Array(
-                                byteCharacters.length,
-                              )
-                                .fill(0)
-                                .map((_, i) => byteCharacters.charCodeAt(i));
-                              const byteArray = new Uint8Array(byteNumbers);
-                              const blob = new Blob([byteArray], {
-                                type: "application/pdf",
-                              });
-                              const url = URL.createObjectURL(blob);
-                              window.open(url, "_blank");
-                            }}
+                            onClick={() =>
+                              window.open(viewApp.letterOfIntent, "_blank")
+                            }
                             style={{
                               display: "flex",
                               alignItems: "center",
                               gap: 8,
                               padding: "10px 14px",
                               borderRadius: 8,
-                              border: "1.5px solid #b2dfdb",
-                              background: "#e0f2f1",
-                              color: "#00695c",
+                              border: "1.5px solid #E1E6D8",
+                              background: "#f0f5e8",
+                              color: "#2c5c16",
                               fontSize: 13,
                               fontWeight: 700,
                               cursor: "pointer",
-                              fontFamily: "inherit",
+                              fontFamily: "'Plus Jakarta Sans', sans-serif",
                               width: "fit-content",
                             }}
                           >
@@ -22904,7 +22894,7 @@ function FAApplicationsContent({
                               padding: "7px 10px",
                               background: "#f8fffe",
                               borderRadius: 8,
-                              border: "1px solid #e0f2f1",
+                              border: "1px solid #f0f5e8",
                             }}
                           >
                             No Letter of Intent uploaded
@@ -22933,7 +22923,7 @@ function FAApplicationsContent({
                               maxWidth: "100%",
                               maxHeight: 200,
                               borderRadius: 10,
-                              border: "1.5px solid #b2dfdb",
+                              border: "1.5px solid #E1E6D8",
                               objectFit: "contain",
                               background: "#f8fffe",
                             }}
@@ -22947,13 +22937,13 @@ function FAApplicationsContent({
                               padding: "10px 14px",
                               borderRadius: 8,
                               border: "1.5px solid #a5d6a7",
-                              background: "#e8f5e9",
+                              background: "#f0f5e8",
                               fontSize: 13,
                               fontWeight: 600,
-                              color: "#1b5e20",
+                              color: "#2c5c16",
                             }}
                           >
-                            <CheckCircle2 size={15} color="#2E7D32" />
+                            <CheckCircle2 size={15} color="#3b791e" />
                             ID Verified — {viewApp.idType}
                           </div>
                         ) : (
@@ -22965,7 +22955,7 @@ function FAApplicationsContent({
                               padding: "7px 10px",
                               background: "#f8fffe",
                               borderRadius: 8,
-                              border: "1px solid #e0f2f1",
+                              border: "1px solid #f0f5e8",
                             }}
                           >
                             No ID attached
@@ -23020,7 +23010,7 @@ function FAApplicationsContent({
                   gap: 10,
                   marginTop: 8,
                   paddingTop: 16,
-                  borderTop: "1.5px solid #e0f2f1",
+                  borderTop: "1.5px solid #f0f5e8",
                 }}
               >
                 {interviewPending(viewApp) || !viewApp.appointmentDate ? (
@@ -23033,13 +23023,13 @@ function FAApplicationsContent({
                       gap: 7,
                       padding: "10px 22px",
                       borderRadius: 10,
-                      border: "1.5px solid #b2dfdb",
-                      background: "#e0f2f1",
-                      color: "#00695c",
+                      border: "1.5px solid #E1E6D8",
+                      background: "#f0f5e8",
+                      color: "#2c5c16",
                       fontSize: 13,
                       fontWeight: 700,
                       cursor: processingId !== null ? "not-allowed" : "pointer",
-                      fontFamily: "inherit",
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
                     }}
                   >
                     <CalendarClock size={15} />{" "}
@@ -23069,7 +23059,7 @@ function FAApplicationsContent({
                         background:
                           viewApp.status === "rejected"
                             ? "#e0e0e0"
-                            : "linear-gradient(135deg,#ef4444,#dc2626)",
+                            : "linear-gradient(135deg,#c0392b,#c0392b)",
                         color:
                           viewApp.status === "rejected" ? "#9e9e9e" : "#fff",
                         fontSize: 13,
@@ -23078,7 +23068,7 @@ function FAApplicationsContent({
                           viewApp.status === "rejected" || processingId !== null
                             ? "not-allowed"
                             : "pointer",
-                        fontFamily: "inherit",
+                        fontFamily: "'Plus Jakarta Sans', sans-serif",
                         opacity: viewApp.status === "rejected" ? 0.6 : 1,
                       }}
                     >
@@ -23106,7 +23096,7 @@ function FAApplicationsContent({
                         border: "none",
                         background: viewApp.accountCreatedAt
                           ? "#e0e0e0"
-                          : "linear-gradient(135deg,#00c853,#00897b)",
+                          : "linear-gradient(135deg,#3b791e,#3b791e)",
                         color: viewApp.accountCreatedAt ? "#9e9e9e" : "#fff",
                         fontSize: 13,
                         fontWeight: 700,
@@ -23114,7 +23104,7 @@ function FAApplicationsContent({
                           processingId !== null || viewApp.accountCreatedAt
                             ? "not-allowed"
                             : "pointer",
-                        fontFamily: "inherit",
+                        fontFamily: "'Plus Jakarta Sans', sans-serif",
                         boxShadow: "0 2px 10px rgba(0,180,90,0.3)",
                         opacity:
                           processingId !== null || viewApp.accountCreatedAt
@@ -23189,7 +23179,7 @@ function FAApplicationsContent({
               maxWidth: 420,
               boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
               border: "1px solid rgba(0,168,76,0.15)",
-              fontFamily: "Montserrat, sans-serif",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
             }}
           >
             <div
@@ -23204,7 +23194,7 @@ function FAApplicationsContent({
                 style={{
                   fontSize: 17,
                   fontWeight: 800,
-                  color: "#0d2b1e",
+                  color: "#12241B",
                   margin: 0,
                 }}
               >
@@ -23216,10 +23206,10 @@ function FAApplicationsContent({
                   width: 32,
                   height: 32,
                   borderRadius: "50%",
-                  border: "1px solid #b2dfdb",
-                  background: "#e0f2f1",
+                  border: "1px solid #E1E6D8",
+                  background: "#f0f5e8",
                   cursor: "pointer",
-                  color: "#00695c",
+                  color: "#2c5c16",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -23228,9 +23218,9 @@ function FAApplicationsContent({
                 <X size={15} />
               </button>
             </div>
-            <p style={{ fontSize: 13, color: "#5a7a65", marginBottom: 20 }}>
+            <p style={{ fontSize: 13, color: "#5C6B60", marginBottom: 20 }}>
               Applicant:{" "}
-              <strong style={{ color: "#0d2b1e" }}>{menuApp.name}</strong>
+              <strong style={{ color: "#12241B" }}>{menuApp.name}</strong>
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
@@ -23245,13 +23235,13 @@ function FAApplicationsContent({
                   gap: 10,
                   padding: "12px 16px",
                   borderRadius: 11,
-                  border: "1.5px solid #b2dfdb",
-                  background: "#e0f2f1",
-                  color: "#00695c",
+                  border: "1.5px solid #E1E6D8",
+                  background: "#f0f5e8",
+                  color: "#2c5c16",
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: "pointer",
-                  fontFamily: "inherit",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
                 }}
               >
                 <Eye size={15} /> View Application Details
@@ -23271,7 +23261,7 @@ function FAApplicationsContent({
                   border: "none",
                   background: menuApp.accountCreatedAt
                     ? "#e0e0e0"
-                    : "linear-gradient(135deg,#00c853,#00897b)",
+                    : "linear-gradient(135deg,#3b791e,#3b791e)",
                   color: menuApp.accountCreatedAt ? "#9e9e9e" : "#fff",
                   fontSize: 13,
                   fontWeight: 700,
@@ -23279,7 +23269,7 @@ function FAApplicationsContent({
                     processingId !== null || menuApp.accountCreatedAt
                       ? "not-allowed"
                       : "pointer",
-                  fontFamily: "inherit",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
                   opacity:
                     processingId !== null || menuApp.accountCreatedAt ? 0.6 : 1,
                 }}
@@ -23309,13 +23299,13 @@ function FAApplicationsContent({
                   background:
                     menuApp.status === "approved"
                       ? "#e0e0e0"
-                      : "linear-gradient(135deg,#00c853,#00897b)",
+                      : "linear-gradient(135deg,#3b791e,#3b791e)",
                   color: menuApp.status === "approved" ? "#9e9e9e" : "#fff",
                   fontSize: 13,
                   fontWeight: 700,
                   cursor:
                     menuApp.status === "approved" ? "not-allowed" : "pointer",
-                  fontFamily: "inherit",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
                   opacity: menuApp.status === "approved" ? 0.6 : 1,
                 }}
               >
@@ -23342,13 +23332,13 @@ function FAApplicationsContent({
                   background:
                     menuApp.status === "rejected"
                       ? "#e0e0e0"
-                      : "linear-gradient(135deg,#ef4444,#dc2626)",
+                      : "linear-gradient(135deg,#c0392b,#c0392b)",
                   color: menuApp.status === "rejected" ? "#9e9e9e" : "#fff",
                   fontSize: 13,
                   fontWeight: 700,
                   cursor:
                     menuApp.status === "rejected" ? "not-allowed" : "pointer",
-                  fontFamily: "inherit",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
                   opacity: menuApp.status === "rejected" ? 0.6 : 1,
                 }}
               >
@@ -23363,7 +23353,7 @@ function FAApplicationsContent({
       )}
 
       {/* ── Main content ── */}
-      <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
+      <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
         {/* Stat cards */}
         <div
           style={{
@@ -23399,7 +23389,7 @@ function FAApplicationsContent({
               label: "Rejected",
               value: applications.filter((a) => a.status === "rejected").length,
               icon: <X size={20} color="#7f1d1d" />,
-              bg: "linear-gradient(135deg,#fee2e2,#fca5a5)",
+              bg: "linear-gradient(135deg,#fdf1f0,#fca5a5)",
               sub: "Not approved",
             },
           ].map((s, i) => (
@@ -23430,7 +23420,7 @@ function FAApplicationsContent({
             <div style={{ position: "relative" }}>
               <Search
                 size={13}
-                color="#5a7a65"
+                color="#5C6B60"
                 style={{
                   position: "absolute",
                   left: 9,
@@ -23446,11 +23436,11 @@ function FAApplicationsContent({
                 style={{
                   padding: "9px 12px 9px 30px",
                   borderRadius: 10,
-                  border: "1.5px solid #b2dfdb",
+                  border: "1.5px solid #E1E6D8",
                   fontSize: 13,
-                  color: "#0d2b1e",
-                  background: "#f0fdf5",
-                  fontFamily: "inherit",
+                  color: "#12241B",
+                  background: "#f0f5e8",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
                   outline: "none",
                   width: 240,
                 }}
@@ -23464,7 +23454,7 @@ function FAApplicationsContent({
                     top: "50%",
                     transform: "translateY(-50%)",
                     cursor: "pointer",
-                    color: "#5a7a65",
+                    color: "#5C6B60",
                   }}
                 >
                   <X size={12} />
@@ -23479,10 +23469,10 @@ function FAApplicationsContent({
               style={{
                 padding: "9px 12px",
                 borderRadius: 10,
-                border: "1.5px solid #b2dfdb",
+                border: "1.5px solid #E1E6D8",
                 fontSize: 13,
-                background: "#f0fdf5",
-                fontFamily: "inherit",
+                background: "#f0f5e8",
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
                 outline: "none",
                 cursor: "pointer",
               }}
@@ -23501,16 +23491,15 @@ function FAApplicationsContent({
               style={{
                 padding: "9px 12px",
                 borderRadius: 10,
-                border: "1.5px solid #b2dfdb",
+                border: "1.5px solid #E1E6D8",
                 fontSize: 13,
-                background: "#f0fdf5",
-                fontFamily: "inherit",
+                background: "#f0f5e8",
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
                 outline: "none",
                 cursor: "pointer",
               }}
             >
               <option value="all">All Franchises</option>
-              <option value="Food Caravan">Food Caravan</option>
               <option value="Coffee Spot">Coffee Spot</option>
               <option value="iPharma Mart">iPharma Mart</option>
               <option value="iFuel">iFuel</option>
@@ -23529,13 +23518,13 @@ function FAApplicationsContent({
                 style={{
                   padding: "9px 14px",
                   borderRadius: 10,
-                  border: "1.5px solid #b2dfdb",
+                  border: "1.5px solid #E1E6D8",
                   background: "#fff",
-                  color: "#5a7a65",
+                  color: "#5C6B60",
                   fontSize: 12,
                   fontWeight: 700,
                   cursor: "pointer",
-                  fontFamily: "inherit",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
                 }}
               >
                 Clear filters
@@ -23547,7 +23536,7 @@ function FAApplicationsContent({
               style={{
                 marginLeft: "auto",
                 fontSize: 12,
-                color: "#5a7a65",
+                color: "#5C6B60",
                 fontWeight: 600,
               }}
             >
@@ -23570,7 +23559,7 @@ function FAApplicationsContent({
           {/* Table header bar */}
           <div
             style={{
-              background: "linear-gradient(135deg,#2E7D32,#00897b)",
+              background: "linear-gradient(135deg,#3b791e,#3b791e)",
               padding: "16px 22px",
               display: "flex",
               alignItems: "center",
@@ -23596,7 +23585,7 @@ function FAApplicationsContent({
                   fontSize: 12,
                   fontWeight: 700,
                   cursor: "pointer",
-                  fontFamily: "inherit",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
                 }}
               >
                 Export CSV
@@ -23617,14 +23606,14 @@ function FAApplicationsContent({
                   fontSize: 12,
                   fontWeight: 700,
                   cursor: "pointer",
-                  fontFamily: "inherit",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
                 }}
               >
                 <History size={13} /> Delete History
                 {appDeleteHistory.length > 0 && (
                   <span
                     style={{
-                      background: "#dc2626",
+                      background: "#c0392b",
                       color: "#fff",
                       fontSize: 10,
                       fontWeight: 800,
@@ -23667,7 +23656,7 @@ function FAApplicationsContent({
                         textAlign: "left",
                         fontWeight: 800,
                         fontSize: 10.5,
-                        color: "#00897b",
+                        color: "#3b791e",
                         letterSpacing: "0.07em",
                         textTransform: "uppercase",
                         borderBottom: `1px solid ${C.border}`,
@@ -23712,7 +23701,7 @@ function FAApplicationsContent({
                         style={{
                           padding: "12px 14px",
                           fontWeight: 700,
-                          color: "#0d2b1e",
+                          color: "#12241B",
                         }}
                       >
                         {app.name}
@@ -23720,7 +23709,7 @@ function FAApplicationsContent({
                       <td
                         style={{
                           padding: "12px 14px",
-                          color: "#5a7a65",
+                          color: "#5C6B60",
                           fontSize: 12,
                         }}
                       >
@@ -23729,7 +23718,7 @@ function FAApplicationsContent({
                       <td
                         style={{
                           padding: "12px 14px",
-                          color: "#5a7a65",
+                          color: "#5C6B60",
                           fontSize: 12,
                         }}
                       >
@@ -23738,7 +23727,7 @@ function FAApplicationsContent({
                       <td
                         style={{
                           padding: "12px 14px",
-                          color: "#0d2b1e",
+                          color: "#12241B",
                           fontWeight: 600,
                         }}
                       >
@@ -23747,7 +23736,7 @@ function FAApplicationsContent({
                       <td
                         style={{
                           padding: "12px 14px",
-                          color: "#5a7a65",
+                          color: "#5C6B60",
                           fontSize: 12,
                         }}
                       >
@@ -23769,7 +23758,7 @@ function FAApplicationsContent({
                               color:
                                 app.appointmentStatus === "reschedule_requested"
                                   ? "#d97706"
-                                  : "#5a7a65",
+                                  : "#5C6B60",
                               marginTop: 4,
                             }}
                           >
@@ -23788,9 +23777,9 @@ function FAApplicationsContent({
                             onClick={() => setViewApp(app)}
                             style={{
                               ...smallBtnSt,
-                              border: "1.5px solid #b2dfdb",
-                              background: "#e0f2f1",
-                              color: "#00695c",
+                              border: "1.5px solid #E1E6D8",
+                              background: "#f0f5e8",
+                              color: "#2c5c16",
                               height: 28,
                               padding: "0 12px",
                             }}
@@ -23803,9 +23792,9 @@ function FAApplicationsContent({
                             onClick={() => handleDelete(app.id)}
                             style={{
                               ...smallBtnSt,
-                              border: "1.5px solid #fecaca",
-                              background: "#fee2e2",
-                              color: "#dc2626",
+                              border: "1.5px solid #f2c9c4",
+                              background: "#fdf1f0",
+                              color: "#c0392b",
                               height: 28,
                               padding: "0 12px",
                             }}
@@ -23838,39 +23827,64 @@ function FAApplicationsContent({
   );
 }
 
-function CreateAccountModal({ applicant, onClose, onAlert, roles }) {
+function CreateAccountModal({
+  applicant,
+  user,
+  onClose,
+  onAlert,
+  onCreated,
+  roles,
+}) {
   const [sending, setSending] = useState(false);
   const [brands, setBrands] = useState([]);
   const [selectedBrandId, setSelectedBrandId] = useState("");
-  const [branches, setBranches] = useState([]);
   const [brandsLoading, setBrandsLoading] = useState(true);
   const [selectedRole, setSelectedRole] = useState(roles?.[0] || "Franchisee");
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL}/brands`)
+    adminModuleFetch(`${process.env.REACT_APP_API_URL}/brands`)
       .then((r) => r.json())
       .then((d) => setBrands(Array.isArray(d) ? d : []))
       .catch(() => {})
       .finally(() => setBrandsLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (!selectedBrandId) {
-      setBranches([]);
-      return;
-    }
-    const brand = brands.find((b) => String(b.id) === String(selectedBrandId));
-    setBranches(brand?.branches || []);
-  }, [selectedBrandId, brands]);
+  const getBrowserLocation = () =>
+    new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (position) =>
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          }),
+        () => resolve(null),
+        { timeout: 5000, maximumAge: 60000 },
+      );
+    });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const form = e.target;
-    const name = form.fullName.value,
-      email = form.email.value,
+    const firstName = form.firstName.value;
+    const lastName = form.lastName.value;
+    const middleInitial = form.middleInitial.value;
+    const suffix = form.suffix.value;
+    const name = [
+      firstName,
+      middleInitial ? middleInitial + "." : "",
+      lastName,
+      suffix,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const email = form.email.value,
       phone = form.phone.value;
     const role = selectedRole;
-    const branch = form.branch.value;
+    const branch = form.branch.value.trim();
     const selectedBrand = brands.find(
       (b) => String(b.id) === String(selectedBrandId),
     );
@@ -23878,21 +23892,38 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles }) {
     const tempPassword = generateTempPassword();
     setSending(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          email,
-          password: tempPassword,
-          role,
-          brand,
-          branch,
-        }),
-      });
+      const coords = await getBrowserLocation();
+
+      // Create the account first — if the email is a duplicate, we bail
+      // out before ever touching branches, so no orphan branch is created.
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/users`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            firstName,
+            lastName,
+            middleInitial: middleInitial || null,
+            suffix: suffix || null,
+            email,
+            password: tempPassword,
+            role,
+            brand,
+            branch,
+            performed_by: user?.name || "System",
+            performed_by_role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+          }),
+        },
+      );
       if (!res.ok) {
         const err = await res.json();
+
         if (
+          err.error === "Email already exists" ||
           err.error?.includes("duplicate key") ||
           err.error?.includes("users_email_key") ||
           err.code === "23505"
@@ -23907,12 +23938,81 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles }) {
         return;
       }
 
-      await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: email, name, password: tempPassword }),
-      });
+      // The applicant is the new franchisee — their assigned branch doesn't
+      // exist yet, so create it under the selected brand now that the
+      // account itself succeeded.
+      const branchRes = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/branches`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: branch,
+            brand_id: selectedBrandId,
+            performed_by: user?.name || "System",
+            role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+          }),
+        },
+      );
+      if (!branchRes.ok) {
+        const branchErr = await branchRes.json();
+        onAlert(
+          `Account was created, but the branch could not be created: ${branchErr.error || "unknown error"}. Please add the branch manually.`,
+          "error",
+        );
+        return;
+      }
+
+      await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/send-credentials`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: email, name, password: tempPassword }),
+        },
+      );
+
+      // Isolated on purpose: the account and branch already exist at this
+      // point. If marking account-created fails (network blip, stale
+      // deploy), we still want the success alert, the modal close, and a
+      // locally-disabled button — not a false "something went wrong".
+      let markedApplication = null;
+      try {
+        const markedRes = await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/applications/${applicant?.id}/account-created`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              performed_by: user?.name || "System",
+              role: user?.role || "Unknown",
+              latitude: coords?.latitude,
+              longitude: coords?.longitude,
+            }),
+          },
+        );
+        if (markedRes.ok) {
+          const markedData = await markedRes.json();
+          markedApplication = markedData.application || null;
+        } else {
+          console.error(
+            "Failed to mark account-created:",
+            await markedRes.text(),
+          );
+        }
+      } catch (markErr) {
+        console.error("account-created request failed:", markErr);
+      }
+
       onAlert(`Account created and credentials sent to ${email}!`, "success");
+      onCreated?.(
+        markedApplication || {
+          id: applicant?.id,
+          account_created_at: new Date().toISOString(),
+        },
+      );
       onClose();
     } catch {
       onAlert("Something went wrong. Please try again.", "error");
@@ -23959,10 +24059,10 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles }) {
         >
           <h2
             style={{
-              fontFamily: "Plus Jakarta Sans,sans-serif",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
               fontSize: 18,
               fontWeight: 800,
-              color: "#0d2b1e",
+              color: "#12241B",
               margin: 0,
             }}
           >
@@ -23974,10 +24074,10 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles }) {
               width: 32,
               height: 32,
               borderRadius: "50%",
-              border: "1px solid #b2dfdb",
-              background: "#e0f2f1",
+              border: "1px solid #E1E6D8",
+              background: "#f0f5e8",
               cursor: "pointer",
-              color: "#00695c",
+              color: "#2c5c16",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -23988,11 +24088,51 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles }) {
         </div>
         <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>
           Creating account for:{" "}
-          <strong style={{ color: "#0d2b1e" }}>{applicant?.name}</strong>
+          <strong style={{ color: "#12241B" }}>{applicant?.name}</strong>
         </p>
         <form onSubmit={handleSubmit}>
+          <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 2 }}>
+              <label style={bmLabel}>Last Name</label>
+              <input
+                name="lastName"
+                type="text"
+                defaultValue={applicant?.lastName}
+                required
+                style={{ ...bmInput, marginTop: 4 }}
+              />
+            </div>
+            <div style={{ flex: 2 }}>
+              <label style={bmLabel}>First Name</label>
+              <input
+                name="firstName"
+                type="text"
+                defaultValue={applicant?.firstName}
+                required
+                style={{ ...bmInput, marginTop: 4 }}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={bmLabel}>M.I.</label>
+              <input
+                name="middleInitial"
+                type="text"
+                maxLength={1}
+                defaultValue={applicant?.middleInitial}
+                style={{ ...bmInput, marginTop: 4 }}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={bmLabel}>Suffix</label>
+              <input
+                name="suffix"
+                type="text"
+                defaultValue={applicant?.suffix}
+                style={{ ...bmInput, marginTop: 4 }}
+              />
+            </div>
+          </div>
           {[
-            ["Full Name", "fullName", "text", applicant?.name],
             ["Email Address", "email", "email", applicant?.email],
             ["Phone Number", "phone", "tel", applicant?.phone],
           ].map(([label, name, type, def]) => (
@@ -24067,30 +24207,27 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles }) {
           </div>
           <div style={{ marginBottom: 14 }}>
             <label style={bmLabel}>Assigned Branch</label>
-            <select
+            <input
               name="branch"
+              type="text"
               required
               disabled={!selectedBrandId}
+              placeholder={
+                !selectedBrandId
+                  ? "Select a brand first"
+                  : "e.g. Coffee Spot — Katipunan"
+              }
               style={{
                 ...bmInput,
                 marginTop: 4,
-                appearance: "none",
-                cursor: "pointer",
+                cursor: !selectedBrandId ? "not-allowed" : "text",
+                background: !selectedBrandId ? "#f5f5f5" : bmInput.background,
               }}
-            >
-              <option value="">
-                {!selectedBrandId
-                  ? "Select a brand first"
-                  : branches.length === 0
-                    ? "No branches available"
-                    : "Select Branch"}
-              </option>
-              {branches.map((br) => (
-                <option key={br.id ?? br.name} value={br.name ?? br}>
-                  {br.name ?? br}
-                </option>
-              ))}
-            </select>
+            />
+            <p style={{ fontSize: 10.5, color: C.muted, marginTop: 4 }}>
+              This is a new branch — it'll be created under the selected brand
+              automatically.
+            </p>
           </div>
           <p style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>
             A temporary password will be auto-generated and emailed to the
@@ -24105,13 +24242,13 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles }) {
                 flex: 1,
                 padding: "10px 0",
                 borderRadius: 10,
-                border: "1.5px solid #b2dfdb",
-                background: "#f0fdf5",
-                color: "#5a7a65",
+                border: "1.5px solid #E1E6D8",
+                background: "#f0f5e8",
+                color: "#5C6B60",
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: sending ? "not-allowed" : "pointer",
-                fontFamily: "inherit",
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
               }}
             >
               Cancel
@@ -24128,11 +24265,11 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles }) {
                 padding: "10px 0",
                 borderRadius: 10,
                 border: "none",
-                background: "linear-gradient(135deg,#2E7D32,#00897b)",
+                background: "linear-gradient(135deg,#3b791e,#3b791e)",
                 color: "#fff",
                 fontSize: 13,
                 fontWeight: 700,
-                fontFamily: "inherit",
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
                 boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
                 opacity: sending ? 0.6 : 1,
                 cursor: sending ? "not-allowed" : "pointer",

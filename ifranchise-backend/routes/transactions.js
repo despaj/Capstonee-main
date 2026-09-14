@@ -62,17 +62,20 @@ router.post("/transactions", async (req, res) => {
     for (const item of items || []) {
       const qty = parseInt(item.qty || 0);
       if (item.source === "ingredient") {
+        const ingredientId = item.baseProductId || item.id;
+
         const ing = await client.query(
           "SELECT cost_per_unit FROM ingredients WHERE id=$1",
-          [item.id],
+          [ingredientId],
         );
-        cogs += parseFloat(ing.rows[0]?.cost_per_unit || 0) * qty;
-      } else {
-        const product = await client.query(
-          "SELECT cost FROM inventory WHERE id=$1",
-          [item.id],
-        );
-        cogs += parseFloat(product.rows[0]?.cost || 0) * qty;
+
+        const costPerPiece = parseFloat(ing.rows[0]?.cost_per_unit || 0);
+
+        const piecesPerSellingUnit = parseFloat(item.unit_pcs || 1);
+
+        const totalPiecesSold = qty * piecesPerSellingUnit;
+
+        cogs += costPerPiece * totalPiecesSold;
       }
     }
 
@@ -100,38 +103,64 @@ router.post("/transactions", async (req, res) => {
 
     for (const item of items || []) {
       const qty = parseInt(item.qty || 0);
-
       if (item.source === "ingredient") {
-        // Direct-sell stock item (iPharma / iFuel) — deduct from its own
-        // batches using the same FIFO/FEFO rule Stock Inventory uses.
+        const ingredientId = item.baseProductId || item.id;
+
         const ingRow = await client.query(
-          "SELECT brand, perishable FROM ingredients WHERE id=$1",
-          [item.id],
+          `SELECT brand, perishable
+     FROM ingredients
+     WHERE id=$1`,
+          [ingredientId],
         );
+
         const brand = ingRow.rows[0]?.brand || "";
         const perishable = ingRow.rows[0]?.perishable;
+
         const isFefo = brand.toLowerCase().includes("ipharma") || !!perishable;
+
         const orderClause = isFefo
           ? "exp_date ASC NULLS LAST, created_at ASC"
           : "supply_date ASC NULLS LAST, created_at ASC";
 
         const batchRows = await client.query(
-          `SELECT id, stock FROM ingredient_batches WHERE ingredient_id=$1 AND stock>0 ORDER BY ${orderClause}`,
-          [item.id],
+          `SELECT id, stock
+     FROM ingredient_batches
+     WHERE ingredient_id=$1
+       AND stock > 0
+     ORDER BY ${orderClause}`,
+          [ingredientId],
         );
 
-        let remaining = qty * (parseFloat(item.unit_pcs) || 1);
+        const piecesPerSellingUnit = Number(item.unit_pcs) || 1;
+
+        let remaining = qty * piecesPerSellingUnit;
+
         for (const batch of batchRows.rows) {
           if (remaining <= 0) break;
-          const deductFromBatch = Math.min(remaining, parseFloat(batch.stock));
+
+          const available = Number(batch.stock) || 0;
+
+          const deductFromBatch = Math.min(remaining, available);
+
           await client.query(
-            `UPDATE ingredient_batches SET stock=stock-$1, updated_at=NOW() WHERE id=$2`,
+            `UPDATE ingredient_batches
+       SET stock = stock - $1,
+           updated_at = NOW()
+       WHERE id=$2`,
             [deductFromBatch, batch.id],
           );
+
           remaining -= deductFromBatch;
         }
 
-        await syncIngredientFromBatches(client, item.id);
+        if (remaining > 0) {
+          throw new Error(
+            `Insufficient stock for ${item.name || ingredientId}`,
+          );
+        }
+
+        await syncIngredientFromBatches(client, ingredientId);
+
         continue;
       }
 

@@ -25676,7 +25676,6 @@ function ApplicationsContent({
               }}
             >
               <option value="all">All Franchises</option>
-              <option value="Food Caravan">Food Caravan</option>
               <option value="Coffee Spot">Coffee Spot</option>
               <option value="iPharma Mart">iPharma Mart</option>
               <option value="iFuel">iFuel</option>

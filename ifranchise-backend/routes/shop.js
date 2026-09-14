@@ -24,7 +24,7 @@ async function priceFromCost(brand, name, fallback) {
 
   const bulkQty = Number(bulk_qty) > 0 ? Number(bulk_qty) : defaultBulkQty;
 
-  const markup = 1.12;
+  const markup = 1.15; // 15% markup for supplies
   return Math.round(Number(cost_per_unit) * bulkQty * markup * 100) / 100;
 }
 

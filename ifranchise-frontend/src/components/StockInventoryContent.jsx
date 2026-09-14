@@ -368,7 +368,6 @@ function brandAccent(brandName) {
   const n = brandName.toLowerCase();
   if (n.includes("ipharma")) return { color: "#3949ab" };
   if (n.includes("coffee")) return { color: "#b45309" };
-  if (n.includes("food caravan")) return { color: "#b91c1c" };
   if (n.includes("ifuel")) return { color: "#1565c0" };
   return { color: "#00695c" };
 }
@@ -476,7 +475,11 @@ const EXPIRY_STYLE = {
 const BRAND_DEFS = [
   { key: "coffee", label: "Coffee Spot", match: (n) => n.includes("coffee") },
   { key: "ifuel", label: "iFuel", match: (n) => n.includes("ifuel") },
-  { key: "ipharma", label: "iPharma", match: (n) => n.includes("ipharma") },
+  {
+    key: "ipharma",
+    label: "iPharma Mart",
+    match: (n) => n.includes("ipharma"),
+  },
 ];
 
 function isPharmaBrand(brand) {
@@ -488,12 +491,10 @@ function isFuelBrand(brand) {
 function isDirectProductBrand(brand) {
   return isPharmaBrand(brand) || isFuelBrand(brand);
 }
+function isHeadOfficeBranch(branchName) {
+  return (branchName || "").trim().toLowerCase().includes("head office");
+}
 
-// ── Category-based shelf-life validation ─────────────────────────────────────
-// IMPORTANT:
-// • iPharma expiry rules are based on the PRODUCT CATEGORY + manufacture date.
-// • iFuel expiry rules are based on the PRODUCT CATEGORY + manufacture date.
-// • Receiving date is still validated, but it is NOT the shelf-life base date.
 function normalizeShelfText(value) {
   return String(value || "")
     .trim()
@@ -1029,19 +1030,10 @@ function normalizeStockItem(row) {
   };
 }
 
-// iFuel and iPharma use Stock Inventory as the single product source of truth.
-// Menu Inventory reads these same records for product details; FIFO/FEFO and
-// batch/stock movement remain managed here in Stock Inventory.
-
-const DIRECT_OPERATIONS_RATE = 0.3;
-const DIRECT_PROFIT_RATE = 0.4;
+const DIRECT_COST_RATE = 0.35;
 const computeDirectSellingPrice = (cost) => {
   const base = Number(cost || 0);
-  return base > 0
-    ? Math.round(
-        base * (1 + DIRECT_OPERATIONS_RATE + DIRECT_PROFIT_RATE) * 100,
-      ) / 100
-    : 0;
+  return base > 0 ? Math.round((base / DIRECT_COST_RATE) * 100) / 100 : 0;
 };
 
 /* small reusable bar for stock level / freshness */
@@ -3813,7 +3805,9 @@ function BrandCard({
   restrictBranch = "",
 }) {
   const [search, setSearch] = useState("");
-  const [branchF, setBranchF] = useState(initialBranchFilter);
+  const [branchF, setBranchF] = useState(
+    restrictBranch || initialBranchFilter || "",
+  );
   const [categoryF, setCategoryF] = useState("");
   const [unitF, setUnitF] = useState("");
   const [statusF, setStatusF] = useState(initialStatusFilter);
@@ -3875,8 +3869,10 @@ function BrandCard({
   }, [brandItems, search, branchF, categoryF, unitF, statusF]);
 
   useEffect(() => {
-    if (branchF && !branchOptions.includes(branchF)) setBranchF("");
-  }, [branchF, branchOptions]);
+    if (!restrictBranch && branchF && !branchOptions.includes(branchF)) {
+      setBranchF("");
+    }
+  }, [branchF, branchOptions, restrictBranch]);
 
   useEffect(() => {
     if (categoryF && !categoryOptions.includes(categoryF)) setCategoryF("");
@@ -3912,7 +3908,9 @@ function BrandCard({
     const changed = focusMutation?.item;
     if (!changed || !itemBelongsToBrand(changed, brandDef, brandObj)) return;
 
-    if (branchF && changed.branch !== branchF) setBranchF("");
+    if (!restrictBranch && branchF && changed.branch !== branchF) {
+      setBranchF("");
+    }
     if (categoryF && String(changed.category || "") !== categoryF)
       setCategoryF("");
 
@@ -4364,11 +4362,26 @@ function BrandCard({
             style={{ ...invInputSt, height: 30, fontSize: 12, paddingLeft: 24 }}
           />
         </div>
-        <BranchOnlyFilter
-          branches={branchOptions}
-          activeBranch={branchF}
-          onChangeBranch={setBranchF}
-        />
+        <div
+          style={{
+            ...invInputSt,
+            height: 30,
+            minWidth: 160,
+            fontSize: 11,
+            padding: "6px 10px",
+            background: "#F6F7F1",
+            color: C.ink,
+            fontWeight: 700,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            cursor: "default",
+          }}
+          title="Assigned branch"
+        >
+          <StoreIcon size={12} color={C.green} />
+          {restrictBranch || branchF || "No assigned branch"}
+        </div>
         {categoryOptions.length > 0 && (
           <select
             value={categoryF}
@@ -5592,8 +5605,8 @@ function ReceiveStockModal({
                     </div>
                     <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
                       {directProduct
-                        ? "cost/unit + 30% operations + 40% profit"
-                        : "cost/unit + 10% (weighted avg across batches)"}
+                        ? "cost ÷ 0.35 — 35% product, 45% ops, 20% profit"
+                        : "cost/unit + 15% (weighted avg across batches)"}
                     </div>
                     <div
                       style={{
@@ -5606,7 +5619,7 @@ function ReceiveStockModal({
                       ₱
                       {(directProduct
                         ? computeDirectSellingPrice(unitCost)
-                        : unitCost * 1.1
+                        : unitCost * 1.15
                       ).toFixed(2)}
                     </div>
                   </div>
@@ -7591,8 +7604,17 @@ export default function StockInventoryContent({
     user?.role === "Super Admin" ||
     user?.role === "Sales Admin" ||
     user?.role === "Franchisee Operations Admin";
+
+  const isManager = user?.role === "Manager";
+
   const isReadOnly = user?.role === "Franchisee Operations Admin";
-  const userBranch = user?.branch || "";
+
+  const userBranch = String(user?.branch || "").trim();
+
+  const userBrand = String(
+    user?.brand || user?.brand_name || user?.brandName || "",
+  ).trim();
+
   const userName = user?.name || "Unknown";
 
   const [savingItem, setSavingItem] = useState(false);
@@ -7634,7 +7656,7 @@ export default function StockInventoryContent({
               : ["pcs", "bottles"].includes(unit)
                 ? 50
                 : 1;
-    return Math.round(Number(cost || 0) * bulkQty * 1.12 * 100) / 100;
+    return Math.round(Number(cost || 0) * bulkQty * 1.15 * 100) / 100;
   };
 
   const PACK_NAME_FOR_UNIT = {
@@ -7664,22 +7686,54 @@ export default function StockInventoryContent({
     return `${packName} (${qty}${unit})`;
   };
 
-  const markupLabelFor = () => "+ 12%";
+  const markupLabelFor = () => "+ 15%";
 
   const ownBrandDef = useMemo(() => {
-    if (isAdmin || !userBranch) return null;
-    const ownBrandObj = brandList.find((b) =>
-      (b.branches || []).some(
-        (br) => (typeof br === "string" ? br : br?.name) === userBranch,
-      ),
-    );
+    if (isAdmin) return null;
+
+    // Manager account brand is authoritative.
+    let ownBrandObj = null;
+
+    if (userBrand) {
+      ownBrandObj = brandList.find(
+        (brandObj) =>
+          String(brandObj?.name || "")
+            .trim()
+            .toLowerCase() === userBrand.toLowerCase(),
+      );
+    }
+
+    // Only use branch as fallback for older
+    // accounts without a stored brand.
+    if (!ownBrandObj && userBranch) {
+      const matchingBrands = brandList.filter((brandObj) =>
+        (brandObj.branches || []).some((branchObj) => {
+          const branchName =
+            typeof branchObj === "string" ? branchObj : branchObj?.name;
+
+          return (
+            String(branchName || "")
+              .trim()
+              .toLowerCase() === userBranch.toLowerCase()
+          );
+        }),
+      );
+
+      // Only infer when the branch belongs
+      // to exactly one brand.
+      if (matchingBrands.length === 1) {
+        ownBrandObj = matchingBrands[0];
+      }
+    }
+
     if (!ownBrandObj) return null;
+
     return (
-      connectedBrandDefs.find((bd) =>
-        bd.match((ownBrandObj.name || "").toLowerCase()),
+      connectedBrandDefs.find((brandDef) =>
+        brandDef.match(String(ownBrandObj.name || "").toLowerCase()),
       ) || null
     );
-  }, [isAdmin, userBranch, brandList, connectedBrandDefs]);
+  }, [isAdmin, userBrand, userBranch, brandList, connectedBrandDefs]);
 
   const visibleBrandDefs = isAdmin
     ? connectedBrandDefs
@@ -7772,28 +7826,65 @@ export default function StockInventoryContent({
 
   const [form, setForm] = useState(emptyForm);
 
-  /* ── fetch ingredients ── */
   const fetchItems = useCallback(async () => {
     setLoading(true);
+
     try {
-      const q =
-        !isAdmin && userBranch
-          ? `?branch=${encodeURIComponent(userBranch)}`
-          : "";
+      const params = new URLSearchParams();
+
+      if (!isAdmin) {
+        if (userBranch) {
+          params.set("branch", userBranch);
+        }
+
+        if (userBrand) {
+          params.set("brand", userBrand);
+        }
+      }
+
+      const query = params.toString() ? `?${params.toString()}` : "";
+
       const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/ingredients${q}`,
+        `${process.env.REACT_APP_API_URL}/ingredients${query}`,
       );
+
       const d = await res.json();
-      const rows = Array.isArray(d) ? d.map(normalizeStockItem) : [];
+
+      const rows = Array.isArray(d)
+        ? d.map(normalizeStockItem).filter((item) => {
+            if (isAdmin) {
+              return true;
+            }
+
+            const sameBranch =
+              !userBranch ||
+              String(item.branch || "")
+                .trim()
+                .toLowerCase() === userBranch.toLowerCase();
+
+            const sameBrand =
+              !userBrand ||
+              String(item.brand || "")
+                .trim()
+                .toLowerCase() === userBrand.toLowerCase();
+
+            return sameBranch && sameBrand;
+          })
+        : [];
+
       setItems(rows);
+
       return rows;
-    } catch {
+    } catch (err) {
+      console.error("Failed to fetch manager stock inventory:", err);
+
       setItems([]);
+
       return [];
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, userBranch]);
+  }, [isAdmin, userBranch, userBrand]);
 
   const fetchDeleteHistory = useCallback(async () => {
     try {
@@ -8165,6 +8256,26 @@ export default function StockInventoryContent({
       } else {
         if (form.branches.length === 0)
           errors.push("Select at least one branch.");
+      }
+    }
+
+    if (isPharmaBrand(form.brand || currentBrandName)) {
+      if (form.unit !== "pcs") {
+        errors.push(
+          "iPharma medicines must use pcs as the base inventory unit.",
+        );
+      }
+
+      if (form.pcsPerStrip && Number(form.pcsPerStrip) < 1) {
+        errors.push("Pieces per strip must be at least 1.");
+      }
+
+      if (form.stripsPerBox && !form.pcsPerStrip) {
+        errors.push("Enter Pieces per Strip before setting Strips per Box.");
+      }
+
+      if (form.stripsPerBox && Number(form.stripsPerBox) < 1) {
+        errors.push("Strips per box must be at least 1.");
       }
     }
 
@@ -8846,6 +8957,38 @@ export default function StockInventoryContent({
     ? computeDirectSellingPrice(form.cost_per_unit)
     : computeDisplayPrice(form.cost_per_unit, form.unit, form.bulkQty);
 
+  const pharmaPcPrice = computeDirectSellingPrice(form.cost_per_unit);
+
+  const pharmaStripPrice =
+    Number(form.pcsPerStrip) > 0
+      ? computeDirectSellingPrice(
+          Number(form.cost_per_unit) * Number(form.pcsPerStrip),
+        )
+      : 0;
+
+  const pharmaBoxPcs =
+    Number(form.pcsPerStrip || 0) * Number(form.stripsPerBox || 0);
+
+  const pharmaBoxPrice =
+    pharmaBoxPcs > 0
+      ? computeDirectSellingPrice(Number(form.cost_per_unit) * pharmaBoxPcs)
+      : 0;
+
+  const effectiveFormBranch = editing
+    ? editing.branch
+    : !isAdmin
+      ? userBranch
+      : form.branches.length === 1
+        ? form.branches[0]
+        : "";
+  const canListInShop = isHeadOfficeBranch(effectiveFormBranch);
+
+  useEffect(() => {
+    if (!canListInShop && form.listInShop) {
+      setForm((f) => ({ ...f, listInShop: false }));
+    }
+  }, [canListInShop]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div
       style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: C.ink }}
@@ -9347,21 +9490,55 @@ export default function StockInventoryContent({
                 }}
               >
                 <div>
-                  <label style={invLabelSt}>Unit *</label>
-                  <select
-                    style={invInputSt}
-                    value={form.unit}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, unit: e.target.value }))
-                    }
-                    required
-                  >
-                    {UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
+                  <label style={invLabelSt}>
+                    {isPharmaBrand(form.brand || currentBrandName)
+                      ? "Base Inventory Unit *"
+                      : "Unit *"}
+                  </label>
+
+                  {isPharmaBrand(form.brand || currentBrandName) ? (
+                    <>
+                      <input
+                        style={{
+                          ...invInputSt,
+                          background: C.bg,
+                          cursor: "not-allowed",
+                        }}
+                        value="pcs"
+                        readOnly
+                      />
+
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: C.muted,
+                          marginTop: 4,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        iPharma stock is tracked in individual pieces. Strip and
+                        Box are derived from the packaging setup below.
+                      </div>
+                    </>
+                  ) : (
+                    <select
+                      style={invInputSt}
+                      value={form.unit}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          unit: e.target.value,
+                        }))
+                      }
+                      required
+                    >
+                      {UNITS.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label style={invLabelSt}>Cost per Unit (₱)</label>
@@ -9449,7 +9626,7 @@ export default function StockInventoryContent({
                       <div
                         style={{ fontSize: 10.5, color: C.muted, marginTop: 3 }}
                       >
-                        Cost per unit + 30% operations + 40% profit
+                        Cost ÷ 0.35 — 35% product, 45% ops, 20% profit
                       </div>
                     </div>
                     <div
@@ -9562,39 +9739,167 @@ export default function StockInventoryContent({
               {isPharmaBrand(form.brand || currentBrandName) && (
                 <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 12,
+                    padding: 16,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 14,
+                    background: C.bg,
+                    marginTop: 12,
                   }}
                 >
-                  <div>
-                    <label style={invLabelSt}>Pcs per Strip</label>
-                    <input
-                      type="number"
-                      min="1"
-                      style={invInputSt}
-                      value={form.pcsPerStrip}
-                      placeholder="e.g. 10"
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, pcsPerStrip: e.target.value }))
-                      }
-                    />
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 800,
+                      color: C.greenDk,
+                      marginBottom: 4,
+                    }}
+                  >
+                    Medicine Packaging
                   </div>
-                  <div>
-                    <label style={invLabelSt}>Strips per Box</label>
-                    <input
-                      type="number"
-                      min="1"
-                      style={invInputSt}
-                      value={form.stripsPerBox}
-                      placeholder="e.g. 10"
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, stripsPerBox: e.target.value }))
-                      }
-                    />
+
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: C.muted,
+                      marginBottom: 14,
+                    }}
+                  >
+                    Configure how individual pieces are grouped into strips and
+                    boxes. Stock will remain recorded in pieces.
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 12,
+                    }}
+                  >
+                    <div>
+                      <label style={invLabelSt}>Pieces per Strip</label>
+
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        style={invInputSt}
+                        value={form.pcsPerStrip}
+                        placeholder="e.g. 10"
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            pcsPerStrip: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <label style={invLabelSt}>Strips per Box</label>
+
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        style={invInputSt}
+                        value={form.stripsPerBox}
+                        placeholder="e.g. 10"
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            stripsPerBox: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
               )}
+
+              {isPharmaBrand(form.brand || currentBrandName) &&
+                Number(form.cost_per_unit) > 0 && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 12,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "9px 12px",
+                        background: C.bg,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        color: C.greenDk,
+                      }}
+                    >
+                      POS Selling Prices
+                    </div>
+
+                    <div
+                      style={{
+                        padding: 12,
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3, 1fr)",
+                        gap: 10,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 10, color: C.muted }}>Pc</div>
+                        <strong>₱{pharmaPcPrice.toFixed(2)}</strong>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: 10, color: C.muted }}>
+                          Strip
+                        </div>
+                        <strong>
+                          {form.pcsPerStrip
+                            ? `₱${pharmaStripPrice.toFixed(2)}`
+                            : "—"}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: 10, color: C.muted }}>Box</div>
+                        <strong>
+                          {pharmaBoxPcs ? `₱${pharmaBoxPrice.toFixed(2)}` : "—"}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              {isPharmaBrand(form.brand || currentBrandName) &&
+                Number(form.pcsPerStrip) > 0 && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      background: C.greenLt,
+                      border: `1px solid ${C.greenMid}`,
+                      fontSize: 11,
+                      color: C.greenDk,
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    <strong>Packaging breakdown</strong>
+                    <div>1 Pc = 1 piece</div>
+
+                    <div>1 Strip = {Number(form.pcsPerStrip)} pieces</div>
+
+                    {Number(form.stripsPerBox) > 0 && (
+                      <div>
+                        1 Box ={" "}
+                        {Number(form.pcsPerStrip) * Number(form.stripsPerBox)}{" "}
+                        pieces
+                      </div>
+                    )}
+                  </div>
+                )}
 
               {!editing && (
                 <div
@@ -9617,176 +9922,190 @@ export default function StockInventoryContent({
                   </span>
                 </div>
               )}
-              <div
-                style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}
-              >
+              {canListInShop && (
                 <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    marginBottom: form.listInShop ? 14 : 0,
-                  }}
+                  style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}
                 >
                   <div
-                    onClick={() =>
-                      setForm((f) => ({ ...f, listInShop: !f.listInShop }))
-                    }
                     style={{
-                      width: 40,
-                      height: 22,
-                      borderRadius: 11,
-                      cursor: "pointer",
-                      position: "relative",
-                      background: form.listInShop
-                        ? `linear-gradient(135deg,${C.teal},${C.green})`
-                        : "#e0e0e0",
-                      transition: "background .2s",
-                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      marginBottom: form.listInShop ? 14 : 0,
                     }}
                   >
                     <div
+                      onClick={() =>
+                        setForm((f) => ({ ...f, listInShop: !f.listInShop }))
+                      }
                       style={{
-                        position: "absolute",
-                        top: 3,
-                        left: form.listInShop ? 21 : 3,
-                        width: 16,
-                        height: 16,
-                        borderRadius: "50%",
-                        background: "#fff",
-                        boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
-                        transition: "left .2s",
+                        width: 40,
+                        height: 22,
+                        borderRadius: 11,
+                        cursor: "pointer",
+                        position: "relative",
+                        background: form.listInShop
+                          ? `linear-gradient(135deg,${C.teal},${C.green})`
+                          : "#e0e0e0",
+                        transition: "background .2s",
+                        flexShrink: 0,
                       }}
-                    />
+                    >
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 3,
+                          left: form.listInShop ? 21 : 3,
+                          width: 16,
+                          height: 16,
+                          borderRadius: "50%",
+                          background: "#fff",
+                          boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+                          transition: "left .2s",
+                        }}
+                      />
+                    </div>
+
+                    <label
+                      style={{
+                        ...invLabelSt,
+                        marginBottom: 0,
+                        cursor: "pointer",
+                      }}
+                      onClick={() =>
+                        setForm((f) => ({ ...f, listInShop: !f.listInShop }))
+                      }
+                    >
+                      Also list in Mobile Shop Supplies
+                    </label>
                   </div>
-                  <label
-                    style={{
-                      ...invLabelSt,
-                      marginBottom: 0,
-                      cursor: "pointer",
-                    }}
-                    onClick={() =>
-                      setForm((f) => ({ ...f, listInShop: !f.listInShop }))
-                    }
-                  >
-                    Also list in Mobile Shop Supplies
-                  </label>
-                </div>
-                {form.listInShop && (
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: 12,
-                      marginTop: 14,
-                      padding: "14px",
-                      background: C.bg,
-                      borderRadius: 10,
-                      border: `1px solid ${C.border}`,
-                    }}
-                  >
-                    <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>
-                      Shop price and unit are synced automatically from this
-                      ingredient's cost and unit.
-                    </p>
+                  {form.listInShop && (
                     <div
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "1fr 1fr 1fr",
                         gap: 12,
+                        marginTop: 14,
+                        padding: "14px",
+                        background: C.bg,
+                        borderRadius: 10,
+                        border: `1px solid ${C.border}`,
                       }}
                     >
-                      <div>
-                        <label style={invLabelSt}>Bulk Qty per Shop Item</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          style={invInputSt}
-                          value={form.bulkQty}
-                          placeholder={String(defaultBulkQtyForUnit(form.unit))}
-                          onChange={(e) =>
-                            setForm((f) => ({ ...f, bulkQty: e.target.value }))
-                          }
-                        />
-                        <div
-                          style={{ fontSize: 10, color: C.muted, marginTop: 4 }}
-                        >
-                          How many {form.unit} go into one shop item (e.g. 1000g
-                          per shop-size bag). Leave blank to use the default for
-                          this unit.
-                        </div>
-                      </div>
-                      <div>
-                        <label style={invLabelSt}>Shop Price (₱)</label>
-                        <div
-                          style={{
-                            ...invInputSt,
-                            height: "auto",
-                            padding: "9px 12px",
-                            background: "#f5f5f5",
-                            color: C.muted,
-                            fontWeight: 700,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                          }}
-                        >
-                          {form.cost_per_unit
-                            ? `₱${previewShopPrice.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                            : "—"}
-                          <span
+                      <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>
+                        Shop price and unit are synced automatically from this
+                        ingredient's cost and unit.
+                      </p>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr 1fr",
+                          gap: 12,
+                        }}
+                      >
+                        <div>
+                          <label style={invLabelSt}>
+                            Bulk Qty per Shop Item
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            style={invInputSt}
+                            value={form.bulkQty}
+                            placeholder={String(
+                              defaultBulkQtyForUnit(form.unit),
+                            )}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                bulkQty: e.target.value,
+                              }))
+                            }
+                          />
+                          <div
                             style={{
                               fontSize: 10,
                               color: C.muted,
-                              fontWeight: 400,
+                              marginTop: 4,
                             }}
                           >
-                            (cost × bulk qty + 12%)
-                          </span>
+                            How many {form.unit} go into one shop item (e.g.
+                            1000g per shop-size bag). Leave blank to use the
+                            default for this unit.
+                          </div>
+                        </div>
+                        <div>
+                          <label style={invLabelSt}>Shop Price (₱)</label>
+                          <div
+                            style={{
+                              ...invInputSt,
+                              height: "auto",
+                              padding: "9px 12px",
+                              background: "#f5f5f5",
+                              color: C.muted,
+                              fontWeight: 700,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            {form.cost_per_unit
+                              ? `₱${previewShopPrice.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : "—"}
+                            <span
+                              style={{
+                                fontSize: 10,
+                                color: C.muted,
+                                fontWeight: 400,
+                              }}
+                            >
+                              (cost × bulk qty + 15%)
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <label style={invLabelSt}>Shop Unit</label>
+                          <div
+                            style={{
+                              ...invInputSt,
+                              height: "auto",
+                              padding: "9px 12px",
+                              background: "#f5f5f5",
+                              color: C.muted,
+                              fontWeight: 700,
+                              display: "flex",
+                              alignItems: "center",
+                            }}
+                          >
+                            {form.unit || "—"}
+                          </div>
                         </div>
                       </div>
-                      <div>
-                        <label style={invLabelSt}>Shop Unit</label>
-                        <div
-                          style={{
-                            ...invInputSt,
-                            height: "auto",
-                            padding: "9px 12px",
-                            background: "#f5f5f5",
-                            color: C.muted,
-                            fontWeight: 700,
-                            display: "flex",
-                            alignItems: "center",
-                          }}
-                        >
-                          {form.unit || "—"}
-                        </div>
-                      </div>
-                    </div>
 
-                    <div>
-                      <label style={invLabelSt}>Shop Category</label>
-                      <select
-                        style={invInputSt}
-                        value={form.shopCategory}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            shopCategory: e.target.value,
-                          }))
-                        }
-                      >
-                        <option value="">Select category…</option>
-                        {brandList.map((b) => (
-                          <option key={b.id} value={b.name}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div>
+                        <label style={invLabelSt}>Shop Category</label>
+                        <select
+                          style={invInputSt}
+                          value={form.shopCategory}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              shopCategory: e.target.value,
+                            }))
+                          }
+                        >
+                          <option value="">Select category…</option>
+                          {brandList.map((b) => (
+                            <option key={b.id} value={b.name}>
+                              {b.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
               <div
                 style={{
                   display: "flex",

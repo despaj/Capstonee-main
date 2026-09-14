@@ -275,50 +275,6 @@ router.post("/auth/verify-password", async (req, res) => {
   }
 });
 
-router.post("/api/send-otp", async (req, res) => {
-  const { mobile, otp } = req.body;
-  let formattedMobile = mobile.replace(/\D/g, "");
-  if (formattedMobile.startsWith("0"))
-    formattedMobile = "63" + formattedMobile.substring(1);
-
-  try {
-    const response = await fetch(
-      "https://dashboard.philsms.com/api/v3/sms/send",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.PHILSMS_TOKEN.trim()}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          recipient: formattedMobile,
-          sender_id: process.env.PHILSMS_SENDER_ID,
-          message: `Your franchise application OTP is ${otp}. Valid for 5 minutes.`,
-        }),
-      },
-    );
-
-    const rawText = await response.text();
-
-    if (response.ok) {
-      const data = JSON.parse(rawText);
-      return res.json({ success: true, data });
-    } else {
-      let errorMessage = rawText;
-      try {
-        errorMessage = JSON.parse(rawText).message || rawText;
-      } catch (e) {}
-      return res
-        .status(response.status)
-        .json({ success: false, error: errorMessage });
-    }
-  } catch (err) {
-    console.error("Internal Server Error:", err);
-    res.status(500).json({ success: false, error: "Server error" });
-  }
-});
-
 router.post("/verify-sms-otp", async (req, res) => {
   const { email, otp, latitude, longitude, purpose } = req.body;
   try {

@@ -4852,6 +4852,16 @@ function FrDashboardContent({ transactions, brands, user }) {
     );
   }, [transactions, userBranch, userBrand]);
 
+  const [toast, setToast] = useState(null);
+
+  const showToast = useCallback((type, title, message = "") => {
+    setToast({
+      type,
+      title,
+      message,
+    });
+  }, []);
+
   const tabSt = (a) => ({
     padding: "6px 13px",
     borderRadius: 9,
@@ -5143,15 +5153,56 @@ function FrDashboardContent({ transactions, brands, user }) {
 
   const applyCustomRange = () => {
     if (!customFrom || !customTo) {
-      alert("Select both dates.");
+      setToast({
+        type: "error",
+        title: "Date Required",
+        message: "Please select both From and To dates.",
+      });
       return;
     }
+
     if (customFrom > customTo) {
-      alert('"From" cannot be after "To".');
+      setToast({
+        type: "error",
+        title: "Invalid Date Range",
+        message: 'The "From" date cannot be after the "To" date.',
+      });
       return;
     }
-    setAppliedRange({ from: customFrom, to: customTo });
+
+    // Apply the selected custom date range
+    setRangeMode("custom");
+    setAppliedRange({
+      from: customFrom,
+      to: customTo,
+    });
     setViewingArchive(null);
+
+    // Format dates for toast
+    const fromLabel = new Date(`${customFrom}T00:00:00`).toLocaleDateString(
+      "en-PH",
+      {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      },
+    );
+
+    const toLabel = new Date(`${customTo}T00:00:00`).toLocaleDateString(
+      "en-PH",
+      {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      },
+    );
+
+    // Show confirmation ONLY after Apply is clicked
+    setToast({
+      type: "success",
+      title: "Date Filter Applied",
+      message: `Showing data from ${fromLabel} to ${toLabel}.`,
+    });
   };
 
   // ── today's quick stats ───────────────────────────────────────────────────
@@ -5408,6 +5459,19 @@ function FrDashboardContent({ transactions, brands, user }) {
                 setRangeMode("preset");
                 setPreset(p);
                 setViewingArchive(null);
+
+                const labels = {
+                  day: "Today",
+                  week: "This Week",
+                  month: "This Month",
+                  year: "This Year",
+                };
+
+                showToast(
+                  "success",
+                  "Date Filter Applied",
+                  `Dashboard data is now filtered to ${labels[p]}.`,
+                );
               }}
             >
               {p.charAt(0).toUpperCase() + p.slice(1)}
@@ -6085,6 +6149,7 @@ function FrDashboardContent({ transactions, brands, user }) {
           </div>
         </div>
       )}
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
   );
 }
@@ -11089,6 +11154,7 @@ ${topItems}
           if (!deletingId) setConfirmDeleteTarget(null);
         }}
       />
+
       <Toast toast={toast} onClose={() => setToast(null)} />
 
       {/* Generate Report Card */}

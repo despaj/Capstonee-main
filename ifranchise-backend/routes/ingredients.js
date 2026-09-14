@@ -56,17 +56,12 @@ const CATEGORY_CODE_MAP = {
   diesel: "DSL",
 };
 
-// ── POS direct-sell pricing (mirrors StockInventoryContent's computeDirectSellingPrice) ──
-const DIRECT_OPERATIONS_RATE = 0.3;
-const DIRECT_PROFIT_RATE = 0.4;
+const DIRECT_COST_RATE = 0.35;
 function computeDirectSellingPrice(cost) {
   const base = Number(cost || 0);
-  return base > 0
-    ? Math.round(
-        base * (1 + DIRECT_OPERATIONS_RATE + DIRECT_PROFIT_RATE) * 100,
-      ) / 100
-    : 0;
+  return base > 0 ? Math.round((base / DIRECT_COST_RATE) * 100) / 100 : 0;
 }
+
 function isDirectSellBrand(brand) {
   const b = (brand || "").toLowerCase();
   return b.includes("ipharma") || b.includes("ifuel");
@@ -336,7 +331,7 @@ router.put("/ingredients/:id", async (req, res) => {
     );
 
     await client.query(
-      `UPDATE shop_items SET stock = $1, price = ROUND($2::numeric * 1.10, 2) WHERE ingredient_id = $3`,
+      `UPDATE shop_items SET stock = $1, price = ROUND($2::numeric * 1.15, 2) WHERE ingredient_id = $3`,
       [updatedItem.stock, updatedItem.cost_per_unit, req.params.id],
     );
 
@@ -384,37 +379,159 @@ router.put("/ingredients/:id", async (req, res) => {
 });
 
 router.delete("/ingredients/:id", async (req, res) => {
+  const client = await pool.connect();
+
   try {
     const { deleted_by, latitude, longitude, performed_by_role } =
       req.body || {};
 
-    const before = await pool.query("SELECT * FROM ingredients WHERE id=$1", [
+    await client.query("BEGIN");
+
+    // 1. Get the Stock Inventory item first
+    const before = await client.query("SELECT * FROM ingredients WHERE id=$1", [
       req.params.id,
     ]);
-    if (before.rows.length === 0)
-      return res.status(404).json({ error: "Ingredient not found" });
+
+    if (before.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        error: "Ingredient not found",
+      });
+    }
+
     const item = before.rows[0];
 
-    const result = await pool.query(
+    // 2. Find Product Catalogue items linked to this Stock Inventory item.
+    // product_ingredients is the bridge between inventory and ingredients.
+    const linkedProducts = await client.query(
+      `
+      SELECT DISTINCT
+        inv.id,
+        inv.name,
+        inv.brand,
+        inv.branch,
+        inv.category,
+        inv.cost,
+        inv.price,
+        inv.image_url
+      FROM inventory inv
+      JOIN product_ingredients pi
+        ON pi.inventory_id = inv.id
+      WHERE pi.ingredient_id = $1
+      `,
+      [req.params.id],
+    );
+
+    const directBrand = isDirectSellBrand(item.brand);
+
+    let deletedCatalogueItems = [];
+
+    // 3. For iPharma / iFuel:
+    // deleting Stock Inventory also deletes its Product Catalogue item.
+    if (directBrand && linkedProducts.rows.length > 0) {
+      for (const product of linkedProducts.rows) {
+        // Save Product Catalogue delete history first
+        const productIngredients = await client.query(
+          `
+          SELECT
+            pi.quantity AS qty_required,
+            pi.unit,
+            i.id,
+            i.name
+          FROM product_ingredients pi
+          JOIN ingredients i
+            ON i.id = pi.ingredient_id
+          WHERE pi.inventory_id = $1
+          `,
+          [product.id],
+        );
+
+        await client.query(
+          `
+          INSERT INTO inventory_delete_history
+            (
+              inventory_data,
+              ingredients_data,
+              deleted_by,
+              deleted_at
+            )
+          VALUES ($1, $2, $3, NOW())
+          `,
+          [
+            JSON.stringify({
+              name: product.name,
+              category: product.category,
+              branch: product.branch,
+              brand: product.brand,
+              cost: product.cost,
+              price: product.price,
+              image_url: product.image_url,
+            }),
+            JSON.stringify(productIngredients.rows),
+            deleted_by || "System",
+          ],
+        );
+
+        // Remove Product Catalogue ↔ Stock Inventory link
+        await client.query(
+          "DELETE FROM product_ingredients WHERE inventory_id=$1",
+          [product.id],
+        );
+
+        // Delete Product Catalogue item
+        await client.query("DELETE FROM inventory WHERE id=$1", [product.id]);
+
+        deletedCatalogueItems.push({
+          id: product.id,
+          name: product.name,
+        });
+      }
+    } else {
+      // Coffee Spot / recipe-based brands:
+      // don't delete whole menu products.
+      // Just remove the deleted ingredient from their recipes.
+      await client.query(
+        "DELETE FROM product_ingredients WHERE ingredient_id=$1",
+        [req.params.id],
+      );
+    }
+
+    // 4. Remove any Mobile Shop record completely
+    // rather than leaving a dead item with stock = 0.
+    await client.query("DELETE FROM shop_items WHERE ingredient_id=$1", [
+      req.params.id,
+    ]);
+
+    // 5. Delete ingredient batches if your FK doesn't already cascade.
+    await client.query(
+      "DELETE FROM ingredient_batches WHERE ingredient_id=$1",
+      [req.params.id],
+    );
+
+    // 6. Finally delete Stock Inventory item
+    const result = await client.query(
       "DELETE FROM ingredients WHERE id=$1 RETURNING id",
       [req.params.id],
     );
-    if (result.rows.length === 0)
-      return res.status(404).json({ error: "Ingredient not found" });
 
-    await pool.query(`UPDATE shop_items SET stock=0 WHERE ingredient_id=$1`, [
-      req.params.id,
-    ]);
+    if (result.rows.length === 0) {
+      throw new Error("Failed to delete Stock Inventory item.");
+    }
 
+    await client.query("COMMIT");
+
+    // 7. Log Stock Inventory deletion
     await logActivity({
       action: "delete",
       itemName: item.name,
       performedBy: deleted_by || "System",
       details: {
         branch: item.branch,
+        brand: item.brand,
         unit: item.unit,
         stock: item.stock,
         cost_per_unit: item.cost_per_unit,
+        deleted_catalogue_items: deletedCatalogueItems,
       },
       req,
       branch: item.branch,
@@ -424,9 +541,52 @@ router.delete("/ingredients/:id", async (req, res) => {
       role: performed_by_role || "Unknown",
     });
 
-    res.json({ success: true });
+    // Optional separate Product Catalogue activity logs
+    for (const product of deletedCatalogueItems) {
+      await logActivity({
+        action: "delete",
+        itemName: product.name,
+        performedBy: deleted_by || "System",
+        details: {
+          reason: "Source Stock Inventory item was deleted",
+          source_ingredient_id: req.params.id,
+          source_ingredient_name: item.name,
+        },
+        req,
+        branch: item.branch,
+        module: "Menu Inventory",
+        latitude,
+        longitude,
+        role: performed_by_role || "Unknown",
+      });
+    }
+
+    res.json({
+      success: true,
+
+      deleted_stock_item: {
+        id: item.id,
+        name: item.name,
+      },
+
+      deleted_catalogue_items: deletedCatalogueItems,
+
+      message:
+        deletedCatalogueItems.length > 0
+          ? `${item.name} and its linked Product Catalogue item(s) were deleted.`
+          : `${item.name} was deleted from Stock Inventory.`,
+    });
   } catch (err) {
-    res.status(500).json({ error: "Failed to delete ingredient" });
+    await client.query("ROLLBACK");
+
+    console.error("DELETE /ingredients/:id error:", err);
+
+    res.status(500).json({
+      error: "Failed to delete Stock Inventory item",
+      details: err.message,
+    });
+  } finally {
+    client.release();
   }
 });
 
@@ -878,43 +1038,6 @@ router.get("/ingredient-batches/:id/transfer-history", async (req, res) => {
   } catch (err) {
     console.error("GET /ingredient-batches/:id/transfer-history error:", err);
     res.status(500).json({ error: "Failed to fetch batch transfer history" });
-  }
-});
-
-router.get("/pos-ingredients", async (req, res) => {
-  try {
-    const { branch } = req.query;
-    const params = [];
-    let query = "SELECT * FROM ingredients WHERE stock > 0";
-    if (branch) {
-      params.push(branch);
-      query += ` AND branch=$${params.length}`;
-    }
-    query += " ORDER BY name";
-    const result = await pool.query(query, params);
-
-    const sellable = result.rows
-      .filter((row) => isDirectSellBrand(row.brand))
-      .map((row) => ({
-        id: row.id,
-        source: "ingredient",
-        name: row.name,
-        brand: row.brand,
-        category: row.category,
-        unit: row.unit,
-        stock: row.stock,
-        sku: row.sku,
-        price: computeDirectSellingPrice(row.cost_per_unit),
-        cost_per_unit: row.cost_per_unit,
-        perishable: row.perishable,
-        pcs_per_strip: row.extra_fields?.pcs_per_strip || null,
-        strips_per_box: row.extra_fields?.strips_per_box || null,
-      }));
-
-    res.json(sellable);
-  } catch (err) {
-    console.error("GET /pos-ingredients error:", err);
-    res.status(500).json({ error: "Failed to fetch POS-sellable ingredients" });
   }
 });
 
