@@ -31,6 +31,7 @@ async function priceFromCost(brand, name, fallback) {
 router.get("/shop-items", async (req, res) => {
   try {
     const brand = (req.query.brand || "").trim();
+    const shop = (req.query.shop || "").trim();
     const selectCols = `
       si.id, si.name, si.price, si.unit, si.image_url, si.is_visible,
       si.shop, si.brand, COALESCE(i.stock, si.stock) AS stock,
@@ -41,12 +42,23 @@ router.get("/shop-items", async (req, res) => {
       FROM shop_items si
       LEFT JOIN ingredients i ON i.id = si.ingredient_id
     `;
-    const result = brand
-      ? await pool.query(
-          `${baseQuery} WHERE LOWER(TRIM(si.brand)) = LOWER(TRIM($1)) ORDER BY si.created_at DESC`,
-          [brand],
-        )
-      : await pool.query(`${baseQuery} ORDER BY si.created_at DESC`);
+
+    const conditions = [];
+    const params = [];
+    if (brand) {
+      params.push(brand);
+      conditions.push(`LOWER(TRIM(si.brand)) = LOWER(TRIM($${params.length}))`);
+    }
+    if (shop) {
+      params.push(shop);
+      conditions.push(`LOWER(TRIM(si.shop)) = LOWER(TRIM($${params.length}))`);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const result = await pool.query(
+      `${baseQuery} ${where} ORDER BY si.created_at DESC`,
+      params,
+    );
     res.json(result.rows);
   } catch (err) {
     console.error("GET /shop-items error:", err.message);
@@ -258,22 +270,29 @@ router.patch("/shop-items/:id/deduct-stock", async (req, res) => {
       return res.json({ success: true, alreadyDeducted: true });
     }
 
-    const itemRes = await client.query(
-      `UPDATE shop_items SET stock = $1, price = ROUND($2::numeric * 1.10, 2)
-WHERE ingredient_id = $3`,
-      [updatedItem.stock, updatedItem.cost_per_unit, req.params.id],
+    // Fetch the shop item first — this replaces the old undefined-`updatedItem` UPDATE.
+    const currentRes = await client.query(
+      `SELECT * FROM shop_items WHERE id = $1 FOR UPDATE`,
+      [req.params.id],
     );
-    if (itemRes.rows.length === 0) {
-      const cur = await client.query(
-        `SELECT stock FROM shop_items WHERE id=$1`,
-        [req.params.id],
-      );
+    if (currentRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Item not found" });
+    }
+    const current = currentRes.rows[0];
+
+    if (Number(current.stock) < qty) {
       console.log(
-        `[deduct-stock] shop_items.stock insufficient — item ${req.params.id}, have ${cur.rows[0]?.stock}, need ${qty}`,
+        `[deduct-stock] shop_items.stock insufficient — item ${req.params.id}, have ${current.stock}, need ${qty}`,
       );
       await client.query("ROLLBACK");
       return res.status(409).json({ error: "Insufficient stock to deduct" });
     }
+
+    const itemRes = await client.query(
+      `UPDATE shop_items SET stock = stock - $1 WHERE id = $2 RETURNING *`,
+      [qty, req.params.id],
+    );
     const item = itemRes.rows[0];
 
     let ingredientResult = null;
@@ -343,7 +362,18 @@ WHERE ingredient_id = $3`,
         [total_stock, earliest_exp || null, item.ingredient_id],
       );
       ingredientResult = ingRes.rows[0];
+
+      // Keep every shop_items row tied to this ingredient in sync (see fix #2 below).
+      await client.query(
+        `UPDATE shop_items SET stock = $1 WHERE ingredient_id = $2 AND id != $3`,
+        [total_stock, item.ingredient_id, item.id],
+      );
     }
+
+    await client.query(
+      "INSERT INTO stock_deduction_log (order_id, shop_item_id) VALUES ($1,$2)",
+      [order_id, req.params.id],
+    );
 
     await client.query("COMMIT");
 

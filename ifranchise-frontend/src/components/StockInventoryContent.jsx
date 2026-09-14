@@ -1732,7 +1732,7 @@ function BatchTransferHistoryModal({ batch, ingredient, apiUrl, onClose }) {
               {batch.batch_number || "—"}
             </div>
             <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-              {ingredient.name} · Head Office
+              {ingredient.name} · {ingredient.branch}
             </div>
           </div>
           <button
@@ -3358,8 +3358,10 @@ function FifoQueue({
                 )}
 
                 {(!readOnly ||
-                  (product.branch || "").trim().toLowerCase() ===
-                    "head office") && (
+                  (product.branch || "")
+                    .trim()
+                    .toLowerCase()
+                    .includes("head office")) && (
                   <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
                     {!readOnly && (
                       <>
@@ -3391,8 +3393,10 @@ function FifoQueue({
                         </button>
                       </>
                     )}
-                    {(product.branch || "").trim().toLowerCase() ===
-                      "head office" && (
+                    {(product.branch || "")
+                      .trim()
+                      .toLowerCase()
+                      .includes("head office") && (
                       <button
                         onClick={() => onViewHistory(b)}
                         className="hist-btn"
@@ -3531,8 +3535,7 @@ function BrandOverviewCard({ brandDef, brandObj, items, onClick }) {
             {brandDef.label}
           </div>
           <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
-            {branchCount} branch{branchCount === 1 ? "" : "es"} · Head Office
-            Inventory
+            {branchCount} branch{branchCount === 1 ? "" : "es"}
           </div>
         </div>
         <div
@@ -3891,8 +3894,8 @@ function BrandCard({
       return;
     }
     if (!didSetDefaultBranch.current && branchOptions.length > 0) {
-      const headOffice = branchOptions.find(
-        (b) => b.toLowerCase() === "head office",
+      const headOffice = branchOptions.find((b) =>
+        b.toLowerCase().includes("head office"),
       );
       if (headOffice) setBranchF(headOffice);
       didSetDefaultBranch.current = true;
@@ -7499,8 +7502,10 @@ function BatchesModal({
                         </button>
                       </>
                     )}
-                    {(ingredient.branch || "").trim().toLowerCase() ===
-                      "head office" && (
+                    {(ingredient.branch || "")
+                      .trim()
+                      .toLowerCase()
+                      .includes("head office") && (
                       <button
                         onClick={() => setHistoryBatch(batch)}
                         title="View transfer history"
@@ -7605,6 +7610,62 @@ export default function StockInventoryContent({
     [brandList],
   );
 
+  const defaultBulkQtyForUnit = (unit) =>
+    ["g", "ml"].includes(unit)
+      ? 1000
+      : unit === "liters"
+        ? 200
+        : unit === "kg"
+          ? 50
+          : ["pcs", "bottles"].includes(unit)
+            ? 50
+            : 1;
+
+  const computeDisplayPrice = (cost, unit, bulkQtyOverride) => {
+    const bulkQty =
+      Number(bulkQtyOverride) > 0
+        ? Number(bulkQtyOverride)
+        : ["g", "ml"].includes(unit)
+          ? 1000
+          : unit === "liters"
+            ? 200
+            : unit === "kg"
+              ? 50
+              : ["pcs", "bottles"].includes(unit)
+                ? 50
+                : 1;
+    return Math.round(Number(cost || 0) * bulkQty * 1.12 * 100) / 100;
+  };
+
+  const PACK_NAME_FOR_UNIT = {
+    g: "kg",
+    ml: "liters",
+    liters: "drums",
+    kg: "cylinders",
+    pcs: "packs",
+    bottles: "cases",
+  };
+
+  const bulkLabelFor = (unit, bulkQtyOverride) => {
+    if (!unit) return "";
+    const qty =
+      Number(bulkQtyOverride) > 0
+        ? Number(bulkQtyOverride)
+        : ["g", "ml"].includes(unit)
+          ? 1000
+          : unit === "liters"
+            ? 200
+            : unit === "kg"
+              ? 50
+              : ["pcs", "bottles"].includes(unit)
+                ? 50
+                : 1;
+    const packName = PACK_NAME_FOR_UNIT[unit] || `${unit} packs`;
+    return `${packName} (${qty}${unit})`;
+  };
+
+  const markupLabelFor = () => "+ 12%";
+
   const ownBrandDef = useMemo(() => {
     if (isAdmin || !userBranch) return null;
     const ownBrandObj = brandList.find((b) =>
@@ -7702,6 +7763,9 @@ export default function StockInventoryContent({
       listInShop: false,
       shopCategory: "",
       sku: "",
+      bulkQty: "",
+      pcsPerStrip: "",
+      stripsPerBox: "",
     }),
     [isAdmin, userBranch],
   );
@@ -8173,6 +8237,11 @@ export default function StockInventoryContent({
         performed_by_role: user?.role || "Unknown",
         latitude: coords?.latitude,
         longitude: coords?.longitude,
+        bulk_qty: form.bulkQty || null,
+        extra_fields: {
+          pcs_per_strip: form.pcsPerStrip || null,
+          strips_per_box: form.stripsPerBox || null,
+        },
         ...(!isAdmin ? { cost_per_unit: editing.cost_per_unit } : {}),
       };
 
@@ -8286,6 +8355,11 @@ export default function StockInventoryContent({
           performed_by_role: user?.role || "Unknown",
           latitude: coords?.latitude,
           longitude: coords?.longitude,
+          bulk_qty: form.bulkQty || null,
+          extra_fields: {
+            pcs_per_strip: form.pcsPerStrip || null,
+            strips_per_box: form.stripsPerBox || null,
+          },
         };
 
         const duplicate = items.find(
@@ -8397,6 +8471,11 @@ export default function StockInventoryContent({
         performed_by_role: user?.role || "Unknown",
         latitude: coords?.latitude,
         longitude: coords?.longitude,
+        bulk_qty: form.bulkQty || null,
+        extra_fields: {
+          pcs_per_strip: form.pcsPerStrip || null,
+          strips_per_box: form.stripsPerBox || null,
+        },
       };
 
       const duplicate = items.find(
@@ -8681,6 +8760,9 @@ export default function StockInventoryContent({
         ? shopMatch.shop || item.brand || "Coffee Spot"
         : item.brand || "Coffee Spot",
       sku: item.sku || "",
+      bulkQty: item.bulk_qty || "",
+      pcsPerStrip: item.extra_fields?.pcs_per_strip || "",
+      stripsPerBox: item.extra_fields?.strips_per_box || "",
     });
     setShowModal(true);
   };
@@ -8759,6 +8841,10 @@ export default function StockInventoryContent({
         return new Date(b?.deletedAt || 0) - new Date(a?.deletedAt || 0);
       });
   };
+
+  const previewShopPrice = isDirectProductBrand(form.brand || currentBrandName)
+    ? computeDirectSellingPrice(form.cost_per_unit)
+    : computeDisplayPrice(form.cost_per_unit, form.unit, form.bulkQty);
 
   return (
     <div
@@ -9473,6 +9559,43 @@ export default function StockInventoryContent({
                 />
               </div>
 
+              {isPharmaBrand(form.brand || currentBrandName) && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <label style={invLabelSt}>Pcs per Strip</label>
+                    <input
+                      type="number"
+                      min="1"
+                      style={invInputSt}
+                      value={form.pcsPerStrip}
+                      placeholder="e.g. 10"
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, pcsPerStrip: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label style={invLabelSt}>Strips per Box</label>
+                    <input
+                      type="number"
+                      min="1"
+                      style={invInputSt}
+                      value={form.stripsPerBox}
+                      placeholder="e.g. 10"
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, stripsPerBox: e.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+
               {!editing && (
                 <div
                   style={{
@@ -9568,10 +9691,31 @@ export default function StockInventoryContent({
                     <div
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
+                        gridTemplateColumns: "1fr 1fr 1fr",
                         gap: 12,
                       }}
                     >
+                      <div>
+                        <label style={invLabelSt}>Bulk Qty per Shop Item</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          style={invInputSt}
+                          value={form.bulkQty}
+                          placeholder={String(defaultBulkQtyForUnit(form.unit))}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, bulkQty: e.target.value }))
+                          }
+                        />
+                        <div
+                          style={{ fontSize: 10, color: C.muted, marginTop: 4 }}
+                        >
+                          How many {form.unit} go into one shop item (e.g. 1000g
+                          per shop-size bag). Leave blank to use the default for
+                          this unit.
+                        </div>
+                      </div>
                       <div>
                         <label style={invLabelSt}>Shop Price (₱)</label>
                         <div
@@ -9588,13 +9732,7 @@ export default function StockInventoryContent({
                           }}
                         >
                           {form.cost_per_unit
-                            ? `₱${(isDirectProductBrand(form.brand)
-                                ? computeDirectSellingPrice(form.cost_per_unit)
-                                : parseFloat(form.cost_per_unit) * 1.1
-                              ).toLocaleString("en-PH", {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}`
+                            ? `₱${previewShopPrice.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                             : "—"}
                           <span
                             style={{
@@ -9603,7 +9741,7 @@ export default function StockInventoryContent({
                               fontWeight: 400,
                             }}
                           >
-                            (cost + 10%)
+                            (cost × bulk qty + 12%)
                           </span>
                         </div>
                       </div>
@@ -9625,6 +9763,7 @@ export default function StockInventoryContent({
                         </div>
                       </div>
                     </div>
+
                     <div>
                       <label style={invLabelSt}>Shop Category</label>
                       <select

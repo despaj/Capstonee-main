@@ -111,16 +111,6 @@ async function syncDirectCatalogue(client, ingredientId) {
     : extra.fuel_grade || extra.category || "Fuel";
 
   const cost = Number(ingredient.cost_per_unit || 0);
-  const activeBatches = await getActiveBatches(
-    client,
-    ingredientId,
-    ingredient,
-    false,
-  );
-  const sellableStock = activeBatches.reduce(
-    (sum, batch) => sum + Number(batch.stock || 0),
-    0,
-  );
   const suggestedPrice = Number((cost * (1 + DEFAULT_MARKUP)).toFixed(2));
 
   const existing = await client.query(
@@ -130,30 +120,37 @@ async function syncDirectCatalogue(client, ingredientId) {
     [ingredient.branch, ingredient.brand || null, ingredient.name],
   );
 
+  const pcsPerStrip = extra.pcs_per_strip ? Number(extra.pcs_per_strip) : null;
+  const stripsPerBox = extra.strips_per_box
+    ? Number(extra.strips_per_box)
+    : null;
+
   let product;
+
   if (existing.rows.length > 0) {
     const current = existing.rows[0];
     const sellingPrice =
       Number(current.price || 0) > 0 ? Number(current.price) : suggestedPrice;
     const updated = await client.query(
       `UPDATE inventory
-       SET cost=$1, price=$2, stock=$3, min_stock=$4,
-           category=COALESCE(NULLIF(category,''),$5), updated_at=NOW()
-       WHERE id=$6 RETURNING *`,
+     SET cost=$1, price=$2,
+         category=COALESCE(NULLIF(category,''),$3),
+         pcs_per_strip=$4, strips_per_box=$5, updated_at=NOW()
+     WHERE id=$6 RETURNING *`,
       [
         cost,
         sellingPrice,
-        sellableStock,
-        Number(ingredient.min_stock || 0),
         defaultCategory,
+        pcsPerStrip,
+        stripsPerBox,
         current.id,
       ],
     );
     product = updated.rows[0];
   } else {
     const created = await client.query(
-      `INSERT INTO inventory (name, category, branch, brand, cost, price, stock, min_stock, image_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULL) RETURNING *`,
+      `INSERT INTO inventory (name, category, branch, brand, cost, price, image_url, pcs_per_strip, strips_per_box)
+     VALUES ($1,$2,$3,$4,$5,$6,NULL,$7,$8) RETURNING *`,
       [
         ingredient.name,
         defaultCategory,
@@ -161,14 +158,15 @@ async function syncDirectCatalogue(client, ingredientId) {
         ingredient.brand || null,
         cost,
         suggestedPrice,
-        sellableStock,
-        Number(ingredient.min_stock || 0),
+        pcsPerStrip,
+        stripsPerBox,
       ],
     );
     product = created.rows[0];
   }
 
   // Direct products are a 1:1 link to their Stock Inventory item.
+  // Stock lives on `ingredients`, looked up via this link — never duplicated on `inventory`.
   await client.query("DELETE FROM product_ingredients WHERE inventory_id=$1", [
     product.id,
   ]);
@@ -185,11 +183,17 @@ async function syncIngredientFromBatches(client, ingredientId) {
   const ingredient = await getIngredient(client, ingredientId, false);
   if (!ingredient) return null;
 
+  const isFefo = rotationMethod(ingredient) === "FEFO";
+
   const totals = await client.query(
-    `SELECT COALESCE(SUM(stock),0) AS total_stock,
-            MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL AND stock > 0) AS earliest_exp
-     FROM ingredient_batches WHERE ingredient_id=$1`,
-    [ingredientId],
+    `SELECT
+        COALESCE(SUM(stock) FILTER (
+          WHERE $2::boolean = false OR exp_date IS NULL OR exp_date >= CURRENT_DATE
+        ), 0) AS total_stock,
+        MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL AND stock > 0) AS earliest_exp
+     FROM ingredient_batches
+     WHERE ingredient_id=$1`,
+    [ingredientId, isFefo],
   );
   const totalStock = Number(totals.rows[0]?.total_stock || 0);
   const earliestExp = totals.rows[0]?.earliest_exp || null;
@@ -221,10 +225,7 @@ async function syncIngredientFromBatches(client, ingredientId) {
     ])
     .catch(() => {});
 
-  // Recipe products recalculate from their current stock-item costs.
   await recomputeProductCosts(client, ingredientId);
-
-  // iPharma and iFuel automatically mirror Stock Inventory into Product Catalogue.
   await syncDirectCatalogue(client, ingredientId);
 
   return { totalStock, nextCost, earliestExp };

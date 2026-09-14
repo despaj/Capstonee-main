@@ -86,6 +86,20 @@ import {
   Receipt,
 } from "lucide-react";
 
+async function adminModuleFetch(input, options) {
+  const response = await fetch(input, options);
+  const method = String(
+    options?.method ||
+      (typeof Request !== "undefined" && input instanceof Request
+        ? input.method
+        : "GET"),
+  ).toUpperCase();
+  if (response.ok && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+    window.dispatchEvent(new Event("franchisync:data-changed"));
+  }
+  return response;
+}
+
 const VIBE_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -222,6 +236,28 @@ const UNITS = [
   "boxes",
   "cans",
 ];
+
+const bmInput = {
+  width: "100%",
+  padding: "9px 12px",
+  borderRadius: 10,
+  border: "1.5px solid #E1E6D8",
+  fontSize: 13,
+  color: "#12241B",
+  background: "#f0f5e8",
+  fontFamily: "'Plus Jakarta Sans', sans-serif",
+  outline: "none",
+  boxSizing: "border-box",
+};
+const bmLabel = {
+  display: "block",
+  fontSize: 11,
+  fontWeight: 800,
+  color: "#2e6725",
+  marginBottom: 4,
+  textTransform: "uppercase",
+  letterSpacing: "0.07em",
+};
 
 const BRAND_EXTRA_FIELDS = {
   iPharma: [
@@ -13813,6 +13849,90 @@ function FrCommunicationContent() {
   );
 }
 
+function AlertModal({ message, onClose, type = "info" }) {
+  const isError = type === "error";
+  const isSuccess = type === "success";
+
+  const iconBg = isError ? "#fdf1f0" : isSuccess ? "#d1fae5" : "#dbeafe";
+  const iconColor = isError ? "#c0392b" : isSuccess ? "#059669" : "#2563eb";
+  const Icon = isError ? Trash2 : isSuccess ? Check : Info;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(13,43,30,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 3000,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff",
+          borderRadius: 20,
+          padding: "28px 32px",
+          width: "100%",
+          maxWidth: 380,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          textAlign: "center",
+        }}
+      >
+        <div
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: "50%",
+            background: iconBg,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 16px",
+          }}
+        >
+          <Icon size={22} color={iconColor} />
+        </div>
+        <p
+          style={{
+            fontSize: 14,
+            color: "#12241B",
+            lineHeight: 1.6,
+            marginBottom: 20,
+            fontWeight: 600,
+          }}
+        >
+          {message}
+        </p>
+        <button
+          onClick={onClose}
+          style={{
+            padding: "9px 28px",
+            borderRadius: 10,
+            border: "none",
+            background: "linear-gradient(135deg,#3b791e,#3b791e)",
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: "pointer",
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
+          }}
+        >
+          OK
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function FrProfileContent({ user }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [formData, setFormData] = useState({
@@ -13822,11 +13942,9 @@ function FrProfileContent({ user }) {
     suffix: "",
     name: "",
     email: "",
-    personalEmail: "",
-    role: "Franchisee",
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
+    role: "",
+    branch: "",
+    password: "",
   });
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -13840,30 +13958,35 @@ function FrProfileContent({ user }) {
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
+  // ── UI modal state ──
   const [alertModal, setAlertModal] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
+
   const showAlert = (message, type = "info") =>
     setAlertModal({ message, type });
   const showConfirm = (message, onConfirm) =>
     setConfirmModal({ message, onConfirm });
 
+  const formDataRef = React.useRef(formData);
   useEffect(() => {
     setFormData((prev) => ({
       ...prev,
-      firstName: user?.firstName || "",
-      lastName: user?.lastName || "",
-      middleInitial: user?.middleInitial || "",
-      suffix: user?.suffix || "",
-      name: user?.name || "",
-      email: user?.email || "",
-      role: user?.role || "Franchisee",
-      personalEmail: user?.personalEmail || "",
+      firstName: user.firstName || "",
+      lastName: user.lastName || "",
+      middleInitial: user.middleInitial || "",
+      suffix: user.suffix || "",
+      name: user.name || "",
+      email: user.email || "",
+      role: user.role || "",
+      personalEmail: user.personalEmail || "",
     }));
   }, [user]);
-
-  const handleInputChange = (e) => {
+  const handleInputChange = React.useCallback((e) => {
     const { name, value } = e.target;
+    formDataRef.current = { ...formDataRef.current, [name]: value };
     setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Clear field error on change
     setFieldErrors((prev) => ({ ...prev, [name]: "" }));
 
     if (name === "newPassword") {
@@ -13875,7 +13998,10 @@ function FrProfileContent({ user }) {
         setPasswordErrors([]);
       }
     }
-  };
+    if (name === "confirmPassword") {
+      // live match feedback handled by fieldErrors below
+    }
+  }, []);
 
   const validatePasswordStrength = (password) => {
     const errors = [];
@@ -13891,7 +14017,7 @@ function FrProfileContent({ user }) {
   const sendOtp = async () => {
     try {
       const emailToSend = formData.personalEmail || formData.email;
-      const response = await fetch(
+      const response = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/send-otp-password-change`,
         {
           method: "POST",
@@ -13933,10 +14059,13 @@ function FrProfileContent({ user }) {
         setShowOtpModal(false);
         setShowSuccessModal(true);
         localStorage.removeItem("user");
+        localStorage.removeItem("rememberedUser");
         localStorage.removeItem("tempUser");
-        // TODO: confirm the franchisee portal's actual login route
+        sessionStorage.removeItem("user");
+        sessionStorage.removeItem("tempUser");
+        sessionStorage.removeItem("fr_activeModule");
         setTimeout(() => {
-          window.location.href = "/login";
+          window.location.href = "/";
         }, 3000);
       } else {
         setOtpError(data.error || "Failed to change password");
@@ -13996,7 +14125,7 @@ function FrProfileContent({ user }) {
       ]
         .filter(Boolean)
         .join(" ");
-      const response = await fetch(
+      const response = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users/${user.id}`,
         {
           method: "PUT",
@@ -14009,7 +14138,6 @@ function FrProfileContent({ user }) {
             suffix: formData.suffix || null,
             email: formData.email,
             role: formData.role,
-            brand: user.brand, // must be sent, or the PUT nulls it out
             branch: user.branch,
           }),
         },
@@ -14040,14 +14168,14 @@ function FrProfileContent({ user }) {
   const handleCancel = () => {
     showConfirm("Discard all unsaved changes?", () => {
       setFormData({
-        firstName: user?.firstName || "",
-        lastName: user?.lastName || "",
-        middleInitial: user?.middleInitial || "",
-        suffix: user?.suffix || "",
-        name: user?.name || "",
-        email: user?.email || "",
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        middleInitial: user.middleInitial || "",
+        suffix: user.suffix || "",
+        name: user.name,
+        email: user.email,
         personalEmail: "",
-        role: user?.role || "Franchisee",
+        role: user.role,
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
@@ -14062,7 +14190,7 @@ function FrProfileContent({ user }) {
     });
   };
 
-  const initials = user?.name
+  const initials = user.name
     ? user.name
         .trim()
         .split(/\s+/)
@@ -14072,20 +14200,15 @@ function FrProfileContent({ user }) {
         .toUpperCase()
     : "?";
 
-  const FieldError = ({ name }) =>
-    fieldErrors[name] ? (
-      <span
-        style={{
-          fontSize: 11,
-          color: "#ef4444",
-          marginTop: 4,
-          display: "block",
-          fontWeight: 600,
-        }}
-      >
-        {fieldErrors[name]}
-      </span>
-    ) : null;
+  // ── Shared input style ──
+  const inputStyle = (disabled) => ({
+    ...bmInput,
+    marginTop: 4,
+    background: disabled ? "#f5f8f5" : "#fff",
+    color: disabled ? "#9ca3af" : "#12241B",
+    cursor: disabled ? "not-allowed" : "text",
+    border: disabled ? "1.5px solid #e5e7eb" : "1.5px solid #E1E6D8",
+  });
 
   const PwChecklist = () => (
     <div
@@ -14095,7 +14218,7 @@ function FrProfileContent({ user }) {
         padding: "10px 14px",
         background: "#f0f5e8",
         borderRadius: 10,
-        border: "1.5px solid #c9dba0",
+        border: "1.5px solid #E1E6D8",
       }}
     >
       <div
@@ -14120,7 +14243,7 @@ function FrProfileContent({ user }) {
         <div
           key={key}
           style={{
-            color: passwordErrors.includes(key) ? "#ef4444" : "#3b791e",
+            color: passwordErrors.includes(key) ? "#c0392b" : "#059669",
             marginBottom: 3,
             fontSize: 12,
             display: "flex",
@@ -14134,6 +14257,21 @@ function FrProfileContent({ user }) {
       ))}
     </div>
   );
+
+  const FieldError = ({ name }) =>
+    fieldErrors[name] ? (
+      <span
+        style={{
+          fontSize: 11,
+          color: "#c0392b",
+          marginTop: 4,
+          display: "block",
+          fontWeight: 600,
+        }}
+      >
+        {fieldErrors[name]}
+      </span>
+    ) : null;
 
   const EyeToggle = ({ show, onToggle, disabled }) => (
     <button
@@ -14154,100 +14292,245 @@ function FrProfileContent({ user }) {
         padding: 0,
       }}
     >
-      {show ? <EyeOff size={16} /> : <Eye size={16} />}
+      {show ? (
+        <svg
+          width={16}
+          height={16}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+          <line x1="1" y1="1" x2="23" y2="23" />
+        </svg>
+      ) : (
+        <svg
+          width={16}
+          height={16}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      )}
     </button>
   );
 
-  const fieldStyle = (disabled) => ({
-    fontFamily: "Plus Jakarta Sans,sans-serif",
-    fontSize: 13,
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "10px 12px",
-    borderRadius: 10,
-    marginTop: 4,
-    border: `1.5px solid ${disabled ? "#e5e7eb" : "#c9dba0"}`,
-    background: disabled ? "#f5f8f5" : "#fff",
-    color: disabled ? "#9ca3af" : "#12241B",
-    cursor: disabled ? "not-allowed" : "text",
-    outline: "none",
-  });
-
   return (
-    <div>
-      {/* ── Account Overview ── */}
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      {/* ── Account Overview Card ── */}
       <div
         style={{
-          background: "linear-gradient(135deg,#12241B,#2c5c16)",
+          background: C.white,
+          border: "1px solid rgba(0,168,76,0.12)",
           borderRadius: 18,
-          padding: "22px 24px",
-          marginBottom: 18,
-          display: "flex",
-          alignItems: "center",
-          gap: 18,
-          border: "1px solid rgba(255,255,255,.06)",
+          boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
+          overflow: "hidden",
+          marginBottom: 24,
         }}
       >
         <div
           style={{
-            width: 64,
-            height: 64,
-            borderRadius: 18,
-            background: "#bdd43c",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 900,
-            fontSize: 26,
-            color: "#12241B",
-            fontFamily: "Plus Jakarta Sans,sans-serif",
-            flexShrink: 0,
+            background: "linear-gradient(135deg,#3b791e,#3b791e)",
+            padding: "16px 22px",
           }}
         >
-          {initials}
+          <span style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>
+            Account Overview
+          </span>
         </div>
-        <div>
+        <div
+          style={{
+            padding: "22px 24px",
+            display: "flex",
+            alignItems: "center",
+            gap: 22,
+          }}
+        >
           <div
             style={{
-              fontFamily: "Plus Jakarta Sans,sans-serif",
+              width: 68,
+              height: 68,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg,#d1fae5,#6ee7b7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 22,
               fontWeight: 800,
-              fontSize: 20,
-              color: "#fff",
+              color: "#2c5c16",
+              flexShrink: 0,
+              letterSpacing: 1,
+              border: "2.5px solid #a7f3d0",
             }}
           >
-            {user?.name}
+            {initials}
           </div>
-          <div
-            style={{
-              fontSize: 13,
-              color: "rgba(255,255,255,0.6)",
-              marginTop: 3,
-              fontFamily: "Plus Jakarta Sans,sans-serif",
-            }}
-          >
-            Franchisee · {user?.branch}
-          </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <span
-              className="v-badge v-badge-green"
-              style={{ background: "rgba(0,200,83,0.2)", color: "#a7f3d0" }}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontWeight: 800,
+                fontSize: 20,
+                color: "#12241B",
+                marginBottom: 4,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
             >
-              Franchisee
-            </span>
-            {user?.branch && (
+              {user.name}
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: "#5C6B60",
+                marginBottom: 8,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <svg
+                width={13}
+                height={13}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#5C6B60"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="m22 7-10 7L2 7" />
+              </svg>
+              {user.email}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+            >
               <span
                 style={{
-                  padding: "4px 12px",
+                  background: "rgba(0,137,123,0.1)",
+                  color: "#2c5c16",
+                  padding: "3px 12px",
                   borderRadius: 20,
                   fontSize: 11,
                   fontWeight: 700,
-                  background: "rgba(255,255,255,0.12)",
-                  color: "#fff",
-                  fontFamily: "Plus Jakarta Sans,sans-serif",
                 }}
               >
-                {user.branch}
+                {user.role}
               </span>
+              {user.branch && (
+                <span
+                  style={{
+                    background: "#f0f5e8",
+                    color: "#12241B",
+                    padding: "3px 12px",
+                    borderRadius: 20,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    border: "1.5px solid #E1E6D8",
+                  }}
+                >
+                  {user.branch}
+                </span>
+              )}
+            </div>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              flexShrink: 0,
+              textAlign: "right",
+            }}
+          >
+            <div
+              style={{
+                padding: "8px 16px",
+                borderRadius: 12,
+                background: "#f0f5e8",
+                border: "1.5px solid #E1E6D8",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.07em",
+                  color: "#5C6B60",
+                  marginBottom: 2,
+                }}
+              >
+                Account Status
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-end",
+                  gap: 5,
+                }}
+              >
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: "#059669",
+                    display: "inline-block",
+                  }}
+                />
+                <span
+                  style={{ fontWeight: 800, fontSize: 13, color: "#059669" }}
+                >
+                  Active
+                </span>
+              </div>
+            </div>
+            {user.branch && (
+              <div
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 12,
+                  background: "#f0f5e8",
+                  border: "1.5px solid #E1E6D8",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.07em",
+                    color: "#5C6B60",
+                    marginBottom: 2,
+                  }}
+                >
+                  Branch
+                </div>
+                <div
+                  style={{ fontWeight: 800, fontSize: 13, color: "#12241B" }}
+                >
+                  {user.branch}
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -14260,7 +14543,7 @@ function FrProfileContent({ user }) {
           alignItems: "center",
           justifyContent: "space-between",
           background: isUnlocked ? "#f0f5e8" : "#f5f8f5",
-          border: `1.5px solid ${isUnlocked ? "#c9dba0" : "#e5e7eb"}`,
+          border: `1.5px solid ${isUnlocked ? "#E1E6D8" : "#e5e7eb"}`,
           borderRadius: 14,
           padding: "12px 20px",
           marginBottom: 20,
@@ -14270,23 +14553,10 @@ function FrProfileContent({ user }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {isUnlocked ? <Unlock size={18} /> : <Lock size={18} />}
           <div>
-            <div
-              style={{
-                fontWeight: 800,
-                fontSize: 13,
-                color: "#12241B",
-                fontFamily: "Plus Jakarta Sans,sans-serif",
-              }}
-            >
+            <div style={{ fontWeight: 800, fontSize: 13, color: "#12241B" }}>
               {isUnlocked ? "Editing Enabled" : "Profile Locked"}
             </div>
-            <div
-              style={{
-                fontSize: 11,
-                color: "#5C6B60",
-                fontFamily: "Plus Jakarta Sans,sans-serif",
-              }}
-            >
+            <div style={{ fontSize: 11, color: "#5C6B60" }}>
               {isUnlocked
                 ? "Make your changes and save when done."
                 : "Click Unlock to edit your profile."}
@@ -14296,67 +14566,92 @@ function FrProfileContent({ user }) {
         <button
           type="button"
           onClick={() => {
-            isUnlocked ? handleCancel() : setIsUnlocked(true);
+            if (isUnlocked) {
+              handleCancel();
+            } else {
+              setIsUnlocked(true);
+            }
           }}
-          className="v-btn"
           style={{
-            background: isUnlocked
-              ? "var(--grad-red)"
-              : "linear-gradient(135deg,#2c5c16,#3b791e)",
-            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "8px 18px",
+            borderRadius: 10,
             border: "none",
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: "pointer",
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            background: isUnlocked
+              ? "linear-gradient(135deg,#c0392b,#c0392b)"
+              : "linear-gradient(135deg,#3b791e,#3b791e)",
+            color: "#fff",
+            boxShadow: isUnlocked
+              ? "0 2px 8px rgba(220,38,38,0.3)"
+              : "0 2px 8px rgba(0,180,90,0.3)",
           }}
         >
-          {isUnlocked ? (
-            <>
-              <X size={14} /> Cancel
-            </>
-          ) : (
-            <>Unlock</>
-          )}
+          {isUnlocked ? "✕ Cancel" : " Unlock"}
         </button>
       </div>
 
+      {/* ── Two-column: Personal Info + Change Password ── */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))",
-          gap: 16,
+          gridTemplateColumns: "1fr 1fr",
+          gap: 24,
+          alignItems: "start",
         }}
       >
-        {/* ── Personal Information ── */}
-        <div className="v-card" style={{ padding: "20px 22px" }}>
-          <div className="v-section-head">
-            <VSectionTitle icon={<User size={16} />}>
+        {/* ── Personal Information Card ── */}
+        <div
+          style={{
+            background: C.white,
+            border: "1px solid rgba(0,168,76,0.12)",
+            borderRadius: 18,
+            boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              background: "linear-gradient(135deg,#3b791e,#3b791e)",
+              padding: "16px 22px",
+            }}
+          >
+            <span style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>
               Personal Information
-            </VSectionTitle>
+            </span>
           </div>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} style={{ padding: "22px 24px" }}>
+            {/* Name */}
             <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
               <div style={{ flex: 2 }}>
-                <label className="v-form-label">Last Name</label>
+                <label style={bmLabel}>Last Name</label>
                 <input
                   type="text"
                   name="lastName"
                   value={formData.lastName}
                   onChange={handleInputChange}
                   disabled={!isUnlocked}
-                  style={fieldStyle(!isUnlocked)}
+                  style={inputStyle(!isUnlocked)}
                 />
               </div>
               <div style={{ flex: 2 }}>
-                <label className="v-form-label">First Name</label>
+                <label style={bmLabel}>First Name</label>
                 <input
                   type="text"
                   name="firstName"
                   value={formData.firstName}
                   onChange={handleInputChange}
                   disabled={!isUnlocked}
-                  style={fieldStyle(!isUnlocked)}
+                  style={inputStyle(!isUnlocked)}
                 />
               </div>
               <div style={{ flex: 1 }}>
-                <label className="v-form-label">M.I.</label>
+                <label style={bmLabel}>M.I.</label>
                 <input
                   type="text"
                   name="middleInitial"
@@ -14364,47 +14659,42 @@ function FrProfileContent({ user }) {
                   value={formData.middleInitial}
                   onChange={handleInputChange}
                   disabled={!isUnlocked}
-                  style={fieldStyle(!isUnlocked)}
+                  style={inputStyle(!isUnlocked)}
                 />
               </div>
               <div style={{ flex: 1 }}>
-                <label className="v-form-label">Suffix</label>
+                <label style={bmLabel}>Suffix</label>
                 <input
                   type="text"
                   name="suffix"
                   value={formData.suffix}
                   onChange={handleInputChange}
                   disabled={!isUnlocked}
-                  style={fieldStyle(!isUnlocked)}
+                  style={inputStyle(!isUnlocked)}
                 />
               </div>
             </div>
             <FieldError name="lastName" />
-
-            <div className="v-form-group">
-              <label className="v-form-label">Work Email</label>
+            {/* Work Email */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Work Email Address</label>
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
                 disabled={!isUnlocked}
-                style={fieldStyle(!isUnlocked)}
+                style={inputStyle(!isUnlocked)}
               />
               <FieldError name="email" />
             </div>
 
-            <div className="v-form-group">
-              <label className="v-form-label">
+            {/* Personal Email */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>
                 Personal Email{" "}
-                <span
-                  style={{
-                    textTransform: "none",
-                    fontWeight: 500,
-                    color: "#94a3b8",
-                  }}
-                >
-                  (for OTP)
+                <span style={{ color: "#9ca3af", fontWeight: 400 }}>
+                  (Optional)
                 </span>
               </label>
               <input
@@ -14414,86 +14704,109 @@ function FrProfileContent({ user }) {
                 onChange={handleInputChange}
                 placeholder="your.personal@email.com"
                 disabled={!isUnlocked}
-                style={fieldStyle(!isUnlocked)}
+                style={inputStyle(!isUnlocked)}
               />
+              <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                OTP for password changes will be sent here
+              </p>
               <FieldError name="personalEmail" />
             </div>
 
-            <div className="v-form-group">
-              <label className="v-form-label">Role</label>
+            {/* Role (always locked) */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Role</label>
               <input
                 type="text"
+                name="role"
                 value={formData.role}
                 disabled
-                style={{ ...fieldStyle(true), background: "#f0f0f0" }}
+                style={{ ...inputStyle(true), background: "#f0f0f0" }}
               />
             </div>
 
-            <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
               <button
                 type="submit"
                 disabled={!isUnlocked}
-                className="v-btn v-btn-primary"
                 style={{
                   flex: 1,
-                  justifyContent: "center",
-                  opacity: isUnlocked ? 1 : 0.6,
+                  padding: "10px 0",
+                  borderRadius: 10,
+                  border: "none",
+                  background: isUnlocked
+                    ? "linear-gradient(135deg,#3b791e,#3b791e)"
+                    : "#d1d5db",
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 800,
                   cursor: isUnlocked ? "pointer" : "not-allowed",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  boxShadow: isUnlocked
+                    ? "0 2px 10px rgba(0,180,90,0.28)"
+                    : "none",
+                  opacity: isUnlocked ? 1 : 0.6,
                 }}
               >
-                <Check size={14} /> Save Changes
+                Save Changes
               </button>
             </div>
           </form>
         </div>
 
-        {/* ── Change Password ── */}
-        <div className="v-card" style={{ padding: "20px 22px" }}>
-          <div className="v-section-head">
-            <VSectionTitle icon={<Lock size={16} />}>
-              Change Password
-            </VSectionTitle>
-          </div>
+        {/* ── Change Password Card ── */}
+        <div
+          style={{
+            background: C.white,
+            border: "1px solid rgba(0,168,76,0.12)",
+            borderRadius: 18,
+            boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
+            overflow: "hidden",
+          }}
+        >
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "10px 14px",
-              background: "#f0f5e8",
-              border: "1px solid #c9dba0",
-              borderRadius: 12,
-              marginBottom: 20,
+              background: "linear-gradient(135deg,#3b791e,#3b791e)",
+              padding: "16px 22px",
             }}
           >
-            <Shield size={14} color="#3b791e" />
-            <span
+            <span style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>
+              Change Password
+            </span>
+          </div>
+          <form onSubmit={handleSubmit} style={{ padding: "22px 24px" }}>
+            <div
               style={{
+                background: isUnlocked ? "#f0f5e8" : "#f5f8f5",
+                borderRadius: 12,
+                padding: "12px 16px",
+                marginBottom: 20,
+                border: `1.5px solid ${isUnlocked ? C.border : "#e5e7eb"}`,
                 fontSize: 12,
-                color: "#5C6B60",
-                fontWeight: 600,
-                fontFamily: "Plus Jakarta Sans,sans-serif",
+                color: C.muted,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
               }}
             >
               {isUnlocked
                 ? "An OTP will be sent to your email for verification"
                 : "Unlock your profile to change your password"}
-            </span>
-          </div>
-          <form onSubmit={handleSubmit}>
-            <div className="v-form-group">
-              <label className="v-form-label">Current Password</label>
-              <div style={{ position: "relative" }}>
+            </div>
+
+            {/* Current Password */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Current Password</label>
+              <div style={{ position: "relative", marginTop: 4 }}>
                 <input
                   type={showCurrentPw ? "text" : "password"}
                   name="currentPassword"
                   value={formData.currentPassword}
                   onChange={handleInputChange}
-                  disabled={!isUnlocked}
                   placeholder={
                     isUnlocked ? "Enter current password" : "••••••••"
                   }
-                  style={{ ...fieldStyle(!isUnlocked), paddingRight: 40 }}
+                  disabled={!isUnlocked}
+                  style={{ ...inputStyle(!isUnlocked), paddingRight: 40 }}
                 />
                 <EyeToggle
                   show={showCurrentPw}
@@ -14504,17 +14817,18 @@ function FrProfileContent({ user }) {
               <FieldError name="currentPassword" />
             </div>
 
-            <div className="v-form-group">
-              <label className="v-form-label">New Password</label>
-              <div style={{ position: "relative" }}>
+            {/* New Password */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>New Password</label>
+              <div style={{ position: "relative", marginTop: 4 }}>
                 <input
                   type={showNewPw ? "text" : "password"}
                   name="newPassword"
                   value={formData.newPassword}
                   onChange={handleInputChange}
-                  disabled={!isUnlocked}
                   placeholder={isUnlocked ? "Enter new password" : "••••••••"}
-                  style={{ ...fieldStyle(!isUnlocked), paddingRight: 40 }}
+                  disabled={!isUnlocked}
+                  style={{ ...inputStyle(!isUnlocked), paddingRight: 40 }}
                 />
                 <EyeToggle
                   show={showNewPw}
@@ -14526,17 +14840,18 @@ function FrProfileContent({ user }) {
               <FieldError name="newPassword" />
             </div>
 
-            <div className="v-form-group">
-              <label className="v-form-label">Confirm Password</label>
-              <div style={{ position: "relative" }}>
+            {/* Confirm New Password */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Confirm New Password</label>
+              <div style={{ position: "relative", marginTop: 4 }}>
                 <input
                   type={showConfirmPw ? "text" : "password"}
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  disabled={!isUnlocked}
                   placeholder={isUnlocked ? "Confirm new password" : "••••••••"}
-                  style={{ ...fieldStyle(!isUnlocked), paddingRight: 40 }}
+                  disabled={!isUnlocked}
+                  style={{ ...inputStyle(!isUnlocked), paddingRight: 40 }}
                 />
                 <EyeToggle
                   show={showConfirmPw}
@@ -14544,6 +14859,7 @@ function FrProfileContent({ user }) {
                   disabled={!isUnlocked}
                 />
               </div>
+              {/* Live match indicator */}
               {isUnlocked && formData.confirmPassword && (
                 <div
                   style={{
@@ -14552,8 +14868,8 @@ function FrProfileContent({ user }) {
                     fontWeight: 600,
                     color:
                       formData.newPassword === formData.confirmPassword
-                        ? "#3b791e"
-                        : "#ef4444",
+                        ? "#059669"
+                        : "#c0392b",
                     display: "flex",
                     alignItems: "center",
                     gap: 4,
@@ -14570,15 +14886,26 @@ function FrProfileContent({ user }) {
             <button
               type="submit"
               disabled={!isUnlocked}
-              className="v-btn v-btn-primary"
               style={{
                 width: "100%",
-                justifyContent: "center",
-                opacity: isUnlocked ? 1 : 0.6,
+                padding: "10px 0",
+                borderRadius: 10,
+                border: "none",
+                background: isUnlocked
+                  ? "linear-gradient(135deg,#3b791e,#3b791e)"
+                  : "#d1d5db",
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 800,
                 cursor: isUnlocked ? "pointer" : "not-allowed",
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                boxShadow: isUnlocked
+                  ? "0 2px 10px rgba(0,180,90,0.28)"
+                  : "none",
+                opacity: isUnlocked ? 1 : 0.6,
               }}
             >
-              <Lock size={14} /> Update Password
+              Update Password
             </button>
           </form>
         </div>
@@ -14586,72 +14913,95 @@ function FrProfileContent({ user }) {
 
       {/* ── OTP Modal ── */}
       {showOtpModal && (
-        <div className="v-modal-overlay">
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(13,43,30,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000,
+            padding: 20,
+          }}
+        >
           <div
-            className="v-modal"
-            style={{ maxWidth: 440 }}
             onClick={(e) => e.stopPropagation()}
+            style={{
+              background: C.white,
+              borderRadius: 20,
+              padding: "28px 32px",
+              width: "100%",
+              maxWidth: 440,
+              boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+              border: "1px solid rgba(0,168,76,0.15)",
+            }}
           >
-            <div
-              style={{
-                width: 60,
-                height: 60,
-                borderRadius: 16,
-                background: "#f0f5e8",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                margin: "0 auto 16px",
-                color: "#3b791e",
-                border: "1px solid #c9dba0",
-              }}
-            >
-              <Lock size={26} />
+            <div style={{ textAlign: "center", marginBottom: 22 }}>
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg,#d1fae5,#6ee7b7)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 14px",
+                  fontSize: "1.6rem",
+                }}
+              >
+                🔑
+              </div>
+              <h2
+                style={{
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontSize: 18,
+                  fontWeight: 800,
+                  color: "#12241B",
+                  marginBottom: 6,
+                }}
+              >
+                Verify OTP
+              </h2>
+              <p style={{ fontSize: 13, color: C.muted }}>
+                Code sent to{" "}
+                <strong style={{ color: "#12241B" }}>
+                  {formData.personalEmail || formData.email}
+                </strong>
+              </p>
             </div>
-            <h2 className="v-modal-title" style={{ textAlign: "center" }}>
-              Verify OTP
-            </h2>
-            <p
-              style={{
-                color: "#94a3b8",
-                fontSize: 13,
-                textAlign: "center",
-                margin: "8px 0 20px",
-                fontFamily: "Plus Jakarta Sans,sans-serif",
-              }}
-            >
-              Code sent to{" "}
-              <strong style={{ color: "#3b791e" }}>
-                {formData.personalEmail || formData.email}
-              </strong>
-            </p>
-            <input
-              type="text"
-              placeholder="000000"
-              value={otp}
-              onChange={(e) => {
-                setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
-                setOtpError("");
-              }}
-              maxLength={6}
-              autoFocus
-              className="v-form-input"
-              style={{
-                fontSize: "1.8rem",
-                textAlign: "center",
-                letterSpacing: "0.6rem",
-                fontFamily: "monospace",
-                marginBottom: 12,
-              }}
-            />
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Enter 6-Digit OTP</label>
+              <input
+                type="text"
+                placeholder="000000"
+                value={otp}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+                  setOtp(v);
+                  setOtpError("");
+                }}
+                maxLength={6}
+                autoFocus
+                style={{
+                  ...bmInput,
+                  marginTop: 6,
+                  fontSize: 24,
+                  textAlign: "center",
+                  letterSpacing: "0.6rem",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}
+              />
+            </div>
             {otpSent && !otpError && (
               <div
                 style={{
                   padding: "10px 14px",
-                  background: "rgba(59,121,30,0.08)",
+                  background: "rgba(16,185,129,0.08)",
                   borderRadius: 10,
-                  border: "1px solid #c9dba0",
-                  color: "#3b791e",
+                  border: "1px solid #a7f3d0",
+                  color: "#059669",
                   fontSize: 12,
                   fontWeight: 700,
                   textAlign: "center",
@@ -14665,24 +15015,20 @@ function FrProfileContent({ user }) {
               <div
                 style={{
                   padding: "10px 14px",
-                  background: "rgba(239,68,68,0.08)",
-                  border: "1.5px solid rgba(239,68,68,0.2)",
-                  borderRadius: 12,
+                  background: "#fdf1f0",
+                  borderRadius: 10,
+                  border: "1.5px solid #f2c9c4",
+                  color: "#c0392b",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  textAlign: "center",
                   marginBottom: 12,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
                 }}
               >
-                <X size={14} color="#ef4444" />
-                <span
-                  style={{ color: "#ef4444", fontSize: 13, fontWeight: 700 }}
-                >
-                  {otpError}
-                </span>
+                Please try again {otpError}
               </div>
             )}
-            <div style={{ textAlign: "center", marginBottom: 12 }}>
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
               <button
                 type="button"
                 onClick={sendOtp}
@@ -14699,31 +15045,49 @@ function FrProfileContent({ user }) {
                 Resend OTP
               </button>
             </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            <div style={{ display: "flex", gap: 10 }}>
               <button
-                className="v-btn v-btn-secondary"
-                style={{ flex: 1, justifyContent: "center" }}
+                type="button"
                 onClick={() => {
                   setShowOtpModal(false);
                   setOtp("");
                   setOtpSent(false);
                   setOtpError("");
                 }}
+                style={{
+                  flex: 1,
+                  padding: "10px 0",
+                  borderRadius: 10,
+                  border: "1.5px solid #E1E6D8",
+                  background: "#f0f5e8",
+                  color: "#5C6B60",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}
               >
                 Cancel
               </button>
               <button
-                className="v-btn v-btn-primary"
+                type="button"
+                onClick={verifyOtpAndChangePassword}
+                disabled={otp.length !== 6}
                 style={{
                   flex: 1,
-                  justifyContent: "center",
-                  opacity: otp.length !== 6 ? 0.5 : 1,
+                  padding: "10px 0",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "linear-gradient(135deg,#3b791e,#3b791e)",
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 800,
                   cursor: otp.length !== 6 ? "not-allowed" : "pointer",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  opacity: otp.length !== 6 ? 0.5 : 1,
                 }}
-                disabled={otp.length !== 6}
-                onClick={verifyOtpAndChangePassword}
               >
-                <Check size={14} /> Verify & Change
+                Verify & Change
               </button>
             </div>
           </div>
@@ -14732,17 +15096,36 @@ function FrProfileContent({ user }) {
 
       {/* ── Success Modal ── */}
       {showSuccessModal && (
-        <div className="v-modal-overlay">
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(13,43,30,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000,
+            padding: 20,
+          }}
+        >
           <div
-            className="v-modal"
-            style={{ maxWidth: 420, textAlign: "center" }}
+            style={{
+              background: C.white,
+              borderRadius: 20,
+              padding: "40px 36px",
+              maxWidth: 420,
+              width: "100%",
+              textAlign: "center",
+              boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+              border: "1px solid rgba(0,168,76,0.15)",
+            }}
           >
             <div
               style={{
                 width: 72,
                 height: 72,
                 borderRadius: "50%",
-                background: "#f0f5e8",
+                background: "linear-gradient(135deg,#d1fae5,#6ee7b7)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -14752,62 +15135,112 @@ function FrProfileContent({ user }) {
             >
               ✅
             </div>
-            <h2 className="v-modal-title">Password Changed!</h2>
+            <h2
+              style={{
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: 22,
+                fontWeight: 800,
+                color: "#12241B",
+                marginBottom: 10,
+              }}
+            >
+              Password Changed!
+            </h2>
             <p
               style={{
-                color: "#94a3b8",
+                color: C.muted,
                 fontSize: 13,
                 lineHeight: 1.7,
-                margin: "10px 0 20px",
-                fontFamily: "Plus Jakarta Sans,sans-serif",
+                marginBottom: 20,
               }}
             >
               Your password has been updated successfully.
               <br />
               You'll be redirected to login shortly.
             </p>
+            <div
+              style={{
+                background: "#f0f5e8",
+                borderRadius: 12,
+                padding: "10px 16px",
+                fontSize: 12,
+                color: C.muted,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+              }}
+            >
+              💡 Use your new password on the next login
+            </div>
           </div>
         </div>
       )}
 
       {/* ── Alert Modal ── */}
       {alertModal && (
-        <div className="v-modal-overlay" onClick={() => setAlertModal(null)}>
-          <div
-            className="v-modal"
-            style={{ maxWidth: 400, textAlign: "center" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p
-              style={{
-                fontSize: 14,
-                fontWeight: 700,
-                color: alertModal.type === "error" ? "#ef4444" : "#12241B",
-                marginBottom: 16,
-              }}
-            >
-              {alertModal.message}
-            </p>
-            <button
-              className="v-btn v-btn-primary"
-              style={{ width: "100%", justifyContent: "center" }}
-              onClick={() => setAlertModal(null)}
-            >
-              OK
-            </button>
-          </div>
-        </div>
+        <AlertModal
+          message={alertModal.message}
+          type={alertModal.type}
+          onClose={() => setAlertModal(null)}
+        />
       )}
 
       {/* ── Confirm Modal ── */}
       {confirmModal && (
-        <div className="v-modal-overlay" onClick={() => setConfirmModal(null)}>
+        <div
+          onClick={() => setConfirmModal(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(13,43,30,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 3000,
+            padding: 20,
+            backdropFilter: "blur(4px)",
+          }}
+        >
           <div
-            className="v-modal"
-            style={{ maxWidth: 400, textAlign: "center" }}
             onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 20,
+              padding: "28px 32px",
+              width: "100%",
+              maxWidth: 400,
+              boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+              border: "1px solid rgba(0,168,76,0.15)",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              textAlign: "center",
+            }}
           >
-            <h2 className="v-modal-title">Discard Changes?</h2>
+            <div
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: "50%",
+                background: "#fff7ed",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 16px",
+                fontSize: 22,
+              }}
+            >
+              ↩
+            </div>
+            <h2
+              style={{
+                fontSize: 17,
+                fontWeight: 800,
+                color: "#12241B",
+                marginBottom: 8,
+              }}
+            >
+              Discard Changes?
+            </h2>
             <p
               style={{
                 fontSize: 13,
@@ -14820,21 +15253,42 @@ function FrProfileContent({ user }) {
             </p>
             <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
               <button
-                className="v-btn v-btn-secondary"
+                type="button"
                 onClick={() => setConfirmModal(null)}
+                style={{
+                  padding: "9px 22px",
+                  borderRadius: 10,
+                  border: "1px solid #E1E6D8",
+                  background: "#f0f5e8",
+                  color: "#5C6B60",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}
               >
                 Keep Editing
               </button>
               <button
-                className="v-btn"
-                style={{
-                  background: "var(--grad-red)",
-                  color: "#fff",
-                  border: "none",
-                }}
+                type="button"
                 onClick={() => {
                   confirmModal.onConfirm();
                   setConfirmModal(null);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "9px 24px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "linear-gradient(135deg,#c2410c,#ea580c)",
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  boxShadow: "0 2px 10px rgba(194,65,12,0.35)",
                 }}
               >
                 Discard

@@ -56,6 +56,22 @@ const CATEGORY_CODE_MAP = {
   diesel: "DSL",
 };
 
+// ── POS direct-sell pricing (mirrors StockInventoryContent's computeDirectSellingPrice) ──
+const DIRECT_OPERATIONS_RATE = 0.3;
+const DIRECT_PROFIT_RATE = 0.4;
+function computeDirectSellingPrice(cost) {
+  const base = Number(cost || 0);
+  return base > 0
+    ? Math.round(
+        base * (1 + DIRECT_OPERATIONS_RATE + DIRECT_PROFIT_RATE) * 100,
+      ) / 100
+    : 0;
+}
+function isDirectSellBrand(brand) {
+  const b = (brand || "").toLowerCase();
+  return b.includes("ipharma") || b.includes("ifuel");
+}
+
 function inferCategoryCode(name, brand, category) {
   const b = (brand || "").toLowerCase();
   if (category) {
@@ -616,6 +632,7 @@ router.post("/ingredient-batches", async (req, res) => {
     res.json({ success: true, batch: result.rows[0], total_stock });
   } catch (err) {
     await client.query("ROLLBACK");
+    console.error("POST /ingredient-batches error:", err);
     res.status(500).json({ error: "Failed to add batch" });
   } finally {
     client.release();
@@ -861,6 +878,43 @@ router.get("/ingredient-batches/:id/transfer-history", async (req, res) => {
   } catch (err) {
     console.error("GET /ingredient-batches/:id/transfer-history error:", err);
     res.status(500).json({ error: "Failed to fetch batch transfer history" });
+  }
+});
+
+router.get("/pos-ingredients", async (req, res) => {
+  try {
+    const { branch } = req.query;
+    const params = [];
+    let query = "SELECT * FROM ingredients WHERE stock > 0";
+    if (branch) {
+      params.push(branch);
+      query += ` AND branch=$${params.length}`;
+    }
+    query += " ORDER BY name";
+    const result = await pool.query(query, params);
+
+    const sellable = result.rows
+      .filter((row) => isDirectSellBrand(row.brand))
+      .map((row) => ({
+        id: row.id,
+        source: "ingredient",
+        name: row.name,
+        brand: row.brand,
+        category: row.category,
+        unit: row.unit,
+        stock: row.stock,
+        sku: row.sku,
+        price: computeDirectSellingPrice(row.cost_per_unit),
+        cost_per_unit: row.cost_per_unit,
+        perishable: row.perishable,
+        pcs_per_strip: row.extra_fields?.pcs_per_strip || null,
+        strips_per_box: row.extra_fields?.strips_per_box || null,
+      }));
+
+    res.json(sellable);
+  } catch (err) {
+    console.error("GET /pos-ingredients error:", err);
+    res.status(500).json({ error: "Failed to fetch POS-sellable ingredients" });
   }
 });
 

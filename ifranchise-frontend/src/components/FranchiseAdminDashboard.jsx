@@ -92,6 +92,58 @@ async function adminModuleFetch(input, options) {
   return response;
 }
 
+function useAdminLiveRefresh(refresh, dependencies) {
+  useEffect(() => {
+    let stopped = false,
+      running = false,
+      queued = false,
+      timer;
+    const run = async () => {
+      if (stopped) return;
+      if (running) {
+        queued = true;
+        return;
+      }
+      running = true;
+      try {
+        await refresh();
+      } catch (error) {
+        console.error("Dashboard refresh failed", error);
+      } finally {
+        running = false;
+        if (queued && !stopped) {
+          queued = false;
+          timer = setTimeout(run, 300);
+        }
+      }
+    };
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = setTimeout(run, 300);
+    };
+    const visible = () => {
+      if (document.visibilityState !== "hidden") schedule();
+    };
+    run();
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "hidden") run();
+    }, 15000);
+    window.addEventListener("franchisync:data-changed", schedule);
+    window.addEventListener("focus", visible);
+    window.addEventListener("online", visible);
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+      clearTimeout(timer);
+      window.removeEventListener("franchisync:data-changed", schedule);
+      window.removeEventListener("focus", visible);
+      window.removeEventListener("online", visible);
+      document.removeEventListener("visibilitychange", visible);
+    };
+  }, dependencies);
+}
+
 const C = {
   green: "#3b791e",
   greenDk: "#2c5c16",
@@ -1106,6 +1158,21 @@ function AlertModal({ message, onClose, type = "info" }) {
 }
 
 export default function FranchiseAdminDashboard() {
+  useEffect(() => {
+    // A link loads reliably even when another module inserts its own style tag.
+    const fontId = "fr-plus-jakarta-sans";
+    if (!document.getElementById(fontId)) {
+      const link = document.createElement("link");
+      link.id = fontId;
+      link.rel = "stylesheet";
+      link.href =
+        "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap";
+      document.head.appendChild(link);
+    }
+    document.body.classList.add("fr-admin-ui");
+    return () => document.body.classList.remove("fr-admin-ui");
+  }, []);
+
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState(
     () => sessionStorage.getItem("fa_activeModule") || "dashboard",
@@ -1113,6 +1180,8 @@ export default function FranchiseAdminDashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [alertModal, setAlertModal] = useState(null);
+  const [preset, setPreset] = useState("month");
+  const [stats, setStats] = useState(null);
 
   const getUserFromStorage = () => {
     const s =
@@ -1142,6 +1211,24 @@ export default function FranchiseAdminDashboard() {
   useEffect(() => {
     sessionStorage.setItem("fa_activeModule", activeModule);
   }, [activeModule]);
+
+  useAdminLiveRefresh(async () => {
+    const response = await adminModuleFetch(
+      `${process.env.REACT_APP_API_URL}/dashboard/stats?preset=${preset}`,
+      { cache: "no-store" },
+    );
+    if (response.ok) setStats(await response.json());
+  }, [preset]);
+  useAdminLiveRefresh(async () => {
+    const response = await adminModuleFetch(
+      `${process.env.REACT_APP_API_URL}/transactions`,
+      { cache: "no-store" },
+    );
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data)) setTransactions(data);
+    }
+  }, []);
 
   const confirmLogout = async () => {
     try {
@@ -20061,7 +20148,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
   /* ── activity log ── */
   const fetchActivityLog = useCallback(async () => {
     try {
-      const res = await fetch(`${apiUrl}/orders-activity-log`);
+      const res = await adminModuleFetch(`${apiUrl}/orders-activity-log`);
       const data = await res.json();
       setActivityLog(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -20088,9 +20175,10 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
         if (user?.brand) params.set("brand", user.brand);
       }
 
-      const res = await fetch(`${apiUrl}/orders?${params.toString()}`, {
-        credentials: "include",
-      });
+      const res = await adminModuleFetch(
+        `${apiUrl}/orders?${params.toString()}`,
+        { credentials: "include" },
+      );
       if (!res.ok) throw new Error("Failed to load orders");
       const data = await res.json();
       setOrders(data.map(normalizeOrder));
@@ -20103,7 +20191,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
 
   const fetchIngredients = useCallback(async () => {
     try {
-      const res = await fetch(`${apiUrl}/ingredients`);
+      const res = await adminModuleFetch(`${apiUrl}/ingredients`);
       const d = await res.json();
       setIngredients(Array.isArray(d) ? d : []);
     } catch (err) {
@@ -20122,7 +20210,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
       Caps each item's availability at the linked ingredient's real batch stock,
       same logic the old manual "check stock" step used, just automatic + upfront. */
   const fetchShopItemsMap = async () => {
-    const res = await fetch(`${apiUrl}/shop-items`);
+    const res = await adminModuleFetch(`${apiUrl}/shop-items`);
     const data = await res.json();
     const map = {};
     (Array.isArray(data) ? data : []).forEach((i) => {
@@ -20132,16 +20220,16 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
   };
 
   const fetchBatchesFor = async (ingredientId) => {
-    const res = await fetch(
+    const res = await adminModuleFetch(
       `${apiUrl}/ingredient-batches?ingredient_id=${ingredientId}`,
     );
     const d = await res.json();
     return Array.isArray(d) ? d : [];
   };
 
-  /* ── automatic stock availability, sourced entirely from Stock Inventory
-      (ingredients/ingredient_batches). shop_items.stock is just a mirror of
-      this now — never treated as authoritative. ── */
+  const normKey = (brand, name) =>
+    `${(brand || "").trim().toLowerCase()}|${(name || "").trim().toLowerCase()}`;
+
   const refreshStockAvailability = useCallback(
     async (orderList) => {
       const pendingOrders = orderList.filter((o) => o.status === "pending");
@@ -20155,22 +20243,28 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
         return next;
       });
 
-      let shopItemsMap;
+      let shopItemsList;
       try {
-        shopItemsMap = await fetchShopItemsMap(); // still needed to resolve shop_item_id -> ingredient_id
+        const res = await adminModuleFetch(`${apiUrl}/shop-items`);
+        const data = await res.json();
+        shopItemsList = Array.isArray(data) ? data : [];
       } catch {
         return;
       }
 
-      const batchStockCache = {}; // shared across orders in this pass
-      const getIngredientStock = async (ingredientId) => {
-        if (batchStockCache[ingredientId] != null)
-          return batchStockCache[ingredientId];
-        const batches = await fetchBatchesFor(ingredientId);
-        const total = batches.reduce((s, b) => s + Number(b.stock || 0), 0);
-        batchStockCache[ingredientId] = total;
-        return total;
-      };
+      // Map by id, for resolving item.shop_item_id -> its brand/name.
+      const byId = {};
+      shopItemsList.forEach((i) => {
+        byId[i.id] = i;
+      });
+
+      // Map Head Office rows by brand+name — this is the authoritative stock pool.
+      const hqByKey = {};
+      shopItemsList
+        .filter((i) => (i.shop || "").trim() === "Head Office")
+        .forEach((i) => {
+          hqByKey[normKey(i.brand, i.name)] = i;
+        });
 
       for (const order of pendingOrders) {
         const neededByItem = {};
@@ -20182,11 +20276,9 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
 
         const results = [];
         for (const item of order.items) {
-          const si =
-            item.shop_item_id != null ? shopItemsMap[item.shop_item_id] : null;
+          const si = item.shop_item_id != null ? byId[item.shop_item_id] : null;
 
-          // No linked ingredient = can't be fulfilled, same as backend now enforces.
-          if (!si || !si.ingredient_id) {
+          if (!si) {
             results.push({
               ...item,
               matched: false,
@@ -20196,7 +20288,21 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
             continue;
           }
 
-          const available = await getIngredientStock(si.ingredient_id);
+          // Resolve the Head Office row for this product, regardless of which
+          // branch's shop_item the order line points to.
+          const hqItem = hqByKey[normKey(si.brand, si.name)];
+
+          if (!hqItem) {
+            results.push({
+              ...item,
+              matched: false,
+              available: 0,
+              sufficient: false,
+            });
+            continue;
+          }
+
+          const available = Number(hqItem.stock || 0);
           const totalNeeded = neededByItem[item.shop_item_id];
           results.push({
             ...item,
@@ -20223,7 +20329,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
   const advanceStatus = async (order, nextUiStatus, changeNote) => {
     const coords = await getBrowserLocation(); // reuse the helper used elsewhere in this app
     try {
-      const res = await fetch(`${apiUrl}/orders/${order._dbId}`, {
+      const res = await adminModuleFetch(`${apiUrl}/orders/${order._dbId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -20429,7 +20535,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
           padding: 60,
           textAlign: "center",
           color: C.muted,
-          fontFamily: "'Montserrat',sans-serif",
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
         }}
       >
         Loading orders…
@@ -20441,7 +20547,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
         style={{
           padding: 40,
           textAlign: "center",
-          fontFamily: "'Montserrat',sans-serif",
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
         }}
       >
         <div style={{ color: C.red, marginBottom: 12 }}>{error}</div>
@@ -20463,7 +20569,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
     );
 
   return (
-    <div style={{ fontFamily: "'Montserrat',sans-serif" }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <style>{`
           @keyframes spin { to { transform: rotate(360deg); } }
           @keyframes cardIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
@@ -20529,7 +20635,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
                 borderRadius: 10,
                 border: `1px solid ${C.border}`,
                 fontSize: 13,
-                fontFamily: "inherit",
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
                 boxSizing: "border-box",
               }}
             />
@@ -20549,7 +20655,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
               fontSize: 12.5,
               fontWeight: 700,
               color: C.ink,
-              fontFamily: "inherit",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
               background: "#fff",
               cursor: "pointer",
             }}
@@ -20574,7 +20680,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
               fontSize: 12.5,
               fontWeight: 700,
               color: C.ink,
-              fontFamily: "inherit",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
               background: filterBrand ? "#fff" : "#f3f4f6",
               cursor: filterBrand ? "pointer" : "not-allowed",
               opacity: filterBrand ? 1 : 0.6,
@@ -20599,7 +20705,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
               fontSize: 12.5,
               fontWeight: 700,
               color: C.ink,
-              fontFamily: "inherit",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
               background: "#fff",
               cursor: "pointer",
             }}
@@ -20626,7 +20732,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
               fontWeight: 700,
               fontSize: 12,
               cursor: refreshingOrders ? "not-allowed" : "pointer",
-              fontFamily: "inherit",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
               opacity: refreshingOrders ? 0.6 : 1,
             }}
           >
@@ -20671,7 +20777,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
                 massAccepting || counts.pending === 0
                   ? "not-allowed"
                   : "pointer",
-              fontFamily: "inherit",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
             }}
           >
             {massAccepting ? (
