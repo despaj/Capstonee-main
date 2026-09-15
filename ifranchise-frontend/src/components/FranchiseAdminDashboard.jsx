@@ -20230,6 +20230,70 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
   const normKey = (brand, name) =>
     `${(brand || "").trim().toLowerCase()}|${(name || "").trim().toLowerCase()}`;
 
+  const isPharmaBrand = (brand = "") =>
+    brand.trim().toLowerCase().includes("pharma");
+
+  const rotationMethod = (ingredient) =>
+    isPharmaBrand(ingredient?.brand) || !!ingredient?.perishable
+      ? "FEFO"
+      : "FIFO";
+
+  const isExpired = (batch) => {
+    if (!batch.exp_date) return false;
+    const exp = new Date(batch.exp_date);
+    exp.setHours(23, 59, 59, 999);
+    return exp.getTime() < Date.now();
+  };
+
+  const sortBatches = (batches, ingredient) => {
+    const method = rotationMethod(ingredient);
+    return [...batches].sort((a, b) => {
+      if (method === "FEFO") {
+        const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
+        const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
+        if (da !== db) return da - db;
+      }
+      const da = new Date(
+        a.supply_date || a.mfg_date || a.created_at || 0,
+      ).getTime();
+      const db = new Date(
+        b.supply_date || b.mfg_date || b.created_at || 0,
+      ).getTime();
+      return da - db;
+    });
+  };
+
+  const computeAllocatableStock = (batches, ingredient) => {
+    const active = (batches || []).filter((b) => Number(b.stock) > 0);
+    const method = rotationMethod(ingredient);
+    const usable =
+      method === "FEFO" ? active.filter((b) => !isExpired(b)) : active;
+    const sorted = sortBatches(usable, ingredient);
+    const total = sorted.reduce((sum, b) => sum + Number(b.stock || 0), 0);
+    return {
+      total,
+      sortedBatches: sorted,
+      nextOutBatch: sorted[0] || null, // first batch that will be deducted from
+    };
+  };
+
+  const simulateAllocation = (sortedBatches, qtyNeeded) => {
+    let remaining = qtyNeeded;
+    const used = [];
+    for (const batch of sortedBatches) {
+      if (remaining <= 1e-9) break;
+      const take = Math.min(remaining, Number(batch.stock || 0));
+      if (take <= 0) continue;
+      used.push({ batch, quantity: take });
+      remaining -= take;
+    }
+    return {
+      fulfilled: remaining <= 1e-9,
+      used,
+      shortfall: Math.max(remaining, 0),
+    };
+  };
+
   const refreshStockAvailability = useCallback(
     async (orderList) => {
       const pendingOrders = orderList.filter((o) => o.status === "pending");
@@ -20243,6 +20307,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
         return next;
       });
 
+      // 1. Resolve shop_item_id -> ingredient_id via /shop-items
       let shopItemsList;
       try {
         const res = await adminModuleFetch(`${apiUrl}/shop-items`);
@@ -20251,66 +20316,113 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
       } catch {
         return;
       }
-
-      // Map by id, for resolving item.shop_item_id -> its brand/name.
-      const byId = {};
-      shopItemsList.forEach((i) => {
-        byId[i.id] = i;
+      const shopItemById = {};
+      shopItemsList.forEach((si) => {
+        shopItemById[si.id] = si;
       });
 
-      // Map Head Office rows by brand+name — this is the authoritative stock pool.
-      const hqByKey = {};
-      shopItemsList
-        .filter((i) => (i.shop || "").trim() === "Head Office")
-        .forEach((i) => {
-          hqByKey[normKey(i.brand, i.name)] = i;
-        });
+      // 2. Resolve ingredient_id -> ingredient row (brand/perishable, for rotation rules)
+      let ingredientList = ingredients;
+      if (!ingredientList || ingredientList.length === 0) {
+        try {
+          const res = await adminModuleFetch(`${apiUrl}/ingredients`);
+          const data = await res.json();
+          ingredientList = Array.isArray(data) ? data : [];
+        } catch {
+          ingredientList = [];
+        }
+      }
+      const ingredientById = {};
+      ingredientList.forEach((ing) => {
+        ingredientById[ing.id] = ing;
+      });
 
-      for (const order of pendingOrders) {
-        const neededByItem = {};
+      // 3. Collect every distinct ingredient_id referenced across pending orders,
+      //    then fetch its batches once (avoids refetching per line-item/per order).
+      const neededIngredientIds = new Set();
+      pendingOrders.forEach((order) => {
         order.items.forEach((item) => {
-          if (item.shop_item_id == null) return;
-          neededByItem[item.shop_item_id] =
-            (neededByItem[item.shop_item_id] || 0) + Number(item.qty || 0);
+          const si =
+            item.shop_item_id != null ? shopItemById[item.shop_item_id] : null;
+          if (ingredientById[si?.ingredient_id]?.branch === HEAD_OFFICE_BRANCH)
+            neededIngredientIds.add(si.ingredient_id);
+        });
+      });
+
+      const batchesByIngredientId = {};
+      await Promise.all(
+        [...neededIngredientIds].map(async (ingredientId) => {
+          try {
+            const res = await adminModuleFetch(
+              `${apiUrl}/ingredient-batches?ingredient_id=${ingredientId}`,
+            );
+            const d = await res.json();
+            batchesByIngredientId[ingredientId] = Array.isArray(d) ? d : [];
+          } catch {
+            batchesByIngredientId[ingredientId] = [];
+          }
+        }),
+      );
+
+      // 4. Precompute allocatable stock per ingredient (same logic as backend's
+      //    getAllocatableStock — excludes expired batches for FEFO ingredients).
+      const stockInfoByIngredientId = {};
+      neededIngredientIds.forEach((ingredientId) => {
+        const ingredient = ingredientById[ingredientId];
+        stockInfoByIngredientId[ingredientId] = computeAllocatableStock(
+          batchesByIngredientId[ingredientId],
+          ingredient,
+        );
+      });
+
+      // 5. Evaluate each order the same way the backend does at accept-time:
+      //    group needed qty by ingredient_id, compare against allocatable stock.
+      for (const order of pendingOrders) {
+        const neededByIngredient = {};
+        const itemIngredientMap = {}; // shop_item_id -> ingredient_id, for per-line display
+
+        order.items.forEach((item) => {
+          const si =
+            item.shop_item_id != null ? shopItemById[item.shop_item_id] : null;
+          const ingredientId =
+            ingredientById[si?.ingredient_id]?.branch === HEAD_OFFICE_BRANCH
+              ? si.ingredient_id
+              : null;
+          itemIngredientMap[item.shop_item_id] = ingredientId || null;
+          if (!ingredientId) return; // unlinked item — flagged below
+          neededByIngredient[ingredientId] =
+            (neededByIngredient[ingredientId] || 0) + Number(item.qty || 0);
         });
 
-        const results = [];
-        for (const item of order.items) {
-          const si = item.shop_item_id != null ? byId[item.shop_item_id] : null;
+        // Simulate allocation once per ingredient (matches backend: one batch
+        // walk-through per ingredient, shared across all items needing it).
+        const allocationByIngredient = {};
+        Object.entries(neededByIngredient).forEach(([ingredientId, qty]) => {
+          const info = stockInfoByIngredientId[ingredientId];
+          allocationByIngredient[ingredientId] = simulateAllocation(
+            info?.sortedBatches || [],
+            qty,
+          );
+        });
 
-          if (!si) {
-            results.push({
-              ...item,
-              matched: false,
-              available: 0,
-              sufficient: false,
-            });
-            continue;
+        const results = order.items.map((item) => {
+          const ingredientId = itemIngredientMap[item.shop_item_id];
+
+          if (!ingredientId) {
+            // Mirrors backend's "unlinked" rejection — not tied to Stock Inventory
+            return { ...item, matched: false, available: 0, sufficient: false };
           }
 
-          // Resolve the Head Office row for this product, regardless of which
-          // branch's shop_item the order line points to.
-          const hqItem = hqByKey[normKey(si.brand, si.name)];
-
-          if (!hqItem) {
-            results.push({
-              ...item,
-              matched: false,
-              available: 0,
-              sufficient: false,
-            });
-            continue;
-          }
-
-          const available = Number(hqItem.stock || 0);
-          const totalNeeded = neededByItem[item.shop_item_id];
-          results.push({
+          const info = stockInfoByIngredientId[ingredientId];
+          const allocation = allocationByIngredient[ingredientId];
+          return {
             ...item,
             matched: true,
-            available,
-            sufficient: available >= totalNeeded,
-          });
-        }
+            available: info?.total ?? 0,
+            sufficient: allocation?.fulfilled ?? false,
+            nextOutBatch: info?.nextOutBatch || null,
+          };
+        });
 
         const ok = results.every((r) => r.sufficient);
         setStockAvailability((prev) => ({
@@ -20319,7 +20431,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
         }));
       }
     },
-    [apiUrl],
+    [apiUrl, ingredients],
   );
 
   useEffect(() => {
