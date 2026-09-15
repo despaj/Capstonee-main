@@ -174,6 +174,8 @@ const PAL = [
   "#b0be9d",
 ];
 
+const HEAD_OFFICE_BRANCH = "San Juan (Head Office)";
+
 const ROLE_LABEL = "Franchisee Operations Admin";
 
 // ─── Shared CSS ───────────────────────────────────────────────────────────────
