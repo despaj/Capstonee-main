@@ -19,11 +19,10 @@ const ALLOWED_TRANSITIONS = {
   rejected: [],
 };
 
-// Only these roles may move an order into "received" — admin/HO side
-// can ship it, but only the receiving branch confirms delivery.
+const HEAD_OFFICE_BRANCH = "San Juan (Head Office)";
+
 const FRANCHISEE_ROLES = ["Franchisee", "Manager", "Staff"];
 
-// Prefer relational order lines; legacy/demo imports store their item snapshot in orders.items.
 router.get("/orders", async (req, res) => {
   const { userId, branch, brand, role } = req.query;
   try {
@@ -31,13 +30,10 @@ router.get("/orders", async (req, res) => {
     let params = [];
 
     if (userId) {
-      // Existing behavior: customer-facing "my orders" lookup
       where = "WHERE o.user_id = $1";
       params = [userId];
     } else {
-      // Full visibility: only these two roles may see every order, system-wide
       const HQ_ROLES = ["Super Admin", "Franchisee Operations Admin"];
-      // Everyone else with staff access is locked to their own branch + brand
       const RESTRICTED_ROLES = [
         "Admin",
         "SuperAdmin",
@@ -78,10 +74,11 @@ router.get("/orders", async (req, res) => {
         conditions.push(`o.branch=$${params.length}`);
         params.push(brand);
         conditions.push(`o.brand=$${params.length}`);
+        params.push(HEAD_OFFICE_BRANCH);
+        const hoParam = `$${params.length}`;
       }
 
       if (conditions.length) where = "WHERE " + conditions.join(" AND ");
-      // no branch/brand at all = every order in the system (e.g. HQ-wide view)
     }
 
     const result = await pool.query(
@@ -105,7 +102,7 @@ router.get("/orders", async (req, res) => {
   LEFT JOIN users u ON u.id=o.user_id
   LEFT JOIN order_items oi ON oi.order_id=o.id
   LEFT JOIN shop_items si ON si.id=oi.shop_item_id
-  LEFT JOIN ingredients i ON i.id = si.ingredient_id
+  LEFT JOIN ingredients i ON i.id = si.ingredient_id AND i.branch = ${hoParam}
   ${where}
   GROUP BY o.id, u.name, o.address
   ORDER BY o.created_at DESC

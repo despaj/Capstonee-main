@@ -755,7 +755,7 @@ function getExpiryBoundsFromManufacture(mfgDate, rule) {
 
   if (rule.kind === "exact") {
     minDate = addMonthsClamped(mfg, rule.months);
-    maxDate = minDate ? new Date(minDate) : null;
+    maxDate = null;
     recommendedDate = minDate ? new Date(minDate) : null;
   } else if (rule.kind === "range") {
     minDate = addMonthsClamped(mfg, rule.minMonths);
@@ -896,10 +896,10 @@ function validateCategoryShelfLife({
 
   const bounds = getExpiryBoundsFromManufacture(mfgDate, rule);
 
-  if (rule.kind === "exact" && bounds.recommendedDate) {
-    if (toDateInputValue(exp) !== bounds.recommendedStr) {
+  if (rule.kind === "exact" && bounds.minDate) {
+    if (exp < bounds.minDate) {
       errors.push(
-        `${category || "This category"} expiry must be exactly ${rule.label}. Required date: ${fmtDate(bounds.recommendedStr)}.`,
+        `${category || "This category"} expiry must be on or after ${fmtDate(bounds.minStr)}.`,
       );
     }
   } else if (rule.kind === "range" && bounds.minDate && bounds.maxDate) {
@@ -3424,6 +3424,7 @@ function BrandOverviewCard({ brandDef, brandObj, items, onClick }) {
   const brandItems = items.filter((i) =>
     itemBelongsToBrand(i, brandDef, brandObj),
   );
+
   const lowCount = brandItems.filter(
     (i) => Number(i.stock) < Number(i.min_stock),
   ).length;
@@ -3889,13 +3890,6 @@ function BrandCard({
       didSetDefaultBranch.current = true;
       return;
     }
-    if (!didSetDefaultBranch.current && branchOptions.length > 0) {
-      const headOffice = branchOptions.find((b) =>
-        b.toLowerCase().includes("head office"),
-      );
-      if (headOffice) setBranchF(headOffice);
-      didSetDefaultBranch.current = true;
-    }
   }, [restrictBranch, initialBranchFilter, branchOptions]);
 
   useEffect(() => {
@@ -4177,7 +4171,13 @@ function BrandCard({
     };
   }, [selectedId, apiUrl, refreshToken]);
 
-  const lowCount = brandItems.filter(
+  const branchScopedItems = useMemo(
+    () =>
+      branchF ? brandItems.filter((i) => i.branch === branchF) : brandItems,
+    [brandItems, branchF],
+  );
+
+  const lowCount = branchScopedItems.filter(
     (i) => Number(i.stock) < Number(i.min_stock),
   ).length;
   const listMaxHeight = expanded ? 700 : 480;
@@ -4247,7 +4247,8 @@ function BrandCard({
           }}
         >
           <span style={{ opacity: 0.92 }}>
-            {brandItems.length} item{brandItems.length === 1 ? "" : "s"}
+            {branchScopedItems.length} item
+            {branchScopedItems.length === 1 ? "" : "s"}
             {lowCount > 0 ? ` · ${lowCount} low` : ""}
           </span>
           <button
@@ -4362,26 +4363,34 @@ function BrandCard({
             style={{ ...invInputSt, height: 30, fontSize: 12, paddingLeft: 24 }}
           />
         </div>
-        <div
-          style={{
-            ...invInputSt,
-            height: 30,
-            minWidth: 160,
-            fontSize: 11,
-            padding: "6px 10px",
-            background: "#F6F7F1",
-            color: C.ink,
-            fontWeight: 700,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            cursor: "default",
-          }}
-          title="Assigned branch"
-        >
-          <StoreIcon size={12} color={C.green} />
-          {restrictBranch || branchF || "No assigned branch"}
-        </div>
+        {restrictBranch ? (
+          <div
+            style={{
+              ...invInputSt,
+              height: 30,
+              minWidth: 160,
+              fontSize: 11,
+              padding: "6px 10px",
+              background: "#F6F7F1",
+              color: C.ink,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: "default",
+            }}
+            title="Assigned branch"
+          >
+            <StoreIcon size={12} color={C.green} />
+            {restrictBranch}
+          </div>
+        ) : (
+          <BranchOnlyFilter
+            branches={branchOptions}
+            activeBranch={branchF}
+            onChangeBranch={setBranchF}
+          />
+        )}
         {categoryOptions.length > 0 && (
           <select
             value={categoryF}
@@ -4841,9 +4850,12 @@ function ReceiveStockModal({
   useEffect(() => {
     if (!product || form.noExpiry || !form.mfg_date || !expiryRule) return;
     const bounds = getExpiryBoundsFromManufacture(form.mfg_date, expiryRule);
-    if (expiryRule.kind === "exact" && bounds.recommendedStr) {
-      if (form.exp_date !== bounds.recommendedStr)
-        setF("exp_date", bounds.recommendedStr);
+    if (
+      expiryRule.kind === "exact" &&
+      bounds.recommendedStr &&
+      !form.exp_date
+    ) {
+      setF("exp_date", bounds.recommendedStr);
       return;
     }
     if (
@@ -7600,14 +7612,28 @@ export default function StockInventoryContent({
   brands: propBrands = [],
   initialFocus = null,
 }) {
-  const isAdmin =
-    user?.role === "Super Admin" ||
-    user?.role === "Sales Admin" ||
-    user?.role === "Franchisee Operations Admin";
+  const normalizedRole = String(user?.role || "")
+    .trim()
+    .toLowerCase();
 
-  const isManager = user?.role === "Manager";
+  const isSuperAdmin = normalizedRole === "super admin";
+  const isSalesAdmin = normalizedRole === "sales admin";
 
-  const isReadOnly = user?.role === "Franchisee Operations Admin";
+  const isOperationsAdmin =
+    normalizedRole === "franchisee operations admin" ||
+    normalizedRole === "franchise operations admin" ||
+    normalizedRole === "franchisor operations admin";
+
+  const isFranchisee = normalizedRole === "franchisee";
+  const isManager = normalizedRole === "manager";
+
+  const canViewAllInventory = isSuperAdmin || isSalesAdmin || isOperationsAdmin;
+
+  const isAdmin = canViewAllInventory;
+
+  const canEditInventory = isSuperAdmin || isSalesAdmin || isManager;
+
+  const isReadOnly = isOperationsAdmin || isFranchisee;
 
   const userBranch = String(user?.branch || "").trim();
 
@@ -7979,6 +8005,17 @@ export default function StockInventoryContent({
   }, [activeBatchIngredient]);
 
   const importExcel = (e) => {
+    if (!canEditInventory) {
+      e.target.value = "";
+
+      showUiModal({
+        type: "error",
+        title: "Read Only Access",
+        message: "Your account cannot import inventory records.",
+      });
+
+      return;
+    }
     const file = e.target.files[0];
     if (!file) return;
     setImportLoading(true);
@@ -8245,6 +8282,14 @@ export default function StockInventoryContent({
   const pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const saveItem = async (e) => {
+    if (!canEditInventory) {
+      showUiModal({
+        type: "error",
+        title: "Read Only Access",
+        message: "Your account can view Stock Inventory but cannot modify it.",
+      });
+      return;
+    }
     e.preventDefault();
     const errors = [];
     if (!form.name || !form.name.trim())
@@ -8700,6 +8745,14 @@ export default function StockInventoryContent({
   const handleDeleteItem = (item) => setDeleteTarget(item);
 
   const confirmDelete = async () => {
+    if (!canEditInventory) {
+      showUiModal({
+        type: "error",
+        title: "Read Only Access",
+        message: "Your account cannot delete inventory records.",
+      });
+      return;
+    }
     if (!deleteTarget) return;
     const item = deleteTarget;
     setDeletingItem(true);
@@ -10136,7 +10189,7 @@ export default function StockInventoryContent({
       )}
 
       {/* ── RECEIVE STOCK MODAL ── */}
-      {receiveTarget && (
+      {receiveTarget && canEditInventory && (
         <ReceiveStockModal
           brandDef={receiveTarget.brandDef}
           brandItems={brandItemsFor(receiveTarget.brandDef)}

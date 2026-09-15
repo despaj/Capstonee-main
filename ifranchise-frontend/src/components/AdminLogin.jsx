@@ -1462,32 +1462,6 @@ export default function AdminLogin() {
                 "LOGIN"
               )}
             </button>
-            <aside
-              className="survey-test-box"
-              aria-label="Survey test credentials"
-            >
-              <strong className="survey-test-title">
-                FOR TESTING PURPOSES ONLY:
-              </strong>
-              <p className="survey-test-note">
-                Default accounts for survey purposes only. Select an account to
-                fill the fields, then click LOGIN.
-              </p>
-              {TEST_ACCOUNTS.map((account) => (
-                <button
-                  key={account.email}
-                  type="button"
-                  className="survey-test-account"
-                  disabled={!!loading}
-                  onClick={() => fillTestAccount(account)}
-                  aria-label={`Use ${account.email}`}
-                >
-                  <span>{account.email}</span>
-                  {" - "}
-                  <strong>{account.password}</strong>
-                </button>
-              ))}
-            </aside>
           </>
         )}
 

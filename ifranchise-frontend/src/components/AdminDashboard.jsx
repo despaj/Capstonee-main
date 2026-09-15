@@ -671,6 +671,8 @@ const bmLabel = {
   letterSpacing: "0.07em",
 };
 
+const HEAD_OFFICE_BRANCH = "San Juan (Head Office)";
+
 function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
   const [open, setOpen] = useState(false);
   const [liveNotif, setLiveNotif] = useState(null);
@@ -34137,7 +34139,8 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
         order.items.forEach((item) => {
           const si =
             item.shop_item_id != null ? shopItemById[item.shop_item_id] : null;
-          if (si?.ingredient_id) neededIngredientIds.add(si.ingredient_id);
+          if (ingredientById[si?.ingredient_id]?.branch === HEAD_OFFICE_BRANCH)
+            neededIngredientIds.add(si.ingredient_id);
         });
       });
 
@@ -34176,7 +34179,10 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
         order.items.forEach((item) => {
           const si =
             item.shop_item_id != null ? shopItemById[item.shop_item_id] : null;
-          const ingredientId = si?.ingredient_id;
+          const ingredientId =
+            ingredientById[si?.ingredient_id]?.branch === HEAD_OFFICE_BRANCH
+              ? si.ingredient_id
+              : null;
           itemIngredientMap[item.shop_item_id] = ingredientId || null;
           if (!ingredientId) return; // unlinked item — flagged below
           neededByIngredient[ingredientId] =

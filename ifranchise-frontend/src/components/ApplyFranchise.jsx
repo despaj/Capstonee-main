@@ -846,30 +846,101 @@ function IdScannerModal({ open, onComplete, onClose }) {
     }
   }, [open]);
 
-  // ── Camera helpers ──────────────────────────────────────────────
   const startCamera = async () => {
     setCameraError("");
     setFaceImg(null);
+
     try {
+      // Basic browser support check
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error(
+          "Camera access is not supported in this browser or the page is not using HTTPS.",
+        );
+      }
+
+      // Stop any previous stream first
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: "user",
           width: { ideal: 640 },
           height: { ideal: 480 },
         },
+        audio: false,
       });
+
       streamRef.current = stream;
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+
+        videoRef.current.onloadedmetadata = async () => {
+          try {
+            await videoRef.current.play();
+            setCameraActive(true);
+            setCameraError("");
+          } catch (playError) {
+            console.error("Video play error:", playError);
+            setCameraError(
+              "Camera opened, but the video preview could not start. Please try again.",
+            );
+          }
+        };
+      } else {
+        setCameraActive(true);
       }
-      setCameraActive(true);
     } catch (err) {
-      setCameraError(
-        err.name === "NotAllowedError"
-          ? "Camera permission denied. Please allow camera access and try again."
-          : "Could not access camera. Please upload a selfie instead.",
-      );
+      console.error("CAMERA ERROR:", {
+        name: err?.name,
+        message: err?.message,
+        error: err,
+      });
+
+      setCameraActive(false);
+
+      switch (err?.name) {
+        case "NotAllowedError":
+        case "PermissionDeniedError":
+          setCameraError(
+            "Camera access was blocked by the browser or your device settings. Please allow camera access for this site and check your system camera privacy settings.",
+          );
+          break;
+
+        case "NotFoundError":
+        case "DevicesNotFoundError":
+          setCameraError("No camera was detected on this device.");
+          break;
+
+        case "NotReadableError":
+        case "TrackStartError":
+          setCameraError(
+            "Your camera is currently unavailable. Close other apps using the camera, then try again.",
+          );
+          break;
+
+        case "OverconstrainedError":
+        case "ConstraintNotSatisfiedError":
+          setCameraError(
+            "The selected camera does not support the requested settings. Please try another camera.",
+          );
+          break;
+
+        case "SecurityError":
+          setCameraError(
+            "Camera access is blocked for security reasons. Make sure you are using HTTPS.",
+          );
+          break;
+
+        default:
+          setCameraError(
+            err?.message ||
+              "Could not access the camera. Please check your browser and device camera settings.",
+          );
+      }
     }
   };
 
@@ -1041,6 +1112,7 @@ function IdScannerModal({ open, onComplete, onClose }) {
         lastName: (merged.lastName || "").toUpperCase(),
         firstName: (merged.firstName || "").toUpperCase(),
         middleName: (merged.middleName || "").toUpperCase(),
+        suffix: (merged.suffix || "").toUpperCase(),
         dob: merged.dob || "",
         idNumber: (merged.idNumber || "").toUpperCase(),
         expiryDate: merged.expiryDate || "",
@@ -2067,6 +2139,7 @@ function IdScannerModal({ open, onComplete, onClose }) {
                       ["Last Name", "lastName"],
                       ["First Name", "firstName"],
                       ["Middle Name", "middleName"],
+                      ["Suffix", "suffix"],
                       ["Date of Birth", "dob"],
                       ["ID Number", "idNumber"],
                       ["Expiry Date", "expiryDate"],
@@ -2689,6 +2762,7 @@ export default function ApplyFranchise() {
       middleInitial: ocrResult.middleName
         ? ocrResult.middleName.charAt(0).toUpperCase()
         : p.middleInitial,
+      suffix: ocrResult.suffix ? ocrResult.suffix.toUpperCase() : "",
       dob: ocrResult.dob || p.dob,
     }));
 
@@ -3285,12 +3359,39 @@ export default function ApplyFranchise() {
             </div>
 
             {/* ── Applicant Info ── */}
+            {/* ── Applicant Info ── */}
             <div className="af-section">
               <SectionHeader
                 icon={User}
                 title="Applicant Information"
-                subtitle="Auto-filled from ID scan — verify and complete manually"
+                subtitle={
+                  idVerified
+                    ? "Name extracted from your verified government ID"
+                    : "Complete ID verification to automatically fill your name"
+                }
               />
+
+              {idVerified && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "9px 12px",
+                    marginBottom: 12,
+                    background: COLOR.tintGreen,
+                    border: `1px solid ${COLOR.line}`,
+                    borderRadius: 8,
+                    fontSize: 11,
+                    color: COLOR.green900,
+                    fontWeight: 600,
+                  }}
+                >
+                  <Lock size={13} />
+                  Verified name fields are locked and cannot be manually edited.
+                </div>
+              )}
+
               <div className="af-row">
                 <Field
                   label="Last Name"
@@ -3298,29 +3399,79 @@ export default function ApplyFranchise() {
                   error={errors.lastName}
                   style={{ flex: "2 1 150px" }}
                 >
-                  {inp("lastName", "Dela Cruz")}
+                  <input
+                    name="lastName"
+                    value={form.lastName}
+                    disabled
+                    placeholder="Dela Cruz"
+                    onChange={handleChange}
+                    style={{
+                      ...inpStyle,
+                      background: "#F1F3ED",
+                      color: COLOR.muted,
+                      cursor: "not-allowed",
+                      border: `1.5px solid ${COLOR.line}`,
+                    }}
+                  />
                 </Field>
+
                 <Field
                   label="First Name"
                   required
                   error={errors.firstName}
                   style={{ flex: "2 1 150px" }}
                 >
-                  {inp("firstName", "Juan")}
+                  <input
+                    name="firstName"
+                    value={form.firstName}
+                    disabled
+                    placeholder="Juan"
+                    onChange={handleChange}
+                    style={{
+                      ...inpStyle,
+                      background: "#F1F3ED",
+                      color: COLOR.muted,
+                      cursor: "not-allowed",
+                      border: `1.5px solid ${COLOR.line}`,
+                    }}
+                  />
                 </Field>
+
                 <Field
                   label="M.I."
                   error={errors.middleInitial}
                   style={{ flex: "0 0 72px" }}
                 >
-                  {inp("middleInitial", "M", "text", { maxLength: 1 })}
+                  <input
+                    name="middleInitial"
+                    value={form.middleInitial}
+                    disabled
+                    placeholder="M"
+                    maxLength={1}
+                    onChange={handleChange}
+                    style={{
+                      ...inpStyle,
+                      background: "#F1F3ED",
+                      color: COLOR.muted,
+                      cursor: "not-allowed",
+                      border: `1.5px solid ${COLOR.line}`,
+                    }}
+                  />
                 </Field>
+
                 <Field label="Suffix" style={{ flex: "0 0 100px" }}>
-                  <CustomSelect
-                    value={form.suffix}
+                  <input
+                    name="suffix"
+                    value={form.suffix || ""}
+                    disabled
                     placeholder="—"
-                    options={SUFFIXES}
-                    onSelect={(v) => setForm((p) => ({ ...p, suffix: v }))}
+                    style={{
+                      ...inpStyle,
+                      background: "#F1F3ED",
+                      color: COLOR.muted,
+                      cursor: "not-allowed",
+                      border: `1.5px solid ${COLOR.line}`,
+                    }}
                   />
                 </Field>
               </div>
