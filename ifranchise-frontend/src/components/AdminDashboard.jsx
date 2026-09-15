@@ -10036,6 +10036,76 @@ function B2BRevenueAssuranceDashboard({
     );
   }, [brands]);
 
+  // ============================================================
+  // BRAND & BRANCH VALIDATION
+  // brands.js / Brand & Branch is the ONLY source of truth.
+  // Deleted or legacy branches must never appear in Ghost Stock.
+  // ============================================================
+
+  const normalizeB2BBrand = useCallback((value) => {
+    const name = String(value || "").trim();
+
+    if (/^ipharma$/i.test(name)) return "iPharma Mart";
+    if (/^ipharma mart$/i.test(name)) return "iPharma Mart";
+    if (/^coffee spot$/i.test(name)) return "Coffee Spot";
+    if (/^ifuel$/i.test(name)) return "iFuel";
+
+    return name;
+  }, []);
+
+  const getOfficialBranchScope = useCallback(
+    (branchName, brandName = "") => {
+      const branchKey = String(branchName || "")
+        .trim()
+        .toLowerCase();
+
+      if (!branchKey) return null;
+
+      const catalogBranch = branchCatalog.find(
+        (item) =>
+          String(item?.name || "")
+            .trim()
+            .toLowerCase() === branchKey,
+      );
+
+      // Branch no longer exists in brands.js
+      if (!catalogBranch) return null;
+
+      const requestedBrand = normalizeB2BBrand(brandName);
+
+      // No brand supplied — branch existence is enough.
+      if (!requestedBrand) {
+        return {
+          branch: catalogBranch.name,
+          brand: normalizeB2BBrand(catalogBranch.brandNames?.[0]) || "",
+          catalog: catalogBranch,
+        };
+      }
+
+      const officialBrand = (catalogBranch.brandNames || []).find(
+        (name) =>
+          normalizeB2BBrand(name).toLowerCase() ===
+          requestedBrand.toLowerCase(),
+      );
+
+      // Branch exists, but NOT under this brand.
+      if (!officialBrand) return null;
+
+      return {
+        branch: catalogBranch.name,
+        brand: normalizeB2BBrand(officialBrand),
+        catalog: catalogBranch,
+      };
+    },
+    [branchCatalog, normalizeB2BBrand],
+  );
+
+  const isOfficialBrandBranch = useCallback(
+    (branchName, brandName = "") =>
+      Boolean(getOfficialBranchScope(branchName, brandName)),
+    [getOfficialBranchScope],
+  );
+
   const resolveBranchBrand = useCallback(
     (branchName, directBrand = "") => {
       const direct = String(directBrand || "").trim();
@@ -10296,26 +10366,62 @@ function B2BRevenueAssuranceDashboard({
     const brandAllows = (name) => !brand || String(name || "") === brand;
     const branchAllows = (name) => !branch || String(name || "") === branch;
 
-    const orders = rawOrders.filter(
-      (o) =>
+    const orders = rawOrders.filter((o) => {
+      const rowBranch = b2bBranchName(o);
+      const rowBrand = b2bBrandName(o);
+
+      return (
         b2bIsEarnedOrder(o) &&
-        brandAllows(b2bBrandName(o)) &&
-        branchAllows(b2bBranchName(o)),
-    );
-    const pos = (transactions || []).filter(
-      (tx) =>
+        isOfficialBrandBranch(rowBranch, rowBrand) &&
+        brandAllows(normalizeB2BBrand(rowBrand)) &&
+        branchAllows(rowBranch)
+      );
+    });
+
+    const pos = (transactions || []).filter((tx) => {
+      const rowBranch = b2bBranchName(tx);
+
+      // POS stores brand in shop in your transactions table.
+      const rowBrand =
+        b2bBrandName(tx) || tx?.shop || tx?.brand || tx?.brand_name || "";
+
+      return (
         b2bIsCompletedTx(tx) &&
-        brandAllows(b2bBrandName(tx)) &&
-        branchAllows(b2bBranchName(tx)),
-    );
+        isOfficialBrandBranch(rowBranch, rowBrand) &&
+        brandAllows(normalizeB2BBrand(rowBrand)) &&
+        branchAllows(rowBranch)
+      );
+    });
+
     const inventory = (rawInventory || []).filter((row) => {
-      if (!brandAllows(b2bBrandName(row)) || !branchAllows(b2bBranchName(row)))
+      const rowBranch = b2bBranchName(row);
+      const rowBrand = b2bBrandName(row);
+
+      if (!isOfficialBrandBranch(rowBranch, rowBrand)) {
         return false;
-      if (currentMonth === b2bMonthKey(new Date())) return true;
+      }
+
+      if (
+        !brandAllows(normalizeB2BBrand(rowBrand)) ||
+        !branchAllows(rowBranch)
+      ) {
+        return false;
+      }
+
+      if (currentMonth === b2bMonthKey(new Date())) {
+        return true;
+      }
+
       const snapshotDate = b2bDateOfInventory(row);
-      if (snapshotDate) return monthMatches(snapshotDate, currentMonth);
+
+      if (snapshotDate) {
+        return monthMatches(snapshotDate, currentMonth);
+      }
+
       return false;
     });
+
+    // Month-scoped records used by all fallback calculations.
     const currentOrders = orders.filter((o) =>
       monthMatches(b2bDateOfOrder(o), currentMonth),
     );
@@ -10327,8 +10433,14 @@ function B2BRevenueAssuranceDashboard({
     );
     const prevTx = pos.filter((tx) => monthMatches(b2bDateOfTx(tx), prevMonth));
 
-    const hqRevenue = currentOrders.reduce((s, o) => s + b2bOrderAmount(o), 0);
-    const prevHqRevenue = prevOrders.reduce((s, o) => s + b2bOrderAmount(o), 0);
+    const hqRevenue = currentOrders.reduce(
+      (sum, order) => sum + b2bOrderAmount(order),
+      0,
+    );
+    const prevHqRevenue = prevOrders.reduce(
+      (sum, order) => sum + b2bOrderAmount(order),
+      0,
+    );
     const posRevenue = currentTx.reduce((s, tx) => s + b2bTxAmount(tx), 0);
     const prevPosRevenue = prevTx.reduce((s, tx) => s + b2bTxAmount(tx), 0);
     const target = prevHqRevenue * (1 + growthTargetPct / 100);
@@ -10336,36 +10448,28 @@ function B2BRevenueAssuranceDashboard({
     const gap = Math.max(0, target - hqRevenue);
 
     const branchPairs = new Map();
-    const addPair = (name, brandName, cat) => {
-      if (name && brandAllows(brandName) && branchAllows(name))
-        branchPairs.set(JSON.stringify([brandName, name]), {
-          name,
-          brandName,
+
+    // ============================================================
+    // ONLY branches currently registered in brands.js
+    // ============================================================
+
+    branchCatalog.forEach((cat) => {
+      (cat.brandNames || []).forEach((brandName) => {
+        const officialBrand = normalizeB2BBrand(brandName);
+
+        if (!brandAllows(officialBrand)) return;
+        if (!branchAllows(cat.name)) return;
+
+        const key = JSON.stringify([officialBrand, cat.name]);
+
+        branchPairs.set(key, {
+          name: cat.name,
+          brandName: officialBrand,
           cat,
         });
-    };
-    branchCatalog.forEach((cat) =>
-      cat.brandNames.forEach((brandName) => addPair(cat.name, brandName, cat)),
-    );
-    [
-      ...currentOrders,
-      ...prevOrders,
-      ...currentTx,
-      ...prevTx,
-      ...inventory,
-    ].forEach((row) => {
-      const name = b2bBranchName(row),
-        brandName = b2bBrandName(row);
-      const key = JSON.stringify([brandName, name]);
-      if (!branchPairs.has(key))
-        addPair(
-          name,
-          brandName,
-          branchCatalog.find(
-            (c) => c.name === name && c.brandNames.includes(brandName),
-          ),
-        );
+      });
     });
+
     const branchRows = Array.from(branchPairs.values())
       .map(({ name, brandName, cat }) => {
         const matches = (row) =>
@@ -10484,16 +10588,6 @@ function B2BRevenueAssuranceDashboard({
           reason =
             "No orders or completed POS transactions recorded for this month. Inventory evidence may be unavailable.";
         }
-        const branchBrands = Array.from(
-          new Set(
-            [
-              ...(cat?.brandNames || []),
-              ...currO.map(b2bBrandName),
-              ...currT.map(b2bBrandName),
-              ...currI.map(b2bBrandName),
-            ].filter(Boolean),
-          ),
-        );
         return {
           id: JSON.stringify([brandName, cat?.id ?? name]),
           branch: name,
@@ -10518,16 +10612,11 @@ function B2BRevenueAssuranceDashboard({
       })
       .filter((r) => !branch || r.branch === branch);
 
-    const brandNames = new Set(brandOptions.map((b) => b.name));
-    currentOrders.forEach((o) => {
-      if (b2bBrandName(o)) brandNames.add(b2bBrandName(o));
-    });
-    currentTx.forEach((tx) => {
-      if (b2bBrandName(tx)) brandNames.add(b2bBrandName(tx));
-    });
-    inventory.forEach((row) => {
-      if (b2bBrandName(row)) brandNames.add(b2bBrandName(row));
-    });
+    // Brand & Branch is the source of truth.
+    // Do not resurrect deleted brands from historical orders/POS/inventory.
+    const brandNames = new Set(
+      brandOptions.map((b) => normalizeB2BBrand(b.name)).filter(Boolean),
+    );
     const brandRows = Array.from(brandNames)
       .map((name) => {
         const currO = currentOrders.filter((o) => b2bBrandName(o) === name);
@@ -10823,8 +10912,9 @@ function B2BRevenueAssuranceDashboard({
     branchCatalog,
     brandOptions,
     growthTargetPct,
-    resolveBranchBrand,
     evidenceCatalog,
+    isOfficialBrandBranch,
+    normalizeB2BBrand,
   ]);
 
   const normalizedOverview = useMemo(() => {
@@ -10912,78 +11002,112 @@ function B2BRevenueAssuranceDashboard({
   }, [overviewApi, fallback, sourceMode]);
 
   const branchRows = useMemo(() => {
+    const riskMatches = (value) =>
+      risk === "all" ||
+      String(value || "")
+        .toLowerCase()
+        .includes(risk.toLowerCase().replace("high-risk", "high"));
+
+    // Fallback rows are already generated exclusively from branchCatalog.
     if (sourceMode === "fallback" || !branchesApi.length) {
       return fallback.branchRows.filter(
         (r) =>
-          risk === "all" ||
-          String(r.risk)
-            .toLowerCase()
-            .includes(risk.toLowerCase().replace("high-risk", "high")),
+          isOfficialBrandBranch(r.branch, r.brand) &&
+          (!brand || normalizeB2BBrand(r.brand) === normalizeB2BBrand(brand)) &&
+          (!branch || b2bSameScope(r.branch, branch)) &&
+          riskMatches(r.risk),
       );
     }
+
+    // Aggregated API can contain historical/deleted branches.
+    // Validate every row against the current Brand & Branch catalog.
     const reported = branchesApi
-      .map((r, i) => ({
-        id: r?.branch_id ?? r?.id ?? r?.branch ?? i,
-        branch: String(
-          r?.branch_name || r?.branch || r?.name || "Unknown Branch",
-        ),
-        brand: resolveBranchBrand(
-          r?.branch_name || r?.branch || r?.name,
-          r?.brand_name || r?.brand || r?.brandName,
-        ),
-        location: String(r?.location || r?.address || "—"),
-        hqRevenue: b2bNum(
-          r?.hq_supply_revenue,
-          r?.hqRevenue,
-          r?.supply_revenue,
-        ),
-        posRevenue: b2bNum(
-          r?.pos_revenue,
-          r?.posRevenue,
-          r?.franchisee_pos_revenue,
-        ),
-        vsLastMonth: b2bNullableNum(
-          r?.mom_growth,
-          r?.vs_last_month,
-          r?.hq_growth_pct,
-        ),
-        targetPct: b2bNullableNum(
-          r?.target_pct,
-          r?.targetAttainment,
-          r?.target_attainment_pct,
-        ),
-        targetGap: b2bNullableNum(r?.target_gap, r?.targetGap, r?.revenue_gap),
-        prevHqRevenue: b2bNullableNum(
-          r?.previous_hq_supply_revenue,
-          r?.prevHqRevenue,
-          r?.previous_revenue,
-        ),
-        orderCoverage: b2bNullableNum(
-          r?.order_coverage,
-          r?.coverage_pct,
-          r?.orderCoverage,
-        ),
-        stockVariance: b2bNullableNum(r?.stock_variance, r?.stockVariance),
-        risk: String(
-          r?.risk || r?.risk_status || r?.anomaly_status || "No data yet",
-        ),
-        reason: String(r?.reason || r?.risk_reason || ""),
-      }))
+      .map((r, i) => {
+        const rawBranch = String(
+          r?.branch_name || r?.branch || r?.name || "",
+        ).trim();
+
+        const rawBrand = String(
+          r?.brand_name || r?.brand || r?.brandName || "",
+        ).trim();
+
+        const official = getOfficialBranchScope(rawBranch, rawBrand);
+
+        // Deleted branch, deleted brand, or invalid brand/branch pairing.
+        if (!official) return null;
+
+        return {
+          id:
+            r?.branch_id ??
+            r?.id ??
+            official.catalog?.id ??
+            `${official.brand}-${official.branch}-${i}`,
+          branch: official.branch,
+          brand: official.brand,
+          location: String(
+            official.catalog?.location || r?.location || r?.address || "—",
+          ),
+          hqRevenue: b2bNum(
+            r?.hq_supply_revenue,
+            r?.hqRevenue,
+            r?.supply_revenue,
+          ),
+          posRevenue: b2bNum(
+            r?.pos_revenue,
+            r?.posRevenue,
+            r?.franchisee_pos_revenue,
+          ),
+          vsLastMonth: b2bNullableNum(
+            r?.mom_growth,
+            r?.vs_last_month,
+            r?.hq_growth_pct,
+          ),
+          targetPct: b2bNullableNum(
+            r?.target_pct,
+            r?.targetAttainment,
+            r?.target_attainment_pct,
+          ),
+          targetGap: b2bNullableNum(
+            r?.target_gap,
+            r?.targetGap,
+            r?.revenue_gap,
+          ),
+          prevHqRevenue: b2bNullableNum(
+            r?.previous_hq_supply_revenue,
+            r?.prevHqRevenue,
+            r?.previous_revenue,
+          ),
+          orderCoverage: b2bNullableNum(
+            r?.order_coverage,
+            r?.coverage_pct,
+            r?.orderCoverage,
+          ),
+          stockVariance: b2bNullableNum(r?.stock_variance, r?.stockVariance),
+          risk: String(
+            r?.risk || r?.risk_status || r?.anomaly_status || "No data yet",
+          ),
+          reason: String(r?.reason || r?.risk_reason || ""),
+        };
+      })
+      .filter(Boolean)
       .filter(
         (r) =>
-          (!branch || r.branch === branch) &&
-          (!risk ||
-            risk === "all" ||
-            String(r.risk)
-              .toLowerCase()
-              .includes(risk.toLowerCase().replace("high-risk", "high"))),
+          (!brand || normalizeB2BBrand(r.brand) === normalizeB2BBrand(brand)) &&
+          (!branch || b2bSameScope(r.branch, branch)) &&
+          riskMatches(r.risk),
       );
+
+    // Start only with valid current branches from fallback.branchRows.
     const merged = new Map(
-      fallback.branchRows.map((r) => [JSON.stringify([r.brand, r.branch]), r]),
+      fallback.branchRows
+        .filter((r) => isOfficialBrandBranch(r.branch, r.brand))
+        .map((r) => [JSON.stringify([r.brand, r.branch]), r]),
     );
+
     reported.forEach((r) => {
       const key = JSON.stringify([r.brand, r.branch]);
       const existing = merged.get(key);
+
       merged.set(key, {
         ...existing,
         ...r,
@@ -10995,86 +11119,166 @@ function B2BRevenueAssuranceDashboard({
             : r.risk,
       });
     });
+
     return [...merged.values()].filter(
       (r) =>
-        (!brand || r.brand === brand) &&
-        (!branch || r.branch === branch) &&
-        (risk === "all" ||
-          String(r.risk).toLowerCase().includes(risk.toLowerCase())),
+        isOfficialBrandBranch(r.branch, r.brand) &&
+        (!brand || normalizeB2BBrand(r.brand) === normalizeB2BBrand(brand)) &&
+        (!branch || b2bSameScope(r.branch, branch)) &&
+        riskMatches(r.risk),
     );
   }, [
     sourceMode,
     branchesApi,
     fallback.branchRows,
-    resolveBranchBrand,
     brand,
     branch,
     risk,
+    isOfficialBrandBranch,
+    getOfficialBranchScope,
+    normalizeB2BBrand,
   ]);
 
   const brandRows = useMemo(() => {
-    if (sourceMode === "fallback" || !brandsApi.length)
-      return fallback.brandRows;
-    const reported = brandsApi
-      .map((r, i) => ({
-        id: r?.brand_id ?? r?.id ?? r?.brand ?? i,
-        brand: String(r?.brand_name || r?.brand || r?.name || "Unknown Brand"),
-        hqRevenue: b2bNum(
-          r?.hq_supply_revenue,
-          r?.hqRevenue,
-          r?.supply_revenue,
-        ),
-        posRevenue: b2bNum(r?.pos_revenue, r?.posRevenue),
-        suppliedQty: b2bNum(
-          r?.supplied_qty,
-          r?.qty_supplied,
-          r?.quantity_supplied,
-        ),
-        soldQty: b2bNum(r?.sold_qty, r?.qty_sold, r?.quantity_sold),
-        endingStock: b2bNullableNum(
-          r?.ending_stock,
-          r?.closing_stock,
-          r?.on_hand,
-        ),
-        sellThrough: b2bNullableNum(r?.sell_through, r?.sell_through_pct),
-        stockVariance: b2bNullableNum(r?.stock_variance, r?.stockVariance),
-      }))
-      .filter((r) => !brand || r.brand === brand);
-    const merged = new Map(fallback.brandRows.map((r) => [r.brand, r]));
-    reported.forEach((r) =>
-      merged.set(r.brand, { ...merged.get(r.brand), ...r }),
+    const officialBrands = new Set(
+      brandOptions.map((b) => normalizeB2BBrand(b.name)).filter(Boolean),
     );
-    return [...merged.values()].filter((r) => !brand || r.brand === brand);
-  }, [sourceMode, brandsApi, fallback.brandRows, brand]);
+
+    if (sourceMode === "fallback" || !brandsApi.length) {
+      return fallback.brandRows.filter(
+        (r) =>
+          officialBrands.has(normalizeB2BBrand(r.brand)) &&
+          (!brand || normalizeB2BBrand(r.brand) === normalizeB2BBrand(brand)),
+      );
+    }
+
+    const reported = brandsApi
+      .map((r, i) => {
+        const officialBrand = normalizeB2BBrand(
+          r?.brand_name || r?.brand || r?.name || "",
+        );
+
+        if (!officialBrands.has(officialBrand)) return null;
+
+        return {
+          id: r?.brand_id ?? r?.id ?? officialBrand ?? i,
+          brand: officialBrand,
+          hqRevenue: b2bNum(
+            r?.hq_supply_revenue,
+            r?.hqRevenue,
+            r?.supply_revenue,
+          ),
+          posRevenue: b2bNum(r?.pos_revenue, r?.posRevenue),
+          suppliedQty: b2bNum(
+            r?.supplied_qty,
+            r?.qty_supplied,
+            r?.quantity_supplied,
+          ),
+          soldQty: b2bNum(r?.sold_qty, r?.qty_sold, r?.quantity_sold),
+          endingStock: b2bNullableNum(
+            r?.ending_stock,
+            r?.closing_stock,
+            r?.on_hand,
+          ),
+          sellThrough: b2bNullableNum(r?.sell_through, r?.sell_through_pct),
+          stockVariance: b2bNullableNum(r?.stock_variance, r?.stockVariance),
+        };
+      })
+      .filter(Boolean)
+      .filter(
+        (r) =>
+          !brand || normalizeB2BBrand(r.brand) === normalizeB2BBrand(brand),
+      );
+
+    const merged = new Map(
+      fallback.brandRows
+        .filter((r) => officialBrands.has(normalizeB2BBrand(r.brand)))
+        .map((r) => [normalizeB2BBrand(r.brand), r]),
+    );
+
+    reported.forEach((r) => {
+      const key = normalizeB2BBrand(r.brand);
+      merged.set(key, { ...merged.get(key), ...r, brand: key });
+    });
+
+    return [...merged.values()].filter(
+      (r) =>
+        officialBrands.has(normalizeB2BBrand(r.brand)) &&
+        (!brand || normalizeB2BBrand(r.brand) === normalizeB2BBrand(brand)),
+    );
+  }, [
+    sourceMode,
+    brandsApi,
+    fallback.brandRows,
+    brand,
+    brandOptions,
+    normalizeB2BBrand,
+  ]);
 
   const anomalies = useMemo(() => {
+    const riskMatches = (value) =>
+      risk === "all" ||
+      String(value || "")
+        .toLowerCase()
+        .includes(risk.toLowerCase().replace("high-risk", "high"));
+
     const rows =
       sourceMode === "fallback" || !anomaliesApi.length
         ? fallback.anomalies
-        : anomaliesApi.map((r, i) => ({
-            id: r?.id ?? i,
-            branch: String(r?.branch_name || r?.branch || "—"),
-            brand: String(r?.brand_name || r?.brand || ""),
-            sku: String(r?.sku || r?.product_name || ""),
-            severity: String(r?.severity || r?.risk || "Watch"),
-            rule: String(r?.rule || r?.rule_name || r?.anomaly || "Anomaly"),
-            reason: String(
-              r?.reason || r?.message || "Review supporting evidence.",
-            ),
-            gapValue: b2bNullableNum(r?.gap_value, r?.value_gap, r?.amount_gap),
-            recommendation: String(
-              r?.recommendation ||
-                "Review linked order, POS, and inventory evidence.",
-            ),
-          }));
+        : anomaliesApi
+            .map((r, i) => {
+              const rawBranch = String(
+                r?.branch_name || r?.branch || "",
+              ).trim();
+
+              const rawBrand = String(r?.brand_name || r?.brand || "").trim();
+
+              const official = getOfficialBranchScope(rawBranch, rawBrand);
+              if (!official) return null;
+
+              return {
+                id: r?.id ?? i,
+                branch: official.branch,
+                brand: official.brand,
+                sku: String(r?.sku || r?.product_name || ""),
+                severity: String(r?.severity || r?.risk || "Watch"),
+                rule: String(
+                  r?.rule || r?.rule_name || r?.anomaly || "Anomaly",
+                ),
+                reason: String(
+                  r?.reason || r?.message || "Review supporting evidence.",
+                ),
+                gapValue: b2bNullableNum(
+                  r?.gap_value,
+                  r?.value_gap,
+                  r?.amount_gap,
+                ),
+                recommendation: String(
+                  r?.recommendation ||
+                    "Review linked order, POS, and inventory evidence.",
+                ),
+              };
+            })
+            .filter(Boolean);
+
     return rows.filter(
       (r) =>
-        risk === "all" ||
-        String(r.severity)
-          .toLowerCase()
-          .includes(risk.toLowerCase().replace("high-risk", "high")),
+        isOfficialBrandBranch(r.branch, r.brand) &&
+        (!brand || normalizeB2BBrand(r.brand) === normalizeB2BBrand(brand)) &&
+        (!branch || b2bSameScope(r.branch, branch)) &&
+        riskMatches(r.severity),
     );
-  }, [sourceMode, anomaliesApi, fallback.anomalies, risk]);
+  }, [
+    sourceMode,
+    anomaliesApi,
+    fallback.anomalies,
+    risk,
+    brand,
+    branch,
+    isOfficialBrandBranch,
+    getOfficialBranchScope,
+    normalizeB2BBrand,
+  ]);
 
   const trendData = useMemo(() => {
     const o = overviewApi || {};
@@ -11135,7 +11339,11 @@ function B2BRevenueAssuranceDashboard({
         return;
       const txBranch =
         b2bBranchName(tx) || String(tx?.branch || "Unassigned Branch");
-      const txBrand = resolveBranchBrand(txBranch, b2bBrandName(tx));
+      const rawTxBrand =
+        b2bBrandName(tx) || tx?.shop || tx?.brand || tx?.brand_name || "";
+      const officialTxScope = getOfficialBranchScope(txBranch, rawTxBrand);
+      if (!officialTxScope) return;
+      const txBrand = officialTxScope.brand;
       if (branch && txBranch !== branch) return;
       if (
         brand &&
@@ -11218,7 +11426,14 @@ function B2BRevenueAssuranceDashboard({
         transactionIds: undefined,
       }))
       .sort((a, b) => b.revenue - a.revenue || b.soldQty - a.soldQty);
-  }, [transactions, month, branch, brand, resolveBranchBrand, evidenceCatalog]);
+  }, [
+    transactions,
+    month,
+    branch,
+    brand,
+    getOfficialBranchScope,
+    evidenceCatalog,
+  ]);
 
   const productEvidenceRows = useMemo(() => {
     const rows =
@@ -11254,7 +11469,12 @@ function B2BRevenueAssuranceDashboard({
     return rows
       .filter(
         (row) =>
-          (!brand || b2bSameScope(row.brand, brand)) &&
+          isOfficialBrandBranch(row.branch, row.brand) &&
+          (!brand ||
+            b2bSameScope(
+              normalizeB2BBrand(row.brand),
+              normalizeB2BBrand(brand),
+            )) &&
           (!branch || b2bSameScope(row.branch, branch)) &&
           b2bVerifiedItemScope(row, row.brand, row.branch, evidenceCatalog),
       )
@@ -11271,6 +11491,8 @@ function B2BRevenueAssuranceDashboard({
     brand,
     branch,
     evidenceCatalog,
+    isOfficialBrandBranch,
+    normalizeB2BBrand,
   ]);
 
   const sortedBranchRows = useMemo(
@@ -14060,6 +14282,89 @@ function DashboardContent({ transactions, brands: propBrands = [], user }) {
   }, []);
 
   const brandList = propBrands.length > 0 ? propBrands : [];
+
+  // ============================================================
+  // BRAND & BRANCH SOURCE OF TRUTH
+  // Only show dashboard data that still exists in brands.js
+  // ============================================================
+
+  const validBrandBranchMap = useMemo(() => {
+    const map = new Map();
+
+    (brandList || []).forEach((brandObj) => {
+      const brandName = String(brandObj?.name || "").trim();
+
+      if (!brandName) return;
+
+      (brandObj?.branches || []).forEach((branchObj) => {
+        const branchName =
+          typeof branchObj === "string"
+            ? branchObj.trim()
+            : String(branchObj?.name || "").trim();
+
+        if (!branchName) return;
+
+        map.set(branchName.toLowerCase(), {
+          brand: brandName,
+          branch: branchName,
+        });
+      });
+    });
+
+    return map;
+  }, [brandList]);
+
+  const validTransactions = useMemo(() => {
+    return (transactions || [])
+      .filter((tx) => {
+        const branch = String(tx?.branch || "")
+          .trim()
+          .toLowerCase();
+
+        if (!branch) return false;
+
+        // Branch must currently exist in Brand & Branch
+        const official = validBrandBranchMap.get(branch);
+
+        if (!official) return false;
+
+        // If POS has a brand/shop, it must also match the
+        // official brand that owns this branch.
+        const txBrand = String(
+          tx?.shop || tx?.brand || tx?.brand_name || tx?.franchise_brand || "",
+        )
+          .trim()
+          .toLowerCase();
+
+        if (!txBrand) return true;
+
+        const officialBrand = official.brand.toLowerCase();
+
+        // Compatibility for old iPharma naming
+        const normalizeBrand = (name) => {
+          if (name === "ipharma") return "ipharma mart";
+          return name;
+        };
+
+        return normalizeBrand(txBrand) === normalizeBrand(officialBrand);
+      })
+      .map((tx) => {
+        const branchKey = String(tx?.branch || "")
+          .trim()
+          .toLowerCase();
+
+        const official = validBrandBranchMap.get(branchKey);
+
+        // Force dashboard to use official Brand & Branch naming
+        return {
+          ...tx,
+          branch: official?.branch || tx.branch,
+          brand: official?.brand || tx.brand,
+          shop: official?.brand || tx.shop,
+        };
+      });
+  }, [transactions, validBrandBranchMap]);
+
   const selectedBrand = brandList.find((b) => b.id === filterBrand);
   const branchList = selectedBrand
     ? (selectedBrand.branches || []).map((br) =>
@@ -14134,14 +14439,14 @@ function DashboardContent({ transactions, brands: propBrands = [], user }) {
 
   const chartData = useMemo(() => {
     if (viewArchive) return viewArchive.chartData;
-    let txList = transactions;
+    let txList = validTransactions;
     if (filterBranch)
-      txList = transactions.filter((tx) => tx.branch === filterBranch);
+      txList = validTransactions.filter((tx) => tx.branch === filterBranch);
     else if (filterBrand && selectedBrand) {
       const bn = (selectedBrand.branches || []).map((br) =>
         typeof br === "string" ? br : br.name,
       );
-      txList = transactions.filter((tx) => bn.includes(tx.branch));
+      txList = validTransactions.filter((tx) => bn.includes(tx.branch));
     }
     if (!txList.length) return { labels: [], values: [] };
     const now = new Date();
@@ -14243,14 +14548,14 @@ function DashboardContent({ transactions, brands: propBrands = [], user }) {
   ]);
 
   const filteredTransactions = useMemo(() => {
-    let txList = transactions;
+    let txList = validTransactions;
     if (filterBranch)
-      txList = transactions.filter((tx) => tx.branch === filterBranch);
+      txList = validTransactions.filter((tx) => tx.branch === filterBranch);
     else if (filterBrand && selectedBrand) {
       const bn = (selectedBrand.branches || []).map((br) =>
         typeof br === "string" ? br : br.name,
       );
-      txList = transactions.filter((tx) => bn.includes(tx.branch));
+      txList = validTransactions.filter((tx) => bn.includes(tx.branch));
     }
 
     const isCustom = rangeMode === "custom" && appliedRange;
@@ -14374,19 +14679,48 @@ function DashboardContent({ transactions, brands: propBrands = [], user }) {
 
   const branchPerformance = useMemo(() => {
     if (viewArchive) return [];
+
     const grouped = {};
+
     filteredTransactions.forEach((tx) => {
-      const branch = tx.branch || "Unassigned";
-      const brand =
-        tx.brand || tx.brand_name || tx.franchise_brand || "Unassigned Brand";
+      const branch = String(tx?.branch || "Unassigned").trim() || "Unassigned";
+
+      // POS transactions store the brand in `shop`
+      let brand = String(
+        tx?.shop || tx?.brand || tx?.brand_name || tx?.franchise_brand || "",
+      ).trim();
+
+      // Normalize brand names
+      if (brand.toLowerCase() === "ipharma") {
+        brand = "iPharma Mart";
+      } else if (brand.toLowerCase() === "ipharma mart") {
+        brand = "iPharma Mart";
+      } else if (brand.toLowerCase() === "coffee spot") {
+        brand = "Coffee Spot";
+      } else if (brand.toLowerCase() === "ifuel") {
+        brand = "iFuel";
+      }
+
+      if (!brand) {
+        brand = "Unassigned Brand";
+      }
+
       const key = `${brand}::${branch}`;
+
       grouped[key] =
-        (grouped[key] || 0) + Number(tx.total || tx.total_amount || 0);
+        (grouped[key] || 0) + Number(tx?.total ?? tx?.total_amount ?? 0);
     });
+
     return Object.entries(grouped)
       .map(([key, value]) => {
         const [brand, branch] = key.split("::");
-        return { label: `${branch} · ${brand}`, value, branch, brand };
+
+        return {
+          label: `${branch} · ${brand}`,
+          value,
+          branch,
+          brand,
+        };
       })
       .sort((a, b) => b.value - a.value);
   }, [filteredTransactions, viewArchive]);
@@ -14398,13 +14732,23 @@ function DashboardContent({ transactions, brands: propBrands = [], user }) {
 
     filteredTransactions.forEach((tx) => {
       const branch = String(tx?.branch || "Unassigned").trim() || "Unassigned";
-      const brand =
-        String(
-          tx?.brand ||
-            tx?.brand_name ||
-            tx?.franchise_brand ||
-            "Unassigned Brand",
-        ).trim() || "Unassigned Brand";
+      let brand = String(
+        tx?.shop || tx?.brand || tx?.brand_name || tx?.franchise_brand || "",
+      ).trim();
+
+      if (brand.toLowerCase() === "ipharma") {
+        brand = "iPharma Mart";
+      } else if (brand.toLowerCase() === "ipharma mart") {
+        brand = "iPharma Mart";
+      } else if (brand.toLowerCase() === "coffee spot") {
+        brand = "Coffee Spot";
+      } else if (brand.toLowerCase() === "ifuel") {
+        brand = "iFuel";
+      }
+
+      if (!brand) {
+        brand = "Unassigned Brand";
+      }
       const groupKey = `${brand}::${branch}`;
       const revenue =
         Number(tx?.total ?? tx?.total_amount ?? tx?.grand_total ?? 0) || 0;
@@ -14491,26 +14835,51 @@ function DashboardContent({ transactions, brands: propBrands = [], user }) {
 
   const brandPerformance = useMemo(() => {
     if (viewArchive) return [];
+
     const grouped = {};
+
     filteredTransactions.forEach((tx) => {
-      const brand = tx.brand || "Unassigned";
+      let brand = String(
+        tx?.shop || tx?.brand || tx?.brand_name || tx?.franchise_brand || "",
+      ).trim();
+
+      if (brand.toLowerCase() === "ipharma") {
+        brand = "iPharma Mart";
+      } else if (brand.toLowerCase() === "ipharma mart") {
+        brand = "iPharma Mart";
+      } else if (brand.toLowerCase() === "coffee spot") {
+        brand = "Coffee Spot";
+      } else if (brand.toLowerCase() === "ifuel") {
+        brand = "iFuel";
+      }
+
+      if (!brand) {
+        brand = "Unassigned Brand";
+      }
+
       grouped[brand] =
-        (grouped[brand] || 0) + Number(tx.total || tx.total_amount || 0);
+        (grouped[brand] || 0) + Number(tx?.total ?? tx?.total_amount ?? 0);
     });
+
     return Object.entries(grouped)
-      .map(([label, value]) => ({ label, value }))
+      .map(([label, value]) => ({
+        label,
+        value,
+      }))
       .sort((a, b) => b.value - a.value);
   }, [filteredTransactions, viewArchive]);
 
   const getTransactionsForArchiveYear = (year) => {
-    let txList = transactions;
+    let txList = validTransactions;
     if (filterBranch)
-      txList = transactions.filter((tx) => tx.branch === filterBranch);
+      txList = validTransactions.filter((tx) => tx.branch === filterBranch);
     else if (filterBrand && selectedBrand) {
       const branchNames = (selectedBrand.branches || []).map((br) =>
         typeof br === "string" ? br : br.name,
       );
-      txList = transactions.filter((tx) => branchNames.includes(tx.branch));
+      txList = validTransactions.filter((tx) =>
+        branchNames.includes(tx.branch),
+      );
     }
     return txList.filter((tx) => {
       const d = new Date(tx.created_at);
@@ -14657,14 +15026,14 @@ function DashboardContent({ transactions, brands: propBrands = [], user }) {
       return;
     }
 
-    let txList = transactions;
+    let txList = validTransactions;
     if (filterBranch)
-      txList = transactions.filter((tx) => tx.branch === filterBranch);
+      txList = validTransactions.filter((tx) => tx.branch === filterBranch);
     else if (filterBrand && selectedBrand) {
       const bn = (selectedBrand.branches || []).map((br) =>
         typeof br === "string" ? br : br.name,
       );
-      txList = transactions.filter((tx) => bn.includes(tx.branch));
+      txList = validTransactions.filter((tx) => bn.includes(tx.branch));
     }
 
     const from = new Date(customFrom + "T00:00:00");
