@@ -25,94 +25,143 @@ const FRANCHISEE_ROLES = ["Franchisee", "Manager", "Staff"];
 
 router.get("/orders", async (req, res) => {
   const { userId, branch, brand, role } = req.query;
+
   try {
     let where = "";
-    let params = [];
+    const params = [];
+
+    const HQ_ROLES = ["Super Admin", "Franchisee Operations Admin"];
+
+    const RESTRICTED_ROLES = [
+      "Admin",
+      "SuperAdmin",
+      "HQ",
+      "Manager",
+      "Franchisee",
+      "Staff",
+    ];
+
+    const STAFF_ROLES = [...HQ_ROLES, ...RESTRICTED_ROLES];
 
     if (userId) {
-      where = "WHERE o.user_id = $1";
-      params = [userId];
+      params.push(userId);
+      where = `WHERE o.user_id = $${params.length}`;
     } else {
-      const HQ_ROLES = ["Super Admin", "Franchisee Operations Admin"];
-      const RESTRICTED_ROLES = [
-        "Admin",
-        "SuperAdmin",
-        "HQ",
-        "Manager",
-        "Franchisee",
-        "Staff",
-      ];
-      const STAFF_ROLES = [...HQ_ROLES, ...RESTRICTED_ROLES];
-
       if (!STAFF_ROLES.includes(role)) {
-        return res
-          .status(403)
-          .json({ error: "userId or a valid staff role is required" });
+        return res.status(403).json({
+          error: "userId or a valid staff role is required",
+        });
       }
+
       const conditions = [];
 
+      // Super Admin / Operations Admin:
+      // may see all orders and optionally filter.
       if (HQ_ROLES.includes(role)) {
-        // HQ can optionally narrow the view, but nothing is required
         if (branch) {
           params.push(branch);
-          conditions.push(`o.branch=$${params.length}`);
+          conditions.push(`o.branch = $${params.length}`);
         }
+
         if (brand) {
           params.push(brand);
-          conditions.push(`o.brand=$${params.length}`);
+          conditions.push(`o.brand = $${params.length}`);
         }
       } else {
-        // Every other role MUST be scoped — no branch/brand means no results,
-        // never "everything," closing the loophole where omitting these
-        // params silently granted system-wide visibility.
+        // Manager / Franchisee / Staff must be scoped.
         if (!branch || !brand) {
-          return res
-            .status(403)
-            .json({ error: "Branch and brand are required for this role." });
+          return res.status(403).json({
+            error: "Branch and brand are required for this role.",
+          });
         }
+
         params.push(branch);
-        conditions.push(`o.branch=$${params.length}`);
+        conditions.push(`o.branch = $${params.length}`);
+
         params.push(brand);
-        conditions.push(`o.brand=$${params.length}`);
-        params.push(HEAD_OFFICE_BRANCH);
-        const hoParam = `$${params.length}`;
+        conditions.push(`o.brand = $${params.length}`);
       }
 
-      if (conditions.length) where = "WHERE " + conditions.join(" AND ");
+      if (conditions.length > 0) {
+        where = `WHERE ${conditions.join(" AND ")}`;
+      }
     }
+
+    params.push(HEAD_OFFICE_BRANCH);
+    const hoParam = `$${params.length}`;
 
     const result = await pool.query(
       `
-  SELECT o.id, o.status, o.total_amount, o.created_at, o.received_at, o.phone, o.brand, o.branch, o.address,
-    u.name AS user_name,
-    CASE WHEN COUNT(oi.id) > 0 THEN
-      json_agg(json_build_object(
-        'shop_item_id', oi.shop_item_id,
-        'name', si.name,
-        'qty', oi.quantity,
-        'price', oi.price,
-        'stock', COALESCE(i.stock, si.stock),
-        'unit', si.unit
-      )) FILTER (WHERE oi.id IS NOT NULL)
-    ELSE
-      CASE WHEN jsonb_typeof(o.items::jsonb) = 'array'
-        THEN o.items::jsonb::json ELSE '[]'::json END
-    END AS items
-  FROM orders o
-  LEFT JOIN users u ON u.id=o.user_id
-  LEFT JOIN order_items oi ON oi.order_id=o.id
-  LEFT JOIN shop_items si ON si.id=oi.shop_item_id
-  LEFT JOIN ingredients i ON i.id = si.ingredient_id AND i.branch = ${hoParam}
-  ${where}
-  GROUP BY o.id, u.name, o.address
-  ORDER BY o.created_at DESC
-`,
+        SELECT
+          o.id,
+          o.status,
+          o.total_amount,
+          o.created_at,
+          o.received_at,
+          o.phone,
+          o.brand,
+          o.branch,
+          o.address,
+
+          u.name AS user_name,
+
+          CASE
+            WHEN COUNT(oi.id) > 0 THEN
+              json_agg(
+                json_build_object(
+                  'shop_item_id', oi.shop_item_id,
+                  'name', si.name,
+                  'qty', oi.quantity,
+                  'price', oi.price,
+                  'stock', COALESCE(i.stock, si.stock),
+                  'unit', si.unit
+                )
+              ) FILTER (WHERE oi.id IS NOT NULL)
+
+            ELSE
+              CASE
+                WHEN jsonb_typeof(o.items::jsonb) = 'array'
+                  THEN o.items::jsonb::json
+                ELSE '[]'::json
+              END
+          END AS items
+
+        FROM orders o
+
+        LEFT JOIN users u
+          ON u.id = o.user_id
+
+        LEFT JOIN order_items oi
+          ON oi.order_id = o.id
+
+        LEFT JOIN shop_items si
+          ON si.id = oi.shop_item_id
+
+        LEFT JOIN ingredients i
+          ON i.id = si.ingredient_id
+         AND i.branch = ${hoParam}
+
+        ${where}
+
+        GROUP BY
+          o.id,
+          u.name,
+          o.address
+
+        ORDER BY
+          o.created_at DESC
+      `,
       params,
     );
 
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch orders" });
+    console.error("GET /orders error:", err);
+
+    res.status(500).json({
+      error: "Failed to fetch orders",
+      details: process.env.NODE_ENV === "development" ? err.message : undefined,
+    });
   }
 });
 
@@ -260,12 +309,12 @@ router.put("/orders/:id", async (req, res) => {
     if (status === "accepted") {
       const itemsRes = await client.query(
         `SELECT oi.shop_item_id, oi.quantity, si.name AS item_name, si.shop,
-                si.ingredient_id, i.stock AS ingredient_stock, i.branch, i.brand, i.perishable
+                i.id AS ingredient_id, i.stock AS ingredient_stock, i.branch, i.brand, i.perishable
         FROM order_items oi
         JOIN shop_items si ON si.id = oi.shop_item_id
-        LEFT JOIN ingredients i ON i.id = si.ingredient_id
+        LEFT JOIN ingredients i ON i.id = si.ingredient_id AND i.branch = $2
         WHERE oi.order_id = $1`,
-        [req.params.id],
+        [req.params.id, HEAD_OFFICE_BRANCH],
       );
 
       const unlinked = itemsRes.rows.filter((r) => !r.ingredient_id);
