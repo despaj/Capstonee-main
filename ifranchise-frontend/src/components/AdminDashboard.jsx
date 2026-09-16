@@ -94,28 +94,51 @@ import {
 } from "lucide-react";
 
 const ADMIN_API_BASE = String(process.env.REACT_APP_API_URL || "")
-  .trim().replace(/;+$/, "").replace(/\/+$/, "");
+  .trim()
+  .replace(/;+$/, "")
+  .replace(/\/+$/, "");
 
 async function fetchApplicationRecords() {
-  if (!ADMIN_API_BASE) throw new Error("The backend API URL is not configured.");
+  if (!ADMIN_API_BASE)
+    throw new Error("The backend API URL is not configured.");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
   try {
     const response = await adminModuleFetch(`${ADMIN_API_BASE}/applications`, {
-      credentials: "include", signal: controller.signal,
+      credentials: "include",
+      signal: controller.signal,
     });
-    if (!response.ok) throw new Error(`Applications could not be loaded (HTTP ${response.status}). Check the backend /applications route.`);
+    if (!response.ok)
+      throw new Error(
+        `Applications could not be loaded (HTTP ${response.status}). Check the backend /applications route.`,
+      );
     let data;
-    try { data = await response.json(); }
-    catch { throw new Error("The applications endpoint returned an invalid response. Check the backend API URL and route."); }
-    const rows = Array.isArray(data) ? data : data?.applications ?? data?.data;
-    if (!Array.isArray(rows)) throw new Error("The applications endpoint did not return a list.");
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error(
+        "The applications endpoint returned an invalid response. Check the backend API URL and route.",
+      );
+    }
+    const rows = Array.isArray(data)
+      ? data
+      : (data?.applications ?? data?.data);
+    if (!Array.isArray(rows))
+      throw new Error("The applications endpoint did not return a list.");
     return rows;
   } catch (error) {
-    if (controller.signal.aborted) throw new Error("Loading applications timed out. Check the backend connection and retry.");
-    if (error instanceof TypeError) throw new Error("Cannot connect to the applications endpoint. Check the backend connection and CORS settings.");
+    if (controller.signal.aborted)
+      throw new Error(
+        "Loading applications timed out. Check the backend connection and retry.",
+      );
+    if (error instanceof TypeError)
+      throw new Error(
+        "Cannot connect to the applications endpoint. Check the backend connection and CORS settings.",
+      );
     throw error;
-  } finally { clearTimeout(timer); }
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function adminModuleFetch(input, options) {
@@ -132,7 +155,6 @@ async function adminModuleFetch(input, options) {
   return response;
 }
 
-// Coalesce module writes and never overlap refreshes in the same subscription.
 function useAdminLiveRefresh(refresh, dependencies) {
   useEffect(() => {
     let stopped = false,
@@ -185,7 +207,6 @@ function useAdminLiveRefresh(refresh, dependencies) {
   }, dependencies);
 }
 
-// Shared palette must be initialized before module-level style objects.
 const C = {
   green: "#3b791e",
   greenDk: "#2c5c16",
@@ -450,8 +471,6 @@ const invInputSt = {
   width: "100%",
   transition: "border-color .2s ease, box-shadow .2s ease",
 };
-// focus state (wherever :focus is handled via onFocus/onBlur or CSS):
-//   borderColor: C.green, boxShadow:"0 0 0 3px rgba(59,121,30,0.12)"
 const btnSt = {
   display: "inline-flex",
   alignItems: "center",
@@ -1918,10 +1937,9 @@ export default function AdminDashboard() {
     if (response.ok) setStats(await response.json());
   }, [preset]);
   useAdminLiveRefresh(async () => {
-    const response = await adminModuleFetch(
-      `${ADMIN_API_BASE}/transactions`,
-      { cache: "no-store" },
-    );
+    const response = await adminModuleFetch(`${ADMIN_API_BASE}/transactions`, {
+      cache: "no-store",
+    });
     if (response.ok) {
       const data = await response.json();
       if (Array.isArray(data)) setTransactions(data);
@@ -1938,10 +1956,9 @@ export default function AdminDashboard() {
 
   const [brands, setBrands] = useState([]);
   useAdminLiveRefresh(async () => {
-    const response = await adminModuleFetch(
-      `${ADMIN_API_BASE}/brands`,
-      { cache: "no-store" },
-    );
+    const response = await adminModuleFetch(`${ADMIN_API_BASE}/brands`, {
+      cache: "no-store",
+    });
     if (response.ok) {
       const data = await response.json();
       if (Array.isArray(data)) setBrands(data);
@@ -1956,9 +1973,7 @@ export default function AdminDashboard() {
     try {
       const [appsRes, reportsRes, ingredientsRes] = await Promise.all([
         adminModuleFetch(`${ADMIN_API_BASE}/applications`),
-        adminModuleFetch(
-          `${ADMIN_API_BASE}/reports?status=submitted`,
-        ),
+        adminModuleFetch(`${ADMIN_API_BASE}/reports?status=submitted`),
         // Use the exact same source as Head Office Inventory.
         adminModuleFetch(`${ADMIN_API_BASE}/ingredients`),
       ]);
@@ -4732,8 +4747,14 @@ function SalesTrendSection({
 
 // Analysis is read-only: avoid emitting a dashboard data-change event.
 async function requestDashboardAnalysis(apiUrl, payload, signal) {
-  const base = String(apiUrl || "").trim().replace(/;+$/, "").replace(/\/+$/, "");
-  if (!base) throw new Error("The API URL is missing. Configure REACT_APP_API_URL and rebuild the frontend.");
+  const base = String(apiUrl || "")
+    .trim()
+    .replace(/;+$/, "")
+    .replace(/\/+$/, "");
+  if (!base)
+    throw new Error(
+      "The API URL is missing. Configure REACT_APP_API_URL and rebuild the frontend.",
+    );
   const response = await fetch(`${base}/ai/dashboard-analysis`, {
     method: "POST",
     credentials: "include",
@@ -4743,11 +4764,19 @@ async function requestDashboardAnalysis(apiUrl, payload, signal) {
   });
   const text = await response.text();
   let data;
-  try { data = JSON.parse(text); } catch {
-    throw new Error(`AI endpoint returned an invalid response (HTTP ${response.status}). Check the backend route and server logs.`);
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(
+      `AI endpoint returned an invalid response (HTTP ${response.status}). Check the backend route and server logs.`,
+    );
   }
-  const serverMessage = typeof data?.error === "string" ? data.error :
-    typeof data?.message === "string" ? data.message : "";
+  const serverMessage =
+    typeof data?.error === "string"
+      ? data.error
+      : typeof data?.message === "string"
+        ? data.message
+        : "";
   if (!response.ok || data?.success === false || data?.error) {
     const hints = {
       401: "Your session expired. Sign in again.",
@@ -4756,21 +4785,42 @@ async function requestDashboardAnalysis(apiUrl, payload, signal) {
       413: "The selected transaction range is too large. Select a shorter period.",
       429: "The AI service is rate limited. Wait briefly before retrying.",
     };
-    throw new Error(serverMessage || hints[response.status] || `AI generation failed (HTTP ${response.status}). Check the backend AI configuration and logs.`);
+    throw new Error(
+      serverMessage ||
+        hints[response.status] ||
+        `AI generation failed (HTTP ${response.status}). Check the backend AI configuration and logs.`,
+    );
   }
   let result = data?.analysis ?? data?.data?.analysis ?? data?.data ?? data;
   if (typeof result === "string") {
-    try { result = JSON.parse(result.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")); }
-    catch { throw new Error("The AI returned text instead of the structured dashboard report. Check the backend response format."); }
+    try {
+      result = JSON.parse(
+        result.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""),
+      );
+    } catch {
+      throw new Error(
+        "The AI returned text instead of the structured dashboard report. Check the backend response format.",
+      );
+    }
   }
-  if (!result || typeof result !== "object" || Array.isArray(result) ||
-      !(typeof result.summary === "string" && result.summary.trim())) {
-    throw new Error("The AI response has no report summary. Check the backend response format.");
+  if (
+    !result ||
+    typeof result !== "object" ||
+    Array.isArray(result) ||
+    !(typeof result.summary === "string" && result.summary.trim())
+  ) {
+    throw new Error(
+      "The AI response has no report summary. Check the backend response format.",
+    );
   }
   return {
     ...result,
-    recommendations: Array.isArray(result.recommendations) ? result.recommendations.filter((row) => row && typeof row === "object") : [],
-    stockAnomalies: Array.isArray(result.stockAnomalies) ? result.stockAnomalies : [],
+    recommendations: Array.isArray(result.recommendations)
+      ? result.recommendations.filter((row) => row && typeof row === "object")
+      : [],
+    stockAnomalies: Array.isArray(result.stockAnomalies)
+      ? result.stockAnomalies
+      : [],
   };
 }
 
@@ -4807,7 +4857,9 @@ function PrescriptiveSection({
   const runAnalysis = async () => {
     if (analysisRequestRef.current) return;
     if (!transactions?.length) {
-      setError("No transaction data available for the selected filters. Choose a period and branch with completed sales.");
+      setError(
+        "No transaction data available for the selected filters. Choose a period and branch with completed sales.",
+      );
       return;
     }
     const controller = new AbortController();
@@ -4823,16 +4875,21 @@ function PrescriptiveSection({
       );
       if (analysisRequestRef.current !== controller) return;
       setAnalysis(report);
-      setLastRun(new Date().toLocaleTimeString("en-PH", {
-        hour: "2-digit", minute: "2-digit",
-      }));
+      setLastRun(
+        new Date().toLocaleTimeString("en-PH", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      );
     } catch (err) {
       if (analysisRequestRef.current !== controller) return;
-      setError(controller.signal.aborted
-        ? "AI generation timed out after 60 seconds. Try a shorter period or check the backend AI service."
-        : err instanceof TypeError
-          ? "Cannot connect to the AI endpoint. Check your API URL, connection, and backend CORS configuration."
-          : err.message || "AI generation failed. Please retry.");
+      setError(
+        controller.signal.aborted
+          ? "AI generation timed out after 60 seconds. Try a shorter period or check the backend AI service."
+          : err instanceof TypeError
+            ? "Cannot connect to the AI endpoint. Check your API URL, connection, and backend CORS configuration."
+            : err.message || "AI generation failed. Please retry.",
+      );
     } finally {
       clearTimeout(timeout);
       if (analysisRequestRef.current === controller) {
@@ -8593,18 +8650,33 @@ const b2bIsCompletedTx = (tx) => {
 // Loss Risk rule: compare POS revenue with HQ supply using a 12% allowance.
 // High Risk applies only when POS exceeds HQ supply by more than 12%.
 const b2bAssessBranch = (row) => {
-  const hqRevenue = b2bNullableNum(row?.hq_supply_revenue, row?.hqRevenue, row?.supply_revenue);
-  const posRevenue = b2bNullableNum(row?.pos_revenue, row?.posRevenue, row?.franchisee_pos_revenue);
+  const hqRevenue = b2bNullableNum(
+    row?.hq_supply_revenue,
+    row?.hqRevenue,
+    row?.supply_revenue,
+  );
+  const posRevenue = b2bNullableNum(
+    row?.pos_revenue,
+    row?.posRevenue,
+    row?.franchisee_pos_revenue,
+  );
   const stockVariance = b2bNullableNum(row?.stock_variance, row?.stockVariance);
-  const orderCoverage = b2bNullableNum(row?.order_coverage, row?.coverage_pct, row?.orderCoverage);
-  const amount = (value) => value == null ? "not available" :
-    `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const orderCoverage = b2bNullableNum(
+    row?.order_coverage,
+    row?.coverage_pct,
+    row?.orderCoverage,
+  );
+  const amount = (value) =>
+    value == null
+      ? "not available"
+      : `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const evidence = `Recorded HQ supply: ${amount(hqRevenue)}. Recorded POS sales: ${amount(posRevenue)}.`;
   const allowedPos = hqRevenue == null ? null : hqRevenue * 1.12;
   // Compare currency at cent precision so values that display equally
   // (e.g. ₱67,564.72 vs ₱67,564.7168) are treated as equal.
   const posForRisk = posRevenue == null ? null : Number(posRevenue.toFixed(2));
-  const allowedForRisk = allowedPos == null ? null : Number(allowedPos.toFixed(2));
+  const allowedForRisk =
+    allowedPos == null ? null : Number(allowedPos.toFixed(2));
   let risk;
   let reason;
 
@@ -8625,7 +8697,15 @@ const b2bAssessBranch = (row) => {
     reason = `${evidence} POS is within the allowed 12% variance of HQ supply (${amount(allowedPos)} maximum).`;
   }
 
-  return { ...row, hqRevenue, posRevenue, stockVariance, orderCoverage, risk, reason };
+  return {
+    ...row,
+    hqRevenue,
+    posRevenue,
+    stockVariance,
+    orderCoverage,
+    risk,
+    reason,
+  };
 };
 
 function B2BRiskBadge({ risk }) {
@@ -8635,10 +8715,9 @@ function B2BRiskBadge({ risk }) {
     normalized.includes("watch") ||
     normalized.includes("medium") ||
     normalized.includes("moderate");
-  const missing =
-    !high && !watch && normalized !== "normal";
+  const missing = !high && !watch && normalized !== "normal";
   const label = missing
-    ? (risk || "Insufficient data")
+    ? risk || "Insufficient data"
     : high
       ? "High Risk"
       : watch
@@ -9012,11 +9091,15 @@ function B2BSummaryMetricCard({
 // Estimated HQ gross profit using the configured 12% markup on cost.
 // Work in centavos so displayed cost + profit always equals revenue.
 const b2bHqMargin = (amount) => {
-  if (amount == null || amount === "" || !Number.isFinite(Number(amount))) return null;
+  if (amount == null || amount === "" || !Number.isFinite(Number(amount)))
+    return null;
   const revenueCents = Math.round(Number(amount) * 100);
   const costCents = Math.round(revenueCents / 1.12);
-  return { revenue: revenueCents / 100, cost: costCents / 100,
-    profit: (revenueCents - costCents) / 100 };
+  return {
+    revenue: revenueCents / 100,
+    cost: costCents / 100,
+    profit: (revenueCents - costCents) / 100,
+  };
 };
 
 function B2BBranchItemTable({ selected, user, api, onBack }) {
@@ -9202,7 +9285,7 @@ function B2BBranchItemTable({ selected, user, api, onBack }) {
             <tr>
               {[
                 "Item / Order #",
-                "Order date", 
+                "Order date",
                 "Quantity",
                 "Unit price",
                 "Line total",
@@ -9266,10 +9349,25 @@ function B2BBranchItemTable({ selected, user, api, onBack }) {
                       : fmtAmt(item.price * b2bItemQty(item))}
                   </td>
                   <td style={{ ...td, textAlign: "right" }}>
-                    {item?.price == null ? "—" : fmtAmt(b2bHqMargin(item.price * b2bItemQty(item))?.cost)}
+                    {item?.price == null
+                      ? "—"
+                      : fmtAmt(
+                          b2bHqMargin(item.price * b2bItemQty(item))?.cost,
+                        )}
                   </td>
-                  <td style={{ ...td, textAlign: "right", color: C.greenDk, fontWeight: 750 }}>
-                    {item?.price == null ? "—" : fmtAmt(b2bHqMargin(item.price * b2bItemQty(item))?.profit)}
+                  <td
+                    style={{
+                      ...td,
+                      textAlign: "right",
+                      color: C.greenDk,
+                      fontWeight: 750,
+                    }}
+                  >
+                    {item?.price == null
+                      ? "—"
+                      : fmtAmt(
+                          b2bHqMargin(item.price * b2bItemQty(item))?.profit,
+                        )}
                   </td>
                 </tr>
               ))}
@@ -9287,9 +9385,9 @@ function B2BBranchItemTable({ selected, user, api, onBack }) {
         </table>
       </div>
       <p style={{ fontSize: 11, color: C.muted, marginTop: 10 }}>
-        Cost = line revenue ÷ 1.12. Profit = line revenue − cost.
-        Assumes each item was sold at cost plus 12%; excludes operating expenses.
-        Item totals require complete order items and matching discounts or charges.
+        Cost = line revenue ÷ 1.12. Profit = line revenue − cost. Assumes each
+        item was sold at cost plus 12%; excludes operating expenses. Item totals
+        require complete order items and matching discounts or charges.
       </p>
       {pages > 1 && (
         <nav
@@ -9418,14 +9516,18 @@ function B2BKpiBreakdown({
     rows = (metric === "posRevenue" ? productRows : skuRows)
       .filter(scope)
       .filter((r) => metric !== "unexplained" || r.stockVariance != null);
-  const hqAmount = (row) => Number(metric === "hqPrevious" ? row.previous : row.current) || 0;
-  const hqMargins = rows.reduce((totals, row) => {
-    if (!isHq) return totals;
-    const parts = b2bHqMargin(hqAmount(row));
-    totals.cost += Math.round(parts.cost * 100);
-    totals.profit += Math.round(parts.profit * 100);
-    return totals;
-  }, { cost: 0, profit: 0 });
+  const hqAmount = (row) =>
+    Number(metric === "hqPrevious" ? row.previous : row.current) || 0;
+  const hqMargins = rows.reduce(
+    (totals, row) => {
+      if (!isHq) return totals;
+      const parts = b2bHqMargin(hqAmount(row));
+      totals.cost += Math.round(parts.cost * 100);
+      totals.profit += Math.round(parts.profit * 100);
+      return totals;
+    },
+    { cost: 0, profit: 0 },
+  );
   const rowValue = (row) =>
     isHq
       ? Number(metric === "hqPrevious" ? row.previous : row.current) || 0
@@ -9583,10 +9685,10 @@ function B2BKpiBreakdown({
       {isHq ? (
         <p style={{ fontSize: 12, marginBottom: 14 }}>
           Supply revenue uses received orders, grouped by order creation month.
-          Cost = revenue ÷ 1.12; Profit = revenue − cost.
-          This applies your 12% markup on cost, assumes it applies to all included
-          revenue, and excludes operating expenses. Historical cost is not verified.
-          Cost and profit use the displayed revenue month; totals sum branch estimates.
+          Cost = revenue ÷ 1.12; Profit = revenue − cost. This applies your 12%
+          markup on cost, assumes it applies to all included revenue, and
+          excludes operating expenses. Historical cost is not verified. Cost and
+          profit use the displayed revenue month; totals sum branch estimates.
         </p>
       ) : metric === "posRevenue" ? (
         <p style={{ fontSize: 12, marginBottom: 14 }}>
@@ -9723,8 +9825,12 @@ function B2BKpiBreakdown({
                             </td>
                           </>
                         )}
-                        <td style={td}>{fmtAmt(b2bHqMargin(hqAmount(r)).cost)}</td>
-                        <td style={{ ...td, color: C.greenDk, fontWeight: 750 }}>
+                        <td style={td}>
+                          {fmtAmt(b2bHqMargin(hqAmount(r)).cost)}
+                        </td>
+                        <td
+                          style={{ ...td, color: C.greenDk, fontWeight: 750 }}
+                        >
                           {fmtAmt(b2bHqMargin(hqAmount(r)).profit)}
                         </td>
                         <td style={td}>{r.orders.length}</td>
@@ -10081,15 +10187,18 @@ function B2BRevenueAssuranceDashboard({
   const [branch, setBranch] = useState("");
   const [brand, setBrand] = useState("");
   const [risk, setRisk] = useState("all");
-  const [growthTargetPct] = useState(
-    B2B_DEFAULT_GROWTH_TARGET,
-  );
+  const [growthTargetPct] = useState(B2B_DEFAULT_GROWTH_TARGET);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const completedB2BScopeRef = useRef(null);
   const completedB2BModeRef = useRef(null);
   const activeB2BRequestRef = useRef(null);
-  useEffect(() => () => { activeB2BRequestRef.current = null; }, []);
+  useEffect(
+    () => () => {
+      activeB2BRequestRef.current = null;
+    },
+    [],
+  );
   const [sourceMode, setSourceMode] = useState("aggregated");
   const [overviewApi, setOverviewApi] = useState(null);
   const [branchesApi, setBranchesApi] = useState([]);
@@ -10199,12 +10308,6 @@ function B2BRevenueAssuranceDashboard({
       a.name.localeCompare(b.name),
     );
   }, [brands]);
-
-  // ============================================================
-  // BRAND & BRANCH VALIDATION
-  // brands.js / Brand & Branch is the ONLY source of truth.
-  // Deleted or legacy branches must never appear in Ghost Stock.
-  // ============================================================
 
   const normalizeB2BBrand = useCallback((value) => {
     const name = String(value || "").trim();
@@ -10338,19 +10441,30 @@ function B2BRevenueAssuranceDashboard({
     const path = String(url).split("?")[0];
     try {
       const res = await adminModuleFetch(url, {
-        credentials: "include", cache: "no-store", signal: controller.signal,
+        credentials: "include",
+        cache: "no-store",
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
       let json;
-      try { json = await res.json(); }
-      catch { throw new Error(`${path}: invalid JSON response`); }
-      if (json?.error) throw new Error(`${path}: ${typeof json.error === "string" ? json.error : "backend error"}`);
+      try {
+        json = await res.json();
+      } catch {
+        throw new Error(`${path}: invalid JSON response`);
+      }
+      if (json?.error)
+        throw new Error(
+          `${path}: ${typeof json.error === "string" ? json.error : "backend error"}`,
+        );
       return json;
     } catch (error) {
       if (controller.signal.aborted) throw new Error(`${path}: timed out`);
-      if (error instanceof TypeError) throw new Error(`${path}: connection or CORS error`);
+      if (error instanceof TypeError)
+        throw new Error(`${path}: connection or CORS error`);
       throw error;
-    } finally { clearTimeout(timer); }
+    } finally {
+      clearTimeout(timer);
+    }
   }, []);
 
   const fetchRawOrdersFallback = useCallback(async () => {
@@ -10381,8 +10495,17 @@ function B2BRevenueAssuranceDashboard({
       );
       return;
     }
-    const scope = JSON.stringify([API, month, branch, brand, risk,
-      growthTargetPct, user?.role, user?.branch, user?.brand]);
+    const scope = JSON.stringify([
+      API,
+      month,
+      branch,
+      brand,
+      risk,
+      growthTargetPct,
+      user?.role,
+      user?.branch,
+      user?.brand,
+    ]);
     // Manual refresh and polling share the same in-flight request.
     if (activeB2BRequestRef.current?.scope === scope) return;
     const request = { scope };
@@ -10393,167 +10516,188 @@ function B2BRevenueAssuranceDashboard({
     setRefreshing(true);
     setLoadError("");
     try {
-    const params = new URLSearchParams({ month });
-    if (branch) params.set("branch", branch);
-    if (brand) params.set("brand", brand);
-    if (risk !== "all") params.set("risk", risk);
-    params.set("growthTargetPct", String(growthTargetPct));
+      const params = new URLSearchParams({ month });
+      if (branch) params.set("branch", branch);
+      if (brand) params.set("brand", brand);
+      if (risk !== "all") params.set("risk", risk);
+      params.set("growthTargetPct", String(growthTargetPct));
 
-    const endpoints = [
-      `${API}/dashboard/b2b/overview?${params.toString()}`,
-      `${API}/dashboard/b2b/branches?${params.toString()}`,
-      `${API}/dashboard/b2b/brands?${params.toString()}`,
-      `${API}/dashboard/b2b/anomalies?${params.toString()}`,
-      `${API}/dashboard/b2b/products?${params.toString()}`,
-    ];
+      const endpoints = [
+        `${API}/dashboard/b2b/overview?${params.toString()}`,
+        `${API}/dashboard/b2b/branches?${params.toString()}`,
+        `${API}/dashboard/b2b/brands?${params.toString()}`,
+        `${API}/dashboard/b2b/anomalies?${params.toString()}`,
+        `${API}/dashboard/b2b/products?${params.toString()}`,
+      ];
 
-    const settled = await Promise.allSettled(endpoints.map(fetchJson));
-    const catalogResults = await Promise.allSettled([
-      fetchJson(`${API}/inventory`),
-      fetchJson(`${API}/ingredients`),
-    ]);
-    if (!isCurrent()) return;
-    if (catalogResults.some((result) => result.status === "fulfilled")) setEvidenceCatalog(
-      catalogResults.flatMap((result) => {
-        if (result.status !== "fulfilled") return [];
-        const value = result.value;
-        return Array.isArray(value)
-          ? value
-          : Array.isArray(value?.data)
-            ? value.data
-            : [];
-      }),
-    );
-    const hasCoreSummary = settled
-      .slice(0, 3)
-      .every((r) => r.status === "fulfilled");
-
-    if (!hasCoreSummary && background && completedB2BModeRef.current === "aggregated") {
-      setLoadError("Refresh unavailable. Showing the last loaded figures; retry Refresh.");
-      return;
-    }
-    if (hasCoreSummary) {
-      setSourceMode("aggregated");
-      const o = settled[0].status === "fulfilled" ? settled[0].value : null;
-      const br = settled[1].status === "fulfilled" ? settled[1].value : [];
-      const bd = settled[2].status === "fulfilled" ? settled[2].value : [];
-      const an = settled[3].status === "fulfilled" ? settled[3].value : [];
-      const pr = settled[4].status === "fulfilled" ? settled[4].value : [];
-      setOverviewApi(o?.data || o || null);
-      setBranchesApi(
-        Array.isArray(br)
-          ? br
-          : Array.isArray(br?.branches)
-            ? br.branches
-            : Array.isArray(br?.data)
-              ? br.data
-              : [],
-      );
-      setBrandsApi(
-        Array.isArray(bd)
-          ? bd
-          : Array.isArray(bd?.brands)
-            ? bd.brands
-            : Array.isArray(bd?.data)
-              ? bd.data
-              : [],
-      );
-      setAnomaliesApi(
-        Array.isArray(an)
-          ? an
-          : Array.isArray(an?.anomalies)
-            ? an.anomalies
-            : Array.isArray(an?.data)
-              ? an.data
-              : [],
-      );
-      setProductsApi(
-        Array.isArray(pr)
-          ? pr
-          : Array.isArray(pr?.products)
-            ? pr.products
-            : Array.isArray(pr?.data)
-              ? pr.data
-              : [],
-      );
-      try {
-        const orders = await fetchRawOrdersFallback();
-        if (!isCurrent()) return;
-        setRawOrders(orders);
-        setOrdersReady(true);
-      } catch {
-        if (!isCurrent()) return;
-        if (!background) {
-          setRawOrders([]);
-          setOrdersReady(false);
-        }
-        setLoadError("Supply orders could not be refreshed. Some evidence may be out of date.");
-      }
-      setRawInventory([]);
-    } else {
-      const inventoryParams = new URLSearchParams();
-      if (branch) inventoryParams.set("branch", branch);
-      const [ordersResult, stockInventoryResult, posInventoryResult] =
-        await Promise.allSettled([
-          fetchRawOrdersFallback(),
-          fetchJson(
-            `${API}/ingredients${inventoryParams.toString() ? `?${inventoryParams.toString()}` : ""}`,
-          ),
-          fetchJson(
-            `${API}/inventory${inventoryParams.toString() ? `?${inventoryParams.toString()}` : ""}`,
-          ),
-        ]);
+      const settled = await Promise.allSettled(endpoints.map(fetchJson));
+      const catalogResults = await Promise.allSettled([
+        fetchJson(`${API}/inventory`),
+        fetchJson(`${API}/ingredients`),
+      ]);
       if (!isCurrent()) return;
-      setSourceMode("fallback");
-      setOverviewApi(null);
-      setBranchesApi([]);
-      setBrandsApi([]);
-      setAnomaliesApi([]);
-      setProductsApi([]);
-      if (ordersResult.status === "fulfilled") {
-        setOrdersReady(true);
-        setRawOrders(ordersResult.value);
-      } else if (!background) {
-        setOrdersReady(false);
-        setRawOrders([]);
-      }
-      const stockPayload =
-        stockInventoryResult.status === "fulfilled"
-          ? stockInventoryResult.value
-          : [];
-      const posPayload =
-        posInventoryResult.status === "fulfilled"
-          ? posInventoryResult.value
-          : [];
-      const stockRows = Array.isArray(stockPayload)
-        ? stockPayload
-        : Array.isArray(stockPayload?.data)
-          ? stockPayload.data
-          : [];
-      const posRows = Array.isArray(posPayload)
-        ? posPayload
-        : Array.isArray(posPayload?.data)
-          ? posPayload.data
-          : [];
-      const stockAvailable = stockInventoryResult.status === "fulfilled" || posInventoryResult.status === "fulfilled";
-      if (stockAvailable) setRawInventory(stockRows.length ? stockRows : posRows);
-      else if (!background) setRawInventory([]);
-      const failures = [];
-      if (ordersResult.status === "rejected") {
-        failures.push(`Supply orders could not load: ${ordersResult.reason?.message || "connection failed"}.`);
-      }
-      if (!stockAvailable) {
-        failures.push(`Stock evidence could not load: ingredients (${stockInventoryResult.reason?.message || "unavailable"}); inventory (${posInventoryResult.reason?.message || "unavailable"}). Revenue updates are still available when orders load.`);
-      }
-      if (failures.length) {
-        setLoadError(failures.join(" ") + (background ? " Previous values are retained only for sources that failed." : " Retry after checking the backend."));
-      }
+      if (catalogResults.some((result) => result.status === "fulfilled"))
+        setEvidenceCatalog(
+          catalogResults.flatMap((result) => {
+            if (result.status !== "fulfilled") return [];
+            const value = result.value;
+            return Array.isArray(value)
+              ? value
+              : Array.isArray(value?.data)
+                ? value.data
+                : [];
+          }),
+        );
+      const hasCoreSummary = settled
+        .slice(0, 3)
+        .every((r) => r.status === "fulfilled");
 
-    }
-    completedB2BScopeRef.current = scope;
-    completedB2BModeRef.current = hasCoreSummary ? "aggregated" : "fallback";
+      if (
+        !hasCoreSummary &&
+        background &&
+        completedB2BModeRef.current === "aggregated"
+      ) {
+        setLoadError(
+          "Refresh unavailable. Showing the last loaded figures; retry Refresh.",
+        );
+        return;
+      }
+      if (hasCoreSummary) {
+        setSourceMode("aggregated");
+        const o = settled[0].status === "fulfilled" ? settled[0].value : null;
+        const br = settled[1].status === "fulfilled" ? settled[1].value : [];
+        const bd = settled[2].status === "fulfilled" ? settled[2].value : [];
+        const an = settled[3].status === "fulfilled" ? settled[3].value : [];
+        const pr = settled[4].status === "fulfilled" ? settled[4].value : [];
+        setOverviewApi(o?.data || o || null);
+        setBranchesApi(
+          Array.isArray(br)
+            ? br
+            : Array.isArray(br?.branches)
+              ? br.branches
+              : Array.isArray(br?.data)
+                ? br.data
+                : [],
+        );
+        setBrandsApi(
+          Array.isArray(bd)
+            ? bd
+            : Array.isArray(bd?.brands)
+              ? bd.brands
+              : Array.isArray(bd?.data)
+                ? bd.data
+                : [],
+        );
+        setAnomaliesApi(
+          Array.isArray(an)
+            ? an
+            : Array.isArray(an?.anomalies)
+              ? an.anomalies
+              : Array.isArray(an?.data)
+                ? an.data
+                : [],
+        );
+        setProductsApi(
+          Array.isArray(pr)
+            ? pr
+            : Array.isArray(pr?.products)
+              ? pr.products
+              : Array.isArray(pr?.data)
+                ? pr.data
+                : [],
+        );
+        try {
+          const orders = await fetchRawOrdersFallback();
+          if (!isCurrent()) return;
+          setRawOrders(orders);
+          setOrdersReady(true);
+        } catch {
+          if (!isCurrent()) return;
+          if (!background) {
+            setRawOrders([]);
+            setOrdersReady(false);
+          }
+          setLoadError(
+            "Supply orders could not be refreshed. Some evidence may be out of date.",
+          );
+        }
+        setRawInventory([]);
+      } else {
+        const inventoryParams = new URLSearchParams();
+        if (branch) inventoryParams.set("branch", branch);
+        const [ordersResult, stockInventoryResult, posInventoryResult] =
+          await Promise.allSettled([
+            fetchRawOrdersFallback(),
+            fetchJson(
+              `${API}/ingredients${inventoryParams.toString() ? `?${inventoryParams.toString()}` : ""}`,
+            ),
+            fetchJson(
+              `${API}/inventory${inventoryParams.toString() ? `?${inventoryParams.toString()}` : ""}`,
+            ),
+          ]);
+        if (!isCurrent()) return;
+        setSourceMode("fallback");
+        setOverviewApi(null);
+        setBranchesApi([]);
+        setBrandsApi([]);
+        setAnomaliesApi([]);
+        setProductsApi([]);
+        if (ordersResult.status === "fulfilled") {
+          setOrdersReady(true);
+          setRawOrders(ordersResult.value);
+        } else if (!background) {
+          setOrdersReady(false);
+          setRawOrders([]);
+        }
+        const stockPayload =
+          stockInventoryResult.status === "fulfilled"
+            ? stockInventoryResult.value
+            : [];
+        const posPayload =
+          posInventoryResult.status === "fulfilled"
+            ? posInventoryResult.value
+            : [];
+        const stockRows = Array.isArray(stockPayload)
+          ? stockPayload
+          : Array.isArray(stockPayload?.data)
+            ? stockPayload.data
+            : [];
+        const posRows = Array.isArray(posPayload)
+          ? posPayload
+          : Array.isArray(posPayload?.data)
+            ? posPayload.data
+            : [];
+        const stockAvailable =
+          stockInventoryResult.status === "fulfilled" ||
+          posInventoryResult.status === "fulfilled";
+        if (stockAvailable)
+          setRawInventory(stockRows.length ? stockRows : posRows);
+        else if (!background) setRawInventory([]);
+        const failures = [];
+        if (ordersResult.status === "rejected") {
+          failures.push(
+            `Supply orders could not load: ${ordersResult.reason?.message || "connection failed"}.`,
+          );
+        }
+        if (!stockAvailable) {
+          failures.push(
+            `Stock evidence could not load: ingredients (${stockInventoryResult.reason?.message || "unavailable"}); inventory (${posInventoryResult.reason?.message || "unavailable"}). Revenue updates are still available when orders load.`,
+          );
+        }
+        if (failures.length) {
+          setLoadError(
+            failures.join(" ") +
+              (background
+                ? " Previous values are retained only for sources that failed."
+                : " Retry after checking the backend."),
+          );
+        }
+      }
+      completedB2BScopeRef.current = scope;
+      completedB2BModeRef.current = hasCoreSummary ? "aggregated" : "fallback";
     } catch (error) {
-      if (isCurrent()) setLoadError("Dashboard update failed. Please retry Refresh.");
+      if (isCurrent())
+        setLoadError("Dashboard update failed. Please retry Refresh.");
     } finally {
       if (isCurrent()) {
         activeB2BRequestRef.current = null;
@@ -10714,12 +10858,14 @@ function B2BRevenueAssuranceDashboard({
         const closingValues = currI
           .map(b2bInventoryClosing)
           .filter((v) => v != null);
-        const openingQty = currI.length > 0 && openingValues.length === currI.length
-          ? openingValues.reduce((s, v) => s + v, 0)
-          : null;
-        const endingStock = currI.length > 0 && closingValues.length === currI.length
-          ? closingValues.reduce((s, v) => s + v, 0)
-          : null;
+        const openingQty =
+          currI.length > 0 && openingValues.length === currI.length
+            ? openingValues.reduce((s, v) => s + v, 0)
+            : null;
+        const endingStock =
+          currI.length > 0 && closingValues.length === currI.length
+            ? closingValues.reduce((s, v) => s + v, 0)
+            : null;
         const disposalQty = currI.reduce(
           (s, i) => s + b2bNum(b2bInventoryDisposal(i)),
           0,
@@ -10854,12 +11000,14 @@ function B2BRevenueAssuranceDashboard({
         const closingValues = currI
           .map(b2bInventoryClosing)
           .filter((v) => v != null);
-        const openingStock = currI.length > 0 && openingValues.length === currI.length
-          ? openingValues.reduce((s, v) => s + v, 0)
-          : null;
-        const endingStock = currI.length > 0 && closingValues.length === currI.length
-          ? closingValues.reduce((s, v) => s + v, 0)
-          : null;
+        const openingStock =
+          currI.length > 0 && openingValues.length === currI.length
+            ? openingValues.reduce((s, v) => s + v, 0)
+            : null;
+        const endingStock =
+          currI.length > 0 && closingValues.length === currI.length
+            ? closingValues.reduce((s, v) => s + v, 0)
+            : null;
         const disposalQty = currI.reduce(
           (s, i) => s + b2bNum(b2bInventoryDisposal(i)),
           0,
@@ -11074,9 +11222,9 @@ function B2BRevenueAssuranceDashboard({
       (sum, row) => sum + Number(row.openingStock || 0),
       0,
     );
-    const hasOpeningEvidence = brandRows.length > 0 && brandRows.every(
-      (row) => row.openingStock != null,
-    );
+    const hasOpeningEvidence =
+      brandRows.length > 0 &&
+      brandRows.every((row) => row.openingStock != null);
     const coverage =
       hasOpeningEvidence && soldUnits > 0
         ? Math.min(
@@ -11208,13 +11356,16 @@ function B2BRevenueAssuranceDashboard({
 
     // Fallback rows are already generated exclusively from branchCatalog.
     if (sourceMode === "fallback" || !branchesApi.length) {
-      return fallback.branchRows.map(b2bAssessBranch).filter(
-        (r) =>
-          isOfficialBrandBranch(r.branch, r.brand) &&
-          (!brand || normalizeB2BBrand(r.brand) === normalizeB2BBrand(brand)) &&
-          (!branch || b2bSameScope(r.branch, branch)) &&
-          riskMatches(r.risk),
-      );
+      return fallback.branchRows
+        .map(b2bAssessBranch)
+        .filter(
+          (r) =>
+            isOfficialBrandBranch(r.branch, r.brand) &&
+            (!brand ||
+              normalizeB2BBrand(r.brand) === normalizeB2BBrand(brand)) &&
+            (!branch || b2bSameScope(r.branch, branch)) &&
+            riskMatches(r.risk),
+        );
     }
 
     // Aggregated API can contain historical/deleted branches.
@@ -11317,13 +11468,15 @@ function B2BRevenueAssuranceDashboard({
       });
     });
 
-    return [...merged.values()].map(b2bAssessBranch).filter(
-      (r) =>
-        isOfficialBrandBranch(r.branch, r.brand) &&
-        (!brand || normalizeB2BBrand(r.brand) === normalizeB2BBrand(brand)) &&
-        (!branch || b2bSameScope(r.branch, branch)) &&
-        riskMatches(r.risk),
-    );
+    return [...merged.values()]
+      .map(b2bAssessBranch)
+      .filter(
+        (r) =>
+          isOfficialBrandBranch(r.branch, r.brand) &&
+          (!brand || normalizeB2BBrand(r.brand) === normalizeB2BBrand(brand)) &&
+          (!branch || b2bSameScope(r.branch, branch)) &&
+          riskMatches(r.risk),
+      );
   }, [
     sourceMode,
     branchesApi,
@@ -11504,7 +11657,10 @@ function B2BRevenueAssuranceDashboard({
         r?.target,
       ),
     }));
-    return mapped.map((row) => ({ ...row, targetRevenue: B2B_HQ_MONTHLY_TARGET }));
+    return mapped.map((row) => ({
+      ...row,
+      targetRevenue: B2B_HQ_MONTHLY_TARGET,
+    }));
   }, [overviewApi, fallback.trend, growthTargetPct]);
 
   const skuRows = fallback.skuRows;
@@ -12647,7 +12803,6 @@ function B2BRevenueAssuranceDashboard({
               }
             />
           )}
-
         </div>
       )}
 
@@ -12736,19 +12891,19 @@ function B2BRevenueAssuranceDashboard({
               >
                 <thead>
                   <tr>
-                    {[
-                      "Branch / Brand",
-                      "HQ Supply",
-                      "POS Revenue",
-                      "Risk",
-                    ].map((h, i) => (
-                      <th
-                        key={h}
-                        style={{ ...th, textAlign: i === 0 ? "left" : "right" }}
-                      >
-                        {h}
-                      </th>
-                    ))}
+                    {["Branch / Brand", "HQ Supply", "POS Revenue", "Risk"].map(
+                      (h, i) => (
+                        <th
+                          key={h}
+                          style={{
+                            ...th,
+                            textAlign: i === 0 ? "left" : "right",
+                          }}
+                        >
+                          {h}
+                        </th>
+                      ),
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -18371,9 +18526,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
   const fetchBrands = async () => {
     setLoading(true);
     try {
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/brands`,
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/brands`);
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       const sorted = [...list]
@@ -18421,20 +18574,17 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
     showLoading("Adding brand…");
     try {
       const coords = await getBrowserLocation();
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/brands`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...brandForm,
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        },
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/brands`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...brandForm,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       const data = await res.json();
       if (data.success) {
         await fetchBrands();
@@ -18514,34 +18664,28 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
     showLoading("Deleting brand…");
     try {
       const coords = await getBrowserLocation();
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/brands/${id}`,
-        {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        },
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/brands/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       const data = await res.json();
       if (data.success) {
-        await adminModuleFetch(
-          `${ADMIN_API_BASE}/brand-delete-history`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              type: "brand",
-              name,
-              brand_name: null,
-              data: brandToSave,
-            }),
-          },
-        );
+        await adminModuleFetch(`${ADMIN_API_BASE}/brand-delete-history`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "brand",
+            name,
+            brand_name: null,
+            data: brandToSave,
+          }),
+        });
         await fetchBrands();
         await fetchDeleteHistory();
         await fetchActivityLog();
@@ -18581,20 +18725,17 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
     showLoading("Adding branch…");
     try {
       const coords = await getBrowserLocation();
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/branches`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...branchForm,
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        },
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/branches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...branchForm,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       const data = await res.json();
       if (data.success) {
         await fetchBrands();
@@ -18665,34 +18806,28 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
     showLoading("Deleting branch…");
     try {
       const coords = await getBrowserLocation();
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/branches/${id}`,
-        {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        },
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/branches/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       const data = await res.json();
       if (data.success) {
-        await adminModuleFetch(
-          `${ADMIN_API_BASE}/brand-delete-history`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              type: "branch",
-              name,
-              brand_name: brandName,
-              data: branch,
-            }),
-          },
-        );
+        await adminModuleFetch(`${ADMIN_API_BASE}/brand-delete-history`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "branch",
+            name,
+            brand_name: brandName,
+            data: branch,
+          }),
+        });
         await fetchBrands();
         await fetchDeleteHistory();
         await fetchActivityLog();
@@ -18723,21 +18858,18 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
       if (entry.type === "brand") {
         const { branches, ...brandFields } = entry.data;
         const branchList = Array.isArray(branches) ? branches : [];
-        const res = await adminModuleFetch(
-          `${ADMIN_API_BASE}/brands`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ...brandFields,
-              performed_by: user?.name || "System",
-              role: user?.role || "Unknown",
-              latitude: coords?.latitude,
-              longitude: coords?.longitude,
-              restored: true,
-            }),
-          },
-        );
+        const res = await adminModuleFetch(`${ADMIN_API_BASE}/brands`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...brandFields,
+            performed_by: user?.name || "System",
+            role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+            restored: true,
+          }),
+        });
         const data = await res.json();
         if (!data.success) {
           showError(
@@ -18789,27 +18921,24 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
           return;
         }
         const { id: _id, brand_id: _bid, ...branchFields } = entry.data;
-        const res = await adminModuleFetch(
-          `${ADMIN_API_BASE}/branches`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: branchFields.name,
-              region: branchFields.region || null,
-              manager: branchFields.manager || null,
-              contact: branchFields.contact || null,
-              address: branchFields.address || null,
-              concept: branchFields.concept || null,
-              brand_id: parentBrand.id,
-              performed_by: user?.name || "System",
-              role: user?.role || "Unknown",
-              latitude: coords?.latitude,
-              longitude: coords?.longitude,
-              restored: true,
-            }),
-          },
-        );
+        const res = await adminModuleFetch(`${ADMIN_API_BASE}/branches`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: branchFields.name,
+            region: branchFields.region || null,
+            manager: branchFields.manager || null,
+            contact: branchFields.contact || null,
+            address: branchFields.address || null,
+            concept: branchFields.concept || null,
+            brand_id: parentBrand.id,
+            performed_by: user?.name || "System",
+            role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+            restored: true,
+          }),
+        });
         const data = await res.json();
         if (data.success) {
           await adminModuleFetch(
@@ -21686,9 +21815,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
 
   const fetchActivityLog = useCallback(async () => {
     try {
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/shop-activity-log`,
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/shop-activity-log`);
       const data = await res.json();
       setActivityLog(
         Array.isArray(data)
@@ -21714,9 +21841,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
   const fetchShopItems = useCallback(async () => {
     setItemsLoading(true);
     try {
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/shop-items`,
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/shop-items`);
       const data = await res.json();
       setShopItems(Array.isArray(data) ? data : []);
     } catch {
@@ -21976,14 +22101,11 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
         longitude: coords?.longitude,
       };
       try {
-        const res = await adminModuleFetch(
-          `${ADMIN_API_BASE}/shop-items`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          },
-        );
+        const res = await adminModuleFetch(`${ADMIN_API_BASE}/shop-items`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
         if (res.ok) success++;
         else failed++;
       } catch {
@@ -22009,19 +22131,16 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     setDeleteLoading(true);
     const coords = await getBrowserLocation();
     try {
-      await adminModuleFetch(
-        `${ADMIN_API_BASE}/shop-items/${item.id}`,
-        {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            deleted_by: user?.name || "System",
-            performed_by_role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        },
-      );
+      await adminModuleFetch(`${ADMIN_API_BASE}/shop-items/${item.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deleted_by: user?.name || "System",
+          performed_by_role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       setToast({
         type: "success",
         title: "Listing Removed",
@@ -22045,19 +22164,16 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     if (!item.id) return; // nothing to toggle until it's listed
     const coords = await getBrowserLocation();
     try {
-      await adminModuleFetch(
-        `${ADMIN_API_BASE}/shop-items/${item.id}/toggle`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            performed_by: user?.name || "System",
-            performed_by_role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        },
-      );
+      await adminModuleFetch(`${ADMIN_API_BASE}/shop-items/${item.id}/toggle`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          performed_by: user?.name || "System",
+          performed_by_role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       fetchShopItems();
       fetchActivityLog();
     } catch {
@@ -23486,7 +23602,9 @@ function ApplicationsContent({
       const rows = await fetchApplicationRecords();
       setApplications(rows.map(normalizeApp));
     } catch (err) {
-      setApplicationsError(`${err.message} Existing records, if any, have been retained.`);
+      setApplicationsError(
+        `${err.message} Existing records, if any, have been retained.`,
+      );
     } finally {
       applicationsRequestRef.current = false;
       setApplicationsLoading(false);
@@ -23889,20 +24007,17 @@ function ApplicationsContent({
     setAlertModal({ title: "Approving application…", type: "loading" });
     try {
       const coords = await getBrowserLocation();
-      await adminModuleFetch(
-        `${ADMIN_API_BASE}/applications/${id}/status`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            status: "approved",
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        },
-      );
+      await adminModuleFetch(`${ADMIN_API_BASE}/applications/${id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "approved",
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       setApplications((prev) =>
         prev.map((a) => (a.id === id ? { ...a, status: "approved" } : a)),
       );
@@ -23961,14 +24076,11 @@ function ApplicationsContent({
 
       const app = applications.find((a) => a.id === id);
       if (app?.email) {
-        await adminModuleFetch(
-          `${ADMIN_API_BASE}/send-rejection`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ to: app.email, name: app.name }),
-          },
-        );
+        await adminModuleFetch(`${ADMIN_API_BASE}/send-rejection`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: app.email, name: app.name }),
+        });
       }
 
       setApplications((prev) =>
@@ -24033,21 +24145,18 @@ function ApplicationsContent({
       }
 
       if (app.email) {
-        await adminModuleFetch(
-          `${ADMIN_API_BASE}/send-schedule-options`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              to: app.email,
-              name: app.name,
-              optionADate,
-              optionBDate,
-              optionCDate,
-              token: data.appointmentToken,
-            }),
-          },
-        );
+        await adminModuleFetch(`${ADMIN_API_BASE}/send-schedule-options`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: app.email,
+            name: app.name,
+            optionADate,
+            optionBDate,
+            optionCDate,
+            token: data.appointmentToken,
+          }),
+        });
       }
 
       const normalizedApp = normalizeApp(data.application);
@@ -24173,42 +24282,39 @@ function ApplicationsContent({
     try {
       const d = entry.data;
       const coords = await getBrowserLocation();
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/applications`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: d.name,
-            email: d.email,
-            phone: d.phone,
-            franchise: d.franchise,
-            paymentMode: d.payment_mode,
-            dob: d.dob,
-            civilStatus: d.civil_status,
-            gender: d.gender,
-            nationality: d.nationality,
-            address: d.address,
-            dependents: d.dependents,
-            spouseName: d.spouse_name,
-            spouseOccupation: d.spouse_occupation,
-            employmentType: d.employment_type,
-            yearsEmployer: d.years_employer,
-            income: d.income,
-            employerName: d.employer_name,
-            businessAddress: d.business_address,
-            position: d.position,
-            businessNature: d.business_nature,
-            signature: d.signature,
-            dateSigned: d.date_signed,
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-            restored: true,
-          }),
-        },
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/applications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: d.name,
+          email: d.email,
+          phone: d.phone,
+          franchise: d.franchise,
+          paymentMode: d.payment_mode,
+          dob: d.dob,
+          civilStatus: d.civil_status,
+          gender: d.gender,
+          nationality: d.nationality,
+          address: d.address,
+          dependents: d.dependents,
+          spouseName: d.spouse_name,
+          spouseOccupation: d.spouse_occupation,
+          employmentType: d.employment_type,
+          yearsEmployer: d.years_employer,
+          income: d.income,
+          employerName: d.employer_name,
+          businessAddress: d.business_address,
+          position: d.position,
+          businessNature: d.business_nature,
+          signature: d.signature,
+          dateSigned: d.date_signed,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+          restored: true,
+        }),
+      });
       const result = await res.json();
       if (result.success) {
         await adminModuleFetch(
@@ -24476,10 +24582,25 @@ function ApplicationsContent({
   return (
     <>
       {applicationsError && (
-        <div role="alert" style={{ padding: 12, marginBottom: 14, border: "1px solid #f2c9c4", borderRadius: 10, background: "#fff7ed", color: "#9a3412", fontSize: 12 }}>
+        <div
+          role="alert"
+          style={{
+            padding: 12,
+            marginBottom: 14,
+            border: "1px solid #f2c9c4",
+            borderRadius: 10,
+            background: "#fff7ed",
+            color: "#9a3412",
+            fontSize: 12,
+          }}
+        >
           {applicationsError}
-          <button type="button" onClick={fetchApplications} disabled={applicationsLoading}
-            style={{ ...btnSt, marginLeft: 10 }}>
+          <button
+            type="button"
+            onClick={fetchApplications}
+            disabled={applicationsLoading}
+            style={{ ...btnSt, marginLeft: 10 }}
+          >
             {applicationsLoading ? "Loading…" : "Retry"}
           </button>
         </div>
@@ -26291,29 +26412,26 @@ function CreateAccountModal({
 
       // Create the account first — if the email is a duplicate, we bail
       // out before ever touching branches, so no orphan branch is created.
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/users`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name,
-            firstName,
-            lastName,
-            middleInitial: middleInitial || null,
-            suffix: suffix || null,
-            email,
-            password: tempPassword,
-            role,
-            brand,
-            branch,
-            performed_by: user?.name || "System",
-            performed_by_role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        },
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          firstName,
+          lastName,
+          middleInitial: middleInitial || null,
+          suffix: suffix || null,
+          email,
+          password: tempPassword,
+          role,
+          brand,
+          branch,
+          performed_by: user?.name || "System",
+          performed_by_role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       if (!res.ok) {
         const err = await res.json();
 
@@ -26336,21 +26454,18 @@ function CreateAccountModal({
       // The applicant is the new franchisee — their assigned branch doesn't
       // exist yet, so create it under the selected brand now that the
       // account itself succeeded.
-      const branchRes = await adminModuleFetch(
-        `${ADMIN_API_BASE}/branches`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: branch,
-            brand_id: selectedBrandId,
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        },
-      );
+      const branchRes = await adminModuleFetch(`${ADMIN_API_BASE}/branches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: branch,
+          brand_id: selectedBrandId,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       if (!branchRes.ok) {
         const branchErr = await branchRes.json();
         onAlert(
@@ -26360,14 +26475,11 @@ function CreateAccountModal({
         return;
       }
 
-      await adminModuleFetch(
-        `${ADMIN_API_BASE}/send-credentials`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ to: email, name, password: tempPassword }),
-        },
-      );
+      await adminModuleFetch(`${ADMIN_API_BASE}/send-credentials`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: email, name, password: tempPassword }),
+      });
 
       // Isolated on purpose: the account and branch already exist at this
       // point. If marking account-created fails (network blip, stale
@@ -26790,21 +26902,18 @@ function ReportsContent({ user, brands: propBrands = [] }) {
   const logActivity = useCallback(
     async (action, itemName, branchName, changes = null) => {
       try {
-        await adminModuleFetch(
-          `${ADMIN_API_BASE}/shop-activity-log`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action,
-              item_name: itemName,
-              branch: branchName,
-              performed_by: user?.name || "System",
-              role: user?.role || "Unknown",
-              changes,
-            }),
-          },
-        );
+        await adminModuleFetch(`${ADMIN_API_BASE}/shop-activity-log`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            item_name: itemName,
+            branch: branchName,
+            performed_by: user?.name || "System",
+            role: user?.role || "Unknown",
+            changes,
+          }),
+        });
       } catch (err) {
         console.warn("Activity log failed (non-fatal):", err);
       }
@@ -29293,21 +29402,18 @@ function UsersContent({ user, brands: propBrands = [] }) {
   const logActivity = useCallback(
     async (action, itemName, branchName, changes = null) => {
       try {
-        await adminModuleFetch(
-          `${ADMIN_API_BASE}/shop-activity-log`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action,
-              item_name: itemName,
-              branch: branchName,
-              performed_by: user?.name || "System",
-              role: user?.role || "Unknown",
-              changes,
-            }),
-          },
-        );
+        await adminModuleFetch(`${ADMIN_API_BASE}/shop-activity-log`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            item_name: itemName,
+            branch: branchName,
+            performed_by: user?.name || "System",
+            role: user?.role || "Unknown",
+            changes,
+          }),
+        });
       } catch (err) {
         console.warn("Activity log failed (non-fatal):", err);
       }
@@ -29323,9 +29429,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
   useEffect(() => {
     const fetchBrands = async () => {
       try {
-        const res = await adminModuleFetch(
-          `${ADMIN_API_BASE}/brands`,
-        );
+        const res = await adminModuleFetch(`${ADMIN_API_BASE}/brands`);
         const data = await res.json();
         setBrands(Array.isArray(data) ? data : []);
       } catch (err) {
@@ -29348,9 +29452,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
 
   const fetchUsers = async () => {
     try {
-      const response = await adminModuleFetch(
-        `${ADMIN_API_BASE}/users`,
-      );
+      const response = await adminModuleFetch(`${ADMIN_API_BASE}/users`);
       const data = await response.json();
       console.log("users from API:", data);
       setUsers(data);
@@ -29360,9 +29462,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
     }
   };
   const fetchDeleteHistory = async () => {
-    const res = await adminModuleFetch(
-      `${ADMIN_API_BASE}/delete-history`,
-    );
+    const res = await adminModuleFetch(`${ADMIN_API_BASE}/delete-history`);
     const data = await res.json();
     setDeleteHistory(Array.isArray(data) ? data : []);
   };
@@ -29499,28 +29599,22 @@ function UsersContent({ user, brands: propBrands = [] }) {
       longitude: coords?.longitude,
     };
     try {
-      const response = await adminModuleFetch(
-        `${ADMIN_API_BASE}/users`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-      );
+      const response = await adminModuleFetch(`${ADMIN_API_BASE}/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       const data = await response.json();
       if (data.success) {
-        await adminModuleFetch(
-          `${ADMIN_API_BASE}/send-credentials`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              to: formData.email,
-              name: formData.name,
-              password: tempPassword,
-            }),
-          },
-        );
+        await adminModuleFetch(`${ADMIN_API_BASE}/send-credentials`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: formData.email,
+            name: formData.name,
+            password: tempPassword,
+          }),
+        });
         await fetchUsers();
         await fetchActivityLog();
         setShowAddModal(false);
@@ -29625,14 +29719,11 @@ function UsersContent({ user, brands: propBrands = [] }) {
       );
       const data = await response.json();
       if (data.success) {
-        await adminModuleFetch(
-          `${ADMIN_API_BASE}/delete-history`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ user_data: targetUser }),
-          },
-        );
+        await adminModuleFetch(`${ADMIN_API_BASE}/delete-history`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_data: targetUser }),
+        });
         await fetchDeleteHistory();
         await fetchUsers();
         await fetchActivityLog();
@@ -29661,33 +29752,29 @@ function UsersContent({ user, brands: propBrands = [] }) {
       const coords = await getBrowserLocation();
       const d = entry.user_data || entry.data || {};
 
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/users`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: d.name,
-            email: d.email,
-            role: d.role,
-            branch: d.branch,
-            brand: d.brand || "",
-            password: d.password,
-            performed_by: user?.name || "System",
-            performed_by_role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-            restored: true,
-          }),
-        },
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: d.name,
+          email: d.email,
+          role: d.role,
+          branch: d.branch,
+          brand: d.brand || "",
+          password: d.password,
+          performed_by: user?.name || "System",
+          performed_by_role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+          restored: true,
+        }),
+      });
       const data = await res.json();
 
       if (data.success) {
-        await adminModuleFetch(
-          `${ADMIN_API_BASE}/delete-history/${entry.id}`,
-          { method: "DELETE" },
-        );
+        await adminModuleFetch(`${ADMIN_API_BASE}/delete-history/${entry.id}`, {
+          method: "DELETE",
+        });
         await fetchDeleteHistory();
         await fetchUsers();
         await fetchActivityLog();
@@ -30408,21 +30495,18 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
   const logActivity = useCallback(
     async (action, itemName, branchName, changes = null) => {
       try {
-        await adminModuleFetch(
-          `${ADMIN_API_BASE}/shop-activity-log`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action,
-              item_name: itemName,
-              branch: branchName,
-              performed_by: user?.name || "System",
-              role: user?.role || "Unknown",
-              changes,
-            }),
-          },
-        );
+        await adminModuleFetch(`${ADMIN_API_BASE}/shop-activity-log`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            item_name: itemName,
+            branch: branchName,
+            performed_by: user?.name || "System",
+            role: user?.role || "Unknown",
+            changes,
+          }),
+        });
       } catch (err) {
         console.warn("Activity log failed (non-fatal):", err);
       }
@@ -30439,9 +30523,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
   const fetchAnnouncements = async () => {
     setFetching(true);
     try {
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/announcements`,
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/announcements`);
       const data = await res.json();
       setAnnouncements(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -30606,20 +30688,17 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
 
   const handleRestore = async (entry) => {
     try {
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/announcements`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: entry.data.title,
-            content: entry.data.content,
-            image_url: entry.data.image_url || null,
-            userId: user.id,
-            role: user.role,
-          }),
-        },
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/announcements`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: entry.data.title,
+          content: entry.data.content,
+          image_url: entry.data.image_url || null,
+          userId: user.id,
+          role: user.role,
+        }),
+      });
       const data = await res.json();
       if (!res.ok) {
         showAlert(data.error || "Failed to restore.", "error");
@@ -36756,9 +36835,7 @@ function POSContent({ user, brands: propBrands = [] }) {
       const q = activeBranch
         ? `?branch=${encodeURIComponent(activeBranch)}`
         : "";
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/transactions${q}`,
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/transactions${q}`);
       const d = await res.json();
       setTransactions(Array.isArray(d) ? d : []);
     } catch {
@@ -36993,14 +37070,11 @@ function POSContent({ user, brands: propBrands = [] }) {
         })),
       };
 
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/transactions`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/transactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       const d = await res.json();
       if (d.success) {
         setLastReceipt({
@@ -41563,7 +41637,3 @@ export function AppField({ label, value, highlight, large }) {
 }
 // ─── Exports ──────────────────────────────────────────────────────────────────
 export { ActionDropdown, POSContent };
-
-
-
-
