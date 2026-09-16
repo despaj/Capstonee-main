@@ -168,7 +168,13 @@ router.post("/send-otp-after-login", async (req, res) => {
       from: "Franchisync <noreply@franchisync.business>",
       to: email,
       subject: "Your FranchiSync Login OTP",
-      html: `...`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2 style="color: #2E7D32;">FranchiSync Login Verification</h2>
+          <p>Your one-time password is:</p>
+          <h1 style="background: #E8F5E9; padding: 15px; text-align: center; letter-spacing: 5px;">${otp}</h1>
+          <p style="color: #666;">This code will expire in 3 minutes.</p>
+        </div>`,
     });
 
     if (error) {
