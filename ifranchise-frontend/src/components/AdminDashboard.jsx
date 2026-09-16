@@ -132,7 +132,6 @@ async function adminModuleFetch(input, options) {
   return response;
 }
 
-// Coalesce module writes and never overlap refreshes in the same subscription.
 function useAdminLiveRefresh(refresh, dependencies) {
   useEffect(() => {
     let stopped = false,
@@ -185,7 +184,6 @@ function useAdminLiveRefresh(refresh, dependencies) {
   }, dependencies);
 }
 
-// Shared palette must be initialized before module-level style objects.
 const C = {
   green: "#3b791e",
   greenDk: "#2c5c16",
@@ -450,8 +448,6 @@ const invInputSt = {
   width: "100%",
   transition: "border-color .2s ease, box-shadow .2s ease",
 };
-// focus state (wherever :focus is handled via onFocus/onBlur or CSS):
-//   borderColor: C.green, boxShadow:"0 0 0 3px rgba(59,121,30,0.12)"
 const btnSt = {
   display: "inline-flex",
   alignItems: "center",
@@ -10195,12 +10191,6 @@ function B2BRevenueAssuranceDashboard({
       a.name.localeCompare(b.name),
     );
   }, [brands]);
-
-  // ============================================================
-  // BRAND & BRANCH VALIDATION
-  // brands.js / Brand & Branch is the ONLY source of truth.
-  // Deleted or legacy branches must never appear in Ghost Stock.
-  // ============================================================
 
   const normalizeB2BBrand = useCallback((value) => {
     const name = String(value || "").trim();

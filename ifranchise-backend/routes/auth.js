@@ -5,6 +5,7 @@ const { Resend } = require("resend");
 const resend = new Resend(process.env.RESEND_API_KEY);
 const otpStore = require("../utils/otpStore");
 const { getOrCreateDeviceId } = require("../utils/deviceId");
+const bcrypt = require("bcrypt");
 
 const geoip = require("geoip-lite");
 const UAParser = require("ua-parser-js");
@@ -113,7 +114,7 @@ router.post("/login", async (req, res) => {
     if (user.rows.length === 0)
       return res.status(401).json({ message: "Invalid credentials" });
 
-    const validPass = password === user.rows[0].password;
+    const validPass = await bcrypt.compare(password, user.rows[0].password);
     if (!validPass)
       return res.status(401).json({ message: "Invalid credentials" });
 
@@ -163,18 +164,19 @@ router.post("/send-otp-after-login", async (req, res) => {
     console.log(`[DEBUG] OTP for ${email} (login):`, otp);
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
-    await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: "Franchisync <noreply@franchisync.business>",
       to: email,
       subject: "Your FranchiSync Login OTP",
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px;">
-          <h2 style="color: #2E7D32;">Login Verification</h2>
-          <p>Your one-time password is:</p>
-          <h1 style="background: #E8F5E9; padding: 15px; text-align: center; letter-spacing: 5px;">${otp}</h1>
-          <p style="color: #666;">This code will expire in 3 minutes.</p>
-        </div>`,
+      html: `...`,
     });
+
+    if (error) {
+      console.error("Resend OTP error:", error);
+      return res
+        .status(500)
+        .json({ success: false, message: "Failed to send OTP" });
+    }
 
     res.json({ success: true });
   } catch (err) {
@@ -266,12 +268,59 @@ router.post("/auth/verify-password", async (req, res) => {
     ]);
     if (result.rows.length === 0)
       return res.status(404).json({ error: "User not found" });
-    if (result.rows[0].password !== password)
+
+    const validPass = await bcrypt.compare(password, result.rows[0].password);
+    if (!validPass)
       return res.status(401).json({ error: "Incorrect password" });
+
     res.json({ success: true });
   } catch (err) {
     console.error("POST /auth/verify-password error:", err);
     res.status(500).json({ error: "Verification failed" });
+  }
+});
+
+router.post("/api/send-otp", async (req, res) => {
+  const { mobile, otp } = req.body;
+  let formattedMobile = mobile.replace(/\D/g, "");
+  if (formattedMobile.startsWith("0"))
+    formattedMobile = "63" + formattedMobile.substring(1);
+
+  try {
+    const response = await fetch(
+      "https://dashboard.philsms.com/api/v3/sms/send",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.PHILSMS_TOKEN.trim()}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          recipient: formattedMobile,
+          sender_id: process.env.PHILSMS_SENDER_ID,
+          message: `Your franchise application OTP is ${otp}. Valid for 5 minutes.`,
+        }),
+      },
+    );
+
+    const rawText = await response.text();
+
+    if (response.ok) {
+      const data = JSON.parse(rawText);
+      return res.json({ success: true, data });
+    } else {
+      let errorMessage = rawText;
+      try {
+        errorMessage = JSON.parse(rawText).message || rawText;
+      } catch (e) {}
+      return res
+        .status(response.status)
+        .json({ success: false, error: errorMessage });
+    }
+  } catch (err) {
+    console.error("Internal Server Error:", err);
+    res.status(500).json({ success: false, error: "Server error" });
   }
 });
 
@@ -534,7 +583,11 @@ router.post("/reset-password", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (newPassword === user.rows[0].password) {
+    const samePassword = await bcrypt.compare(
+      newPassword,
+      user.rows[0].password,
+    );
+    if (samePassword) {
       return res.status(400).json({
         message: "New password must be different from your current password",
       });
@@ -543,8 +596,9 @@ router.post("/reset-password", async (req, res) => {
     delete resetTokenStore[email];
 
     const userId = user.rows[0].id;
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
     await pool.query("UPDATE users SET password=$1 WHERE email=$2", [
-      newPassword,
+      hashedNewPassword,
       email,
     ]);
 
