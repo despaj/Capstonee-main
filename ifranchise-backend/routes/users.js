@@ -309,12 +309,11 @@ router.put("/api/users/:id", async (req, res) => {
 
     let query, params;
     if (newPassword) {
-      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
       query = `UPDATE users SET name=$1, email=$2, password=$3, age=$4, address=$5, contact_number=$6, saved_address=$7 WHERE id=$8 RETURNING *`;
       params = [
         fullName,
         email,
-        hashedNewPassword,
+        newPassword,
         age || null,
         address || null,
         contactNumber || null,
@@ -643,7 +642,7 @@ router.post("/verify-manager-password", async (req, res) => {
     for (const row of result.rows) {
       if (!row.password) continue;
 
-      if (await bcrypt.compare(password, row.password)) {
+      if (row.password === password) {
         return res.json({ valid: true });
       }
     }
