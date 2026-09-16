@@ -8672,6 +8672,11 @@ const b2bAssessBranch = (row) => {
       : `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const evidence = `Recorded HQ supply: ${amount(hqRevenue)}. Recorded POS sales: ${amount(posRevenue)}.`;
   const allowedPos = hqRevenue == null ? null : hqRevenue * 1.12;
+  // Compare currency at cent precision so values that display equally
+  // (e.g. ₱67,564.72 vs ₱67,564.7168) are treated as equal.
+  const posForRisk = posRevenue == null ? null : Number(posRevenue.toFixed(2));
+  const allowedForRisk =
+    allowedPos == null ? null : Number(allowedPos.toFixed(2));
   let risk;
   let reason;
 
@@ -8684,7 +8689,7 @@ const b2bAssessBranch = (row) => {
   } else if (hqRevenue === 0 && posRevenue > 0) {
     risk = "High Risk";
     reason = `${evidence} POS sales exceed the HQ supply baseline by more than 12% because the HQ supply is zero.`;
-  } else if (posRevenue > allowedPos) {
+  } else if (posForRisk > allowedForRisk) {
     risk = "High Risk";
     reason = `${evidence} The POS total exceeds the HQ supply plus the allowed 12% variance (${amount(allowedPos)}).`;
   } else {
