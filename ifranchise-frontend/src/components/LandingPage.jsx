@@ -11,11 +11,11 @@ import card2Img from "../assets/cards (2).png";
 const CARDS = [
   {
     icon: "scan",
-    eyebrow: "Receipt Intelligence",
-    title: "Optical Character Recognition (OCR)",
-    text: "An OCR-powered receipt scanner that makes liquidation faster, smarter, and fully digital. Simply scan receipts and the system automatically extracts and records the details with high accuracy — no manual encoding needed.",
+    eyebrow: "Prescriptive Analysis",
+    title: "Prescriptive & Ghost Stock Analysis",
+    text: "provides data-driven insights into inventory and revenue discrepancies by identifying potential ghost stock, unusual branch-level activity, and supply-to-POS inconsistencies. It analyzes recorded HQ supply and POS sales to detect possible loss risks, highlights branches that exceed the expected 12% variance threshold, and provides actionable recommendations to support inventory reconciliation and corrective decision-making.",
     image: card3Img,
-    imageAlt: "OCR receipt scanning interface",
+    imageAlt: "Analysis",
   },
   {
     icon: "chart",
