@@ -24,14 +24,17 @@ async function priceFromCost(brand, name, fallback) {
 
   const bulkQty = Number(bulk_qty) > 0 ? Number(bulk_qty) : defaultBulkQty;
 
-  const markup = 1.15; // 15% markup for supplies
+  const markup = 1.15;
   return Math.round(Number(cost_per_unit) * bulkQty * markup * 100) / 100;
 }
 
 router.get("/shop-items", async (req, res) => {
   try {
     const brand = (req.query.brand || "").trim();
-    const shop = (req.query.shop || "").trim();
+    const isWeb = req.headers["x-client"] === "web";
+    const shop = isWeb
+      ? (req.query.shop || "").trim()
+      : "San Juan (Head Office)";
     const selectCols = `
       si.id, si.name, si.price, si.unit, si.image_url, si.is_visible,
       si.shop, si.brand, COALESCE(i.stock, si.stock) AS stock,
