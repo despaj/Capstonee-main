@@ -50,7 +50,6 @@ import {
   Mail,
   Edit2,
   Archive,
-  CreditCard,
   Calendar,
   Pin,
   Megaphone,
@@ -384,13 +383,21 @@ const VSectionTitle = ({ children, icon }) => (
   </div>
 );
 
-const VEmptyState = ({ icon, title, sub }) => (
-  <div className="v-empty">
-    <div className="v-empty-icon">{icon}</div>
-    <div className="v-empty-title">{title}</div>
-    <div className="v-empty-sub">{sub}</div>
-  </div>
-);
+const VEmptyState = ({ icon, title, sub }) => {
+  const renderedIcon = React.isValidElement(icon)
+    ? icon
+    : icon
+      ? React.createElement(icon, { size: 30 })
+      : null;
+
+  return (
+    <div className="v-empty">
+      <div className="v-empty-icon">{renderedIcon}</div>
+      <div className="v-empty-title">{title}</div>
+      <div className="v-empty-sub">{sub}</div>
+    </div>
+  );
+};
 
 const VPwBox = ({ errors }) => (
   <div className="v-pw-box">
@@ -2399,15 +2406,6 @@ function SalesTrendSection({
     ];
   }, [kpiData, total]);
 
-  const gpLine = useMemo(
-    () =>
-      values.map((v, i) => {
-        const base =
-          35 + (i / Math.max(values.length - 1, 1)) * 10 + Math.sin(i) * 5;
-        return parseFloat(base.toFixed(1));
-      }),
-    [values],
-  );
 
   const hasData = total > 0;
   const grossProfit = kpiData?.salesProfit ?? Math.round(total * 0.38);
@@ -2488,14 +2486,13 @@ function SalesTrendSection({
         >
           <div style={{ display: "flex", flexDirection: "column" }}>
             <ChartLabel>
-              <BarChart2 size={11} color="#3b791e" /> Sales Trend · CURRENT YEAR
-              vs PAST YEAR with Gross Profit %
+              <BarChart2 size={11} color="#3b791e" /> Revenue Trend
             </ChartLabel>
             {hasData ? (
               <>
                 <ComboChart
-                  barData={[values, values.map((v) => v * 0.72)]}
-                  lineData={gpLine}
+                  barData={[values]}
+                  lineData={[]}
                   labels={labels}
                   height={220}
                 />
@@ -2509,13 +2506,7 @@ function SalesTrendSection({
                   }}
                 >
                   {[
-                    { color: PAL[0], label: "Sales CY" },
-                    { color: PAL[1], label: "Sales PY" },
-                    {
-                      color: "#1d4ed8",
-                      label: "Gross Profit % (CY)",
-                      line: true,
-                    },
+                    { color: PAL[0], label: "Revenue" },
                   ].map((l, i) => (
                     <div
                       key={i}
@@ -4553,22 +4544,11 @@ function BranchOperationsSnapshot({
   const metrics = useMemo(() => {
     const products = new Map();
     const hours = new Map();
-    const payments = new Map();
     let units = 0;
 
     rows.forEach((tx) => {
       const hour = new Date(tx.created_at || tx.date).getHours();
       hours.set(hour, (hours.get(hour) || 0) + Number(tx.total || 0));
-
-      const payment =
-        tx.payment_method ||
-        tx.paymentMethod ||
-        tx.payment_type ||
-        "Unspecified";
-      payments.set(
-        payment,
-        (payments.get(payment) || 0) + Number(tx.total || 0),
-      );
 
       let items = tx.items || tx.products || tx.cart_items || [];
       if (typeof items === "string") {
@@ -4593,8 +4573,8 @@ function BranchOperationsSnapshot({
 
     const rankedProducts = [...products.entries()].sort((a, b) => b[1] - a[1]);
     const peakHour = [...hours.entries()].sort((a, b) => b[1] - a[1])[0];
-    const paymentRows = [...payments.entries()].sort((a, b) => b[1] - a[1]);
     const revenue = rows.reduce((sum, tx) => sum + Number(tx.total || 0), 0);
+    const productRows = buildBranchItemBreakdown(rows);
     return {
       units,
       revenue,
@@ -4604,7 +4584,7 @@ function BranchOperationsSnapshot({
           ? rankedProducts[rankedProducts.length - 1]
           : null,
       peakHour,
-      paymentRows,
+      productRows,
     };
   }, [rows]);
 
@@ -4756,39 +4736,223 @@ function BranchOperationsSnapshot({
             color: "#12241B",
           }}
         >
-          <CreditCard size={14} color="#3b791e" /> Payment Mix
+          <TrendingUp size={14} color="#3b791e" /> Top Item Performance
         </div>
-        {metrics.paymentRows.length === 0 ? (
+        {metrics.productRows.length === 0 ? (
           <div style={{ color: "#9CA89C", fontSize: 12 }}>
-            No payment data for this period.
+            No item-level sales data for this period.
           </div>
         ) : (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {metrics.paymentRows.map(([method, amount]) => {
-              const share =
-                metrics.revenue > 0 ? (amount / metrics.revenue) * 100 : 0;
-              return (
-                <span
-                  key={method}
-                  style={{
-                    padding: "7px 11px",
-                    borderRadius: 999,
-                    background: "#F6F7F1",
-                    border: "1px solid #E1E6D8",
-                    fontSize: 11.5,
-                    color: "#374132",
-                  }}
-                >
-                  <strong>{method}</strong> · {share.toFixed(0)}% (
-                  {fmtPeso(amount)})
-                </span>
-              );
-            })}
+          <div
+            style={{
+              overflowX: "auto",
+              border: "1px solid #E1E6D8",
+              borderRadius: 10,
+            }}
+          >
+            <table
+              className="v-table"
+              style={{
+                minWidth: 700,
+                tableLayout: "fixed",
+              }}
+            >
+              <colgroup>
+                <col style={{ width: "36%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "17%" }} />
+                <col style={{ width: "17%" }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left" }}>Item Sold</th>
+                  <th style={{ textAlign: "right" }}>Qty</th>
+                  <th style={{ textAlign: "right" }}>Revenue</th>
+                  <th style={{ textAlign: "right" }}>Cost</th>
+                  <th style={{ textAlign: "right" }}>Profit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {metrics.productRows.slice(0, 5).map((row) => (
+                  <tr key={row.name}>
+                    <td
+                      style={{
+                        fontWeight: 700,
+                        color: "#12241B",
+                        textAlign: "left",
+                      }}
+                    >
+                      {row.name}
+                    </td>
+                    <td
+                      style={{
+                        textAlign: "right",
+                        color: "#5C6B60",
+                        fontWeight: 600,
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {row.qty.toLocaleString()}
+                    </td>
+                    <td
+                      style={{
+                        textAlign: "right",
+                        fontWeight: 700,
+                        color: "#12241B",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {fmtPeso(row.revenue)}
+                    </td>
+                    <td
+                      style={{
+                        textAlign: "right",
+                        fontWeight: 650,
+                        color: row.cost == null ? "#94a3b8" : "#5C6B60",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {row.cost == null ? "—" : fmtPeso(row.cost)}
+                    </td>
+                    <td
+                      style={{
+                        textAlign: "right",
+                        fontWeight: 750,
+                        color: row.profit == null ? "#94a3b8" : "#12241B",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {row.profit == null ? "—" : fmtPeso(row.profit)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
     </section>
   );
+}
+
+
+function buildBranchItemBreakdown(transactions = []) {
+  const itemMap = new Map();
+  let fallbackTransactionRevenue = 0;
+  let fallbackTransactionCost = 0;
+
+  const parseItems = (tx) => {
+    let items = tx?.items || tx?.products || tx?.cart_items || [];
+    if (typeof items === "string") {
+      try {
+        items = JSON.parse(items);
+      } catch {
+        items = [];
+      }
+    }
+    return Array.isArray(items) ? items : [];
+  };
+
+  transactions.forEach((tx) => {
+    const txRevenue = Number(tx?.total || 0);
+    const txCost = Number(
+      tx?.cogs ??
+        tx?.cost_of_goods_sold ??
+        tx?.cost_of_sales ??
+        tx?.cost ??
+        0,
+    );
+    const items = parseItems(tx);
+
+    if (!items.length) {
+      fallbackTransactionRevenue += txRevenue;
+      fallbackTransactionCost += txCost;
+      return;
+    }
+
+    const rawLines = items.map((item) => {
+      const qty = Number(item?.quantity ?? item?.qty ?? 1) || 1;
+      const revenue =
+        Number(item?.subtotal ?? item?.total ?? item?.line_total ?? 0) ||
+        Number(item?.price ?? item?.unit_price ?? item?.selling_price ?? 0) *
+          qty;
+      const explicitUnitCost =
+        item?.unit_cost ??
+        item?.cost_price ??
+        item?.cost ??
+        item?.cogs ??
+        item?.unitCost ??
+        null;
+      const explicitCost =
+        explicitUnitCost == null ? null : Number(explicitUnitCost) * qty;
+      const name =
+        item?.product_name ||
+        item?.productName ||
+        item?.name ||
+        item?.menu_name ||
+        "Unnamed Product";
+
+      return { name, qty, revenue, explicitCost };
+    });
+
+    const explicitCostTotal = rawLines.reduce(
+      (sum, line) => sum + (line.explicitCost ?? 0),
+      0,
+    );
+    const remainingCost = Math.max(0, txCost - explicitCostTotal);
+    const revenueBasis =
+      rawLines.reduce((sum, line) => sum + Math.max(line.revenue, 0), 0) ||
+      rawLines.length;
+
+    rawLines.forEach((line) => {
+      const allocatedCost =
+        line.explicitCost != null
+          ? line.explicitCost
+          : remainingCost *
+            (Math.max(line.revenue, 0) / revenueBasis);
+
+      const current = itemMap.get(line.name) || {
+        qty: 0,
+        revenue: 0,
+        cost: 0,
+        hasCost: false,
+      };
+
+      current.qty += line.qty;
+      current.revenue += line.revenue;
+      current.cost += allocatedCost;
+      current.hasCost =
+        current.hasCost ||
+        line.explicitCost != null ||
+        txCost > 0;
+
+      itemMap.set(line.name, current);
+    });
+  });
+
+  if (!itemMap.size && (fallbackTransactionRevenue || fallbackTransactionCost)) {
+    itemMap.set("Transaction-level data", {
+      qty: transactions.length,
+      revenue: fallbackTransactionRevenue,
+      cost: fallbackTransactionCost,
+      hasCost: fallbackTransactionCost > 0,
+    });
+  }
+
+  return [...itemMap.entries()]
+    .map(([name, d]) => ({
+      name,
+      qty: d.qty,
+      revenue: d.revenue,
+      cost: d.hasCost ? d.cost : null,
+      profit: d.hasCost ? d.revenue - d.cost : null,
+      margin:
+        d.hasCost && d.revenue > 0
+          ? ((d.revenue - d.cost) / d.revenue) * 100
+          : null,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
 }
 
 function FrDashboardContent({ transactions, brands, user }) {
@@ -5227,6 +5391,22 @@ function FrDashboardContent({ transactions, brands, user }) {
     [periodTransactions],
   );
 
+  const itemBreakdown = useMemo(
+    () => buildBranchItemBreakdown(periodTransactions),
+    [periodTransactions],
+  );
+
+  const itemBreakdownTotals = useMemo(() => {
+    const revenue = itemBreakdown.reduce((sum, row) => sum + row.revenue, 0);
+    const hasCost = itemBreakdown.some((row) => row.cost != null);
+    const cost = hasCost
+      ? itemBreakdown.reduce((sum, row) => sum + Number(row.cost || 0), 0)
+      : null;
+    const profit = cost == null ? null : revenue - cost;
+    const margin = revenue > 0 && profit != null ? (profit / revenue) * 100 : null;
+    return { revenue, cost, profit, margin, hasCost };
+  }, [itemBreakdown]);
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -5237,17 +5417,17 @@ function FrDashboardContent({ transactions, brands, user }) {
         .fr-db-bot-grid  { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
         @media(max-width:960px){ .fr-db-kpi-grid{ grid-template-columns:repeat(2,1fr); } }
         @media(max-width:720px){ .fr-db-ins-grid,.fr-db-bot-grid{ grid-template-columns:1fr; } }
-        .fr-db-kpi  { background:#fff; border:1px solid #E1E6D8; border-radius:16px; padding:20px 22px; box-shadow:0 8px 24px rgba(50,109,32,0.06); transition:transform .2s,box-shadow .2s; }
-        .fr-db-kpi:hover { transform:translateY(-2px); box-shadow:0 12px 28px rgba(50,109,32,0.10); }
+        .fr-db-kpi  { background:#fff; border:1px solid #DDE3D8; border-radius:14px; padding:18px 20px; box-shadow:0 2px 10px rgba(18,36,27,0.045); transition:transform .2s,box-shadow .2s,border-color .2s; }
+        .fr-db-kpi:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(18,36,27,0.08); border-color:#C9D2C6; }
         .fr-db-chart { background:#fff; border:1px solid #E1E6D8; border-radius:16px; padding:22px 24px 16px; box-shadow:0 8px 24px rgba(50,109,32,0.06); margin-bottom:18px; }
         .fr-db-ins  { background:#fff; border:1px solid #E1E6D8; border-radius:16px; padding:18px 20px; box-shadow:0 8px 24px rgba(50,109,32,0.06); }
         .fr-db-tab-group { display:flex; gap:3px; background:#F6F7F1; border:1px solid #E1E6D8; border-radius:999px; padding:4px; }
         .fr-db-tab { padding:6px 14px; border-radius:999px; border:none; background:transparent; font-size:12px; font-weight:600; color:#5C6B60; cursor:pointer; transition:all .15s; font-family:inherit; }
-        .fr-db-tab.active { background:linear-gradient(135deg,#509820,#3b791e); color:#fff; box-shadow:0 2px 8px rgba(59,121,30,.35); }
+        .fr-db-tab.active { background:#12241B; color:#fff; box-shadow:0 2px 8px rgba(18,36,27,.16); }
         .fr-db-tab:hover:not(.active) { color:#12241B; background:#f0f5e8; }
         .fr-db-date { padding:7px 11px; border-radius:9px; border:1.5px solid #D4DBC8; background:#F6F7F1; font-size:12px; font-family:inherit; color:#12241B; outline:none; }
         .fr-db-date:focus { border-color:#3b791e; }
-        .fr-db-apply { padding:7px 16px; border-radius:9px; border:none; background:linear-gradient(135deg,#509820,#3b791e); color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .fr-db-apply { padding:7px 16px; border-radius:9px; border:none; background:#12241B; color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
         .fr-db-tooltip { position:absolute; background:linear-gradient(135deg,#12241B,#2c5c16); color:#fff; border-radius:12px; padding:9px 14px; pointer-events:none; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,0.22); transform:translate(-50%,-100%) translateY(-12px); z-index:10; }
         .fr-db-tooltip::after { content:''; position:absolute; bottom:-6px; left:50%; transform:translateX(-50%); border:6px solid transparent; border-top-color:#2c5c16; border-bottom:none; }
         .fr-db-arc-panel { background:#fff; border:1px solid rgba(59,121,30,0.15); border-radius:18px; padding:22px 24px; box-shadow:0 2px 16px rgba(50,109,32,0.08); margin-bottom:18px; }
@@ -5573,141 +5753,152 @@ function FrDashboardContent({ transactions, brands, user }) {
         </button>
       </div>
 
-      {/* Compact KPI row — visible in every decision workspace */}
+      {/* Compact KPI row — branch financial view */}
       <div className="fr-db-kpi-grid">
         {[
           {
-            label: "Today's Revenue",
-            value: fmtPeso(todayRevenue),
-            sub: `${todaySales.length} completed transactions`,
-            icon: <DollarSign size={17} />,
-            color: "#3b791e",
-            bg: "#F2F7EB",
-            rows: todaySales,
+            label: "Revenue",
+            value: fmtPeso(itemBreakdownTotals.revenue),
+            sub: `${getRangeLabel()} · sales generated`,
+            icon: <DollarSign size={16} />,
+            sort: "revenue",
           },
           {
-            label: "Period Revenue",
-            value: kpiLoading ? "…" : fmtPeso(kpiData?.salesRevenue ?? 0),
-            sub: `${getRangeLabel()} · ${userBranch || "Branch"}`,
-            icon: <BarChart size={17} />,
-            color: "#3b791e",
-            bg: "#F2F7EB",
-            rows: sortedBranchTransactions,
+            label: "Cost",
+            value: itemBreakdownTotals.hasCost
+              ? fmtPeso(itemBreakdownTotals.cost)
+              : "Not available",
+            sub: itemBreakdownTotals.hasCost
+              ? "Recorded cost of goods sold"
+              : "Record cost of goods sold to calculate profit",
+            icon: <Package size={16} />,
+            sort: "cost",
           },
           {
-            label: "Period Profit",
-            value: kpiLoading
-              ? "…"
-              : kpiData?.salesProfit == null
+            label: "Gross Profit",
+            value:
+              itemBreakdownTotals.profit == null
                 ? "Not available"
-                : fmtPeso(kpiData.salesProfit),
-            sub: "Requires recorded cost of sales",
-            icon: <TrendingUp size={17} />,
-            color: "#3b791e",
-            bg: "#F2F7EB",
-            rows: sortedBranchTransactions,
+                : fmtPeso(itemBreakdownTotals.profit),
+            sub:
+              itemBreakdownTotals.profit == null
+                ? "Requires recorded cost"
+                : "Revenue − Cost",
+            icon: <TrendingUp size={16} />,
+            sort: "profit",
           },
           {
-            label: "Average Sale",
-            value: fmtPeso(isNaN(avgOrder) ? 0 : avgOrder),
-            sub: "Revenue per transaction today",
-            icon: <ShoppingCart size={17} />,
-            color: "#3b791e",
-            bg: "#F2F7EB",
-            rows: todaySales,
+            label: "Profit Margin",
+            value:
+              itemBreakdownTotals.margin == null
+                ? "Not available"
+                : `${itemBreakdownTotals.margin.toFixed(1)}%`,
+            sub:
+              itemBreakdownTotals.margin == null
+                ? "Requires revenue and cost"
+                : "Gross Profit ÷ Revenue",
+            icon: <BarChart2 size={16} />,
+            sort: "margin",
           },
-        ].map((k, i) => (
-          <div
-            key={i}
-            className="fr-db-kpi"
-            role="button"
-            tabIndex={0}
-            onClick={() =>
-              setDashboardDrilldown({
-                title: k.label,
-                rows: [...k.rows].sort(
-                  (a, b) => Number(b.total || 0) - Number(a.total || 0),
-                ),
-              })
-            }
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ")
-                setDashboardDrilldown({
-                  title: k.label,
-                  rows: [...k.rows].sort(
-                    (a, b) => Number(b.total || 0) - Number(a.total || 0),
-                  ),
-                });
-            }}
-            style={{ cursor: "pointer" }}
-          >
+        ].map((k, i) => {
+          const sortedRows = [...itemBreakdown].sort((a, b) => {
+            const av = Number(a[k.sort] ?? -Infinity);
+            const bv = Number(b[k.sort] ?? -Infinity);
+            return bv - av;
+          });
+
+          const openBreakdown = () =>
+            setDashboardDrilldown({
+              title: `${k.label} Breakdown`,
+              rows: sortedRows,
+              sort: k.sort,
+            });
+
+          return (
             <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 10,
+              key={i}
+              className="fr-db-kpi"
+              role="button"
+              tabIndex={0}
+              onClick={openBreakdown}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  openBreakdown();
+                }
               }}
+              style={{ cursor: "pointer" }}
             >
               <div
                 style={{
-                  fontSize: 10,
-                  fontWeight: 850,
-                  textTransform: "uppercase",
-                  letterSpacing: ".08em",
-                  color: "#3b791e",
-                }}
-              >
-                {k.label}
-              </div>
-              <div
-                style={{
-                  width: 31,
-                  height: 31,
-                  borderRadius: 9,
-                  background: k.bg,
-                  color: k.color,
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 12,
                 }}
               >
-                {k.icon}
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: ".08em",
+                    color: "#6B756D",
+                  }}
+                >
+                  {k.label}
+                </div>
+                <div
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 9,
+                    background: "#F4F6F3",
+                    color: "#37413A",
+                    border: "1px solid #E1E6D8",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {k.icon}
+                </div>
+              </div>
+              <div
+                style={{
+                  fontSize: 23,
+                  fontWeight: 850,
+                  color: "#12241B",
+                  letterSpacing: "-.02em",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {k.value}
+              </div>
+              <div
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  color: "#8A948B",
+                  marginTop: 6,
+                  lineHeight: 1.45,
+                }}
+              >
+                {k.sub}
+              </div>
+              <div
+                style={{
+                  fontSize: 9.5,
+                  fontWeight: 750,
+                  color: "#5C6B60",
+                  marginTop: 9,
+                }}
+              >
+                View item breakdown
               </div>
             </div>
-            <div
-              style={{
-                fontSize: 23,
-                fontWeight: 850,
-                color: "#12241B",
-                letterSpacing: "-.02em",
-              }}
-            >
-              {k.value}
-            </div>
-            <div
-              style={{
-                fontSize: 10.5,
-                fontWeight: 600,
-                color: "#9CA89C",
-                marginTop: 6,
-                lineHeight: 1.45,
-              }}
-            >
-              {k.sub}
-            </div>
-            <div
-              style={{
-                fontSize: 9.5,
-                fontWeight: 800,
-                color: "#3b791e",
-                marginTop: 8,
-              }}
-            >
-              View sorted breakdown →
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div
@@ -5747,7 +5938,7 @@ function FrDashboardContent({ transactions, brands, user }) {
         </div>
         <div style={{ fontSize: 10.8, color: "#5C6B60", lineHeight: 1.55 }}>
           {dashboardTab === "overview"
-            ? "Use revenue, profit, average sale, best sellers, peak hours, and payment mix to understand the branch at a glance."
+            ? "Use revenue, cost, profit, margin, best sellers, and peak hours to understand the branch at a glance."
             : dashboardTab === "sales_ai"
               ? "Use the revenue line and period summary to confirm the trend, then review the recommendations generated from the same branch data."
               : "Prioritize items with low coverage, unusual stock movement, weak sales velocity, or immediate reorder recommendations."}
@@ -6055,46 +6246,106 @@ function FrDashboardContent({ transactions, brands, user }) {
         >
           <div
             className="v-modal"
-            style={{ maxWidth: 760, padding: 0 }}
+            style={{
+              maxWidth: 900,
+              width: "96%",
+              padding: 0,
+              borderRadius: 16,
+              overflow: "hidden",
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <div
               style={{
-                padding: "18px 20px",
+                padding: "14px 20px",
                 borderBottom: "1px solid #E1E6D8",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
+                background: "#fff",
               }}
             >
               <div>
                 <div
-                  style={{ fontSize: 16, fontWeight: 850, color: "#12241B" }}
+                  style={{
+                    fontSize: 9.5,
+                    fontWeight: 800,
+                    letterSpacing: ".08em",
+                    textTransform: "uppercase",
+                    color: "#788178",
+                  }}
+                >
+                  KPI DETAIL · {String(getRangeLabel()).toUpperCase()}
+                </div>
+                <div
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 850,
+                    color: "#12241B",
+                    marginTop: 3,
+                  }}
                 >
                   {dashboardDrilldown.title}
                 </div>
-                <div style={{ fontSize: 10.5, color: "#5C6B60", marginTop: 3 }}>
-                  {userBranch} · highest-value transactions first
-                </div>
               </div>
-              <button
-                onClick={() => setDashboardDrilldown(null)}
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  onClick={() => setDashboardDrilldown(null)}
+                  style={{
+                    height: 34,
+                    padding: "0 14px",
+                    borderRadius: 999,
+                    border: "1px solid #DCE3DB",
+                    background: "#fff",
+                    color: "#2F3831",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => setDashboardDrilldown(null)}
+                  aria-label="Close"
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "50%",
+                    border: "1px solid #DCE3DB",
+                    background: "#fff",
+                    color: "#5C6B60",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: "18px 20px 20px",
+                maxHeight: "78vh",
+                overflowY: "auto",
+                background: "#fff",
+              }}
+            >
+              <div
                 style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 9,
-                  border: "1px solid #E1E6D8",
-                  background: "#fff",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  fontSize: 10.8,
+                  color: "#7A857B",
+                  marginBottom: 14,
                 }}
               >
-                <X size={15} />
-              </button>
-            </div>
-            <div style={{ padding: 20, maxHeight: "65vh", overflowY: "auto" }}>
+                {userBranch} · {getRangeLabel()}
+              </div>
+
               {dashboardDrilldown.rows.length === 0 ? (
                 <VEmptyState
                   icon={BarChart2}
@@ -6102,48 +6353,377 @@ function FrDashboardContent({ transactions, brands, user }) {
                   sub="No completed transactions are available for this selection."
                 />
               ) : (
-                <table className="v-table">
-                  <thead>
-                    <tr>
-                      <th>Transaction</th>
-                      <th>Date</th>
-                      <th>Payment</th>
-                      <th style={{ textAlign: "right" }}>Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dashboardDrilldown.rows.map((tx, index) => (
-                      <tr key={tx.id || tx.transaction_id || index}>
-                        <td style={{ fontWeight: 750 }}>
-                          {tx.transaction_id ||
-                            tx.reference_no ||
-                            tx.id ||
-                            `Transaction ${index + 1}`}
-                        </td>
-                        <td>
-                          {new Date(tx.created_at || tx.date).toLocaleString(
-                            "en-PH",
-                          )}
-                        </td>
-                        <td>
-                          {tx.payment_method ||
-                            tx.paymentMethod ||
-                            tx.payment_type ||
-                            "Not recorded"}
-                        </td>
-                        <td
+                <>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "minmax(220px,1.7fr) repeat(5,minmax(82px,1fr))",
+                      gap: 12,
+                      marginBottom: 16,
+                    }}
+                  >
+                    {(() => {
+                      const rows = dashboardDrilldown.rows;
+                      const revenue = rows.reduce(
+                        (sum, r) => sum + Number(r.revenue || 0),
+                        0,
+                      );
+                      const hasCost = rows.some((r) => r.cost != null);
+                      const cost = hasCost
+                        ? rows.reduce(
+                            (sum, r) => sum + Number(r.cost || 0),
+                            0,
+                          )
+                        : null;
+                      const profit = rows.some((r) => r.profit != null)
+                        ? rows.reduce(
+                            (sum, r) => sum + Number(r.profit || 0),
+                            0,
+                          )
+                        : null;
+
+                      const cards = [
+                        {
+                          label: "Revenue",
+                          value: fmtPeso(revenue),
+                        },
+                        {
+                          label: "Cost",
+                          value: cost == null ? "—" : fmtPeso(cost),
+                        },
+                        {
+                          label: "Profit",
+                          value: profit == null ? "—" : fmtPeso(profit),
+                        },
+                      ];
+
+                      return cards.map((card) => (
+                        <div
+                          key={card.label}
                           style={{
-                            textAlign: "right",
-                            fontWeight: 800,
-                            color: "#3b791e",
+                            gridColumn: "span 2",
+                            background: "#fff",
+                            border: "1px solid #DDE3D8",
+                            borderRadius: 12,
+                            padding: "13px 14px",
+                            minWidth: 0,
                           }}
                         >
-                          {fmtPeso(tx.total)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          <div
+                            style={{
+                              fontSize: 9.5,
+                              fontWeight: 800,
+                              textTransform: "uppercase",
+                              letterSpacing: ".07em",
+                              color: "#7A857B",
+                              marginBottom: 5,
+                            }}
+                          >
+                            {card.label}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 20,
+                              fontWeight: 850,
+                              color: "#12241B",
+                              fontVariantNumeric: "tabular-nums",
+                            }}
+                          >
+                            {card.value}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+
+                  {dashboardDrilldown.sort !== "margin" && (
+                    <div
+                      style={{
+                        fontSize: 11.3,
+                        color: "#4D584F",
+                        lineHeight: 1.55,
+                        marginBottom: 14,
+                        padding: "2px 0",
+                      }}
+                    >
+                      Item-level branch sales for the selected period. Revenue
+                      reflects recorded sales; cost and profit are shown only
+                      when item cost data is available.
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      overflowX: "auto",
+                      border: "1px solid #E1E6D8",
+                      borderRadius: 12,
+                    }}
+                  >
+                    <table
+                      style={{
+                        width: "100%",
+                        minWidth: 830,
+                        borderCollapse: "collapse",
+                        fontFamily: FONT,
+                        tableLayout: "fixed",
+                      }}
+                    >
+                      <colgroup>
+                        <col style={{ width: "31%" }} />
+                        <col style={{ width: "9%" }} />
+                        <col style={{ width: "15%" }} />
+                        <col style={{ width: "15%" }} />
+                        <col style={{ width: "15%" }} />
+                        <col style={{ width: "15%" }} />
+                      </colgroup>
+                      <thead>
+                        <tr style={{ background: "#F6F7F1" }}>
+                          {[
+                            ["Item Sold", "left"],
+                            ["Qty", "right"],
+                            ["Revenue", "right"],
+                            ["Cost", "right"],
+                            ["Profit", "right"],
+                            ["Margin", "right"],
+                          ].map(([label, align]) => (
+                            <th
+                              key={label}
+                              style={{
+                                padding: "11px 12px",
+                                textAlign: align,
+                                fontSize: 9.5,
+                                fontWeight: 800,
+                                color: "#68736B",
+                                textTransform: "uppercase",
+                                letterSpacing: ".07em",
+                                borderBottom: "1px solid #DDE3D8",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dashboardDrilldown.rows.map((row, index) => (
+                          <tr
+                            key={`${row.name}-${index}`}
+                            style={{
+                              background:
+                                index % 2 === 0 ? "#fff" : "#FBFCFA",
+                            }}
+                          >
+                            <td
+                              style={{
+                                padding: "12px",
+                                textAlign: "left",
+                                borderBottom: "1px solid #EEF2ED",
+                                fontSize: 12,
+                                fontWeight: 750,
+                                color: "#253028",
+                              }}
+                            >
+                              {row.name}
+                            </td>
+                            <td
+                              style={{
+                                padding: "12px",
+                                textAlign: "right",
+                                borderBottom: "1px solid #EEF2ED",
+                                fontSize: 12,
+                                color: "#5D685F",
+                                fontVariantNumeric: "tabular-nums",
+                              }}
+                            >
+                              {Number(row.qty || 0).toLocaleString()}
+                            </td>
+                            <td
+                              style={{
+                                padding: "12px",
+                                textAlign: "right",
+                                borderBottom: "1px solid #EEF2ED",
+                                fontSize: 12,
+                                color: "#253028",
+                                fontWeight: 700,
+                                fontVariantNumeric: "tabular-nums",
+                              }}
+                            >
+                              {fmtPeso(row.revenue)}
+                            </td>
+                            <td
+                              style={{
+                                padding: "12px",
+                                textAlign: "right",
+                                borderBottom: "1px solid #EEF2ED",
+                                fontSize: 12,
+                                color: "#5D685F",
+                                fontWeight: 650,
+                                fontVariantNumeric: "tabular-nums",
+                              }}
+                            >
+                              {row.cost == null ? "—" : fmtPeso(row.cost)}
+                            </td>
+                            <td
+                              style={{
+                                padding: "12px",
+                                textAlign: "right",
+                                borderBottom: "1px solid #EEF2ED",
+                                fontSize: 12,
+                                color: "#253028",
+                                fontWeight: 750,
+                                fontVariantNumeric: "tabular-nums",
+                              }}
+                            >
+                              {row.profit == null ? "—" : fmtPeso(row.profit)}
+                            </td>
+                            <td
+                              style={{
+                                padding: "12px",
+                                textAlign: "right",
+                                borderBottom: "1px solid #EEF2ED",
+                                fontSize: 12,
+                                color: "#5D685F",
+                                fontWeight: 700,
+                                fontVariantNumeric: "tabular-nums",
+                              }}
+                            >
+                              {row.margin == null
+                                ? "—"
+                                : `${row.margin.toFixed(1)}%`}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ background: "#F6F7F1" }}>
+                          <td
+                            style={{
+                              padding: "12px",
+                              textAlign: "left",
+                              fontSize: 12,
+                              fontWeight: 850,
+                              color: "#12241B",
+                            }}
+                          >
+                            Total
+                          </td>
+                          <td
+                            style={{
+                              padding: "12px",
+                              textAlign: "right",
+                              fontSize: 12,
+                              fontWeight: 750,
+                              color: "#4F5A51",
+                              fontVariantNumeric: "tabular-nums",
+                            }}
+                          >
+                            {dashboardDrilldown.rows
+                              .reduce(
+                                (sum, r) => sum + Number(r.qty || 0),
+                                0,
+                              )
+                              .toLocaleString()}
+                          </td>
+                          <td
+                            style={{
+                              padding: "12px",
+                              textAlign: "right",
+                              fontSize: 12,
+                              fontWeight: 850,
+                              color: "#12241B",
+                              fontVariantNumeric: "tabular-nums",
+                            }}
+                          >
+                            {fmtPeso(
+                              dashboardDrilldown.rows.reduce(
+                                (sum, r) => sum + Number(r.revenue || 0),
+                                0,
+                              ),
+                            )}
+                          </td>
+                          <td
+                            style={{
+                              padding: "12px",
+                              textAlign: "right",
+                              fontSize: 12,
+                              fontWeight: 750,
+                              color: "#4F5A51",
+                              fontVariantNumeric: "tabular-nums",
+                            }}
+                          >
+                            {(() => {
+                              const hasCost = dashboardDrilldown.rows.some(
+                                (r) => r.cost != null,
+                              );
+                              return hasCost
+                                ? fmtPeso(
+                                    dashboardDrilldown.rows.reduce(
+                                      (sum, r) => sum + Number(r.cost || 0),
+                                      0,
+                                    ),
+                                  )
+                                : "—";
+                            })()}
+                          </td>
+                          <td
+                            style={{
+                              padding: "12px",
+                              textAlign: "right",
+                              fontSize: 12,
+                              fontWeight: 850,
+                              color: "#12241B",
+                              fontVariantNumeric: "tabular-nums",
+                            }}
+                          >
+                            {(() => {
+                              const hasProfit = dashboardDrilldown.rows.some(
+                                (r) => r.profit != null,
+                              );
+                              return hasProfit
+                                ? fmtPeso(
+                                    dashboardDrilldown.rows.reduce(
+                                      (sum, r) => sum + Number(r.profit || 0),
+                                      0,
+                                    ),
+                                  )
+                                : "—";
+                            })()}
+                          </td>
+                          <td
+                            style={{
+                              padding: "12px",
+                              textAlign: "right",
+                              fontSize: 12,
+                              fontWeight: 750,
+                              color: "#4F5A51",
+                              fontVariantNumeric: "tabular-nums",
+                            }}
+                          >
+                            {(() => {
+                              const rev = dashboardDrilldown.rows.reduce(
+                                (sum, r) => sum + Number(r.revenue || 0),
+                                0,
+                              );
+                              const profit = dashboardDrilldown.rows.some(
+                                (r) => r.profit != null,
+                              )
+                                ? dashboardDrilldown.rows.reduce(
+                                    (sum, r) => sum + Number(r.profit || 0),
+                                    0,
+                                  )
+                                : null;
+                              return profit == null || rev <= 0
+                                ? "—"
+                                : `${((profit / rev) * 100).toFixed(1)}%`;
+                            })()}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -15366,3 +15946,5 @@ function FrProfileContent({ user }) {
     </div>
   );
 }
+
+
