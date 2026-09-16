@@ -93,6 +93,31 @@ import {
   CalendarClock,
 } from "lucide-react";
 
+const ADMIN_API_BASE = String(process.env.REACT_APP_API_URL || "")
+  .trim().replace(/;+$/, "").replace(/\/+$/, "");
+
+async function fetchApplicationRecords() {
+  if (!ADMIN_API_BASE) throw new Error("The backend API URL is not configured.");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const response = await adminModuleFetch(`${ADMIN_API_BASE}/applications`, {
+      credentials: "include", signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`Applications could not be loaded (HTTP ${response.status}). Check the backend /applications route.`);
+    let data;
+    try { data = await response.json(); }
+    catch { throw new Error("The applications endpoint returned an invalid response. Check the backend API URL and route."); }
+    const rows = Array.isArray(data) ? data : data?.applications ?? data?.data;
+    if (!Array.isArray(rows)) throw new Error("The applications endpoint did not return a list.");
+    return rows;
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("Loading applications timed out. Check the backend connection and retry.");
+    if (error instanceof TypeError) throw new Error("Cannot connect to the applications endpoint. Check the backend connection and CORS settings.");
+    throw error;
+  } finally { clearTimeout(timer); }
+}
+
 async function adminModuleFetch(input, options) {
   const response = await fetch(input, options);
   const method = String(
@@ -1827,7 +1852,7 @@ export default function AdminDashboard() {
   const fetchAppDeleteHistory = async () => {
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/application-delete-history`,
+        `${ADMIN_API_BASE}/application-delete-history`,
       );
       const data = await res.json();
       const mapped = Array.isArray(data)
@@ -1846,7 +1871,7 @@ export default function AdminDashboard() {
   const fetchActivityLog = useCallback(async () => {
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/orders-activity-log`,
+        `${ADMIN_API_BASE}/orders-activity-log`,
       );
       const data = await res.json();
       setActivityLog(Array.isArray(data) ? data : []);
@@ -1861,7 +1886,7 @@ export default function AdminDashboard() {
       const stored =
         localStorage.getItem("user") || sessionStorage.getItem("user");
       const userId = stored ? JSON.parse(stored)?.id : null;
-      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/logout`, {
+      await adminModuleFetch(`${ADMIN_API_BASE}/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
@@ -1887,14 +1912,14 @@ export default function AdminDashboard() {
 
   useAdminLiveRefresh(async () => {
     const response = await adminModuleFetch(
-      `${process.env.REACT_APP_API_URL}/dashboard/stats?preset=${preset}`,
+      `${ADMIN_API_BASE}/dashboard/stats?preset=${preset}`,
       { cache: "no-store" },
     );
     if (response.ok) setStats(await response.json());
   }, [preset]);
   useAdminLiveRefresh(async () => {
     const response = await adminModuleFetch(
-      `${process.env.REACT_APP_API_URL}/transactions`,
+      `${ADMIN_API_BASE}/transactions`,
       { cache: "no-store" },
     );
     if (response.ok) {
@@ -1914,7 +1939,7 @@ export default function AdminDashboard() {
   const [brands, setBrands] = useState([]);
   useAdminLiveRefresh(async () => {
     const response = await adminModuleFetch(
-      `${process.env.REACT_APP_API_URL}/brands`,
+      `${ADMIN_API_BASE}/brands`,
       { cache: "no-store" },
     );
     if (response.ok) {
@@ -1930,12 +1955,12 @@ export default function AdminDashboard() {
 
     try {
       const [appsRes, reportsRes, ingredientsRes] = await Promise.all([
-        adminModuleFetch(`${process.env.REACT_APP_API_URL}/applications`),
+        adminModuleFetch(`${ADMIN_API_BASE}/applications`),
         adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/reports?status=submitted`,
+          `${ADMIN_API_BASE}/reports?status=submitted`,
         ),
         // Use the exact same source as Head Office Inventory.
-        adminModuleFetch(`${process.env.REACT_APP_API_URL}/ingredients`),
+        adminModuleFetch(`${ADMIN_API_BASE}/ingredients`),
       ]);
 
       const apps = appsRes.ok ? await appsRes.json() : [];
@@ -2058,21 +2083,15 @@ export default function AdminDashboard() {
   }, [fetchNotifications, user?.id]);
   const [applications, setApplications] = useState([]);
   useEffect(() => {
-    fetchApplications();
     fetchAppDeleteHistory();
     fetchActivityLog();
   }, [fetchActivityLog]);
 
   const fetchApplications = async () => {
     try {
-      const response = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/applications`,
-      );
-      const data = await response.json();
-      setApplications(Array.isArray(data) ? data : []);
+      setApplications(await fetchApplicationRecords());
     } catch (error) {
-      console.error("Error fetching applications:", error);
-      alert("Failed to load applications");
+      console.error("Error fetching applications:", error.message);
     }
   };
 
@@ -2080,7 +2099,7 @@ export default function AdminDashboard() {
     if (window.confirm("Are you sure you want to delete this application?")) {
       try {
         const response = await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/applications/${id}`,
+          `${ADMIN_API_BASE}/applications/${id}`,
           { method: "DELETE" },
         );
         const data = await response.json();
@@ -2098,7 +2117,7 @@ export default function AdminDashboard() {
   const handleApproveApplication = async (id) => {
     try {
       const response = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/applications/${id}/status`,
+        `${ADMIN_API_BASE}/applications/${id}/status`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -4711,6 +4730,50 @@ function SalesTrendSection({
   );
 }
 
+// Analysis is read-only: avoid emitting a dashboard data-change event.
+async function requestDashboardAnalysis(apiUrl, payload, signal) {
+  const base = String(apiUrl || "").trim().replace(/;+$/, "").replace(/\/+$/, "");
+  if (!base) throw new Error("The API URL is missing. Configure REACT_APP_API_URL and rebuild the frontend.");
+  const response = await fetch(`${base}/ai/dashboard-analysis`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(payload),
+    signal,
+  });
+  const text = await response.text();
+  let data;
+  try { data = JSON.parse(text); } catch {
+    throw new Error(`AI endpoint returned an invalid response (HTTP ${response.status}). Check the backend route and server logs.`);
+  }
+  const serverMessage = typeof data?.error === "string" ? data.error :
+    typeof data?.message === "string" ? data.message : "";
+  if (!response.ok || data?.success === false || data?.error) {
+    const hints = {
+      401: "Your session expired. Sign in again.",
+      403: "Your account does not have access to AI analysis.",
+      404: "The backend /ai/dashboard-analysis route is unavailable.",
+      413: "The selected transaction range is too large. Select a shorter period.",
+      429: "The AI service is rate limited. Wait briefly before retrying.",
+    };
+    throw new Error(serverMessage || hints[response.status] || `AI generation failed (HTTP ${response.status}). Check the backend AI configuration and logs.`);
+  }
+  let result = data?.analysis ?? data?.data?.analysis ?? data?.data ?? data;
+  if (typeof result === "string") {
+    try { result = JSON.parse(result.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")); }
+    catch { throw new Error("The AI returned text instead of the structured dashboard report. Check the backend response format."); }
+  }
+  if (!result || typeof result !== "object" || Array.isArray(result) ||
+      !(typeof result.summary === "string" && result.summary.trim())) {
+    throw new Error("The AI response has no report summary. Check the backend response format.");
+  }
+  return {
+    ...result,
+    recommendations: Array.isArray(result.recommendations) ? result.recommendations.filter((row) => row && typeof row === "object") : [],
+    stockAnomalies: Array.isArray(result.stockAnomalies) ? result.stockAnomalies : [],
+  };
+}
+
 function PrescriptiveSection({
   transactions,
   filterLabel,
@@ -4729,38 +4792,53 @@ function PrescriptiveSection({
 
   const exportRef = useRef(null); // offscreen report layout used for Print + PDF
 
+  const analysisRequestRef = useRef(null);
+  useEffect(() => {
+    setAnalysis(null);
+    setLastRun(null);
+    setError(null);
+    setLoading(false);
+    return () => {
+      analysisRequestRef.current?.abort();
+      analysisRequestRef.current = null;
+    };
+  }, [filterLabel, preset]);
+
   const runAnalysis = async () => {
+    if (analysisRequestRef.current) return;
     if (!transactions?.length) {
-      setError("No transaction data available.");
+      setError("No transaction data available for the selected filters. Choose a period and branch with completed sales.");
       return;
     }
+    const controller = new AbortController();
+    analysisRequestRef.current = controller;
+    const timeout = setTimeout(() => controller.abort(), 60000);
     setLoading(true);
     setError(null);
     try {
-      const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transactions, preset, filterLabel }),
-        },
+      const report = await requestDashboardAnalysis(
+        process.env.REACT_APP_API_URL,
+        { transactions, preset, filterLabel },
+        controller.signal,
       );
-      const data = await res.json();
-      if (data.success) {
-        setAnalysis(data.analysis);
-        setLastRun(
-          new Date().toLocaleTimeString("en-PH", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-        );
-      } else {
-        setError(data.error || "Analysis failed.");
-      }
-    } catch {
-      setError("Could not reach the AI service.");
+      if (analysisRequestRef.current !== controller) return;
+      setAnalysis(report);
+      setLastRun(new Date().toLocaleTimeString("en-PH", {
+        hour: "2-digit", minute: "2-digit",
+      }));
+    } catch (err) {
+      if (analysisRequestRef.current !== controller) return;
+      setError(controller.signal.aborted
+        ? "AI generation timed out after 60 seconds. Try a shorter period or check the backend AI service."
+        : err instanceof TypeError
+          ? "Cannot connect to the AI endpoint. Check your API URL, connection, and backend CORS configuration."
+          : err.message || "AI generation failed. Please retry.");
     } finally {
-      setLoading(false);
+      clearTimeout(timeout);
+      if (analysisRequestRef.current === controller) {
+        analysisRequestRef.current = null;
+        setLoading(false);
+      }
     }
   };
 
@@ -6578,9 +6656,9 @@ function SalesVsStockSection({
       }
       const [analyticsRes, inventoryRes] = await Promise.all([
         adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`,
+          `${ADMIN_API_BASE}/dashboard/product-analytics?${params}`,
         ),
-        adminModuleFetch(`${process.env.REACT_APP_API_URL}/ingredients`),
+        adminModuleFetch(`${ADMIN_API_BASE}/ingredients`),
       ]);
       const json = analyticsRes.ok ? await analyticsRes.json() : {};
       const inventoryJson = inventoryRes.ok ? await inventoryRes.json() : [];
@@ -8304,6 +8382,7 @@ function DashboardRankBars({ data = [] }) {
 
 // ─── FranchiSync B2B Revenue Assurance Dashboard ────────────────────────────
 const B2B_DEFAULT_GROWTH_TARGET = 20;
+const B2B_HQ_MONTHLY_TARGET = 50000;
 const B2B_FALLBACK_THRESHOLDS = {
   highOrderDropPct: 25,
   watchOrderDropPct: 10,
@@ -8511,17 +8590,51 @@ const b2bIsCompletedTx = (tx) => {
   );
 };
 
+// Loss Risk rule: compare POS revenue with HQ supply using a 12% allowance.
+// High Risk applies only when POS exceeds HQ supply by more than 12%.
+const b2bAssessBranch = (row) => {
+  const hqRevenue = b2bNullableNum(row?.hq_supply_revenue, row?.hqRevenue, row?.supply_revenue);
+  const posRevenue = b2bNullableNum(row?.pos_revenue, row?.posRevenue, row?.franchisee_pos_revenue);
+  const stockVariance = b2bNullableNum(row?.stock_variance, row?.stockVariance);
+  const orderCoverage = b2bNullableNum(row?.order_coverage, row?.coverage_pct, row?.orderCoverage);
+  const amount = (value) => value == null ? "not available" :
+    `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const evidence = `Recorded HQ supply: ${amount(hqRevenue)}. Recorded POS sales: ${amount(posRevenue)}.`;
+  const allowedPos = hqRevenue == null ? null : hqRevenue * 1.12;
+  let risk;
+  let reason;
+
+  if (hqRevenue == null || posRevenue == null) {
+    risk = "Insufficient data";
+    reason = `${evidence} Load the missing HQ order or POS records for this branch and period.`;
+  } else if (hqRevenue === 0 && posRevenue === 0) {
+    risk = "No transactions yet";
+    reason = `${evidence} No HQ supply or POS activity is recorded for this period.`;
+  } else if (hqRevenue === 0 && posRevenue > 0) {
+    risk = "High Risk";
+    reason = `${evidence} POS sales exceed the HQ supply baseline by more than 12% because the HQ supply is zero.`;
+  } else if (posRevenue > allowedPos) {
+    risk = "High Risk";
+    reason = `${evidence} The POS total exceeds the HQ supply plus the allowed 12% variance (${amount(allowedPos)}).`;
+  } else {
+    risk = "Normal";
+    reason = `${evidence} POS is within the allowed 12% variance of HQ supply (${amount(allowedPos)} maximum).`;
+  }
+
+  return { ...row, hqRevenue, posRevenue, stockVariance, orderCoverage, risk, reason };
+};
+
 function B2BRiskBadge({ risk }) {
-  const normalized = String(risk || "Normal").toLowerCase();
+  const normalized = String(risk || "Insufficient data").toLowerCase();
   const high = normalized.includes("high") || normalized.includes("critical");
   const watch =
     normalized.includes("watch") ||
     normalized.includes("medium") ||
     normalized.includes("moderate");
   const missing =
-    normalized.includes("no data") || normalized.includes("no transactions");
+    !high && !watch && normalized !== "normal";
   const label = missing
-    ? risk
+    ? (risk || "Insufficient data")
     : high
       ? "High Risk"
       : watch
@@ -8892,6 +9005,16 @@ function B2BSummaryMetricCard({
   );
 }
 
+// Estimated HQ gross profit using the configured 12% markup on cost.
+// Work in centavos so displayed cost + profit always equals revenue.
+const b2bHqMargin = (amount) => {
+  if (amount == null || amount === "" || !Number.isFinite(Number(amount))) return null;
+  const revenueCents = Math.round(Number(amount) * 100);
+  const costCents = Math.round(revenueCents / 1.12);
+  return { revenue: revenueCents / 100, cost: costCents / 100,
+    profit: (revenueCents - costCents) / 100 };
+};
+
 function B2BBranchItemTable({ selected, user, api, onBack }) {
   const [details, setDetails] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -9075,10 +9198,12 @@ function B2BBranchItemTable({ selected, user, api, onBack }) {
             <tr>
               {[
                 "Item / Order #",
-                "Order date",
+                "Order date", 
                 "Quantity",
                 "Unit price",
                 "Line total",
+                "Cost",
+                "Profit",
               ].map((label, i) => (
                 <th
                   key={label}
@@ -9136,12 +9261,18 @@ function B2BBranchItemTable({ selected, user, api, onBack }) {
                       ? "—"
                       : fmtAmt(item.price * b2bItemQty(item))}
                   </td>
+                  <td style={{ ...td, textAlign: "right" }}>
+                    {item?.price == null ? "—" : fmtAmt(b2bHqMargin(item.price * b2bItemQty(item))?.cost)}
+                  </td>
+                  <td style={{ ...td, textAlign: "right", color: C.greenDk, fontWeight: 750 }}>
+                    {item?.price == null ? "—" : fmtAmt(b2bHqMargin(item.price * b2bItemQty(item))?.profit)}
+                  </td>
                 </tr>
               ))}
             {!rows.length && (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={7}
                   style={{ ...td, textAlign: "center", padding: 24 }}
                 >
                   No matching item evidence.
@@ -9151,6 +9282,11 @@ function B2BBranchItemTable({ selected, user, api, onBack }) {
           </tbody>
         </table>
       </div>
+      <p style={{ fontSize: 11, color: C.muted, marginTop: 10 }}>
+        Cost = line revenue ÷ 1.12. Profit = line revenue − cost.
+        Assumes each item was sold at cost plus 12%; excludes operating expenses.
+        Item totals require complete order items and matching discounts or charges.
+      </p>
       {pages > 1 && (
         <nav
           aria-label="Item evidence pages"
@@ -9278,6 +9414,14 @@ function B2BKpiBreakdown({
     rows = (metric === "posRevenue" ? productRows : skuRows)
       .filter(scope)
       .filter((r) => metric !== "unexplained" || r.stockVariance != null);
+  const hqAmount = (row) => Number(metric === "hqPrevious" ? row.previous : row.current) || 0;
+  const hqMargins = rows.reduce((totals, row) => {
+    if (!isHq) return totals;
+    const parts = b2bHqMargin(hqAmount(row));
+    totals.cost += Math.round(parts.cost * 100);
+    totals.profit += Math.round(parts.profit * 100);
+    return totals;
+  }, { cost: 0, profit: 0 });
   const rowValue = (row) =>
     isHq
       ? Number(metric === "hqPrevious" ? row.previous : row.current) || 0
@@ -9384,6 +9528,8 @@ function B2BKpiBreakdown({
                   : "Supply order revenue",
                 fmtAmt(metric === "hqPrevious" ? previousTotal : currentTotal),
               )}
+              {card("Cost", fmtAmt(hqMargins.cost / 100))}
+              {card("Profit", fmtAmt(hqMargins.profit / 100))}
               {metric === "hqChange" && (
                 <>
                   {card("Previous month", fmtAmt(previousTotal))}
@@ -9433,7 +9579,10 @@ function B2BKpiBreakdown({
       {isHq ? (
         <p style={{ fontSize: 12, marginBottom: 14 }}>
           Supply revenue uses received orders, grouped by order creation month.
-          Profit or loss requires cost data.
+          Cost = revenue ÷ 1.12; Profit = revenue − cost.
+          This applies your 12% markup on cost, assumes it applies to all included
+          revenue, and excludes operating expenses. Historical cost is not verified.
+          Cost and profit use the displayed revenue month; totals sum branch estimates.
         </p>
       ) : metric === "posRevenue" ? (
         <p style={{ fontSize: 12, marginBottom: 14 }}>
@@ -9467,6 +9616,8 @@ function B2BKpiBreakdown({
                         ...(metric === "hqChange"
                           ? ["Previous revenue", "Change", "Change %"]
                           : []),
+                        "Cost",
+                        "Profit",
                         "Orders",
                       ]
                     : metric === "atRisk"
@@ -9568,6 +9719,10 @@ function B2BKpiBreakdown({
                             </td>
                           </>
                         )}
+                        <td style={td}>{fmtAmt(b2bHqMargin(hqAmount(r)).cost)}</td>
+                        <td style={{ ...td, color: C.greenDk, fontWeight: 750 }}>
+                          {fmtAmt(b2bHqMargin(hqAmount(r)).profit)}
+                        </td>
                         <td style={td}>{r.orders.length}</td>
                       </>
                     ) : metric === "atRisk" ? (
@@ -9917,15 +10072,20 @@ function B2BRevenueAssuranceDashboard({
   view = "overview",
   onOpenSalesAi,
 }) {
-  const API = process.env.REACT_APP_API_URL || "";
+  const API = ADMIN_API_BASE;
   const [month, setMonth] = useState(() => b2bMonthKey(new Date()));
   const [branch, setBranch] = useState("");
   const [brand, setBrand] = useState("");
   const [risk, setRisk] = useState("all");
-  const [growthTargetPct, setGrowthTargetPct] = useState(
+  const [growthTargetPct] = useState(
     B2B_DEFAULT_GROWTH_TARGET,
   );
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const completedB2BScopeRef = useRef(null);
+  const completedB2BModeRef = useRef(null);
+  const activeB2BRequestRef = useRef(null);
+  useEffect(() => () => { activeB2BRequestRef.current = null; }, []);
   const [sourceMode, setSourceMode] = useState("aggregated");
   const [overviewApi, setOverviewApi] = useState(null);
   const [branchesApi, setBranchesApi] = useState([]);
@@ -10169,14 +10329,24 @@ function B2BRevenueAssuranceDashboard({
   }, [brand, branch, branchOptions]);
 
   const fetchJson = useCallback(async (url) => {
-    const res = await adminModuleFetch(url, {
-      credentials: "include",
-      cache: "no-store",
-    });
-    if (!res.ok) throw new Error(`${res.status}`);
-    const json = await res.json();
-    if (json?.error) throw new Error(json.error);
-    return json;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    const path = String(url).split("?")[0];
+    try {
+      const res = await adminModuleFetch(url, {
+        credentials: "include", cache: "no-store", signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
+      let json;
+      try { json = await res.json(); }
+      catch { throw new Error(`${path}: invalid JSON response`); }
+      if (json?.error) throw new Error(`${path}: ${typeof json.error === "string" ? json.error : "backend error"}`);
+      return json;
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error(`${path}: timed out`);
+      if (error instanceof TypeError) throw new Error(`${path}: connection or CORS error`);
+      throw error;
+    } finally { clearTimeout(timer); }
   }, []);
 
   const fetchRawOrdersFallback = useCallback(async () => {
@@ -10197,7 +10367,7 @@ function B2BRevenueAssuranceDashboard({
     if (Array.isArray(data?.orders)) return data.orders;
     if (Array.isArray(data?.data)) return data.data;
     throw new Error("Supply orders were not returned as a list");
-  }, [API, user, fetchJson]);
+  }, [API, user?.role, user?.branch, user?.brand, fetchJson]);
 
   const loadB2B = useCallback(async () => {
     if (!API) {
@@ -10207,8 +10377,18 @@ function B2BRevenueAssuranceDashboard({
       );
       return;
     }
-    setLoading(true);
+    const scope = JSON.stringify([API, month, branch, brand, risk,
+      growthTargetPct, user?.role, user?.branch, user?.brand]);
+    // Manual refresh and polling share the same in-flight request.
+    if (activeB2BRequestRef.current?.scope === scope) return;
+    const request = { scope };
+    activeB2BRequestRef.current = request;
+    const isCurrent = () => activeB2BRequestRef.current === request;
+    const background = completedB2BScopeRef.current === scope;
+    setLoading(!background);
+    setRefreshing(true);
     setLoadError("");
+    try {
     const params = new URLSearchParams({ month });
     if (branch) params.set("branch", branch);
     if (brand) params.set("brand", brand);
@@ -10228,7 +10408,8 @@ function B2BRevenueAssuranceDashboard({
       fetchJson(`${API}/inventory`),
       fetchJson(`${API}/ingredients`),
     ]);
-    setEvidenceCatalog(
+    if (!isCurrent()) return;
+    if (catalogResults.some((result) => result.status === "fulfilled")) setEvidenceCatalog(
       catalogResults.flatMap((result) => {
         if (result.status !== "fulfilled") return [];
         const value = result.value;
@@ -10243,6 +10424,10 @@ function B2BRevenueAssuranceDashboard({
       .slice(0, 3)
       .every((r) => r.status === "fulfilled");
 
+    if (!hasCoreSummary && background && completedB2BModeRef.current === "aggregated") {
+      setLoadError("Refresh unavailable. Showing the last loaded figures; retry Refresh.");
+      return;
+    }
     if (hasCoreSummary) {
       setSourceMode("aggregated");
       const o = settled[0].status === "fulfilled" ? settled[0].value : null;
@@ -10288,20 +10473,20 @@ function B2BRevenueAssuranceDashboard({
               : [],
       );
       try {
-        setRawOrders(await fetchRawOrdersFallback());
+        const orders = await fetchRawOrdersFallback();
+        if (!isCurrent()) return;
+        setRawOrders(orders);
         setOrdersReady(true);
       } catch {
-        setRawOrders([]);
-        setOrdersReady(false);
+        if (!isCurrent()) return;
+        if (!background) {
+          setRawOrders([]);
+          setOrdersReady(false);
+        }
+        setLoadError("Supply orders could not be refreshed. Some evidence may be out of date.");
       }
       setRawInventory([]);
     } else {
-      setSourceMode("fallback");
-      setOverviewApi(null);
-      setBranchesApi([]);
-      setBrandsApi([]);
-      setAnomaliesApi([]);
-      setProductsApi([]);
       const inventoryParams = new URLSearchParams();
       if (branch) inventoryParams.set("branch", branch);
       const [ordersResult, stockInventoryResult, posInventoryResult] =
@@ -10314,12 +10499,20 @@ function B2BRevenueAssuranceDashboard({
             `${API}/inventory${inventoryParams.toString() ? `?${inventoryParams.toString()}` : ""}`,
           ),
         ]);
-      setOrdersReady(ordersResult.status === "fulfilled");
-      setRawOrders(
-        ordersResult.status === "fulfilled" && Array.isArray(ordersResult.value)
-          ? ordersResult.value
-          : [],
-      );
+      if (!isCurrent()) return;
+      setSourceMode("fallback");
+      setOverviewApi(null);
+      setBranchesApi([]);
+      setBrandsApi([]);
+      setAnomaliesApi([]);
+      setProductsApi([]);
+      if (ordersResult.status === "fulfilled") {
+        setOrdersReady(true);
+        setRawOrders(ordersResult.value);
+      } else if (!background) {
+        setOrdersReady(false);
+        setRawOrders([]);
+      }
       const stockPayload =
         stockInventoryResult.status === "fulfilled"
           ? stockInventoryResult.value
@@ -10338,14 +10531,32 @@ function B2BRevenueAssuranceDashboard({
         : Array.isArray(posPayload?.data)
           ? posPayload.data
           : [];
-      setRawInventory(stockRows.length ? stockRows : posRows);
+      const stockAvailable = stockInventoryResult.status === "fulfilled" || posInventoryResult.status === "fulfilled";
+      if (stockAvailable) setRawInventory(stockRows.length ? stockRows : posRows);
+      else if (!background) setRawInventory([]);
+      const failures = [];
       if (ordersResult.status === "rejected") {
-        setLoadError(
-          "The B2B summary endpoints and the existing Mobile Order endpoint could not be loaded.",
-        );
+        failures.push(`Supply orders could not load: ${ordersResult.reason?.message || "connection failed"}.`);
+      }
+      if (!stockAvailable) {
+        failures.push(`Stock evidence could not load: ingredients (${stockInventoryResult.reason?.message || "unavailable"}); inventory (${posInventoryResult.reason?.message || "unavailable"}). Revenue updates are still available when orders load.`);
+      }
+      if (failures.length) {
+        setLoadError(failures.join(" ") + (background ? " Previous values are retained only for sources that failed." : " Retry after checking the backend."));
+      }
+
+    }
+    completedB2BScopeRef.current = scope;
+    completedB2BModeRef.current = hasCoreSummary ? "aggregated" : "fallback";
+    } catch (error) {
+      if (isCurrent()) setLoadError("Dashboard update failed. Please retry Refresh.");
+    } finally {
+      if (isCurrent()) {
+        activeB2BRequestRef.current = null;
+        setLoading(false);
+        setRefreshing(false);
       }
     }
-    setLoading(false);
   }, [
     API,
     month,
@@ -10355,6 +10566,9 @@ function B2BRevenueAssuranceDashboard({
     growthTargetPct,
     fetchJson,
     fetchRawOrdersFallback,
+    user?.role,
+    user?.branch,
+    user?.brand,
   ]);
 
   useAdminLiveRefresh(loadB2B, [loadB2B]);
@@ -10443,7 +10657,7 @@ function B2BRevenueAssuranceDashboard({
     );
     const posRevenue = currentTx.reduce((s, tx) => s + b2bTxAmount(tx), 0);
     const prevPosRevenue = prevTx.reduce((s, tx) => s + b2bTxAmount(tx), 0);
-    const target = prevHqRevenue * (1 + growthTargetPct / 100);
+    const target = B2B_HQ_MONTHLY_TARGET;
     const attainment = target > 0 ? (hqRevenue / target) * 100 : null;
     const gap = Math.max(0, target - hqRevenue);
 
@@ -10496,10 +10710,10 @@ function B2BRevenueAssuranceDashboard({
         const closingValues = currI
           .map(b2bInventoryClosing)
           .filter((v) => v != null);
-        const openingQty = openingValues.length
+        const openingQty = currI.length > 0 && openingValues.length === currI.length
           ? openingValues.reduce((s, v) => s + v, 0)
           : null;
-        const endingStock = closingValues.length
+        const endingStock = currI.length > 0 && closingValues.length === currI.length
           ? closingValues.reduce((s, v) => s + v, 0)
           : null;
         const disposalQty = currI.reduce(
@@ -10528,7 +10742,7 @@ function B2BRevenueAssuranceDashboard({
             adjustmentQty,
         );
         const orderCoverage =
-          soldQty > 0
+          openingQty != null && soldQty > 0
             ? Math.min(100, (officialAvailable / soldQty) * 100)
             : null;
         const expectedClosing =
@@ -10547,7 +10761,7 @@ function B2BRevenueAssuranceDashboard({
           prevHq > 0 ? ((hq - prevHq) / prevHq) * 100 : hq > 0 ? 100 : 0;
         const posGrowth =
           prevPos > 0 ? ((posV - prevPos) / prevPos) * 100 : posV > 0 ? 100 : 0;
-        const targetV = prevHq * (1 + growthTargetPct / 100);
+        const targetV = 0; // HQ target is company-wide, not a quota for each branch.
         const targetPct = targetV > 0 ? (hq / targetV) * 100 : null;
         let riskLabel = stockVariance == null ? "No data yet" : "Normal";
         let reason = "No revenue-leakage signal from available order/POS data.";
@@ -10636,10 +10850,10 @@ function B2BRevenueAssuranceDashboard({
         const closingValues = currI
           .map(b2bInventoryClosing)
           .filter((v) => v != null);
-        const openingStock = openingValues.length
+        const openingStock = currI.length > 0 && openingValues.length === currI.length
           ? openingValues.reduce((s, v) => s + v, 0)
           : null;
-        const endingStock = closingValues.length
+        const endingStock = currI.length > 0 && closingValues.length === currI.length
           ? closingValues.reduce((s, v) => s + v, 0)
           : null;
         const disposalQty = currI.reduce(
@@ -10835,16 +11049,12 @@ function B2BRevenueAssuranceDashboard({
       const t = pos
         .filter((x) => monthMatches(b2bDateOfTx(x), key))
         .reduce((s, x) => s + b2bTxAmount(x), 0);
-      const priorKey = b2bShiftMonth(key, -1);
-      const priorHq = orders
-        .filter((x) => monthMatches(b2bDateOfOrder(x), priorKey))
-        .reduce((s, x) => s + b2bOrderAmount(x), 0);
       trend.push({
         month: key,
         label: b2bMonthLabel(key).replace(/\s\d{4}$/, ""),
         hqRevenue: o,
         posRevenue: t,
-        targetRevenue: priorHq * (1 + growthTargetPct / 100),
+        targetRevenue: B2B_HQ_MONTHLY_TARGET,
       });
     }
 
@@ -10860,11 +11070,11 @@ function B2BRevenueAssuranceDashboard({
       (sum, row) => sum + Number(row.openingStock || 0),
       0,
     );
-    const hasOpeningEvidence = brandRows.some(
+    const hasOpeningEvidence = brandRows.length > 0 && brandRows.every(
       (row) => row.openingStock != null,
     );
     const coverage =
-      soldUnits > 0
+      hasOpeningEvidence && soldUnits > 0
         ? Math.min(
             100,
             ((suppliedUnits + (hasOpeningEvidence ? openingUnits : 0)) /
@@ -10931,25 +11141,9 @@ function B2BRevenueAssuranceDashboard({
       o?.franchiseePosRevenue,
       o?.franchisee_pos_revenue,
     );
-    const target = b2bNullableNum(
-      o?.monthlyTarget,
-      o?.monthly_target,
-      o?.target,
-    );
-    const targetGap = b2bNullableNum(
-      o?.targetGap,
-      o?.target_gap,
-      target != null && hqRevenue != null
-        ? Math.max(0, target - hqRevenue)
-        : null,
-    );
-    const targetAttainment = b2bNullableNum(
-      o?.targetAttainment,
-      o?.target_attainment,
-      o?.targetAttainmentPct,
-      o?.target_attainment_pct,
-      target && hqRevenue != null ? (hqRevenue / target) * 100 : null,
-    );
+    const target = B2B_HQ_MONTHLY_TARGET;
+    const targetGap = Math.max(0, target - (hqRevenue ?? fallback.hqRevenue));
+    const targetAttainment = ((hqRevenue ?? fallback.hqRevenue) / target) * 100;
     const coverage = b2bNullableNum(
       o?.orderCoverage,
       o?.order_coverage,
@@ -11010,7 +11204,7 @@ function B2BRevenueAssuranceDashboard({
 
     // Fallback rows are already generated exclusively from branchCatalog.
     if (sourceMode === "fallback" || !branchesApi.length) {
-      return fallback.branchRows.filter(
+      return fallback.branchRows.map(b2bAssessBranch).filter(
         (r) =>
           isOfficialBrandBranch(r.branch, r.brand) &&
           (!brand || normalizeB2BBrand(r.brand) === normalizeB2BBrand(brand)) &&
@@ -11047,12 +11241,12 @@ function B2BRevenueAssuranceDashboard({
           location: String(
             official.catalog?.location || r?.location || r?.address || "—",
           ),
-          hqRevenue: b2bNum(
+          hqRevenue: b2bNullableNum(
             r?.hq_supply_revenue,
             r?.hqRevenue,
             r?.supply_revenue,
           ),
-          posRevenue: b2bNum(
+          posRevenue: b2bNullableNum(
             r?.pos_revenue,
             r?.posRevenue,
             r?.franchisee_pos_revenue,
@@ -11093,8 +11287,7 @@ function B2BRevenueAssuranceDashboard({
       .filter(
         (r) =>
           (!brand || normalizeB2BBrand(r.brand) === normalizeB2BBrand(brand)) &&
-          (!branch || b2bSameScope(r.branch, branch)) &&
-          riskMatches(r.risk),
+          (!branch || b2bSameScope(r.branch, branch)),
       );
 
     // Start only with valid current branches from fallback.branchRows.
@@ -11120,7 +11313,7 @@ function B2BRevenueAssuranceDashboard({
       });
     });
 
-    return [...merged.values()].filter(
+    return [...merged.values()].map(b2bAssessBranch).filter(
       (r) =>
         isOfficialBrandBranch(r.branch, r.brand) &&
         (!brand || normalizeB2BBrand(r.brand) === normalizeB2BBrand(brand)) &&
@@ -11307,14 +11500,7 @@ function B2BRevenueAssuranceDashboard({
         r?.target,
       ),
     }));
-    return mapped.map((row, index) => ({
-      ...row,
-      targetRevenue:
-        row.targetRevenue ??
-        (index > 0
-          ? mapped[index - 1].hqRevenue * (1 + growthTargetPct / 100)
-          : 0),
-    }));
+    return mapped.map((row) => ({ ...row, targetRevenue: B2B_HQ_MONTHLY_TARGET }));
   }, [overviewApi, fallback.trend, growthTargetPct]);
 
   const skuRows = fallback.skuRows;
@@ -11555,7 +11741,7 @@ function B2BRevenueAssuranceDashboard({
       type: "branch",
       title: row.branch,
       loading: true,
-      data: row,
+      data: b2bAssessBranch(row),
     });
     if (sourceMode === "aggregated") {
       try {
@@ -11566,7 +11752,7 @@ function B2BRevenueAssuranceDashboard({
           type: "branch",
           title: row.branch,
           loading: false,
-          data: { ...row, ...(data?.data || data) },
+          data: b2bAssessBranch({ ...row, ...(data?.data || data) }),
         });
         return;
       } catch {}
@@ -11575,7 +11761,7 @@ function B2BRevenueAssuranceDashboard({
       type: "branch",
       title: row.branch,
       loading: false,
-      data: row,
+      data: b2bAssessBranch(row),
     });
   };
 
@@ -11959,7 +12145,7 @@ function B2BRevenueAssuranceDashboard({
               </span>
               <button
                 onClick={loadB2B}
-                disabled={loading}
+                disabled={loading || refreshing}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -11971,13 +12157,13 @@ function B2BRevenueAssuranceDashboard({
                   padding: "7px 10px",
                   fontSize: 10.5,
                   fontWeight: 800,
-                  cursor: loading ? "wait" : "pointer",
+                  cursor: loading || refreshing ? "wait" : "pointer",
                 }}
               >
                 <RefreshCw
                   size={12}
                   style={{
-                    animation: loading ? "spin .8s linear infinite" : "none",
+                    animation: refreshing ? "spin .8s linear infinite" : "none",
                   }}
                 />
                 Refresh
@@ -12116,6 +12302,8 @@ function B2BRevenueAssuranceDashboard({
                 <option value="high">High Risk</option>
                 <option value="watch">Watch</option>
                 <option value="normal">Normal</option>
+                <option value="stock check">Stock check needed</option>
+                <option value="no transactions">No transactions</option>
               </select>
             </label>
           )}
@@ -12130,16 +12318,13 @@ function B2BRevenueAssuranceDashboard({
                   letterSpacing: ".06em",
                 }}
               >
-                Target Growth %
+                Monthly HQ Target
               </span>
               <input
-                type="number"
-                min="0"
-                max="500"
-                value={growthTargetPct}
-                onChange={(e) =>
-                  setGrowthTargetPct(Math.max(0, Number(e.target.value) || 0))
-                }
+                type="text"
+                value={fmtAmt(B2B_HQ_MONTHLY_TARGET)}
+                readOnly
+                aria-label="Monthly company-wide HQ target"
                 style={{ ...invInputSt, marginTop: 5, height: 37 }}
               />
             </label>
@@ -12402,38 +12587,6 @@ function B2BRevenueAssuranceDashboard({
                 movement evidence, then assign the corrective action.
               </div>
             </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                flexWrap: "wrap",
-              }}
-            >
-              {[
-                "1  Risk branch",
-                "2  Affected SKU",
-                "3  Movement evidence",
-                "4  Corrective action",
-              ].map((step, i) => (
-                <React.Fragment key={step}>
-                  <span
-                    style={{
-                      padding: "6px 9px",
-                      borderRadius: 20,
-                      background: i === 0 ? "#fdf1f0" : "#F6F7F1",
-                      color: i === 0 ? "#991b1b" : "#526052",
-                      border: `1px solid ${i === 0 ? "#f2c9c4" : "#DDE8DA"}`,
-                      fontSize: 9.7,
-                      fontWeight: 850,
-                    }}
-                  >
-                    {step}
-                  </span>
-                  {i < 3 && <ChevronRight size={12} color="#94a3b8" />}
-                </React.Fragment>
-              ))}
-            </div>
           </div>
         </div>
       )}
@@ -12461,19 +12614,10 @@ function B2BRevenueAssuranceDashboard({
             onClick={() => openKpi("posRevenue", "Franchisee POS Revenue")}
             note={`${posMoM == null ? "No prior-month baseline" : `${posMoM >= 0 ? "+" : ""}${posMoM.toFixed(1)}% vs last month`} · paid/completed POS`}
           />
-          <B2BMetricCard
-            label="At-Risk Branches"
-            value={Number(normalizedOverview.atRisk || 0).toLocaleString()}
-            icon={AlertTriangle}
-            tone={normalizedOverview.atRisk > 0 ? "red" : "green"}
-            loading={loading}
-            onClick={() => openKpi("atRisk", "At-Risk Branches")}
-            note="High POS with weak HQ ordering or stock mismatch"
-          />
         </div>
       )}
 
-      {isGhostView && (
+      {isGhostView && normalizedOverview.coverage != null && (
         <div className="b2b-kpi-grid" style={{ marginBottom: 15 }}>
           {normalizedOverview.coverage != null && (
             <B2BMetricCard
@@ -12499,34 +12643,7 @@ function B2BRevenueAssuranceDashboard({
               }
             />
           )}
-          <B2BMetricCard
-            label="At-Risk Branches"
-            value={Number(normalizedOverview.atRisk || 0).toLocaleString()}
-            icon={AlertTriangle}
-            tone={normalizedOverview.atRisk > 0 ? "red" : "green"}
-            loading={loading}
-            onClick={() => openKpi("atRisk", "At-Risk Branches")}
-            note={`${anomalies.filter((a) => String(a.severity).toLowerCase().includes("high")).length} high-risk · ranked anomaly list`}
-          />
-          {normalizedOverview.unexplained != null && (
-            <B2BMetricCard
-              label="Unexplained Stock"
-              value={
-                normalizedOverview.unexplained == null
-                  ? "—"
-                  : Number(normalizedOverview.unexplained).toLocaleString()
-              }
-              icon={Layers}
-              tone={normalizedOverview.unexplained > 0 ? "red" : "green"}
-              loading={loading}
-              onClick={() => openKpi("unexplained", "Unexplained Stock")}
-              note={
-                normalizedOverview.unexplained == null
-                  ? "Requires opening/receipts/transfers/POS/disposal linkage"
-                  : "Positive/negative stock variance requiring investigation"
-              }
-            />
-          )}
+
         </div>
       )}
 
@@ -12570,318 +12687,6 @@ function B2BRevenueAssuranceDashboard({
               if (d?.month) setMonth(d.month);
             }}
           />
-        </div>
-      )}
-
-      {isOverviewView && (
-        <div className="b2b-overview-grid" style={{ marginBottom: 15 }}>
-          <div style={sectionCard}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                alignItems: "flex-start",
-                marginBottom: 11,
-                flexWrap: "wrap",
-              }}
-            >
-              <div>
-                <div
-                  style={{ fontSize: 15, fontWeight: 800, color: "#12241B" }}
-                >
-                  Branch Performance
-                </div>
-                <div style={{ fontSize: 10.8, color: "#5C6B60", marginTop: 3 }}>
-                  Supply and POS performance by branch, brand and location
-                </div>
-              </div>
-              <div
-                style={{
-                  fontSize: 9.8,
-                  color: "#5C6B60",
-                  textAlign: "right",
-                  lineHeight: 1.5,
-                }}
-              >
-                Top HQ:{" "}
-                <b style={{ color: "#2c5c16" }}>
-                  {monthlyLeaders.hqBranch
-                    ? `${monthlyLeaders.hqBranch.branch} · ${monthlyLeaders.hqBranch.brand}`
-                    : "—"}
-                </b>
-                <br />
-                Highest POS:{" "}
-                <b style={{ color: "#2563eb" }}>
-                  {monthlyLeaders.posBranch
-                    ? `${monthlyLeaders.posBranch.branch} · ${monthlyLeaders.posBranch.brand}`
-                    : "—"}
-                </b>
-              </div>
-            </div>
-            <div style={tableWrap}>
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  minWidth: 650,
-                }}
-              >
-                <thead>
-                  <tr>
-                    {[
-                      "Branch / Brand",
-                      "HQ Supply",
-                      "POS Revenue",
-                      "Coverage",
-                      "Status",
-                    ].map((h, i) => (
-                      <th
-                        key={h}
-                        style={{ ...th, textAlign: i === 0 ? "left" : "right" }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...branchRows]
-                    .sort(
-                      (a, b) =>
-                        Number(b.hqRevenue || 0) - Number(a.hqRevenue || 0),
-                    )
-                    .slice(0, 8)
-                    .map((r, i) => (
-                      <tr
-                        key={r.id}
-                        onClick={() => openBranch(r)}
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            openBranch(r);
-                          }
-                        }}
-                        aria-label={`View ${r.brand} ${r.branch} details`}
-                        style={{
-                          cursor: "pointer",
-                          background: i % 2 ? "#FBFDF9" : "#fff",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = "#F4F8F0")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background =
-                            i % 2 ? "#FBFDF9" : "#fff")
-                        }
-                      >
-                        <td style={{ ...td, color: "#12241B" }}>
-                          <div style={{ fontWeight: 850 }}>{r.branch}</div>
-                          <div
-                            style={{
-                              fontSize: 9.5,
-                              fontWeight: 650,
-                              color: "#5C6B60",
-                              marginTop: 3,
-                            }}
-                          >
-                            {r.brand || "Brand not set"}
-                          </div>
-                        </td>
-                        <td
-                          style={{
-                            ...td,
-                            textAlign: "right",
-                            fontWeight: 800,
-                            color: "#3b791e",
-                          }}
-                        >
-                          {fmtAmt(r.hqRevenue)}
-                        </td>
-                        <td
-                          style={{
-                            ...td,
-                            textAlign: "right",
-                            fontWeight: 800,
-                            color: "#2563eb",
-                          }}
-                        >
-                          {fmtAmt(r.posRevenue)}
-                        </td>
-                        <td
-                          style={{ ...td, textAlign: "right", fontWeight: 750 }}
-                        >
-                          {r.orderCoverage == null
-                            ? "—"
-                            : `${r.orderCoverage.toFixed(1)}%`}
-                        </td>
-                        <td style={{ ...td, textAlign: "right" }}>
-                          <B2BRiskBadge risk={r.risk} />
-                        </td>
-                      </tr>
-                    ))}
-                  {!branchRows.length && (
-                    <tr>
-                      <td
-                        colSpan="5"
-                        style={{
-                          padding: 26,
-                          textAlign: "center",
-                          fontSize: 10.8,
-                          color: "#82907F",
-                        }}
-                      >
-                        No branch data for the selected month.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div style={sectionCard}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                alignItems: "flex-start",
-                marginBottom: 11,
-                flexWrap: "wrap",
-              }}
-            >
-              <div>
-                <div
-                  style={{ fontSize: 15, fontWeight: 800, color: "#12241B" }}
-                >
-                  Brand Performance
-                </div>
-                <div style={{ fontSize: 10.8, color: "#5C6B60", marginTop: 3 }}>
-                  Which brand earns the most for FranchiSync this month
-                </div>
-              </div>
-              <div
-                style={{
-                  fontSize: 9.8,
-                  color: "#5C6B60",
-                  textAlign: "right",
-                  lineHeight: 1.5,
-                }}
-              >
-                Top brand:{" "}
-                <b style={{ color: "#2c5c16" }}>
-                  {monthlyLeaders.hqBrand?.brand || "—"}
-                </b>
-                <br />
-                Largest POS–HQ gap:{" "}
-                <b style={{ color: "#b42318" }}>
-                  {monthlyLeaders.leakageBranch
-                    ? `${monthlyLeaders.leakageBranch.branch} · ${monthlyLeaders.leakageBranch.brand}`
-                    : "—"}
-                </b>
-              </div>
-            </div>
-            <div style={tableWrap}>
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  minWidth: 540,
-                }}
-              >
-                <thead>
-                  <tr>
-                    {[
-                      "Brand",
-                      "HQ Supply",
-                      "POS Revenue",
-                      "Supplied / Sold",
-                    ].map((h, i) => (
-                      <th
-                        key={h}
-                        style={{ ...th, textAlign: i === 0 ? "left" : "right" }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...brandRows]
-                    .sort(
-                      (a, b) =>
-                        Number(b.hqRevenue || 0) - Number(a.hqRevenue || 0),
-                    )
-                    .map((r, i) => (
-                      <tr
-                        key={r.id}
-                        onClick={() => openBrand(r)}
-                        style={{
-                          cursor: "pointer",
-                          background: i % 2 ? "#FBFDF9" : "#fff",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = "#F4F8F0")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background =
-                            i % 2 ? "#FBFDF9" : "#fff")
-                        }
-                      >
-                        <td
-                          style={{ ...td, fontWeight: 800, color: "#12241B" }}
-                        >
-                          {r.brand}
-                        </td>
-                        <td
-                          style={{
-                            ...td,
-                            textAlign: "right",
-                            fontWeight: 800,
-                            color: "#3b791e",
-                          }}
-                        >
-                          {fmtAmt(r.hqRevenue)}
-                        </td>
-                        <td
-                          style={{
-                            ...td,
-                            textAlign: "right",
-                            fontWeight: 800,
-                            color: "#2563eb",
-                          }}
-                        >
-                          {fmtAmt(r.posRevenue)}
-                        </td>
-                        <td
-                          style={{ ...td, textAlign: "right", fontWeight: 750 }}
-                        >
-                          {Number(r.suppliedQty || 0).toLocaleString()} /{" "}
-                          {Number(r.soldQty || 0).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  {!brandRows.length && (
-                    <tr>
-                      <td
-                        colSpan="4"
-                        style={{
-                          padding: 26,
-                          textAlign: "center",
-                          fontSize: 10.8,
-                          color: "#82907F",
-                        }}
-                      >
-                        No brand data for the selected month.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
       )}
 
@@ -12931,8 +12736,6 @@ function B2BRevenueAssuranceDashboard({
                       "Branch / Brand",
                       "HQ Supply",
                       "POS Revenue",
-                      "Order Coverage",
-                      "Stock Variance",
                       "Risk",
                     ].map((h, i) => (
                       <th
@@ -13003,30 +12806,6 @@ function B2BRevenueAssuranceDashboard({
                         >
                           {fmtAmt(r.posRevenue)}
                         </td>
-                        <td
-                          style={{ ...td, textAlign: "right", fontWeight: 700 }}
-                        >
-                          {r.orderCoverage == null
-                            ? "—"
-                            : `${r.orderCoverage.toFixed(1)}%`}
-                        </td>
-                        <td
-                          style={{
-                            ...td,
-                            textAlign: "right",
-                            fontWeight: 700,
-                            color:
-                              r.stockVariance == null
-                                ? "#94a3b8"
-                                : r.stockVariance === 0
-                                  ? "#2c5c16"
-                                  : "#c0392b",
-                          }}
-                        >
-                          {r.stockVariance == null
-                            ? "—"
-                            : `${r.stockVariance > 0 ? "+" : ""}${r.stockVariance.toLocaleString()} units`}
-                        </td>
                         <td style={{ ...td, textAlign: "right" }}>
                           <B2BRiskBadge risk={r.risk} />
                         </td>
@@ -13035,7 +12814,7 @@ function B2BRevenueAssuranceDashboard({
                   ) : (
                     <tr>
                       <td
-                        colSpan="6"
+                        colSpan="4"
                         style={{
                           padding: 28,
                           textAlign: "center",
@@ -13336,7 +13115,7 @@ function B2BRevenueAssuranceDashboard({
                               marginBottom: 8,
                             }}
                           >
-                            Why this branch is flagged
+                            Branch assessment
                           </div>
                           <div
                             style={{
@@ -14395,7 +14174,7 @@ function DashboardContent({ transactions, brands: propBrands = [], user }) {
         if (bn.length) params.set("branches", bn.join(","));
       }
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`,
+        `${ADMIN_API_BASE}/dashboard/stats?${params}`,
       );
       const d = await res.json();
       if (!d.error) setKpiData(d);
@@ -15073,7 +14852,7 @@ function DashboardContent({ transactions, brands: propBrands = [], user }) {
           if (bn.length) params.set("branches", bn.join(","));
         }
         const res = await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`,
+          `${ADMIN_API_BASE}/dashboard/stats?${params}`,
         );
         const d = await res.json();
         if (!d.error) setKpiData(d);
@@ -15444,277 +15223,6 @@ function DashboardContent({ transactions, brands: propBrands = [], user }) {
             Sales &amp; AI Decision Workspace
           </span>
           <div style={{ height: 1, background: "#E1E6D8", flex: 1 }} />
-        </div>
-
-        {/* ── KPI Cards: visible across Sales Trend, Prescriptive, and Sales vs Stock ── */}
-        <div
-          style={{
-            order: 2,
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-            gap: 14,
-            marginBottom: 18,
-            animation: "fadeUp .35s ease",
-          }}
-        >
-          {[
-            {
-              id: "revenue",
-              label: "Revenue",
-              value: viewArchive
-                ? (viewArchive?.kpis?.totalSales ?? total)
-                : (kpiData?.salesRevenue ?? actualRevenue),
-              icon: TrendingUp,
-              format: "money",
-              note: "Actual sales in selected period",
-            },
-            {
-              id: "transactions",
-              label: "Transactions",
-              value: transactionCount,
-              icon: ShoppingCart,
-              format: "count",
-              note: "Completed sales records",
-            },
-            {
-              id: "averageSale",
-              label: "Average Sale",
-              value: viewArchive
-                ? averageTransaction
-                : (kpiData?.avgOrder ?? averageTransaction),
-              icon: BarChart2,
-              format: "money",
-              note: "Revenue per transaction",
-            },
-            {
-              id: "activeBranches",
-              label: "Active Branches",
-              value: activeBranchCount,
-              icon: Store,
-              format: "count",
-              note: "Branches with recorded sales",
-            },
-          ].map((k, i) => {
-            const isHidden = !!hiddenKpis[i];
-            return (
-              <div
-                key={k.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`Open ${k.label} breakdown`}
-                onClick={() =>
-                  setOperationalKpiDetail({ id: k.id, label: k.label })
-                }
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setOperationalKpiDetail({ id: k.id, label: k.label });
-                  }
-                }}
-                style={{
-                  background: "#fff",
-                  border: "1px solid rgba(0,168,76,0.12)",
-                  borderRadius: 18,
-                  padding: "18px 20px",
-                  boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
-                  position: "relative",
-                  overflow: "hidden",
-                  transition: "transform .2s, box-shadow .2s",
-                  cursor: "pointer",
-                  outline: "none",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-3px)";
-                  e.currentTarget.style.boxShadow =
-                    "0 8px 28px rgba(0,140,60,0.13)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "";
-                  e.currentTarget.style.boxShadow =
-                    "0 2px 14px rgba(0,140,60,0.07)";
-                }}
-              >
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setHiddenKpis((prev) => ({ ...prev, [i]: !prev[i] }));
-                  }}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  style={{
-                    position: "absolute",
-                    top: 14,
-                    right: 14,
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "#1565c0",
-                    opacity: 0.6,
-                    padding: 2,
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                  title={isHidden ? "Show value" : "Hide value"}
-                >
-                  {!isHidden ? (
-                    <svg
-                      width={15}
-                      height={15}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  ) : (
-                    <svg
-                      width={15}
-                      height={15}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
-                    </svg>
-                  )}
-                </button>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    marginBottom: 10,
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 800,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        color: "#5C6B60",
-                        marginBottom: 5,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 5,
-                        fontFamily: FONT,
-                      }}
-                    >
-                      <k.icon size={12} color="#3b791e" /> {k.label}
-                    </div>
-                    {kpiLoading && k.value == null ? (
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          padding: "5px 12px",
-                          borderRadius: 9,
-                          background: "#f0f5e8",
-                          border: "1.5px dashed #a7f3d0",
-                          color: "#5C6B60",
-                          display: "inline-block",
-                          fontFamily: FONT,
-                        }}
-                      >
-                        Loading…
-                      </div>
-                    ) : k.value != null ? (
-                      <div
-                        style={{
-                          fontSize: 22,
-                          fontWeight: 800,
-                          color: "#12241B",
-                          letterSpacing: "-0.5px",
-                          fontFamily: FONT,
-                        }}
-                      >
-                        {!isHidden
-                          ? k.format === "money"
-                            ? fmtAmt(k.value)
-                            : Number(k.value).toLocaleString()
-                          : k.format === "money"
-                            ? "₱••••••••"
-                            : "••••"}
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          padding: "5px 12px",
-                          borderRadius: 9,
-                          background: "#f0f5e8",
-                          border: "1.5px dashed #a7f3d0",
-                          color: "#5C6B60",
-                          display: "inline-block",
-                          fontFamily: FONT,
-                        }}
-                      >
-                        — Pending
-                      </div>
-                    )}
-                  </div>
-                  <SparkBar
-                    values={values.slice(-7)}
-                    color="#3b791e"
-                    height={28}
-                  />
-                </div>
-                <div
-                  style={{
-                    fontSize: 10.5,
-                    fontWeight: 600,
-                    color: "#94a3b8",
-                    fontFamily: FONT,
-                  }}
-                >
-                  {k.note}
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    marginTop: 4,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 9.5,
-                      fontWeight: 600,
-                      color: "#A7B0A5",
-                      fontFamily: FONT,
-                    }}
-                  >
-                    {getRangeLabel()} · {filterLabel}
-                  </div>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 3,
-                      fontSize: 9.5,
-                      fontWeight: 800,
-                      color: "#3b791e",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Breakdown <ChevronRight size={11} />
-                  </span>
-                </div>
-              </div>
-            );
-          })}
         </div>
 
         <OperationalKpiBreakdownModal
@@ -17030,7 +16538,7 @@ function ActivityLogContent({ user }) {
       ];
       const results = await Promise.all(
         endpoints.map((url) =>
-          adminModuleFetch(`${process.env.REACT_APP_API_URL}/${url}`)
+          adminModuleFetch(`${ADMIN_API_BASE}/${url}`)
             .then((r) => r.json())
             .then((rows) =>
               (Array.isArray(rows) ? rows : []).map((row) => ({
@@ -18811,7 +18319,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
   const fetchActivityLog = useCallback(async () => {
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/brands-activity-log`,
+        `${ADMIN_API_BASE}/brands-activity-log`,
       );
       const data = await res.json();
       setActivityLog(
@@ -18836,7 +18344,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
   const fetchDeleteHistory = async () => {
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/brand-delete-history`,
+        `${ADMIN_API_BASE}/brand-delete-history`,
       );
       const data = await res.json();
       const normalized = Array.isArray(data)
@@ -18860,7 +18368,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
     setLoading(true);
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/brands`,
+        `${ADMIN_API_BASE}/brands`,
       );
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
@@ -18910,7 +18418,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
     try {
       const coords = await getBrowserLocation();
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/brands`,
+        `${ADMIN_API_BASE}/brands`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -18946,7 +18454,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
     try {
       const coords = await getBrowserLocation();
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`,
+        `${ADMIN_API_BASE}/brands/${selectedBrand.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -19003,7 +18511,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
     try {
       const coords = await getBrowserLocation();
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/brands/${id}`,
+        `${ADMIN_API_BASE}/brands/${id}`,
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -19018,7 +18526,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
       const data = await res.json();
       if (data.success) {
         await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/brand-delete-history`,
+          `${ADMIN_API_BASE}/brand-delete-history`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -19070,7 +18578,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
     try {
       const coords = await getBrowserLocation();
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/branches`,
+        `${ADMIN_API_BASE}/branches`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -19109,7 +18617,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
     try {
       const coords = await getBrowserLocation();
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`,
+        `${ADMIN_API_BASE}/branches/${selectedBranch.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -19154,7 +18662,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
     try {
       const coords = await getBrowserLocation();
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/branches/${id}`,
+        `${ADMIN_API_BASE}/branches/${id}`,
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -19169,7 +18677,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
       const data = await res.json();
       if (data.success) {
         await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/brand-delete-history`,
+          `${ADMIN_API_BASE}/brand-delete-history`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -19212,7 +18720,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
         const { branches, ...brandFields } = entry.data;
         const branchList = Array.isArray(branches) ? branches : [];
         const res = await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/brands`,
+          `${ADMIN_API_BASE}/brands`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -19237,7 +18745,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
         const newBrandId = data.brand?.id;
         for (const br of branchList) {
           const { id: _ignore, brand_id: _ignore2, ...branchFields } = br;
-          await adminModuleFetch(`${process.env.REACT_APP_API_URL}/branches`, {
+          await adminModuleFetch(`${ADMIN_API_BASE}/branches`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -19257,7 +18765,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
           });
         }
         await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`,
+          `${ADMIN_API_BASE}/brand-delete-history/${entry.id}`,
           { method: "DELETE" },
         );
         await fetchBrands();
@@ -19278,7 +18786,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
         }
         const { id: _id, brand_id: _bid, ...branchFields } = entry.data;
         const res = await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/branches`,
+          `${ADMIN_API_BASE}/branches`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -19301,7 +18809,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
         const data = await res.json();
         if (data.success) {
           await adminModuleFetch(
-            `${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`,
+            `${ADMIN_API_BASE}/brand-delete-history/${entry.id}`,
             { method: "DELETE" },
           );
           await fetchBrands();
@@ -22175,7 +21683,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
   const fetchActivityLog = useCallback(async () => {
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/shop-activity-log`,
+        `${ADMIN_API_BASE}/shop-activity-log`,
       );
       const data = await res.json();
       setActivityLog(
@@ -22203,7 +21711,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     setItemsLoading(true);
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/shop-items`,
+        `${ADMIN_API_BASE}/shop-items`,
       );
       const data = await res.json();
       setShopItems(Array.isArray(data) ? data : []);
@@ -22230,7 +21738,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
       }
 
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/ingredients?branch=${encodeURIComponent(headOfficeBranch)}`,
+        `${ADMIN_API_BASE}/ingredients?branch=${encodeURIComponent(headOfficeBranch)}`,
       );
       const data = await res.json();
       setStockItems(Array.isArray(data) ? data : []);
@@ -22406,8 +21914,8 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     };
     try {
       const url = editingItem.id
-        ? `${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}`
-        : `${process.env.REACT_APP_API_URL}/shop-items`;
+        ? `${ADMIN_API_BASE}/shop-items/${editingItem.id}`
+        : `${ADMIN_API_BASE}/shop-items`;
       const method = editingItem.id ? "PUT" : "POST";
       await adminModuleFetch(url, {
         method,
@@ -22465,7 +21973,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
       };
       try {
         const res = await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/shop-items`,
+          `${ADMIN_API_BASE}/shop-items`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -22498,7 +22006,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     const coords = await getBrowserLocation();
     try {
       await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/shop-items/${item.id}`,
+        `${ADMIN_API_BASE}/shop-items/${item.id}`,
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -22534,7 +22042,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     const coords = await getBrowserLocation();
     try {
       await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/shop-items/${item.id}/toggle`,
+        `${ADMIN_API_BASE}/shop-items/${item.id}/toggle`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -23898,6 +23406,9 @@ function ApplicationsContent({
 }) {
   const [activityLog, setActivityLog] = useState([]);
   const [applications, setApplications] = useState(initialApps || []);
+  const [applicationsError, setApplicationsError] = useState("");
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
+  const applicationsRequestRef = useRef(false);
   const [viewApp, setViewApp] = useState(null);
   const [accountApp, setAccountApp] = useState(null);
   const [alertModal, setAlertModal] = useState(null);
@@ -23931,7 +23442,7 @@ function ApplicationsContent({
   const fetchActivityLog = useCallback(async () => {
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/applications-activity-log`,
+        `${ADMIN_API_BASE}/applications-activity-log`,
       );
       const data = await res.json();
       setActivityLog(
@@ -23963,14 +23474,18 @@ function ApplicationsContent({
   });
 
   const fetchApplications = async () => {
+    if (applicationsRequestRef.current) return;
+    applicationsRequestRef.current = true;
+    setApplicationsLoading(true);
+    setApplicationsError("");
     try {
-      const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/applications`,
-      );
-      const data = await res.json();
-      setApplications(Array.isArray(data) ? data.map(normalizeApp) : []);
+      const rows = await fetchApplicationRecords();
+      setApplications(rows.map(normalizeApp));
     } catch (err) {
-      console.error("Failed to fetch applications:", err);
+      setApplicationsError(`${err.message} Existing records, if any, have been retained.`);
+    } finally {
+      applicationsRequestRef.current = false;
+      setApplicationsLoading(false);
     }
   };
 
@@ -24329,7 +23844,7 @@ function ApplicationsContent({
   const fetchAppDeleteHistory = async () => {
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/application-delete-history`,
+        `${ADMIN_API_BASE}/application-delete-history`,
       );
       const data = await res.json();
       const mapped = Array.isArray(data)
@@ -24371,7 +23886,7 @@ function ApplicationsContent({
     try {
       const coords = await getBrowserLocation();
       await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/applications/${id}/status`,
+        `${ADMIN_API_BASE}/applications/${id}/status`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -24417,7 +23932,7 @@ function ApplicationsContent({
     try {
       const coords = await getBrowserLocation();
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/applications/${id}/status`,
+        `${ADMIN_API_BASE}/applications/${id}/status`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -24443,7 +23958,7 @@ function ApplicationsContent({
       const app = applications.find((a) => a.id === id);
       if (app?.email) {
         await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/send-rejection`,
+          `${ADMIN_API_BASE}/send-rejection`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -24488,7 +24003,7 @@ function ApplicationsContent({
     try {
       const coords = await getBrowserLocation();
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/applications/${app.id}/schedule-options`,
+        `${ADMIN_API_BASE}/applications/${app.id}/schedule-options`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -24515,7 +24030,7 @@ function ApplicationsContent({
 
       if (app.email) {
         await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/send-schedule-options`,
+          `${ADMIN_API_BASE}/send-schedule-options`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -24571,7 +24086,7 @@ function ApplicationsContent({
     });
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/public/appointments/${app.appointmentToken}/reschedule-request`,
+        `${ADMIN_API_BASE}/public/appointments/${app.appointmentToken}/reschedule-request`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -24608,7 +24123,7 @@ function ApplicationsContent({
     try {
       const coords = await getBrowserLocation();
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/applications/${deleteTarget.id}`,
+        `${ADMIN_API_BASE}/applications/${deleteTarget.id}`,
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -24655,7 +24170,7 @@ function ApplicationsContent({
       const d = entry.data;
       const coords = await getBrowserLocation();
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/applications`,
+        `${ADMIN_API_BASE}/applications`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -24693,7 +24208,7 @@ function ApplicationsContent({
       const result = await res.json();
       if (result.success) {
         await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/application-delete-history/${entry.id}`,
+          `${ADMIN_API_BASE}/application-delete-history/${entry.id}`,
           { method: "DELETE" },
         );
         await fetchAppDeleteHistory();
@@ -24956,6 +24471,15 @@ function ApplicationsContent({
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <>
+      {applicationsError && (
+        <div role="alert" style={{ padding: 12, marginBottom: 14, border: "1px solid #f2c9c4", borderRadius: 10, background: "#fff7ed", color: "#9a3412", fontSize: 12 }}>
+          {applicationsError}
+          <button type="button" onClick={fetchApplications} disabled={applicationsLoading}
+            style={{ ...btnSt, marginLeft: 10 }}>
+            {applicationsLoading ? "Loading…" : "Retry"}
+          </button>
+        </div>
+      )}
       <DeleteHistoryModal />
 
       <ApplicationConfirmModal
@@ -26709,7 +26233,7 @@ function CreateAccountModal({
   const [selectedRole, setSelectedRole] = useState(roles?.[0] || "Franchisee");
 
   useEffect(() => {
-    adminModuleFetch(`${process.env.REACT_APP_API_URL}/brands`)
+    adminModuleFetch(`${ADMIN_API_BASE}/brands`)
       .then((r) => r.json())
       .then((d) => setBrands(Array.isArray(d) ? d : []))
       .catch(() => {})
@@ -26764,7 +26288,7 @@ function CreateAccountModal({
       // Create the account first — if the email is a duplicate, we bail
       // out before ever touching branches, so no orphan branch is created.
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/users`,
+        `${ADMIN_API_BASE}/users`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -26809,7 +26333,7 @@ function CreateAccountModal({
       // exist yet, so create it under the selected brand now that the
       // account itself succeeded.
       const branchRes = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/branches`,
+        `${ADMIN_API_BASE}/branches`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -26833,7 +26357,7 @@ function CreateAccountModal({
       }
 
       await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/send-credentials`,
+        `${ADMIN_API_BASE}/send-credentials`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -26848,7 +26372,7 @@ function CreateAccountModal({
       let markedApplication = null;
       try {
         const markedRes = await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/applications/${applicant?.id}/account-created`,
+          `${ADMIN_API_BASE}/applications/${applicant?.id}/account-created`,
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -27174,7 +26698,7 @@ const REPORT_STATUS = {
   },
 };
 
-const API = process.env.REACT_APP_API_URL || "";
+const API = ADMIN_API_BASE;
 
 function Chip({ label, color, bg, onRemove }) {
   return (
@@ -27250,7 +26774,7 @@ function ReportsContent({ user, brands: propBrands = [] }) {
   const fetchActivityLog = useCallback(async () => {
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/reports-activity-log`,
+        `${ADMIN_API_BASE}/reports-activity-log`,
       );
       const data = await res.json();
       setActivityLog(Array.isArray(data) ? data : []);
@@ -27263,7 +26787,7 @@ function ReportsContent({ user, brands: propBrands = [] }) {
     async (action, itemName, branchName, changes = null) => {
       try {
         await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/shop-activity-log`,
+          `${ADMIN_API_BASE}/shop-activity-log`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -27373,7 +26897,7 @@ function ReportsContent({ user, brands: propBrands = [] }) {
     try {
       const coords = await getBrowserLocation();
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/reports/${report.id}/approve`,
+        `${ADMIN_API_BASE}/reports/${report.id}/approve`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -29753,7 +29277,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
   const fetchActivityLog = useCallback(async () => {
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/users-activity-log`,
+        `${ADMIN_API_BASE}/users-activity-log`,
       );
       const data = await res.json();
       setActivityLog(Array.isArray(data) ? data : []);
@@ -29766,7 +29290,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
     async (action, itemName, branchName, changes = null) => {
       try {
         await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/shop-activity-log`,
+          `${ADMIN_API_BASE}/shop-activity-log`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -29796,7 +29320,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
     const fetchBrands = async () => {
       try {
         const res = await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/brands`,
+          `${ADMIN_API_BASE}/brands`,
         );
         const data = await res.json();
         setBrands(Array.isArray(data) ? data : []);
@@ -29821,7 +29345,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
   const fetchUsers = async () => {
     try {
       const response = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/users`,
+        `${ADMIN_API_BASE}/users`,
       );
       const data = await response.json();
       console.log("users from API:", data);
@@ -29833,7 +29357,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
   };
   const fetchDeleteHistory = async () => {
     const res = await adminModuleFetch(
-      `${process.env.REACT_APP_API_URL}/delete-history`,
+      `${ADMIN_API_BASE}/delete-history`,
     );
     const data = await res.json();
     setDeleteHistory(Array.isArray(data) ? data : []);
@@ -29859,7 +29383,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
     try {
       const coords = await getBrowserLocation();
       const updateRes = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/users/${credentialsTarget.id}`,
+        `${ADMIN_API_BASE}/users/${credentialsTarget.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -29887,7 +29411,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
       }
 
       const response = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/send-credentials`,
+        `${ADMIN_API_BASE}/send-credentials`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -29972,7 +29496,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
     };
     try {
       const response = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/users`,
+        `${ADMIN_API_BASE}/users`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -29982,7 +29506,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
       const data = await response.json();
       if (data.success) {
         await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/send-credentials`,
+          `${ADMIN_API_BASE}/send-credentials`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -30042,7 +29566,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
     };
     try {
       const response = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/users/${editingUser.id}`,
+        `${ADMIN_API_BASE}/users/${editingUser.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -30083,7 +29607,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
     try {
       const coords = await getBrowserLocation();
       const response = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/users/${targetUser.id}`,
+        `${ADMIN_API_BASE}/users/${targetUser.id}`,
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -30098,7 +29622,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
       const data = await response.json();
       if (data.success) {
         await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/delete-history`,
+          `${ADMIN_API_BASE}/delete-history`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -30134,7 +29658,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
       const d = entry.user_data || entry.data || {};
 
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/users`,
+        `${ADMIN_API_BASE}/users`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -30157,7 +29681,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
 
       if (data.success) {
         await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/delete-history/${entry.id}`,
+          `${ADMIN_API_BASE}/delete-history/${entry.id}`,
           { method: "DELETE" },
         );
         await fetchDeleteHistory();
@@ -30842,7 +30366,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
   const fetchDeleteHistory = async () => {
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/announcements/delete-history`,
+        `${ADMIN_API_BASE}/announcements/delete-history`,
       );
       const data = await res.json();
 
@@ -30868,7 +30392,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
   const fetchActivityLog = useCallback(async () => {
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/announcements-activity-log`,
+        `${ADMIN_API_BASE}/announcements-activity-log`,
       );
       const data = await res.json();
       setActivityLog(Array.isArray(data) ? data : []);
@@ -30881,7 +30405,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
     async (action, itemName, branchName, changes = null) => {
       try {
         await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/shop-activity-log`,
+          `${ADMIN_API_BASE}/shop-activity-log`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -30912,7 +30436,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
     setFetching(true);
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/announcements`,
+        `${ADMIN_API_BASE}/announcements`,
       );
       const data = await res.json();
       setAnnouncements(Array.isArray(data) ? data : []);
@@ -30954,7 +30478,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
       async () => {
         try {
           await adminModuleFetch(
-            `${process.env.REACT_APP_API_URL}/announcements/delete-history/${entry.id}`,
+            `${ADMIN_API_BASE}/announcements/delete-history/${entry.id}`,
             {
               method: "DELETE",
             },
@@ -30989,8 +30513,8 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
     }
     try {
       const url = editing
-        ? `${process.env.REACT_APP_API_URL}/announcements/${editing.id}`
-        : `${process.env.REACT_APP_API_URL}/announcements`;
+        ? `${ADMIN_API_BASE}/announcements/${editing.id}`
+        : `${ADMIN_API_BASE}/announcements`;
       const method = editing ? "PUT" : "POST";
       const res = await adminModuleFetch(url, {
         method,
@@ -31040,7 +30564,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
       async () => {
         try {
           const res = await adminModuleFetch(
-            `${process.env.REACT_APP_API_URL}/announcements/${item.id}`,
+            `${ADMIN_API_BASE}/announcements/${item.id}`,
             {
               method: "DELETE",
               headers: { "Content-Type": "application/json" },
@@ -31079,7 +30603,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
   const handleRestore = async (entry) => {
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/announcements`,
+        `${ADMIN_API_BASE}/announcements`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -31099,7 +30623,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
       }
 
       await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/announcements/delete-history/${entry.id}`,
+        `${ADMIN_API_BASE}/announcements/delete-history/${entry.id}`,
         {
           method: "DELETE",
         },
@@ -35255,7 +34779,7 @@ function ProfileContent({ user }) {
     try {
       const emailToSend = formData.personalEmail || formData.email;
       const response = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/send-otp-password-change`,
+        `${ADMIN_API_BASE}/send-otp-password-change`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -35279,7 +34803,7 @@ function ProfileContent({ user }) {
       setOtpError("");
       const emailToVerify = formData.personalEmail || formData.email;
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/users/${user.id}/password`,
+        `${ADMIN_API_BASE}/users/${user.id}/password`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -35363,7 +34887,7 @@ function ProfileContent({ user }) {
         .filter(Boolean)
         .join(" ");
       const response = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/users/${user.id}`,
+        `${ADMIN_API_BASE}/users/${user.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -36561,7 +36085,7 @@ function GCashQRModal({ totalAmt, onConfirm, onCancel, fmtPHP }) {
     const create = async () => {
       try {
         const res = await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/paymongo/create-gcash`,
+          `${ADMIN_API_BASE}/paymongo/create-gcash`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -36603,7 +36127,7 @@ function GCashQRModal({ totalAmt, onConfirm, onCancel, fmtPHP }) {
     pollRef.current = setInterval(async () => {
       try {
         const res = await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/paymongo/link-status/${id}`,
+          `${ADMIN_API_BASE}/paymongo/link-status/${id}`,
         );
         const data = await res.json();
         if (data.status === "paid") {
@@ -37213,7 +36737,7 @@ function POSContent({ user, brands: propBrands = [] }) {
         ? `?branch=${encodeURIComponent(activeBranch)}`
         : "";
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/inventory${branchQ}`,
+        `${ADMIN_API_BASE}/inventory${branchQ}`,
       );
       const data = await res.json();
       setMenuItems(Array.isArray(data) ? data : []);
@@ -37229,7 +36753,7 @@ function POSContent({ user, brands: propBrands = [] }) {
         ? `?branch=${encodeURIComponent(activeBranch)}`
         : "";
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/transactions${q}`,
+        `${ADMIN_API_BASE}/transactions${q}`,
       );
       const d = await res.json();
       setTransactions(Array.isArray(d) ? d : []);
@@ -37246,7 +36770,7 @@ function POSContent({ user, brands: propBrands = [] }) {
         ? `?branch=${encodeURIComponent(activeBranch)}`
         : "";
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/transactions/voided${q}`,
+        `${ADMIN_API_BASE}/transactions/voided${q}`,
       );
       const d = await res.json();
       setVoidedTx(Array.isArray(d) ? d : []);
@@ -37466,7 +36990,7 @@ function POSContent({ user, brands: propBrands = [] }) {
       };
 
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/transactions`,
+        `${ADMIN_API_BASE}/transactions`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -37533,7 +37057,7 @@ function POSContent({ user, brands: propBrands = [] }) {
 
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/transactions/${selectedTxId}/void`,
+        `${ADMIN_API_BASE}/transactions/${selectedTxId}/void`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -37571,7 +37095,7 @@ function POSContent({ user, brands: propBrands = [] }) {
     setRetrieveProcessing(true);
     try {
       const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/transactions/${selectedVoidId}/retrieve`,
+        `${ADMIN_API_BASE}/transactions/${selectedVoidId}/retrieve`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -42035,3 +41559,6 @@ export function AppField({ label, value, highlight, large }) {
 }
 // ─── Exports ──────────────────────────────────────────────────────────────────
 export { ActionDropdown, POSContent };
+
+
+

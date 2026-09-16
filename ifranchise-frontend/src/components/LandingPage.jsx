@@ -36,10 +36,10 @@ const CARDS = [
 ];
 
 const STATS = [
-  { value: 400, suffix: "+", label: "Active franchises" },
+  { value: 100, suffix: "+", label: "Active franchises" },
   { value: 90, suffix: "%", label: "Success rate" },
  
-  { value: 10, suffix: "+", label: "Years of experience" },
+  { value: 5, suffix: "+", label: "Years of experience" },
 ];
 
 const MARQUEE_ITEMS = [

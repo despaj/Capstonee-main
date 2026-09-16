@@ -459,8 +459,17 @@ router.post("/ai/report", async (req, res) => {
 });
 
 router.post("/ai/dashboard-analysis", async (req, res) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45000);
   try {
-    const { transactions, preset, filterLabel } = req.body;
+    const { transactions, preset, filterLabel } = req.body || {};
+    if (!Array.isArray(transactions) || !transactions.length ||
+        transactions.some((tx) => !tx || typeof tx !== "object" || Array.isArray(tx))) {
+      return res.status(400).json({ success: false, error: "Select a period with valid transaction records before running AI analysis." });
+    }
+    if (!process.env.GROQ_API_KEY?.trim()) {
+      return res.status(503).json({ success: false, error: "GROQ_API_KEY is missing from the backend environment. Set it on the backend host and restart the server." });
+    }
     const branchTotals = {},
       dayTotals = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, Sun: 0 };
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -627,6 +636,7 @@ Return ONLY valid JSON:
       "https://api.groq.com/openai/v1/chat/completions",
       {
         method: "POST",
+        signal: controller.signal,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
@@ -634,19 +644,196 @@ Return ONLY valid JSON:
         body: JSON.stringify({
           model: "openai/gpt-oss-20b",
           messages: [{ role: "user", content: prompt }],
-          max_tokens: 1500,
+          max_completion_tokens: 4096,
+          reasoning_effort: "low",
+          response_format: {
+  "type": "json_schema",
+  "json_schema": {
+    "name": "dashboard_analysis",
+    "strict": true,
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "projectedRevenue": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "projectedChange": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "slowestDayDropPct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "peakDay": {
+          "type": "string"
+        },
+        "slowestDay": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "stockAnomalies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "branch": {
+                "type": "string"
+              },
+              "anomalyType": {
+                "type": "string",
+                "enum": [
+                  "ghost_sales",
+                  "low_stock_no_reorder",
+                  "dead_stock"
+                ]
+              },
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "critical",
+                  "warning",
+                  "info"
+                ]
+              },
+              "finding": {
+                "type": "string"
+              },
+              "action": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "branch",
+              "anomalyType",
+              "severity",
+              "finding",
+              "action"
+            ]
+          }
+        },
+        "recommendations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "branch": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "success",
+                  "warning",
+                  "info"
+                ]
+              },
+              "text": {
+                "type": "string"
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              }
+            },
+            "required": [
+              "branch",
+              "type",
+              "text",
+              "priority"
+            ]
+          }
+        }
+      },
+      "required": [
+        "projectedRevenue",
+        "projectedChange",
+        "slowestDayDropPct",
+        "confidence",
+        "peakDay",
+        "slowestDay",
+        "summary",
+        "stockAnomalies",
+        "recommendations"
+      ]
+    }
+  }
+},
           temperature: 0.2,
         }),
       },
     );
-    const data = await response.json();
-    const raw = data.choices?.[0]?.message?.content || "{}";
-    const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
-    res.json({ success: true, analysis: parsed });
+    let data;
+    try {
+      data = await response.json();
+    } catch (err) {
+      if (controller.signal.aborted) throw err;
+      return res.status(502).json({ success: false, error: `Groq returned an unreadable response (HTTP ${response.status}). Please retry.` });
+    }
+    if (!response.ok || data?.error) {
+      const status = response.status === 429 ? 429 : 502;
+      const detail = String(data?.error?.message || "No provider error message returned")
+        .split(process.env.GROQ_API_KEY).join("[redacted]");
+      return res.status(status).json({
+        success: false,
+        error: `Groq request failed (HTTP ${response.status}): ${detail}`,
+      });
+    }
+    const choice = data?.choices?.[0];
+    if (choice?.finish_reason === "length") {
+      return res.status(502).json({ success: false, error: "The AI report exceeded its output limit. Try a smaller selection of branches or dates." });
+    }
+    const raw = choice?.message?.content;
+    if (typeof raw !== "string" || !raw.trim()) {
+      return res.status(502).json({ success: false, error: "Groq returned no report content. Please retry or check the provider configuration." });
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim());
+    } catch {
+      return res.status(502).json({ success: false, error: "Groq returned invalid report JSON. Please retry." });
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) ||
+        typeof parsed.summary !== "string" || !parsed.summary.trim() ||
+        !Array.isArray(parsed.recommendations) || !Array.isArray(parsed.stockAnomalies)) {
+      return res.status(502).json({ success: false, error: "Groq returned an incomplete report. A summary, recommendations, and stockAnomalies are required." });
+    }
+    return res.json({ success: true, analysis: parsed });
   } catch (err) {
-    console.error("AI dashboard analysis error:", err);
-    res.status(500).json({ error: err.message });
+    const timedOut = controller.signal.aborted;
+    console.error("AI dashboard analysis failed:", timedOut ? "timeout" : err?.name || "Error");
+    return res.status(timedOut ? 504 : 502).json({
+      success: false,
+      error: timedOut
+        ? "Groq did not respond within 45 seconds. Please retry with a shorter period."
+        : "The backend could not complete the AI request. Check backend connectivity and server logs.",
+    });
+  } finally {
+    clearTimeout(timeout);
   }
 });
 
 module.exports = router;
+
