@@ -34,6 +34,10 @@ import {
   Trash2,
   X,
   Check,
+  ImageOff,
+  ZoomIn,
+  ImagePlus,
+  UploadCloud,
   Plus,
   Pencil,
   Store,
@@ -24393,63 +24397,118 @@ function CreateAccountModal({
   );
 }
 
+
+// Replace your existing FACommunicationContent function with this code.
+// React hooks needed: useState, useEffect, useCallback, useRef.
+// Merge the icons below into your existing lucide-react import (do not duplicate imports).
+// Required lucide-react icons: Check, Clock, ImageOff, ImagePlus, Megaphone, Pencil, Pin, Plus, RefreshCw, RotateCcw, Search, Trash2, UploadCloud, X, ZoomIn.
+// Uses the existing FA dashboard Toast component.
+// Photos are compressed JPEG data URLs in image_url; the backend must accept
+// data:image/jpeg;base64 values and store image_url as TEXT. No upload endpoint is assumed.
+// ─────────────────────────────────────────────────────────────────────────────
+// ANNOUNCEMENTS — FA dashboard
+// ─────────────────────────────────────────────────────────────────────────────
 function FACommunicationContent({ user, brands: propBrands = [] }) {
-  const [announcements, setAnnouncements] = useState([]);
-  const [pinnedIds, setPinnedIds] = useState(new Set());
-  const [fetching, setFetching] = useState(true);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [selectedTab, setSelectedTab] = useState("all");
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [imageError, setImageError] = useState(false);
-  const [viewingItem, setViewingItem] = useState(null);
-  const [deleteHistory, setDeleteHistory] = useState([]);
-  const [confirmModal, setConfirmModal] = useState(null);
-
-  const [activityLog, setActivityLog] = useState([]);
-  const [showActivityLog, setShowActivityLog] = useState(false);
-
-  const [toast, setToast] = useState(null);
+  const ADMIN_API_BASE = (process.env.REACT_APP_API_URL || "").replace(/\/$/, "");
+  const C = { border: "#E1E6D8", muted: "#5C6B60", greenMid: "#c9dba0" };
+  const bmLabel = { fontSize: 12, fontWeight: 700, color: "#347022" };
+  const bmInput = { width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #E1E6D8", borderRadius: 10, fontFamily: "inherit", fontSize: 13 };
   const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
-  const [restoringId, setRestoringId] = useState(null);
-
-  const showLoading = (title) => setToast({ type: "loading", title });
-  const showSuccess = (title, message) =>
-    setToast({ type: "success", title, message });
-  const showError = (title, message) =>
-    setToast({ type: "error", title, message });
-  const closeToast = () => setToast(null);
-
-  const PIN_KEY = "fa_announcement_pins";
-
-  const fetchActivityLog = useCallback(async () => {
-    try {
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/announcements-activity-log`,
-      );
-      const data = await res.json();
-      setActivityLog(
-        Array.isArray(data)
-          ? data.map((row) => ({
-              id: row.id,
-              action: row.action,
-              itemName: row.item_name ?? row.itemName,
-              branch: row.branch ?? row.franchise ?? row.branchName,
-              performedBy: row.performed_by ?? row.performedBy,
-              role: row.role,
-              changes: row.changes,
-              timestamp: row.created_at ?? row.timestamp,
-            }))
-          : [],
-      );
-    } catch (err) {
-      console.error("Failed to fetch announcements activity log:", err);
+  const [photoName, setPhotoName] = useState("");
+  const [draggingPhoto, setDraggingPhoto] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
+  const [failedImages, setFailedImages] = useState(new Set());
+  const [loadError, setLoadError] = useState("");
+  const [historyError, setHistoryError] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
+  const actionLock = useRef(false);
+  const saveLock = useRef(false);
+  const photoInput = useRef(null);
+  const normalizePhoto = (item) => {
+    const raw = item?.image_url || item?.imageUrl || item?.photo_url || item?.photoUrl || "";
+    if (typeof raw !== "string") return "";
+    const value = raw.trim();
+    if (/^data:image\/(jpeg|png|webp|gif);base64,/i.test(value)) return value;
+    if (/^https?:\/\//i.test(value)) return value;
+    if (value.startsWith("/") && !value.startsWith("//")) {
+      try { return new URL(value, ADMIN_API_BASE || window.location.origin).href; } catch { return ""; }
     }
-  }, []);
-
+    return "";
+  };
+  const normalizeAnnouncement = (item) => ({ ...item, image_url: normalizePhoto(item) });
+  const renderPhoto = (src, alt, maxHeight = 300) => !src ? null : (
+    failedImages.has(src) ? <div className="fa-photo-error" role="status">
+      <ImageOff size={22} /><span>This photo could not be loaded.</span>
+      <button type="button" onClick={(event) => { event.stopPropagation(); setFailedImages((prev) => { const next = new Set(prev); next.delete(src); return next; }); }}>Retry</button>
+    </div> : <button type="button" className="fa-photo-view" aria-label={`Enlarge ${alt}`}
+      onClick={(event) => { event.stopPropagation(); setLightbox({ src, alt }); }}>
+      <img src={src} alt={alt} style={{ width: "100%", maxHeight, objectFit: "contain", display: "block" }}
+        onError={() => setFailedImages((prev) => new Set(prev).add(src))} />
+      <span className="fa-photo-zoom"><ZoomIn size={13} /> View image</span>
+    </button>
+  );
+  const [imageLoading, setImageLoading] = useState(false);
+  const imageTask = useRef(0);
+  const restoredEntries = useRef(new Set());
+  const restoringEntries = useRef(new Set());
+  useEffect(() => () => { imageTask.current += 1; }, []);
+  const adminModuleFetch = async (url, options = {}) => {
+    if (options.body) {
+      const coords = await getBrowserLocation();
+      options = { ...options, body: JSON.stringify({ ...JSON.parse(options.body),
+        performed_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }) };
+    }
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      throw new Error(detail.error || `Request failed (${response.status}).`);
+    }
+    return response;
+  };
+  const handlePhotoPick = async (event) => {
+    if (saving || imageLoading) return;
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const task = ++imageTask.current;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024) {
+      showAlert("Choose a JPG, PNG, or WebP photo up to 10 MB.", "error");
+      return;
+    }
+    setImageLoading(true);
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const photo = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("This photo could not be opened."));
+        img.src = objectUrl;
+      });
+      const canvas = document.createElement("canvas");
+      let scale = Math.min(1, 1400 / Math.max(photo.width, photo.height));
+      let encoded = "";
+      // Bound the JSON payload for the existing image_url API field.
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        canvas.width = Math.max(1, Math.round(photo.width * scale));
+        canvas.height = Math.max(1, Math.round(photo.height * scale));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Photo processing is unavailable in this browser.");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(photo, 0, 0, canvas.width, canvas.height);
+        encoded = canvas.toDataURL("image/jpeg", 0.82);
+        if (encoded.length <= 70000) break;
+        scale *= 0.75;
+      }
+      if (encoded.length > 70000) throw new Error("Please choose a smaller photo.");
+      if (task === imageTask.current) { setImageUrl(encoded); setPhotoName(file.name); setImageError(false); }
+    } catch (error) {
+      if (task === imageTask.current) showAlert(error.message, "error");
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+      if (task === imageTask.current) setImageLoading(false);
+    }
+  };
   const getBrowserLocation = () => {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
@@ -24468,35 +24527,79 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     });
   };
 
+  const [announcements, setAnnouncements] = useState([]);
+  const [pinnedIds, setPinnedIds] = useState(new Set());
+  const [fetching, setFetching] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [selectedTab, setSelectedTab] = useState("all");
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [imageError, setImageError] = useState(false);
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [viewingItem, setViewingItem] = useState(null);
+  const [deleteHistory, setDeleteHistory] = useState([]);
+
+  const [, setActivityLog] = useState([]);
+
+  const [alertModal, setAlertModal] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
+  const showAlert = (message, type = "info") =>
+    setAlertModal({ message, type });
+  const showConfirm = (message, onConfirm, itemName = "") =>
+    setConfirmModal({ message, onConfirm, itemName });
+  const confirmAction = async () => {
+    if (actionLock.current) return;
+    actionLock.current = true; setActionBusy(true);
+    try { await confirmModal.onConfirm(); setConfirmModal(null); }
+    finally { actionLock.current = false; setActionBusy(false); }
+  };
+  useEffect(() => {
+    const handleKey = (event) => {
+      if (event.key !== "Escape" || saving || imageLoading || actionBusy) return;
+      if (lightbox) setLightbox(null);
+      else if (confirmModal) setConfirmModal(null);
+      else if (modalVisible) setModalVisible(false);
+      else setViewingItem(null);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [lightbox, confirmModal, modalVisible, saving, imageLoading, actionBusy]);
+  useEffect(() => {
+    if (!viewingItem && !modalVisible && !confirmModal && !lightbox) return undefined;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [Boolean(viewingItem), modalVisible, Boolean(confirmModal), Boolean(lightbox)]);
+
+
+  // This component retains the existing FA screen access; the API enforces authorization.
+  const isAdminUser = (u) => Boolean(u?.id);
+
+  const PIN_KEY = "fa_announcement_pins";
   useEffect(() => {
     try {
       const raw = localStorage.getItem(PIN_KEY);
       if (raw) setPinnedIds(new Set(JSON.parse(raw)));
     } catch {}
-    fetchAnnouncements();
-    fetchDeleteHistory();
-    fetchActivityLog();
   }, []);
 
-  const fetchAnnouncements = async () => {
-    setFetching(true);
+  const persistPins = (newSet) => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/announcements`);
-      const data = await res.json();
-      setAnnouncements(Array.isArray(data) ? data : []);
-    } catch {
-      setAnnouncements([]);
-    } finally {
-      setFetching(false);
-    }
+      localStorage.setItem(PIN_KEY, JSON.stringify([...newSet]));
+    } catch {}
   };
 
   const fetchDeleteHistory = async () => {
     try {
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/announcements/delete-history`,
+      const res = await adminModuleFetch(
+        `${ADMIN_API_BASE}/announcements/delete-history`,
       );
       const data = await res.json();
+
+      setHistoryError("");
       setDeleteHistory(
         Array.isArray(data)
           ? data.map((e) => ({
@@ -24505,62 +24608,142 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
               data: {
                 title: e.title,
                 content: e.content,
-                image_url: e.image_url,
+                image_url: normalizePhoto(e),
+                created_by: e.created_by,
               },
             }))
           : [],
       );
-    } catch {}
+    } catch (err) {
+      setHistoryError(err.message || "Could not load delete history.");
+    }
   };
 
-  const persistPins = (newSet) => {
+  const fetchActivityLog = useCallback(async () => {
     try {
-      localStorage.setItem(PIN_KEY, JSON.stringify([...newSet]));
-    } catch {}
+      const res = await adminModuleFetch(
+        `${ADMIN_API_BASE}/announcements-activity-log`,
+      );
+      const data = await res.json();
+      setActivityLog(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to fetch orders activity log:", err);
+    }
+  }, []);
+
+  // Announcement mutations are logged by the existing FA backend.
+  const logActivity = async () => { await fetchActivityLog(); };
+
+  useEffect(() => {
+    fetchAnnouncements();
+    fetchDeleteHistory();
+    fetchActivityLog();
+  }, [fetchActivityLog]);
+
+  const fetchAnnouncements = async () => {
+    setFetching(true);
+    try {
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/announcements`);
+      const data = await res.json();
+      const rows = Array.isArray(data) ? data : data.announcements || data.data || [];
+      if (!Array.isArray(rows)) throw new Error("Unexpected announcement response.");
+      const normalized = rows.map(normalizeAnnouncement);
+      setAnnouncements(normalized);
+      setLoadError("");
+      return normalized;
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setLoadError(err.message || "Could not load announcements.");
+      return null;
+    } finally {
+      setFetching(false);
+    }
   };
+
+
+  const mergedAnnouncements = announcements.map((a) => ({
+    ...a,
+    pinned: pinnedIds.has(String(a.id)),
+  }));
 
   const handlePin = (item) => {
+    if (!isAdminUser(user)) return;
     const id = String(item.id);
     setPinnedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       persistPins(next);
       return next;
     });
+    setViewingItem((prev) =>
+      prev && String(prev.id) === id ? { ...prev, pinned: !prev.pinned } : prev,
+    );
+  };
+
+  const handlePermanentDelete = (entry) => {
+    showConfirm(
+      `Permanently delete "${entry.data.title}"? This cannot be undone.`,
+      async () => {
+        try {
+          await adminModuleFetch(
+            `${ADMIN_API_BASE}/announcements/delete-history/${entry.id}`,
+            {
+              method: "DELETE",
+            },
+          );
+          fetchDeleteHistory();
+          showAlert(`"${entry.data.title}" permanently deleted.`, "success");
+        } catch (err) {
+          showAlert("Failed to permanently delete.", "error");
+        }
+      },
+      entry.data.title,
+    );
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!title.trim() || !content.trim()) {
-      showError("Missing fields", "Please fill in title and content.");
+    if (saveLock.current || imageLoading) return;
+    if (!isAdminUser(user)) {
+      showAlert("Only administrators can post announcements.", "error");
       return;
     }
-    const wasEditing = editing;
-    const savedTitle = title;
+    if (!title.trim() || !content.trim()) {
+      showAlert("Please fill in the title and content fields.", "error");
+      return;
+    }
+    saveLock.current = true;
     setSaving(true);
     try {
-      const coords = await getBrowserLocation();
-      const url = wasEditing
-        ? `${process.env.REACT_APP_API_URL}/announcements/${wasEditing.id}`
-        : `${process.env.REACT_APP_API_URL}/announcements`;
-      const method = wasEditing ? "PUT" : "POST";
-      const res = await fetch(url, {
+      const url = editing
+        ? `${ADMIN_API_BASE}/announcements/${editing.id}`
+        : `${ADMIN_API_BASE}/announcements`;
+      const method = editing ? "PUT" : "POST";
+      const res = await adminModuleFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
           content,
           image_url: imageUrl.trim() || null,
-          userId: user?.id,
-          performed_by: user?.name || "System",
-          role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
+          userId: user.id,
+          role: user.role,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        showError("Failed to save", data.error || "Something went wrong.");
+        showAlert(data.error || "Failed to save.", "error");
+        return;
+      }
+      const savedRecord = data.announcement || data.data || data;
+      const savedId = savedRecord?.id ?? editing?.id;
+      const refreshed = await fetchAnnouncements();
+      const persisted = refreshed?.find((item) => savedId != null && String(item.id) === String(savedId));
+      // Never claim an image is saved based only on a temporary browser preview.
+      if (imageUrl && (!persisted || !persisted.image_url)) {
+        if (savedId != null) setEditing({ ...savedRecord, id: savedId });
+        showAlert("The announcement was saved, but its photo could not be verified in the server response. Your selected photo is still here. The announcements API must save and return image_url.", "error");
         return;
       }
       setModalVisible(false);
@@ -24569,123 +24752,185 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
       setContent("");
       setImageUrl("");
       setImageError(false);
-      await fetchAnnouncements();
-      await fetchActivityLog();
-      showSuccess(
-        wasEditing ? "Announcement updated" : "Announcement posted",
-        `"${savedTitle}" ${wasEditing ? "was saved" : "is now live"}.`,
+      await logActivity(
+        editing ? "edit" : "add",
+        title,
+        null,
+        editing ? "Updated announcement" : null,
       );
-    } catch {
-      showError("Failed to save", "Something went wrong. Please try again.");
+      showAlert(
+        editing
+          ? "Announcement updated successfully!"
+          : "Announcement posted successfully!",
+        "success",
+      );
+    } catch (err) {
+      console.error("Save error:", err);
+      showAlert(err.message || "Failed to save announcement.", "error");
     } finally {
+      saveLock.current = false;
       setSaving(false);
     }
   };
 
   const handleDelete = (item) => {
-    setConfirmModal({
-      itemName: item.title,
-      itemId: item.id,
-      onConfirm: async () => {
-        setDeletingId(item.id);
+    if (!isAdminUser(user)) return;
+    showConfirm(
+      `You are about to delete this announcement. You can recover it from Delete History.`,
+      async () => {
         try {
-          const coords = await getBrowserLocation();
-          const res = await fetch(
-            `${process.env.REACT_APP_API_URL}/announcements/${item.id}`,
+          const res = await adminModuleFetch(
+            `${ADMIN_API_BASE}/announcements/${item.id}`,
             {
               method: "DELETE",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                userId: user?.id,
-                performed_by: user?.name || "System",
-                role: user?.role || "Unknown",
-                latitude: coords?.latitude,
-                longitude: coords?.longitude,
-              }),
+              body: JSON.stringify({ userId: user.id, role: user.role }),
             },
           );
-          if (res.ok) {
-            if (viewingItem?.id === item.id) setViewingItem(null);
-            await fetchAnnouncements();
-            await fetchDeleteHistory();
-            await fetchActivityLog();
-            setConfirmModal(null);
-            showSuccess("Announcement deleted", `"${item.title}" was removed.`);
-          } else {
-            showError("Failed to delete", "Something went wrong.");
+          const data = await res.json();
+          if (!res.ok) {
+            showAlert(data.error || "Delete failed.", "error");
+            return;
           }
-        } catch {
-          showError(
-            "Failed to delete",
-            "Something went wrong. Please try again.",
-          );
-        } finally {
-          setDeletingId(null);
+          const strId = String(item.id);
+          if (pinnedIds.has(strId)) {
+            setPinnedIds((prev) => {
+              const next = new Set(prev);
+              next.delete(strId);
+              persistPins(next);
+              return next;
+            });
+          }
+          if (viewingItem?.id === item.id) setViewingItem(null);
+          fetchAnnouncements();
+          await logActivity("delete", item.title, null);
+
+          fetchDeleteHistory();
+          showAlert(`"${item.title}" has been deleted.`, "success");
+        } catch (err) {
+          console.error(err);
+          showAlert("Failed to delete announcement.", "error");
         }
       },
-    });
+      item.title,
+    );
   };
 
   const handleRestore = async (entry) => {
-    setRestoringId(entry.id);
+    if (restoringEntries.current.has(entry.id)) return;
+    restoringEntries.current.add(entry.id);
     try {
-      const coords = await getBrowserLocation();
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/announcements`,
+      if (!restoredEntries.current.has(entry.id)) {
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/announcements`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restored: true,
+          title: entry.data.title,
+          content: entry.data.content,
+          image_url: entry.data.image_url || null,
+          userId: user.id,
+          role: user.role,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showAlert(data.error || "Failed to restore.", "error");
+        return;
+      }
+
+      restoredEntries.current.add(entry.id);
+      }
+      await adminModuleFetch(
+        `${ADMIN_API_BASE}/announcements/delete-history/${entry.id}`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: entry.data.title,
-            content: entry.data.content,
-            image_url: entry.data.image_url || null,
-            userId: user?.id,
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-            restored: true,
-          }),
+          method: "DELETE",
         },
       );
-      const data = await res.json();
-      if (res.ok) {
-        await fetch(
-          `${process.env.REACT_APP_API_URL}/announcements/delete-history/${entry.id}`,
-          { method: "DELETE" },
-        );
-        await fetchAnnouncements();
-        await fetchDeleteHistory();
-        await fetchActivityLog();
-        showSuccess("Announcement restored", `"${entry.data.title}" is back.`);
-      } else {
-        showError("Failed to restore", data.error || "Something went wrong.");
-      }
-    } catch {
-      showError("Failed to restore", "Something went wrong. Please try again.");
+
+      fetchAnnouncements();
+      await logActivity(
+        "add",
+        entry.data.title,
+        null,
+        "Restored from delete history",
+      );
+      fetchDeleteHistory();
+      showAlert(`"${entry.data.title}" has been restored!`, "success");
+    } catch (err) {
+      console.error(err);
+      showAlert(restoredEntries.current.has(entry.id)
+        ? "Announcement restored, but history cleanup failed. Retry Restore to finish cleanup without creating another copy."
+        : "Failed to restore announcement.", "error");
     } finally {
-      setRestoringId(null);
+      restoringEntries.current.delete(entry.id);
     }
   };
 
-  const merged = announcements.map((a) => ({
-    ...a,
-    pinned: pinnedIds.has(String(a.id)),
-  }));
-  const now = new Date(),
-    sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-  const tabFiltered = (
-    selectedTab === "recent"
-      ? merged.filter((a) => new Date(a.created_at) >= sevenDaysAgo)
-      : selectedTab === "pinned"
-        ? merged.filter((a) => a.pinned)
-        : selectedTab === "deleteHistory"
-          ? []
-          : merged
-  ).sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-    return new Date(b.created_at) - new Date(a.created_at);
-  });
+  const handleEdit = (item) => {
+    if (!isAdminUser(user)) return;
+    setEditing(item);
+    setTitle(item.title);
+    setContent(item.content);
+    setImageUrl(normalizePhoto(item));
+    setPhotoName("");
+    setImageError(false);
+    setModalVisible(true);
+  };
+
+  const now = new Date();
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+
+  const tabFiltered = (() => {
+    let list;
+    switch (selectedTab) {
+      case "recent":
+        list = mergedAnnouncements.filter(
+          (a) => new Date(a.created_at) >= sevenDaysAgo,
+        );
+        break;
+      case "pinned":
+        list = mergedAnnouncements.filter((a) => a.pinned);
+        break;
+      case "deleteHistory":
+        list = [];
+        break;
+      default:
+        list = mergedAnnouncements;
+    }
+    return [...list].sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+  })();
+
+  const filtered = searchQuery.trim()
+    ? tabFiltered.filter(
+        (a) =>
+          a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          a.content.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
+    : tabFiltered;
+
+  const tabBadge = {
+    all: mergedAnnouncements.length,
+    recent: mergedAnnouncements.filter(
+      (a) => new Date(a.created_at) >= sevenDaysAgo,
+    ).length,
+    pinned: mergedAnnouncements.filter((item) => item.pinned).length,
+    deleteHistory: deleteHistory.length,
+  };
+
+  const getInitials = (t = "") =>
+    t
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("");
+
+  const isRecent = (item) =>
+    new Date() - new Date(item.created_at) < 7 * 24 * 60 * 60 * 1000;
 
   const fmt = (d) =>
     new Date(d).toLocaleString("en-PH", {
@@ -24695,334 +24940,474 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
       hour: "2-digit",
       minute: "2-digit",
     });
-  const getInitials = (t = "") =>
-    t
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() ?? "")
-      .join("");
 
-  const tabs = [
-    { key: "all", label: "All", count: merged.length, icon: Megaphone },
-    {
-      key: "recent",
-      label: "Recent",
-      count: merged.filter((a) => new Date(a.created_at) >= sevenDaysAgo)
-        .length,
-      icon: Clock,
+  // ── Styles ──
+  const commStyles = {
+    root: {
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      display: "flex",
+      flexDirection: "column",
+      height: "100%",
     },
-    { key: "pinned", label: "Pinned", count: pinnedIds.size, icon: Pin },
-    {
-      key: "deleteHistory",
-      label: "Delete History",
-      count: deleteHistory.length,
-      icon: Trash2,
+    header: {
+      background: "linear-gradient(135deg,#3b791e,#3b791e)",
+      padding: "20px 24px 28px",
+      borderRadius: "18px 18px 0 0",
+      position: "relative",
+      overflow: "hidden",
     },
-  ];
-
-  const isDeletingConfirmTarget =
-    confirmModal && deletingId === confirmModal.itemId;
+    headerTop: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      marginBottom: 4,
+    },
+    eyebrow: {
+      fontSize: 9,
+      fontWeight: 800,
+      color: "rgba(255,255,255,0.6)",
+      letterSpacing: "0.25em",
+      marginBottom: 4,
+    },
+    headerTitle: {
+      fontSize: 22,
+      fontWeight: 900,
+      color: "#fff",
+      letterSpacing: "-0.4px",
+    },
+    liveChip: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 7,
+      background: "rgba(255,255,255,0.18)",
+      borderRadius: 20,
+      padding: "5px 11px",
+      border: "1px solid rgba(255,255,255,0.3)",
+    },
+    liveDot: {
+      width: 7,
+      height: 7,
+      borderRadius: "50%",
+      background: "#d4df33",
+      boxShadow: "0 0 0 3px rgba(212,223,51,0.3)",
+    },
+    liveTxt: {
+      fontSize: 9,
+      fontWeight: 800,
+      color: "#d4df33",
+      letterSpacing: "0.15em",
+    },
+    searchBarWrap: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      background: "rgba(255,255,255,0.18)",
+      borderRadius: 12,
+      padding: "9px 13px",
+      marginTop: 12,
+      border: "1px solid rgba(255,255,255,0.25)",
+    },
+    searchInput: {
+      flex: 1,
+      background: "none",
+      border: "none",
+      outline: "none",
+      color: "#fff",
+      fontSize: 13,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+    },
+    tabsRow: {
+      display: "flex",
+      gap: 7,
+      padding: "14px 20px",
+      background: "#fff",
+      borderBottom: `1px solid ${C.border}`,
+      flexWrap: "wrap",
+    },
+    tabBase: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 5,
+      padding: "6px 13px",
+      borderRadius: 20,
+      fontSize: 11.5,
+      fontWeight: 600,
+      cursor: "pointer",
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      border: "none",
+      transition: "all .15s",
+    },
+    badge: {
+      padding: "1px 7px",
+      borderRadius: 10,
+      fontSize: 10,
+      fontWeight: 800,
+    },
+    listArea: {
+      flex: 1,
+      overflowY: "auto",
+      padding: "20px 20px 24px",
+      background: "#f8fffe",
+    },
+    sectionLabel: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 14,
+    },
+    labelAccent: {
+      width: 4,
+      height: 16,
+      borderRadius: 2,
+      background: "linear-gradient(135deg,#3b791e,#4CAF50)",
+      flexShrink: 0,
+    },
+    labelTxt: {
+      fontSize: 11,
+      fontWeight: 800,
+      color: "#12241B",
+      letterSpacing: "0.08em",
+      textTransform: "uppercase",
+    },
+    card: (pinned) => ({
+      display: "flex",
+      background: "#fff",
+      borderRadius: 18,
+      marginBottom: 10,
+      border: `1px solid ${pinned ? "#c9dba0" : C.border}`,
+      boxShadow: pinned
+        ? "0 3px 14px rgba(59,121,30,0.18)"
+        : "0 2px 10px rgba(0,140,60,0.07)",
+      overflow: "hidden",
+      cursor: "pointer",
+      transition: "transform .15s, box-shadow .15s",
+    }),
+    cardAccentBar: (pinned) => ({
+      width: 4,
+      flexShrink: 0,
+      background: pinned
+        ? "linear-gradient(180deg,#3b791e,#509820)"
+        : "linear-gradient(180deg,#3b791e,#4CAF50)",
+    }),
+    cardBody: { flex: 1, padding: "13px 15px 11px" },
+    cardHeaderRow: { display: "flex", alignItems: "flex-start", gap: 10 },
+    initialsChip: (pinned) => ({
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      flexShrink: 0,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: pinned
+        ? "linear-gradient(135deg,#3b791e,#2c5c16)"
+        : "linear-gradient(135deg,#3b791e,#3b791e)",
+      fontSize: 13,
+      fontWeight: 900,
+      color: "#fff",
+    }),
+    cardMeta: { flex: 1, minWidth: 0 },
+    cardTitleRow: {
+      display: "flex",
+      alignItems: "center",
+      gap: 5,
+      flexWrap: "wrap",
+      marginBottom: 3,
+    },
+    cardTitle: { fontSize: 14, fontWeight: 800, color: "#12241B" },
+    cardDate: {
+      fontSize: 10,
+      color: "#8AAD96",
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+    },
+    cardContent: {
+      fontSize: 12.5,
+      color: "#5C6B60",
+      lineHeight: 1.65,
+      marginTop: 9,
+      display: "-webkit-box",
+      WebkitLineClamp: 2,
+      WebkitBoxOrient: "vertical",
+      overflow: "hidden",
+    },
+    tapHint: {
+      display: "flex",
+      alignItems: "center",
+      gap: 3,
+      marginTop: 7,
+      fontSize: 10,
+      color: "#8AAD96",
+    },
+    pinnedBadge: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 3,
+      background: "#f0f5e8",
+      borderRadius: 6,
+      padding: "2px 6px",
+      border: "1px solid #c9dba0",
+      fontSize: 8,
+      fontWeight: 800,
+      color: "#3b791e",
+    },
+    recentBadge: {
+      background: "#f0f5e8",
+      borderRadius: 6,
+      padding: "2px 6px",
+      border: "1px solid #E1E6D8",
+      fontSize: 8,
+      fontWeight: 800,
+      color: "#2c5c16",
+    },
+    cardActions: {
+      display: "flex",
+      gap: 5,
+      flexShrink: 0,
+      alignItems: "flex-start",
+    },
+    actionBtn: (variant) => ({
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      border: `1px solid ${C.border}`,
+      background: "#f0f5e8",
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+      color:
+        variant === "delete"
+          ? "#e53935"
+          : variant === "pin"
+            ? "#3b791e"
+            : "#2c5c16",
+    }),
+    emptyState: {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      padding: "60px 0 40px",
+      gap: 10,
+      textAlign: "center",
+    },
+    emptyIcon: { fontSize: 40, marginBottom: 4 },
+    emptyTitle: { fontSize: 15, fontWeight: 800, color: "#12241B" },
+    emptySub: {
+      fontSize: 12,
+      color: "#8AAD96",
+      maxWidth: 260,
+      lineHeight: 1.6,
+    },
+  };
+  const emptyIcon =
+    selectedTab === "pinned" ? (
+      <Pin size={18} />
+    ) : selectedTab === "recent" ? (
+      <Clock size={18} />
+    ) : (
+      <Megaphone size={18} />
+    );
+  const emptyTitle = searchQuery
+    ? "No results found"
+    : selectedTab === "pinned"
+      ? "Nothing pinned yet"
+      : selectedTab === "recent"
+        ? "No recent announcements"
+        : "No announcements yet";
+  const emptySub = searchQuery
+    ? "Try a different search term."
+    : selectedTab === "pinned"
+      ? "Administrators can pin important announcements."
+      : selectedTab === "recent"
+        ? "Announcements from the last 7 days appear here."
+        : "Check back later.";
 
   return (
-    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-      {/* Toast */}
-      <Toast toast={toast} onClose={closeToast} />
+    <div className="fa-communications" style={commStyles.root}>
+      <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
-      {/* Confirm modal */}
-      {confirmModal && (
+          .fa-communications button { font-family: inherit; transition: transform .16s, background .16s, box-shadow .16s; }
+          .fa-communications button:active:not(:disabled) { transform: scale(.97); }
+          .fa-communications button:disabled { opacity: .55; cursor: wait; }
+          .fa-communications :focus-visible { outline: 3px solid #b3c993; outline-offset: 3px; }
+          .fa-communications .fa-photo-drop { display:flex; flex-direction:column; align-items:center; gap:8px; width:100%; padding:22px 16px; margin-top:10px; box-sizing:border-box; border:2px dashed #b7cda7; border-radius:16px; background:#f6f9f0; color:#3b791e; cursor:pointer; }
+          .fa-communications .fa-photo-drop:hover, .fa-communications .fa-photo-drop.dragging { background:#edf5e2; border-color:#3b791e; }
+          .fa-photo-drop strong { font-size:13px; }
+          .fa-photo-drop small { font-size:11px; color:#5C6B60; overflow-wrap:anywhere; }
+          .fa-upload-icon { display:grid; place-items:center; width:42px; height:42px; border-radius:13px; background:#e1ecd2; }
+          .fa-communications .fa-photo-view { position:relative; display:block; width:100%; padding:0; background:#f6f7f1; border:1px solid #E1E6D8; border-radius:14px; overflow:hidden; cursor:zoom-in; margin-bottom:14px; }
+          .fa-photo-zoom { position:absolute; bottom:9px; right:9px; display:flex; align-items:center; gap:5px; padding:6px 9px; background:rgba(255,255,255,.94); color:#2c5c16; border-radius:8px; font-size:10px; font-weight:700; }
+          .fa-photo-error { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:18px; margin-bottom:14px; background:#fff7ed; border-radius:12px; color:#915214; font-size:12px; }
+          .fa-communications .fa-error { padding:12px; border-radius:10px; background:#fdf1f0; color:#c0392b; font-size:12px; margin-bottom:12px; }
+          @media(max-width:600px) { .fa-communications .fa-header-top { flex-wrap:wrap; gap:14px; } .fa-communications .comm-card { border-radius:12px!important; } }
+          @media(prefers-reduced-motion:reduce) { .fa-communications * { transition:none!important; animation:none!important; } }
+          .comm-card:hover { transform: translateY(-2px) !important; box-shadow: 0 6px 20px rgba(0,140,60,0.12) !important; }
+          .comm-action-btn:hover { opacity: 0.78; }
+          .comm-tab:hover { background: #e8fdf0 !important; color: #2c5c16 !important; }
+          .comm-del-row:hover { background: #f6fef8 !important; }
+        `}</style>
+
+      {/* ── HEADER ── */}
+      <div style={commStyles.header}>
         <div
-          onClick={() => !isDeletingConfirmTarget && setConfirmModal(null)}
           style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(13,43,30,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 3000,
-            padding: 20,
-            backdropFilter: "blur(4px)",
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 40,
+            opacity: 0.15,
+            background:
+              "radial-gradient(ellipse at 30% 100%, #fff 0%, transparent 60%)",
+            pointerEvents: "none",
           }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff",
-              borderRadius: 20,
-              padding: "28px 32px",
-              width: "100%",
-              maxWidth: 420,
-              boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-              border: "1px solid rgba(0,168,76,0.15)",
-              fontFamily: "Plus Jakarta Sans, sans-serif",
-              textAlign: "center",
-            }}
-          >
-            <div
+        />
+        <div className="fa-header-top" style={commStyles.headerTop}>
+          <div>
+            <div style={commStyles.eyebrow}>IFRANCHISE</div>
+            <div style={commStyles.headerTitle}>Announcements</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button type="button" aria-label="Refresh announcements" title="Refresh announcements"
+              disabled={fetching} onClick={() => { fetchAnnouncements(); fetchDeleteHistory(); }}
+              style={{ ...commStyles.liveChip, color: "white", cursor: "pointer" }}><RefreshCw size={14} /></button>
+            <button
+              onClick={() => {
+                setSearchVisible((v) => !v);
+                setSearchQuery("");
+              }}
               style={{
-                width: 52,
-                height: 52,
-                borderRadius: "50%",
-                background: "#fee2e2",
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                border: "1px solid rgba(255,255,255,0.3)",
+                background: searchVisible
+                  ? "rgba(255,255,255,0.3)"
+                  : "rgba(255,255,255,0.18)",
+                cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                margin: "0 auto 16px",
+                color: "#fff",
+                fontSize: 16,
               }}
             >
-              <Trash2 size={22} color="#dc2626" />
-            </div>
-            <h2
-              style={{
-                fontSize: 17,
-                fontWeight: 800,
-                color: "#0d2b1e",
-                marginBottom: 8,
-              }}
-            >
-              Delete Announcement?
-            </h2>
-            {confirmModal.itemName && (
-              <p
-                style={{
-                  fontSize: 13,
-                  color: "#5a7a65",
-                  lineHeight: 1.6,
-                  marginBottom: 24,
-                }}
-              >
-                You are about to delete{" "}
-                <strong>"{confirmModal.itemName}"</strong>.
-              </p>
-            )}
-            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              {searchVisible ? "✕" : <Search size={16} color="#fff" />}
+            </button>
+            {isAdminUser(user) && (
               <button
-                onClick={() => setConfirmModal(null)}
-                disabled={isDeletingConfirmTarget}
-                style={{
-                  padding: "9px 22px",
-                  borderRadius: 10,
-                  border: "1px solid #b2dfdb",
-                  background: "#f0fdf5",
-                  color: "#5a7a65",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: isDeletingConfirmTarget ? "not-allowed" : "pointer",
-                  fontFamily: "inherit",
-                  opacity: isDeletingConfirmTarget ? 0.6 : 1,
+                onClick={() => {
+                  setEditing(null);
+                  setPhotoName("");
+                  setTitle("");
+                  setContent("");
+                  setImageUrl("");
+                  setImageError(false);
+                  setModalVisible(true);
                 }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => confirmModal.onConfirm()}
-                disabled={isDeletingConfirmTarget}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 6,
-                  padding: "9px 24px",
+                  gap: 7,
+                  padding: "8px 16px",
                   borderRadius: 10,
-                  border: "none",
-                  background: "linear-gradient(135deg,#dc2626,#ef4444)",
+                  border: "1.5px solid rgba(255,255,255,0.4)",
+                  background: "rgba(255,255,255,0.18)",
                   color: "#fff",
-                  fontSize: 13,
+                  fontSize: 12,
                   fontWeight: 700,
-                  cursor: isDeletingConfirmTarget ? "not-allowed" : "pointer",
-                  fontFamily: "inherit",
-                  boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
-                  opacity: isDeletingConfirmTarget ? 0.7 : 1,
+                  cursor: "pointer",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
                 }}
               >
-                {isDeletingConfirmTarget ? (
-                  <RefreshCw
-                    size={14}
-                    style={{ animation: "spin 0.8s linear infinite" }}
-                  />
-                ) : (
-                  <Trash2 size={14} />
-                )}
-                {isDeletingConfirmTarget ? "Deleting…" : "Delete"}
+                <Plus size={14} /> New
               </button>
-            </div>
+            )}
           </div>
         </div>
-      )}
-
-      {/* Header card */}
-      <div
-        style={{
-          background: "linear-gradient(135deg,#2E7D32,#00897b)",
-          padding: "20px 24px 22px",
-          borderRadius: "18px 18px 0 0",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 12,
-              background: "rgba(255,255,255,0.16)",
-              border: "1px solid rgba(255,255,255,0.28)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <Megaphone size={20} color="#fff" strokeWidth={2.1} />
-          </div>
-          <div>
-            <div
-              style={{
-                fontSize: 9,
-                fontWeight: 800,
-                color: "rgba(255,255,255,0.6)",
-                letterSpacing: "0.25em",
-                marginBottom: 4,
-              }}
-            >
-              IFRANCHISE
-            </div>
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 900,
-                color: "#fff",
-                letterSpacing: "-0.4px",
-              }}
-            >
-              Announcements
-            </div>
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 7,
-              background: "rgba(255,255,255,0.18)",
-              borderRadius: 20,
-              padding: "5px 11px",
-              border: "1px solid rgba(255,255,255,0.3)",
-            }}
-          >
-            <div
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                background: "#d4df33",
-                boxShadow: "0 0 0 3px rgba(212,223,51,0.3)",
-              }}
+        {searchVisible && (
+          <div style={commStyles.searchBarWrap}>
+            <Search size={14} color="rgba(255,255,255,0.7)" />
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search announcements…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={commStyles.searchInput}
             />
-            <span
-              style={{
-                fontSize: 9,
-                fontWeight: 800,
-                color: "#d4df33",
-                letterSpacing: "0.15em",
-              }}
-            >
-              LIVE
-            </span>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "rgba(255,255,255,0.7)",
+                  fontSize: 16,
+                  lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            )}
           </div>
-          <button
-            onClick={() => {
-              setEditing(null);
-              setTitle("");
-              setContent("");
-              setImageUrl("");
-              setImageError(false);
-              setModalVisible(true);
-            }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 7,
-              padding: "8px 16px",
-              borderRadius: 10,
-              border: "1.5px solid rgba(255,255,255,0.4)",
-              background: "rgba(255,255,255,0.18)",
-              color: "#fff",
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            <Plus size={14} /> New
-          </button>
-        </div>
+        )}
       </div>
 
-      {/* Tabs */}
-      <div
-        style={{
-          display: "flex",
-          gap: 7,
-          padding: "14px 20px",
-          background: "#fff",
-          borderBottom: `1px solid ${C.border}`,
-          flexWrap: "wrap",
-        }}
-      >
-        {tabs.map(({ key, label, count, icon: TabIcon }) => {
+      {/* ── TABS ── */}
+      <div style={commStyles.tabsRow}>
+        {[
+          { key: "all", label: "All" },
+          { key: "recent", label: "Recent" },
+          { key: "pinned", label: "Pinned" },
+          ...(isAdminUser(user)
+            ? [{ key: "deleteHistory", label: "Delete History" }]
+            : []),
+        ].map(({ key, label }) => {
           const active = selectedTab === key;
-          const isDel = key === "deleteHistory";
+          const isDelTab = key === "deleteHistory";
           return (
             <button
               key={key}
+              className={active ? "" : "comm-tab"}
               onClick={() => setSelectedTab(key)}
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "6px 13px",
-                borderRadius: 20,
-                fontSize: 11.5,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "inherit",
+                ...commStyles.tabBase,
+                background: active
+                  ? isDelTab
+                    ? "linear-gradient(135deg,#c0392b,#c0392b)"
+                    : "linear-gradient(135deg,#3b791e,#3b791e)"
+                  : isDelTab
+                    ? "#fdf1f0"
+                    : "#f0f5e8",
+                color: active ? "#fff" : isDelTab ? "#c0392b" : "#5C6B60",
                 border: active
                   ? "none"
-                  : `1px solid ${isDel ? "#fecaca" : C.border}`,
-                transition: "all .15s",
-                background: active
-                  ? isDel
-                    ? "linear-gradient(135deg,#dc2626,#ef4444)"
-                    : "linear-gradient(135deg,#2E7D32,#00897b)"
-                  : isDel
-                    ? "#fee2e2"
-                    : "#e8f5e9",
-                color: active ? "#fff" : isDel ? "#dc2626" : "#5a7a65",
-                boxShadow: active ? "0 2px 8px rgba(0,180,90,0.28)" : "none",
+                  : `1px solid ${isDelTab ? "#f2c9c4" : C.border}`,
+                boxShadow: active
+                  ? isDelTab
+                    ? "0 2px 8px rgba(220,38,38,0.28)"
+                    : "0 2px 8px rgba(0,180,90,0.28)"
+                  : "none",
               }}
             >
-              <TabIcon size={11} strokeWidth={2.2} />
               {label}
-              {count > 0 && (
+              {tabBadge[key] > 0 && (
                 <span
                   style={{
-                    padding: "1px 7px",
-                    borderRadius: 10,
-                    fontSize: 10,
-                    fontWeight: 800,
+                    ...commStyles.badge,
                     background: active
                       ? "rgba(255,255,255,0.28)"
-                      : isDel
-                        ? "#fecaca"
+                      : isDelTab
+                        ? "#f2c9c4"
                         : C.greenMid,
-                    color: active ? "#fff" : isDel ? "#dc2626" : "#2E7D32",
+                    color: active ? "#fff" : isDelTab ? "#c0392b" : "#3b791e",
                   }}
                 >
-                  {count}
+                  {tabBadge[key]}
                 </span>
               )}
             </button>
@@ -25030,386 +25415,330 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
         })}
       </div>
 
-      {/* Content */}
-      <div
-        style={{
-          background: "#f8fffe",
-          padding: "20px 20px 24px",
-          borderRadius: "0 0 18px 18px",
-          minHeight: 300,
-        }}
-      >
+      {/* ── LIST / DELETE HISTORY ── */}
+      <div style={commStyles.listArea}>
+        {loadError && <div className="fa-error" role="alert">{loadError} <button onClick={fetchAnnouncements}>Retry</button></div>}
+        {selectedTab === "deleteHistory" && historyError && <div className="fa-error" role="alert">{historyError} <button onClick={fetchDeleteHistory}>Retry</button></div>}
+        {/* ── DELETE HISTORY TAB ── */}
         {selectedTab === "deleteHistory" ? (
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 16,
-              border: `1px solid ${C.border}`,
-              overflow: "hidden",
-              boxShadow: "0 2px 10px rgba(0,140,60,0.07)",
-            }}
-          >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 140px 160px 200px",
-                gap: 8,
-                padding: "10px 16px",
-                borderBottom: `2px solid #e0f2f1`,
-                fontSize: 10,
-                fontWeight: 800,
-                color: "#00897b",
-                textTransform: "uppercase",
-                letterSpacing: "0.07em",
-                background: "#f8fffe",
-              }}
-            >
-              <span>Title</span>
-              <span>Preview</span>
-              <span>Deleted At</span>
-              <span></span>
+          <>
+            <div style={commStyles.sectionLabel}>
+              <div style={commStyles.labelAccent} />
+              <span style={commStyles.labelTxt}>Delete History</span>
+              {deleteHistory.length > 0 && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    padding: "2px 8px",
+                    borderRadius: 20,
+                    background: "#fdf1f0",
+                    color: "#c0392b",
+                  }}
+                >
+                  {deleteHistory.length} deleted
+                </span>
+              )}
             </div>
+
             {deleteHistory.length === 0 ? (
+              <div style={commStyles.emptyState}>
+                <div style={commStyles.emptyIcon}><Trash2 size={22} /></div>
+                <div style={commStyles.emptyTitle}>
+                  No deleted announcements
+                </div>
+                <div style={commStyles.emptySub}>
+                  Deleted announcements will appear here and can be restored.
+                </div>
+              </div>
+            ) : (
               <div
                 style={{
-                  padding: "40px 0",
+                  background: "#fff",
+                  borderRadius: 16,
+                  border: `1px solid ${C.border}`,
+                  overflowX: "auto",
+                  boxShadow: "0 2px 10px rgba(0,140,60,0.07)",
+                }}
+              >
+                {/* column headers */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(140px, 1fr) 140px 160px 200px",
+                    minWidth: 710,
+                    gap: 8,
+                    padding: "10px 16px",
+                    borderBottom: `2px solid #f0f5e8`,
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: "#3b791e",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.07em",
+                    background: "#f8fffe",
+                  }}
+                >
+                  <span>Title</span>
+                  <span>Content Preview</span>
+                  <span>Deleted At</span>
+                  <span></span>
+                </div>
+                {deleteHistory.map((entry, i) => (
+                  <div
+                    key={entry.id}
+                    className="comm-del-row"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "minmax(140px, 1fr) 140px 160px 200px",
+                    minWidth: 710,
+                      gap: 8,
+                      alignItems: "center",
+                      padding: "12px 16px",
+                      borderBottom:
+                        i < deleteHistory.length - 1
+                          ? `1px solid #f0f8f0`
+                          : "none",
+                      transition: "background .15s",
+                    }}
+                  >
+                    {/* Title + image indicator */}
+                    <div>
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          fontSize: 13,
+                          color: "#12241B",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {entry.data.title}
+                      </div>
+                      {entry.data.image_url && (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            background: "#f0f5e8",
+                            color: "#2c5c16",
+                            padding: "1px 6px",
+                            borderRadius: 6,
+                            fontWeight: 700,
+                            marginTop: 3,
+                            display: "inline-block",
+                          }}
+                        >
+                          <ImagePlus size={10} /> Has photo
+                        </span>
+                      )}
+                    </div>
+                    {/* Content preview */}
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "#5C6B60",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {entry.data.content}
+                    </div>
+                    {/* Date */}
+                    <div style={{ fontSize: 10, color: "#9ca3af" }}>
+                      {fmt(entry.deletedAt)}
+                    </div>
+                    {/* Restore */}
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 6,
+                        justifyContent: "flex-start",
+                      }}
+                    >
+                      <button
+                        onClick={() => handleRestore(entry)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                          padding: "7px 10px",
+                          borderRadius: 9,
+                          border: "1.5px solid #3b791e",
+                          background: "#f0f5e8",
+                          color: "#2c5c16",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          fontFamily: "'Plus Jakarta Sans', sans-serif",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        <RotateCcw size={11} /> Restore
+                      </button>
+                      <button
+                        onClick={() => handlePermanentDelete(entry)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                          padding: "7px 10px",
+                          borderRadius: 9,
+                          border: "1.5px solid #f2c9c4",
+                          background: "#fdf1f0",
+                          color: "#c0392b",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          fontFamily: "'Plus Jakarta Sans', sans-serif",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        <Trash2 size={11} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* ── NORMAL LIST ── */}
+            <div style={commStyles.sectionLabel}>
+              <div style={commStyles.labelAccent} />
+              <span style={commStyles.labelTxt}>
+                {searchQuery
+                  ? `${filtered.length} result${filtered.length !== 1 ? "s" : ""} for "${searchQuery}"`
+                  : selectedTab === "recent"
+                    ? "Last 7 Days"
+                    : selectedTab === "pinned"
+                      ? "Pinned Announcements"
+                      : "All Announcements"}
+              </span>
+            </div>
+
+            {fetching ? (
+              <div
+                style={{
+                  padding: "48px 0",
                   textAlign: "center",
-                  color: "#9ca3af",
+                  color: "#5C6B60",
                   fontSize: 13,
                   fontStyle: "italic",
                 }}
               >
-                No deleted announcements.
+                Loading announcements…
+              </div>
+            ) : filtered.length === 0 ? (
+              <div style={commStyles.emptyState}>
+                <div style={commStyles.emptyIcon}>{emptyIcon}</div>
+                <div style={commStyles.emptyTitle}>{emptyTitle}</div>
+                <div style={commStyles.emptySub}>{emptySub}</div>
               </div>
             ) : (
-              deleteHistory.map((entry, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 140px 160px 200px",
-                    gap: 8,
-                    alignItems: "center",
-                    padding: "12px 16px",
-                    borderBottom:
-                      i < deleteHistory.length - 1
-                        ? "1px solid #f0f8f0"
-                        : "none",
-                  }}
-                >
+              filtered.map((item) => {
+                const pinned = !!item.pinned;
+                const recent = isRecent(item);
+                return (
                   <div
-                    style={{
-                      fontWeight: 700,
-                      fontSize: 13,
-                      color: "#0d2b1e",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
+                    key={item.id}
+                    className="comm-card"
+                    style={commStyles.card(pinned)}
+                    onClick={() =>
+                      setViewingItem((prev) =>
+                        prev?.id === item.id ? null : item,
+                      )
+                    }
                   >
-                    {entry.data.title}
+                    <div style={commStyles.cardAccentBar(pinned)} />
+                    <div style={commStyles.cardBody}>
+                      {renderPhoto(item.image_url, item.title || "Announcement photo", 200)}
+                      <div style={commStyles.cardHeaderRow}>
+                        <div style={commStyles.initialsChip(pinned)}>
+                          {getInitials(item.title)}
+                        </div>
+                        <div style={commStyles.cardMeta}>
+                          <div style={commStyles.cardTitleRow}>
+                            <span style={commStyles.cardTitle}>
+                              {item.title}
+                            </span>
+                            {pinned && (
+                              <span style={commStyles.pinnedBadge}>
+                                <Pin size={11} color="#3b791e" fill="#c9dba0" /> PINNED
+                              </span>
+                            )}
+                            {recent && !pinned && (
+                              <span style={commStyles.recentBadge}>NEW</span>
+                            )}
+                            {item.image_url && (
+                              <span
+                                style={{
+                                  background: "#f0f5e8",
+                                  color: "#2c5c16",
+                                  borderRadius: 6,
+                                  padding: "2px 6px",
+                                  fontSize: 8,
+                                  fontWeight: 800,
+                                  border: "1px solid #E1E6D8",
+                                }}
+                              >
+                                <ImagePlus size={10} /> PHOTO
+                              </span>
+                            )}
+                          </div>
+                          <div style={commStyles.cardDate}>
+                            {new Date(item.created_at).toLocaleString()}
+                          </div>
+                        </div>
+                        {isAdminUser(user) && (
+                          <div
+                            style={commStyles.cardActions}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              className="comm-action-btn"
+                              style={commStyles.actionBtn("pin")}
+                              onClick={() => handlePin(item)}
+                              aria-pressed={pinned}
+                              title={pinned ? "Unpin" : "Pin"}
+                            >
+                              <Pin size={14} color="#3b791e" fill={pinned ? "#c9dba0" : "none"} />
+                            </button>
+                            <button
+                              className="comm-action-btn"
+                              style={commStyles.actionBtn("edit")}
+                              onClick={() => handleEdit(item)}
+                              title="Edit"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              className="comm-action-btn"
+                              style={commStyles.actionBtn("delete")}
+                              onClick={() => handleDelete(item)}
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div style={commStyles.cardContent}>{item.content}</div>
+                      <div style={commStyles.tapHint}>
+                        <span>Tap to read full announcement</span>
+                        <span style={{ fontSize: 10 }}>›</span>
+                      </div>
+                    </div>
                   </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "#5a7a65",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {entry.data.content}
-                  </div>
-                  <div style={{ fontSize: 10, color: "#9ca3af" }}>
-                    {fmt(entry.deletedAt)}
-                  </div>
-                  <button
-                    onClick={() => handleRestore(entry)}
-                    disabled={restoringId !== null}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 5,
-                      padding: "7px 10px",
-                      borderRadius: 9,
-                      border: "1.5px solid #00897b",
-                      background:
-                        restoringId === entry.id ? "#f0fdf5" : "#e0f2f1",
-                      color: "#00695c",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: restoringId !== null ? "not-allowed" : "pointer",
-                      fontFamily: "inherit",
-                      whiteSpace: "nowrap",
-                      opacity:
-                        restoringId !== null
-                          ? restoringId === entry.id
-                            ? 0.7
-                            : 0.4
-                          : 1,
-                    }}
-                  >
-                    {restoringId === entry.id ? (
-                      <>
-                        <RefreshCw
-                          size={11}
-                          style={{ animation: "spin 0.8s linear infinite" }}
-                        />{" "}
-                        Restoring…
-                      </>
-                    ) : (
-                      <>
-                        <RotateCcw size={11} /> Restore
-                      </>
-                    )}
-                  </button>
-                </div>
-              ))
+                );
+              })
             )}
-          </div>
-        ) : fetching ? (
-          <div
-            style={{
-              padding: "48px 0",
-              textAlign: "center",
-              color: "#5a7a65",
-              fontSize: 13,
-              fontStyle: "italic",
-            }}
-          >
-            Loading…
-          </div>
-        ) : tabFiltered.length === 0 ? (
-          <div
-            style={{
-              padding: "48px 0",
-              textAlign: "center",
-              color: "#5a7a65",
-              fontSize: 13,
-            }}
-          >
-            No announcements yet.
-          </div>
-        ) : (
-          tabFiltered.map((item) => (
-            <div
-              key={item.id}
-              onClick={() =>
-                setViewingItem((prev) => (prev?.id === item.id ? null : item))
-              }
-              style={{
-                display: "flex",
-                background: "#fff",
-                borderRadius: 18,
-                marginBottom: 10,
-                border: `1px solid ${item.pinned ? "#FFE082" : C.border}`,
-                boxShadow: item.pinned
-                  ? "0 3px 14px rgba(249,168,37,0.18)"
-                  : "0 2px 10px rgba(0,140,60,0.07)",
-                overflow: "hidden",
-                cursor: "pointer",
-                transition: "transform .15s, box-shadow .15s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow =
-                  "0 6px 20px rgba(0,140,60,0.12)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "";
-                e.currentTarget.style.boxShadow = item.pinned
-                  ? "0 3px 14px rgba(249,168,37,0.18)"
-                  : "0 2px 10px rgba(0,140,60,0.07)";
-              }}
-            >
-              <div
-                style={{
-                  width: 4,
-                  flexShrink: 0,
-                  background: item.pinned
-                    ? "linear-gradient(180deg,#F9A825,#FFC107)"
-                    : "linear-gradient(180deg,#00897b,#4CAF50)",
-                }}
-              />
-              <div style={{ flex: 1, padding: "13px 15px 11px" }}>
-                <div
-                  style={{ display: "flex", alignItems: "flex-start", gap: 10 }}
-                >
-                  <div
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 12,
-                      flexShrink: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: item.pinned
-                        ? "linear-gradient(135deg,#F9A825,#E65100)"
-                        : "linear-gradient(135deg,#2E7D32,#00897b)",
-                      fontSize: 13,
-                      fontWeight: 900,
-                      color: "#fff",
-                    }}
-                  >
-                    {getInitials(item.title)}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 5,
-                        flexWrap: "wrap",
-                        marginBottom: 3,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: 14,
-                          fontWeight: 800,
-                          color: "#0d2b1e",
-                        }}
-                      >
-                        {item.title}
-                      </span>
-                      {item.pinned && (
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                            background: "#FFF8E1",
-                            borderRadius: 6,
-                            padding: "2px 6px",
-                            border: "1px solid #FFE082",
-                            fontSize: 8,
-                            fontWeight: 800,
-                            color: "#F9A825",
-                          }}
-                        >
-                          <Pin size={9} fill="currentColor" strokeWidth={2.2} />{" "}
-                          PINNED
-                        </span>
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 10,
-                        color: "#8AAD96",
-                        fontFamily: FONT,
-                      }}
-                    >
-                      {new Date(item.created_at).toLocaleString()}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 12.5,
-                        color: "#5a7a65",
-                        lineHeight: 1.65,
-                        marginTop: 9,
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {item.content}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 5,
-                      flexShrink: 0,
-                      alignItems: "flex-start",
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      onClick={() => handlePin(item)}
-                      title={
-                        item.pinned ? "Unpin announcement" : "Pin announcement"
-                      }
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 8,
-                        border: `1px solid ${item.pinned ? "#FFE082" : C.border}`,
-                        background: item.pinned ? "#FFF8E1" : "#f0fdf5",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: item.pinned ? "#F9A825" : C.green,
-                      }}
-                    >
-                      <Pin
-                        size={13}
-                        fill={item.pinned ? "currentColor" : "none"}
-                        strokeWidth={2.2}
-                      />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditing(item);
-                        setTitle(item.title);
-                        setContent(item.content);
-                        setImageUrl(item.image_url || "");
-                        setImageError(false);
-                        setModalVisible(true);
-                      }}
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 8,
-                        border: `1px solid ${C.border}`,
-                        background: "#f0fdf5",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#00695c",
-                      }}
-                    >
-                      <Pencil size={12} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(item)}
-                      disabled={deletingId === item.id}
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 8,
-                        border: `1px solid ${C.border}`,
-                        background: "#f0fdf5",
-                        cursor:
-                          deletingId === item.id ? "not-allowed" : "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#e53935",
-                        opacity: deletingId === item.id ? 0.6 : 1,
-                      }}
-                    >
-                      {deletingId === item.id ? (
-                        <RefreshCw
-                          size={12}
-                          style={{ animation: "spin 0.8s linear infinite" }}
-                        />
-                      ) : (
-                        <Trash2 size={12} />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))
+          </>
         )}
       </div>
 
-      {/* View full modal */}
+      {/* ── FULL VIEW PANEL ── */}
       {viewingItem && (
         <div
           onClick={() => setViewingItem(null)}
@@ -25439,12 +25768,29 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
           >
             <div
               style={{
-                background: "linear-gradient(135deg,#2E7D32,#00897b)",
+                background: viewingItem.pinned
+                  ? "linear-gradient(135deg,#3b791e,#2c5c16)"
+                  : "linear-gradient(135deg,#3b791e,#3b791e)",
                 borderRadius: "20px 20px 0 0",
                 padding: "20px 22px 28px",
+                position: "relative",
+                overflow: "hidden",
               }}
             >
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  height: 40,
+                  opacity: 0.12,
+                  background:
+                    "radial-gradient(ellipse at 50% 100%, #fff 0%, transparent 70%)",
+                }}
+              />
               <button
+                aria-label="Close announcement"
                 onClick={() => setViewingItem(null)}
                 style={{
                   position: "absolute",
@@ -25466,159 +25812,197 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
               </button>
               <div
                 style={{
-                  fontSize: 19,
-                  fontWeight: 900,
-                  color: "#fff",
-                  lineHeight: 1.3,
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 14,
+                  paddingRight: 40,
                 }}
               >
-                {viewingItem.title}
-              </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "rgba(255,255,255,0.65)",
-                  marginTop: 4,
-                  fontFamily: FONT,
-                }}
-              >
-                {new Date(viewingItem.created_at).toLocaleString()}
-              </div>
-            </div>
-            <div style={{ padding: "22px 24px 28px" }}>
-              {viewingItem.image_url && (
                 <div
                   style={{
-                    marginBottom: 18,
-                    borderRadius: 14,
-                    overflow: "hidden",
-                    border: `1px solid ${C.border}`,
+                    width: 56,
+                    height: 56,
+                    borderRadius: 16,
+                    background: "rgba(255,255,255,0.25)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 18,
+                    fontWeight: 900,
+                    color: "#fff",
+                    flexShrink: 0,
+                    border: "1.5px solid rgba(255,255,255,0.35)",
                   }}
                 >
-                  <img
-                    src={viewingItem.image_url}
-                    alt=""
-                    style={{
-                      width: "100%",
-                      maxHeight: 280,
-                      objectFit: "cover",
-                      display: "block",
-                    }}
-                    onError={(e) => (e.target.style.display = "none")}
-                  />
+                  {getInitials(viewingItem.title)}
                 </div>
-              )}
+                <div>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 6,
+                      marginBottom: 6,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {viewingItem.pinned && (
+                      <span
+                        style={{
+                          background: "rgba(255,255,255,0.25)",
+                          padding: "2px 8px",
+                          borderRadius: 8,
+                          fontSize: 9,
+                          fontWeight: 900,
+                          color: "#fff",
+                          letterSpacing: "0.08em",
+                        }}
+                      >
+                        <Pin size={11} color="#3b791e" fill="#c9dba0" /> PINNED
+                      </span>
+                    )}
+                    {isRecent(viewingItem) && (
+                      <span
+                        style={{
+                          background: "rgba(255,255,255,0.2)",
+                          padding: "2px 8px",
+                          borderRadius: 8,
+                          fontSize: 9,
+                          fontWeight: 900,
+                          color: "#fff",
+                        }}
+                      >
+                        NEW
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 19,
+                      fontWeight: 900,
+                      color: "#fff",
+                      lineHeight: 1.3,
+                      letterSpacing: "-0.3px",
+                    }}
+                  >
+                    {viewingItem.title}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "rgba(255,255,255,0.65)",
+                      marginTop: 4,
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    }}
+                  >
+                    {new Date(viewingItem.created_at).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: "22px 24px 28px" }}>
+              {/* The saved photo is displayed inside the detail view, above its content. */}
+              {renderPhoto(normalizePhoto(viewingItem), viewingItem.title || "Announcement photo", 420)}
+              {!normalizePhoto(viewingItem) && <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>
+                No photo attached to this announcement.{isAdminUser(user) && " Use Edit to add a photo."}
+              </div>}
               <p
                 style={{
                   fontSize: 14.5,
                   color: "#1A3A2A",
                   lineHeight: 1.75,
+                  whiteSpace: "pre-wrap",
+                  overflowWrap: "anywhere",
                   margin: 0,
                 }}
               >
                 {viewingItem.content}
               </p>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  marginTop: 28,
-                  flexWrap: "wrap",
-                }}
-              >
-                <button
-                  onClick={() => handlePin(viewingItem)}
+
+              {isAdminUser(user) && (
+                <div
                   style={{
                     display: "flex",
-                    alignItems: "center",
-                    gap: 7,
-                    padding: "9px 18px",
-                    borderRadius: 11,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    border: viewingItem.pinned ? "none" : "1.5px solid #FFE082",
-                    background: viewingItem.pinned ? "#F9A825" : "#FFF8E1",
-                    color: viewingItem.pinned ? "#fff" : "#F9A825",
+                    gap: 10,
+                    marginTop: 28,
+                    flexWrap: "wrap",
                   }}
                 >
-                  <Pin
-                    size={13}
-                    fill={viewingItem.pinned ? "currentColor" : "none"}
-                    strokeWidth={2.2}
-                  />{" "}
-                  {viewingItem.pinned ? "Unpin" : "Pin"}
-                </button>
-                <button
-                  onClick={() => {
-                    setEditing(viewingItem);
-                    setTitle(viewingItem.title);
-                    setContent(viewingItem.content);
-                    setImageUrl(viewingItem.image_url || "");
-                    setModalVisible(true);
-                    setViewingItem(null);
-                  }}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 7,
-                    padding: "9px 18px",
-                    borderRadius: 11,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    border: "none",
-                    background: "linear-gradient(135deg,#2E7D32,#00897b)",
-                    color: "#fff",
-                  }}
-                >
-                  <Pencil size={13} /> Edit
-                </button>
-                <button
-                  onClick={() => {
-                    handleDelete(viewingItem);
-                    setViewingItem(null);
-                  }}
-                  disabled={deletingId === viewingItem.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 7,
-                    padding: "9px 18px",
-                    borderRadius: 11,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor:
-                      deletingId === viewingItem.id ? "not-allowed" : "pointer",
-                    fontFamily: "inherit",
-                    border: "1.5px solid #fecaca",
-                    background: "#fee2e2",
-                    color: "#dc2626",
-                    opacity: deletingId === viewingItem.id ? 0.6 : 1,
-                  }}
-                >
-                  {deletingId === viewingItem.id ? (
-                    <RefreshCw
-                      size={13}
-                      style={{ animation: "spin 0.8s linear infinite" }}
-                    />
-                  ) : (
-                    <Trash2 size={13} />
-                  )}{" "}
-                  Delete
-                </button>
-              </div>
+                  <button
+                    onClick={() => handlePin(viewingItem)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 7,
+                      padding: "9px 18px",
+                      borderRadius: 11,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
+                      border: viewingItem.pinned
+                        ? "none"
+                        : "1.5px solid #c9dba0",
+                      background: "#f0f5e8",
+                      color: "#3b791e",
+                    }}
+                  >
+                    <Pin size={15} color="#3b791e" fill={viewingItem.pinned ? "#c9dba0" : "none"} /> {viewingItem.pinned ? "Unpin" : "Pin"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleEdit(viewingItem);
+                      setViewingItem(null);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 7,
+                      padding: "9px 18px",
+                      borderRadius: 11,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
+                      border: "none",
+                      background: "linear-gradient(135deg,#3b791e,#3b791e)",
+                      color: "#fff",
+                    }}
+                  >
+                    <Pencil size={13} /> Edit
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleDelete(viewingItem);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 7,
+                      padding: "9px 18px",
+                      borderRadius: 11,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
+                      border: "1.5px solid #f2c9c4",
+                      background: "#fdf1f0",
+                      color: "#c0392b",
+                    }}
+                  >
+                    <Trash2 size={13} /> Delete
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Create / Edit modal */}
-      {modalVisible && (
+      {/* ── CREATE / EDIT MODAL ── */}
+      {isAdminUser(user) && modalVisible && (
         <div
-          onClick={() => !saving && setModalVisible(false)}
+          onClick={() => { if (!saving && !imageLoading) setModalVisible(false); }}
           style={{
             position: "fixed",
             inset: 0,
@@ -25646,7 +26030,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
           >
             <div
               style={{
-                background: "linear-gradient(135deg,#2E7D32,#00897b)",
+                background: "linear-gradient(135deg,#3b791e,#3b791e)",
                 padding: "16px 22px",
                 display: "flex",
                 justifyContent: "space-between",
@@ -25657,26 +26041,26 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                 {editing ? "Edit Announcement" : "New Announcement"}
               </span>
               <button
-                onClick={() => setModalVisible(false)}
-                disabled={saving}
+                aria-label="Close announcement editor"
+                onClick={() => { if (!saving && !imageLoading) setModalVisible(false); }}
                 style={{
                   width: 30,
                   height: 30,
                   borderRadius: 10,
                   border: "1.5px solid rgba(255,255,255,0.4)",
                   background: "rgba(255,255,255,0.18)",
-                  cursor: saving ? "not-allowed" : "pointer",
+                  cursor: "pointer",
                   color: "#fff",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  opacity: saving ? 0.6 : 1,
                 }}
               >
                 <X size={14} />
               </button>
             </div>
             <form onSubmit={handleSave} style={{ padding: "22px 24px" }}>
+              {/* Title */}
               <div style={{ marginBottom: 16 }}>
                 <label style={bmLabel}>Title</label>
                 <input
@@ -25685,10 +26069,11 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
-                  disabled={saving}
                   style={{ ...bmInput, marginTop: 4 }}
                 />
               </div>
+
+              {/* Content */}
               <div style={{ marginBottom: 16 }}>
                 <label style={bmLabel}>Content</label>
                 <textarea
@@ -25697,7 +26082,6 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                   onChange={(e) => setContent(e.target.value)}
                   required
                   rows={4}
-                  disabled={saving}
                   style={{
                     ...bmInput,
                     marginTop: 4,
@@ -25706,19 +26090,61 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                   }}
                 />
               </div>
+
+              {/* Photo picker */}
               <div style={{ marginBottom: 20 }}>
-                <label style={bmLabel}>Image URL (optional)</label>
-                <input
-                  type="url"
-                  placeholder="https://example.com/image.jpg"
-                  value={imageUrl}
-                  onChange={(e) => {
-                    setImageUrl(e.target.value);
-                    setImageError(false);
+                <label
+                  style={{
+                    ...bmLabel,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
                   }}
-                  disabled={saving}
-                  style={{ ...bmInput, marginTop: 4 }}
-                />
+                >
+                  <span>
+                    Photo{" "}
+                    <span style={{ color: "#9ca3af", fontWeight: 400 }}>
+                      (Optional)
+                    </span>
+                  </span>
+                  {imageUrl && (
+                    <button
+                      type="button"
+                      disabled={imageLoading || saving}
+                      onClick={() => {
+                        setImageUrl("");
+                        setImageError(false);
+                      }}
+                      style={{
+                        fontSize: 11,
+                        background: "none",
+                        border: "none",
+                        color: "#c0392b",
+                        cursor: "pointer",
+                        fontWeight: 700,
+                      }}
+                    >
+                      <X size={12} /> Remove
+                    </button>
+                  )}
+                </label>
+                <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp"
+                  aria-label="Choose announcement photo" disabled={imageLoading || saving}
+                  onChange={handlePhotoPick} style={{ display: "none" }} />
+                <button type="button" className={`fa-photo-drop ${draggingPhoto ? "dragging" : ""}`}
+                  disabled={imageLoading || saving} onClick={() => photoInput.current?.click()}
+                  onDragOver={(event) => { event.preventDefault(); if (!saving && !imageLoading) setDraggingPhoto(true); }}
+                  onDragLeave={() => setDraggingPhoto(false)}
+                  onDrop={(event) => { event.preventDefault(); setDraggingPhoto(false); handlePhotoPick({ target: { files: event.dataTransfer.files, value: "" } }); }}>
+                  <span className="fa-upload-icon"><UploadCloud size={23} /></span>
+                  <strong>{imageLoading ? "Preparing your photo…" : imageUrl ? "Replace photo" : "Choose a photo"}</strong>
+                  <small>{photoName || "Click to browse or drag and drop here"}</small>
+                  <small>JPG, PNG or WebP · Up to 10 MB</small>
+                </button>
+                <p aria-live="polite" style={{ fontSize: 11, color: C.muted, margin: "8px 0" }}>
+                  {imageUrl ? "Photo selected. Save the announcement to attach it." : "Your photo will appear in the announcement and its detail view."}
+                </p>
+                {/* Live preview */}
                 {imageUrl && !imageError && (
                   <div
                     style={{
@@ -25726,6 +26152,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                       borderRadius: 12,
                       overflow: "hidden",
                       border: `1px solid ${C.border}`,
+                      position: "relative",
                     }}
                   >
                     <img
@@ -25734,11 +26161,27 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                       style={{
                         width: "100%",
                         maxHeight: 180,
-                        objectFit: "cover",
+                        objectFit: "contain",
                         display: "block",
                       }}
                       onError={() => setImageError(true)}
                     />
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 6,
+                        left: 6,
+                        background: "rgba(0,0,0,0.45)",
+                        borderRadius: 6,
+                        padding: "2px 8px",
+                        fontSize: 9,
+                        fontWeight: 800,
+                        color: "#fff",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      PREVIEW
+                    </div>
                   </div>
                 )}
                 {imageUrl && imageError && (
@@ -25746,46 +26189,46 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                     style={{
                       marginTop: 8,
                       padding: "9px 12px",
-                      background: "#fee2e2",
+                      background: "#fdf1f0",
                       borderRadius: 10,
-                      border: "1px solid #fecaca",
+                      border: "1px solid #f2c9c4",
                       fontSize: 12,
-                      color: "#dc2626",
+                      color: "#c0392b",
                       fontWeight: 600,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 7,
                     }}
                   >
-                    <AlertTriangle size={14} strokeWidth={2.2} /> Could not load
-                    image.
+                    Could not display this photo. Choose another image.
                   </div>
                 )}
+                {!imageUrl && (
+                  <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                    Your selected photo will appear here before you save.
+                  </p>
+                )}
               </div>
+
               <div style={{ display: "flex", gap: 10 }}>
                 <button
                   type="button"
-                  onClick={() => setModalVisible(false)}
-                  disabled={saving}
+                  onClick={() => { if (!saving && !imageLoading) setModalVisible(false); }}
                   style={{
                     flex: 1,
                     padding: "10px 0",
                     borderRadius: 10,
-                    border: "1.5px solid #b2dfdb",
-                    background: "#f0fdf5",
-                    color: "#5a7a65",
+                    border: "1.5px solid #E1E6D8",
+                    background: "#f0f5e8",
+                    color: "#5C6B60",
                     fontSize: 13,
                     fontWeight: 700,
-                    cursor: saving ? "not-allowed" : "pointer",
-                    fontFamily: "inherit",
-                    opacity: saving ? 0.6 : 1,
+                    cursor: "pointer",
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
                   }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || imageLoading}
                   style={{
                     flex: 1,
                     display: "flex",
@@ -25795,34 +26238,162 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                     padding: "10px 0",
                     borderRadius: 10,
                     border: "none",
-                    background: "linear-gradient(135deg,#2E7D32,#00897b)",
+                    background: "linear-gradient(135deg,#3b791e,#3b791e)",
                     color: "#fff",
                     fontSize: 13,
                     fontWeight: 800,
-                    cursor: saving ? "not-allowed" : "pointer",
-                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
                     boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
-                    opacity: saving ? 0.7 : 1,
                   }}
                 >
-                  {saving ? (
-                    <RefreshCw
-                      size={14}
-                      style={{ animation: "spin 0.8s linear infinite" }}
-                    />
-                  ) : (
-                    <Check size={14} />
-                  )}
-                  {saving ? (editing ? "Saving…" : "Posting…") : "Save"}
+                  <Check size={14} /> {saving ? "Saving…" : imageLoading ? "Preparing photo…" : "Save Announcement"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {lightbox && <div role="dialog" aria-modal="true" aria-label="Photo preview"
+        onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, zIndex: 4000, background: "rgba(12,25,14,.9)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <button type="button" aria-label="Close photo preview" onClick={() => setLightbox(null)}
+          style={{ position: "absolute", top: 20, right: 20, border: "1px solid #c9dba0", borderRadius: 12, padding: 10, color: "#fff", background: "#3b791e", cursor: "pointer" }}><X size={20} /></button>
+        <img src={lightbox.src} alt={lightbox.alt} onClick={(event) => event.stopPropagation()}
+          style={{ maxWidth: "100%", maxHeight: "90vh", objectFit: "contain", borderRadius: 12 }} />
+      </div>}
+      {/* ── ALERT MODAL ── */}
+      {alertModal && (
+        <Toast toast={{ type: alertModal.type, title: alertModal.message }} onClose={() => setAlertModal(null)} />
+      )}
+
+      {/* ── CONFIRM / DELETE MODAL ── */}
+      {confirmModal && (
+        <div
+          onClick={() => { if (!actionBusy) setConfirmModal(null); }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(13,43,30,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 3000,
+            padding: 20,
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 20,
+              padding: "28px 32px",
+              width: "100%",
+              maxWidth: 420,
+              boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+              border: "1px solid rgba(0,168,76,0.15)",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}
+          >
+            <div
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: "50%",
+                background: "#fdf1f0",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 16px",
+              }}
+            >
+              <Trash2 size={22} color="#c0392b" />
+            </div>
+            <h2
+              style={{
+                textAlign: "center",
+                fontSize: 17,
+                fontWeight: 800,
+                color: "#12241B",
+                marginBottom: 8,
+              }}
+            >
+              Delete Announcement?
+            </h2>
+            {confirmModal.itemName && (
+              <p
+                style={{
+                  textAlign: "center",
+                  fontSize: 13,
+                  color: "#5C6B60",
+                  lineHeight: 1.6,
+                  marginBottom: 8,
+                }}
+              >
+                You are about to delete{" "}
+                <strong>"{confirmModal.itemName}"</strong>.
+              </p>
+            )}
+            <p
+              style={{
+                textAlign: "center",
+                fontSize: 12,
+                color: "#9ca3af",
+                marginBottom: 24,
+              }}
+            >
+              {confirmModal.message}
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button
+                type="button"
+                onClick={() => { if (!actionBusy) setConfirmModal(null); }}
+                style={{
+                  padding: "9px 22px",
+                  borderRadius: 10,
+                  border: "1px solid #E1E6D8",
+                  background: "#f0f5e8",
+                  color: "#5C6B60",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmAction}
+                disabled={actionBusy}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "9px 24px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "linear-gradient(135deg,#c0392b,#c0392b)",
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
+                }}
+              >
+                <Trash2 size={14} /> {actionBusy ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+
 
 function BrandFormFields({ form, setForm }) {
   const [catInput, setCatInput] = useState("");

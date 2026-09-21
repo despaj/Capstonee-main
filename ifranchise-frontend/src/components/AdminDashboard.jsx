@@ -28,7 +28,7 @@ import {
   FileCheck,
   Users,
   BarChart2,
-  MessageCircle,
+  MessageCircle, Maximize2, Minimize2,
   User,
   ShoppingCart,
   LogOut,
@@ -37,7 +37,7 @@ import {
   AlertTriangle,
   DollarSign,
   Grid3X3,
-  ChevronDown,
+  ChevronDown, ImageOff, ZoomIn, ImagePlus, UploadCloud,
   Plus,
   Pencil,
   Trash2,
@@ -30406,10 +30406,137 @@ function UsersContent({ user, brands: propBrands = [] }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ANNOUNCEMENT —
-// ─────────────────────────────────────────────────────────────────────────────
+
+// Replace the existing CommunicationContent function in AdminDashboard with this function.
+// React hooks: useState, useEffect, useCallback, useRef.
+// Merge these icons into your existing lucide-react import:
+// Check, Clock, ImageOff, ImagePlus, Megaphone, Pencil, Pin, Plus, RefreshCw, RotateCcw, Search, Trash2, UploadCloud, X, ZoomIn.
+// Reuses existing ADMIN_API_BASE, adminModuleFetch, and AlertModal from AdminDashboard.
+// Photo: row click -> announcement text, then photo -> FA-style viewer with background blur.
+
+// ADMINDASH — UI copied from the supplied Franchisee Admin component.
 function CommunicationContent({ user, brands: propBrands = [] }) {
+  const C = { border: "#E1E6D8", muted: "#5C6B60", greenMid: "#c9dba0" };
+  const bmLabel = { fontSize: 12, fontWeight: 700, color: "#347022" };
+  const bmInput = { width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #E1E6D8", borderRadius: 10, fontFamily: "inherit", fontSize: 13 };
+  const [saving, setSaving] = useState(false);
+  const [photoName, setPhotoName] = useState("");
+  const [draggingPhoto, setDraggingPhoto] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
+  const [failedImages, setFailedImages] = useState(new Set());
+  const [loadError, setLoadError] = useState("");
+  const [historyError, setHistoryError] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
+  const actionLock = useRef(false);
+  const saveLock = useRef(false);
+  const announcementsRequest = useRef(0);
+  const photoInput = useRef(null);
+  const normalizePhoto = (item) => {
+    const raw = item?.image_url || item?.imageUrl || item?.photo_url || item?.photoUrl || "";
+    if (typeof raw !== "string") return "";
+    const value = raw.trim();
+    if (/^data:image\/(jpeg|png|webp|gif);base64,/i.test(value)) return value;
+    if (/^https?:\/\//i.test(value)) return value;
+    if (value.startsWith("/") && !value.startsWith("//")) {
+      try { return new URL(value, ADMIN_API_BASE || window.location.origin).href; } catch { return ""; }
+    }
+    return "";
+  };
+  const normalizeAnnouncement = (item) => ({ ...item, image_url: normalizePhoto(item) });
+  const renderPhoto = (src, alt) => !src ? null : (
+    failedImages.has(src) ? <div className="fa-photo-error" role="status">
+      <ImageOff size={22} /><span>This photo could not be loaded.</span>
+      <button type="button" onClick={(event) => { event.stopPropagation(); setFailedImages((prev) => { const next = new Set(prev); next.delete(src); return next; }); }}>Retry</button>
+    </div> : <button type="button" className="fa-photo-view" aria-label={`Enlarge ${alt}`}
+      style={{ width: "100%", height: "auto", aspectRatio: "1 / 1", border: "none", borderRadius: 0, padding: 0, background: "transparent", boxShadow: "none" }}
+      onClick={(event) => { event.stopPropagation(); setLightbox({ src, alt }); }}>
+      <img src={src} alt={alt} style={{ width: "100%", height: "100%", maxHeight: "none", objectFit: "contain", display: "block", border: "none", borderRadius: 0 }}
+        onError={() => setFailedImages((prev) => new Set(prev).add(src))} />
+      <span className="fa-photo-zoom"><ZoomIn size={13} /> View image</span>
+    </button>
+  );
+  const [imageLoading, setImageLoading] = useState(false);
+  const imageTask = useRef(0);
+  const restoredEntries = useRef(new Set());
+  const restoringEntries = useRef(new Set());
+  useEffect(() => () => { imageTask.current += 1; }, []);
+  const communicationFetch = async (url, options = {}) => {
+    if (options.body) {
+      const coords = await getBrowserLocation();
+      options = { ...options, body: JSON.stringify({ ...JSON.parse(options.body),
+        performed_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }) };
+    }
+    const requestOptions = !options.method || options.method === "GET"
+      ? { ...options, cache: "no-store" } : options;
+    const response = await adminModuleFetch(url, requestOptions);
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      throw new Error(detail.error || `Request failed (${response.status}).`);
+    }
+    return response;
+  };
+  const handlePhotoPick = async (event) => {
+    if (saving || imageLoading) return;
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const task = ++imageTask.current;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024) {
+      showAlert("Choose a JPG, PNG, or WebP photo up to 10 MB.", "error");
+      return;
+    }
+    setImageLoading(true);
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const photo = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("This photo could not be opened."));
+        img.src = objectUrl;
+      });
+      const canvas = document.createElement("canvas");
+      let scale = Math.min(1, 1400 / Math.max(photo.width, photo.height));
+      let encoded = "";
+      // Bound the JSON payload for the existing image_url API field.
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        canvas.width = Math.max(1, Math.round(photo.width * scale));
+        canvas.height = Math.max(1, Math.round(photo.height * scale));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Photo processing is unavailable in this browser.");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(photo, 0, 0, canvas.width, canvas.height);
+        encoded = canvas.toDataURL("image/jpeg", 0.82);
+        if (encoded.length <= 70000) break;
+        scale *= 0.75;
+      }
+      if (encoded.length > 70000) throw new Error("Please choose a smaller photo.");
+      if (task === imageTask.current) { setImageUrl(encoded); setPhotoName(file.name); setImageError(false); }
+    } catch (error) {
+      if (task === imageTask.current) showAlert(error.message, "error");
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+      if (task === imageTask.current) setImageLoading(false);
+    }
+  };
+  const getBrowserLocation = () => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (position) =>
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          }),
+        () => resolve(null),
+        { timeout: 5000, maximumAge: 60000 },
+      );
+    });
+  };
+
   const [announcements, setAnnouncements] = useState([]);
   const [pinnedIds, setPinnedIds] = useState(new Set());
   const [fetching, setFetching] = useState(true);
@@ -30425,7 +30552,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
   const [viewingItem, setViewingItem] = useState(null);
   const [deleteHistory, setDeleteHistory] = useState([]);
 
-  const [activityLog, setActivityLog] = useState([]);
+  const [, setActivityLog] = useState([]);
 
   const [alertModal, setAlertModal] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
@@ -30433,11 +30560,32 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
     setAlertModal({ message, type });
   const showConfirm = (message, onConfirm, itemName = "") =>
     setConfirmModal({ message, onConfirm, itemName });
+  const confirmAction = async () => {
+    if (actionLock.current) return;
+    actionLock.current = true; setActionBusy(true);
+    try { await confirmModal.onConfirm(); setConfirmModal(null); }
+    finally { actionLock.current = false; setActionBusy(false); }
+  };
+  useEffect(() => {
+    const handleKey = (event) => {
+      if (event.key !== "Escape" || saving || imageLoading || actionBusy) return;
+      if (lightbox) setLightbox(null);
+      else if (confirmModal) setConfirmModal(null);
+      else if (modalVisible) setModalVisible(false);
+      else setViewingItem(null);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [lightbox, confirmModal, modalVisible, saving, imageLoading, actionBusy]);
+  useEffect(() => {
+    if (!viewingItem && !modalVisible && !confirmModal && !lightbox) return undefined;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [Boolean(viewingItem), modalVisible, Boolean(confirmModal), Boolean(lightbox)]);
 
-  // const [commUser] = useState(() => {
-  //   try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
-  // });
 
+  // Retain the supplied admin dashboard action permissions.
   const isAdminUser = (u) => u?.role === "Franchisee Operations Admin";
 
   const PIN_KEY = "announcement_pins";
@@ -30456,11 +30604,12 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
 
   const fetchDeleteHistory = async () => {
     try {
-      const res = await adminModuleFetch(
+      const res = await communicationFetch(
         `${ADMIN_API_BASE}/announcements/delete-history`,
       );
       const data = await res.json();
 
+      setHistoryError("");
       setDeleteHistory(
         Array.isArray(data)
           ? data.map((e) => ({
@@ -30469,20 +30618,20 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
               data: {
                 title: e.title,
                 content: e.content,
-                image_url: e.image_url,
+                image_url: normalizePhoto(e),
                 created_by: e.created_by,
               },
             }))
           : [],
       );
     } catch (err) {
-      console.error(err);
+      setHistoryError(err.message || "Could not load delete history.");
     }
   };
 
   const fetchActivityLog = useCallback(async () => {
     try {
-      const res = await adminModuleFetch(
+      const res = await communicationFetch(
         `${ADMIN_API_BASE}/announcements-activity-log`,
       );
       const data = await res.json();
@@ -30492,27 +30641,8 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
     }
   }, []);
 
-  const logActivity = useCallback(
-    async (action, itemName, branchName, changes = null) => {
-      try {
-        await adminModuleFetch(`${ADMIN_API_BASE}/shop-activity-log`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action,
-            item_name: itemName,
-            branch: branchName,
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            changes,
-          }),
-        });
-      } catch (err) {
-        console.warn("Activity log failed (non-fatal):", err);
-      }
-    },
-    [user],
-  );
+  // Announcement mutations are logged by the existing FA backend.
+  const logActivity = async () => { await fetchActivityLog(); };
 
   useEffect(() => {
     fetchAnnouncements();
@@ -30521,21 +30651,31 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
   }, [fetchActivityLog]);
 
   const fetchAnnouncements = async () => {
+    const requestId = ++announcementsRequest.current;
     setFetching(true);
     try {
-      const res = await adminModuleFetch(`${ADMIN_API_BASE}/announcements`);
+      const res = await communicationFetch(`${ADMIN_API_BASE}/announcements`);
       const data = await res.json();
-      setAnnouncements(Array.isArray(data) ? data : []);
+      const rows = Array.isArray(data) ? data : data?.announcements ?? data?.data;
+      if (!Array.isArray(rows)) throw new Error("Unexpected announcement response.");
+      const normalized = rows.map(normalizeAnnouncement);
+      // An older list response must not overwrite a newly saved announcement.
+      if (requestId === announcementsRequest.current) {
+        setAnnouncements(normalized);
+        setLoadError("");
+      }
+      return normalized;
     } catch (err) {
       console.error("Fetch error:", err);
-      setAnnouncements([]);
+      if (requestId === announcementsRequest.current) {
+        setLoadError(err.message || "Could not load announcements.");
+      }
+      return null;
     } finally {
-      setFetching(false);
+      if (requestId === announcementsRequest.current) setFetching(false);
     }
   };
-  useEffect(() => {
-    fetchAnnouncements();
-  }, []);
+
 
   const mergedAnnouncements = announcements.map((a) => ({
     ...a,
@@ -30544,7 +30684,6 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
 
   const handlePin = (item) => {
     if (!isAdminUser(user)) return;
-    console.log("DEBUG user:", user);
     const id = String(item.id);
     setPinnedIds((prev) => {
       const next = new Set(prev);
@@ -30563,7 +30702,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
       `Permanently delete "${entry.data.title}"? This cannot be undone.`,
       async () => {
         try {
-          await adminModuleFetch(
+          await communicationFetch(
             `${ADMIN_API_BASE}/announcements/delete-history/${entry.id}`,
             {
               method: "DELETE",
@@ -30581,14 +30720,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    console.log(
-      "DEBUG handleSave user:",
-      user,
-      "title:",
-      title,
-      "content:",
-      content,
-    );
+    if (saveLock.current || imageLoading) return;
     if (!isAdminUser(user)) {
       showAlert("Only administrators can post announcements.", "error");
       return;
@@ -30597,49 +30729,90 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
       showAlert("Please fill in the title and content fields.", "error");
       return;
     }
+    const wasEditing = Boolean(editing);
+    const submittedPhoto = imageUrl.trim() || null;
+    saveLock.current = true;
+    setSaving(true);
+    let mutationAccepted = false;
     try {
       const url = editing
         ? `${ADMIN_API_BASE}/announcements/${editing.id}`
         : `${ADMIN_API_BASE}/announcements`;
-      const method = editing ? "PUT" : "POST";
-      const res = await adminModuleFetch(url, {
-        method,
+      const res = await communicationFetch(url, {
+        method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title,
-          content,
-          image_url: imageUrl.trim() || null,
+          title: title.trim(),
+          content: content.trim(),
+          image_url: submittedPhoto,
           userId: user.id,
           role: user.role,
         }),
       });
+      mutationAccepted = true;
       const data = await res.json();
-      if (!res.ok) {
-        showAlert(data.error || "Failed to save.", "error");
+      // POST returns { success, announcement }; PUT returns the database row.
+      let savedRecord = data?.announcement ?? data?.data?.announcement ?? data?.data ?? data;
+      const savedId = savedRecord?.id ?? editing?.id;
+      if (savedId == null) {
+        showAlert("The server accepted the save but returned no announcement ID. Refresh the list before retrying to avoid creating a duplicate. Check the POST response from your deployed announcements API.", "error");
         return;
       }
+      // If verification fails, retry with PUT to this same record, not another POST.
+      setEditing({ ...savedRecord, id: savedId });
+      if (!Object.prototype.hasOwnProperty.call(savedRecord, "image_url")) {
+        // Compatibility fallback only when the mutation response omits the field.
+        const rows = await fetchAnnouncements();
+        const fetchedRecord = rows?.find((item) => String(item.id) === String(savedId));
+        if (!fetchedRecord) {
+          showAlert("The announcement was saved, but the save response omitted image_url and the list refresh could not confirm the photo. Your selected photo is still in the editor. Check the deployed API response before retrying.", "error");
+          return;
+        }
+        savedRecord = fetchedRecord;
+      }
+      const savedPhoto = normalizePhoto(savedRecord);
+      const expectedPhoto = normalizePhoto({ image_url: submittedPhoto });
+      if (savedPhoto !== expectedPhoto) {
+        const message = !savedPhoto && submittedPhoto
+          ? "The server saved the announcement but returned an empty image_url. Your selected photo is still here. Confirm the updated announcements.js is deployed to the API used by this frontend."
+          : "The server returned a different photo from the one submitted. Your changes are still here. Check the deployed announcement update route before retrying.";
+        showAlert(message, "error");
+        return;
+      }
+      // The supplied backend uses RETURNING *: this is the saved database record.
+      // Display that record, never the unconfirmed local preview, and do not make
+      // photo-save success depend on an unrelated second GET request.
+      const confirmed = normalizeAnnouncement({ ...savedRecord, id: savedId });
+      announcementsRequest.current += 1;
+      setFetching(false);
+      setLoadError("");
+      setAnnouncements((previous) => {
+        const existing = previous.find((item) => String(item.id) === String(savedId));
+        const merged = { ...existing, ...confirmed };
+        return existing
+          ? previous.map((item) => String(item.id) === String(savedId) ? merged : item)
+          : [merged, ...previous];
+      });
+      setViewingItem((previous) => previous && String(previous.id) === String(savedId)
+        ? { ...previous, ...confirmed, pinned: pinnedIds.has(String(savedId)) }
+        : previous);
       setModalVisible(false);
       setEditing(null);
       setTitle("");
       setContent("");
       setImageUrl("");
+      setPhotoName("");
       setImageError(false);
-      fetchAnnouncements();
-      await logActivity(
-        editing ? "edit" : "add",
-        title,
-        null,
-        editing ? "Updated announcement" : null,
-      );
-      showAlert(
-        editing
-          ? "Announcement updated successfully!"
-          : "Announcement posted successfully!",
-        "success",
-      );
+      showAlert(wasEditing ? "Announcement updated successfully!" : "Announcement posted successfully!", "success");
+      void fetchActivityLog();
     } catch (err) {
       console.error("Save error:", err);
-      showAlert("Failed to save announcement.", "error");
+      showAlert(mutationAccepted
+        ? "The server accepted the save, but its response could not be read. Refresh the announcement list before retrying to avoid duplicates."
+        : err.message || "Failed to save announcement.", "error");
+    } finally {
+      saveLock.current = false;
+      setSaving(false);
     }
   };
 
@@ -30649,7 +30822,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
       `You are about to delete this announcement. You can recover it from Delete History.`,
       async () => {
         try {
-          const res = await adminModuleFetch(
+          const res = await communicationFetch(
             `${ADMIN_API_BASE}/announcements/${item.id}`,
             {
               method: "DELETE",
@@ -30687,11 +30860,15 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
   };
 
   const handleRestore = async (entry) => {
+    if (restoringEntries.current.has(entry.id)) return;
+    restoringEntries.current.add(entry.id);
     try {
-      const res = await adminModuleFetch(`${ADMIN_API_BASE}/announcements`, {
+      if (!restoredEntries.current.has(entry.id)) {
+      const res = await communicationFetch(`${ADMIN_API_BASE}/announcements`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          restored: true,
           title: entry.data.title,
           content: entry.data.content,
           image_url: entry.data.image_url || null,
@@ -30705,7 +30882,9 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
         return;
       }
 
-      await adminModuleFetch(
+      restoredEntries.current.add(entry.id);
+      }
+      await communicationFetch(
         `${ADMIN_API_BASE}/announcements/delete-history/${entry.id}`,
         {
           method: "DELETE",
@@ -30723,7 +30902,11 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
       showAlert(`"${entry.data.title}" has been restored!`, "success");
     } catch (err) {
       console.error(err);
-      showAlert("Failed to restore announcement.", "error");
+      showAlert(restoredEntries.current.has(entry.id)
+        ? "Announcement restored, but history cleanup failed. Retry Restore to finish cleanup without creating another copy."
+        : "Failed to restore announcement.", "error");
+    } finally {
+      restoringEntries.current.delete(entry.id);
     }
   };
 
@@ -30732,7 +30915,8 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
     setEditing(item);
     setTitle(item.title);
     setContent(item.content);
-    setImageUrl(item.image_url || "");
+    setImageUrl(normalizePhoto(item));
+    setPhotoName("");
     setImageError(false);
     setModalVisible(true);
   };
@@ -30776,7 +30960,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
     recent: mergedAnnouncements.filter(
       (a) => new Date(a.created_at) >= sevenDaysAgo,
     ).length,
-    pinned: pinnedIds.size,
+    pinned: mergedAnnouncements.filter((item) => item.pinned).length,
     deleteHistory: deleteHistory.length,
   };
 
@@ -30933,9 +31117,9 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
       background: "#fff",
       borderRadius: 18,
       marginBottom: 10,
-      border: `1px solid ${pinned ? "#FFE082" : C.border}`,
+      border: `1px solid ${pinned ? "#c9dba0" : C.border}`,
       boxShadow: pinned
-        ? "0 3px 14px rgba(249,168,37,0.18)"
+        ? "0 3px 14px rgba(59,121,30,0.18)"
         : "0 2px 10px rgba(0,140,60,0.07)",
       overflow: "hidden",
       cursor: "pointer",
@@ -30945,7 +31129,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
       width: 4,
       flexShrink: 0,
       background: pinned
-        ? "linear-gradient(180deg,#F9A825,#FFC107)"
+        ? "linear-gradient(180deg,#3b791e,#509820)"
         : "linear-gradient(180deg,#3b791e,#4CAF50)",
     }),
     cardBody: { flex: 1, padding: "13px 15px 11px" },
@@ -30959,7 +31143,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
       alignItems: "center",
       justifyContent: "center",
       background: pinned
-        ? "linear-gradient(135deg,#F9A825,#E65100)"
+        ? "linear-gradient(135deg,#3b791e,#2c5c16)"
         : "linear-gradient(135deg,#3b791e,#3b791e)",
       fontSize: 13,
       fontWeight: 900,
@@ -31001,13 +31185,13 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
       display: "inline-flex",
       alignItems: "center",
       gap: 3,
-      background: "#FFF8E1",
+      background: "#f0f5e8",
       borderRadius: 6,
       padding: "2px 6px",
-      border: "1px solid #FFE082",
+      border: "1px solid #c9dba0",
       fontSize: 8,
       fontWeight: 800,
-      color: "#F9A825",
+      color: "#3b791e",
     },
     recentBadge: {
       background: "#f0f5e8",
@@ -31039,7 +31223,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
         variant === "delete"
           ? "#e53935"
           : variant === "pin"
-            ? "#F9A825"
+            ? "#3b791e"
             : "#2c5c16",
     }),
     emptyState: {
@@ -31083,9 +31267,26 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
         : "Check back later.";
 
   return (
-    <div style={commStyles.root}>
+    <div className="fa-communications" style={commStyles.root}>
       <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+          .fa-communications button { font-family: inherit; transition: transform .16s, background .16s, box-shadow .16s; }
+          .fa-communications button:active:not(:disabled) { transform: scale(.97); }
+          .fa-communications button:disabled { opacity: .55; cursor: wait; }
+          .fa-communications :focus-visible { outline: 3px solid #b3c993; outline-offset: 3px; }
+          .fa-communications .fa-photo-drop { display:flex; flex-direction:column; align-items:center; gap:8px; width:100%; padding:22px 16px; margin-top:10px; box-sizing:border-box; border:2px dashed #b7cda7; border-radius:16px; background:#f6f9f0; color:#3b791e; cursor:pointer; }
+          .fa-communications .fa-photo-drop:hover, .fa-communications .fa-photo-drop.dragging { background:#edf5e2; border-color:#3b791e; }
+          .fa-photo-drop strong { font-size:13px; }
+          .fa-photo-drop small { font-size:11px; color:#5C6B60; overflow-wrap:anywhere; }
+          .fa-upload-icon { display:grid; place-items:center; width:42px; height:42px; border-radius:13px; background:#e1ecd2; }
+          .fa-communications button.fa-photo-view { position:relative; display:block; width:100%; height:auto!important; aspect-ratio:1 / 1; padding:0!important; background:transparent!important; border:0!important; border-radius:0!important; box-shadow:none!important; clip-path:none!important; overflow:hidden; cursor:zoom-in; margin-bottom:14px; }
+          .fa-communications button.fa-photo-view img { width:100%; height:100%; border:0!important; border-radius:0!important; clip-path:none!important; box-shadow:none!important; object-fit:contain; }
+          .fa-photo-zoom { position:absolute; bottom:9px; right:9px; display:flex; align-items:center; gap:5px; padding:6px 9px; background:rgba(255,255,255,.94); color:#2c5c16; border-radius:8px; font-size:10px; font-weight:700; }
+          .fa-photo-error { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:18px; margin-bottom:14px; background:#fff7ed; border-radius:12px; color:#915214; font-size:12px; }
+          .fa-communications .fa-error { padding:12px; border-radius:10px; background:#fdf1f0; color:#c0392b; font-size:12px; margin-bottom:12px; }
+          @media(max-width:600px) { .fa-communications .fa-header-top { flex-wrap:wrap; gap:14px; } .fa-communications .comm-card { border-radius:12px!important; } }
+          @media(prefers-reduced-motion:reduce) { .fa-communications * { transition:none!important; animation:none!important; } }
           .comm-card:hover { transform: translateY(-2px) !important; box-shadow: 0 6px 20px rgba(0,140,60,0.12) !important; }
           .comm-action-btn:hover { opacity: 0.78; }
           .comm-tab:hover { background: #e8fdf0 !important; color: #2c5c16 !important; }
@@ -31107,16 +31308,15 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
             pointerEvents: "none",
           }}
         />
-        <div style={commStyles.headerTop}>
+        <div className="fa-header-top" style={commStyles.headerTop}>
           <div>
             <div style={commStyles.eyebrow}>IFRANCHISE</div>
             <div style={commStyles.headerTitle}>Announcements</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={commStyles.liveChip}>
-              <div style={commStyles.liveDot} />
-              <span style={commStyles.liveTxt}>LIVE</span>
-            </div>
+            <button type="button" aria-label="Refresh announcements" title="Refresh announcements"
+              disabled={fetching} onClick={() => { fetchAnnouncements(); fetchDeleteHistory(); }}
+              style={{ ...commStyles.liveChip, color: "white", cursor: "pointer" }}><RefreshCw size={14} /></button>
             <button
               onClick={() => {
                 setSearchVisible((v) => !v);
@@ -31144,6 +31344,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
               <button
                 onClick={() => {
                   setEditing(null);
+                  setPhotoName("");
                   setTitle("");
                   setContent("");
                   setImageUrl("");
@@ -31207,7 +31408,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
           { key: "recent", label: "Recent" },
           { key: "pinned", label: "Pinned" },
           ...(isAdminUser(user)
-            ? [{ key: "deleteHistory", label: "🗑 Delete History" }]
+            ? [{ key: "deleteHistory", label: "Delete History" }]
             : []),
         ].map(({ key, label }) => {
           const active = selectedTab === key;
@@ -31260,6 +31461,8 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
 
       {/* ── LIST / DELETE HISTORY ── */}
       <div style={commStyles.listArea}>
+        {loadError && <div className="fa-error" role="alert">{loadError} <button onClick={fetchAnnouncements}>Retry</button></div>}
+        {selectedTab === "deleteHistory" && historyError && <div className="fa-error" role="alert">{historyError} <button onClick={fetchDeleteHistory}>Retry</button></div>}
         {/* ── DELETE HISTORY TAB ── */}
         {selectedTab === "deleteHistory" ? (
           <>
@@ -31284,7 +31487,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
 
             {deleteHistory.length === 0 ? (
               <div style={commStyles.emptyState}>
-                <div style={commStyles.emptyIcon}>🗑</div>
+                <div style={commStyles.emptyIcon}><Trash2 size={22} /></div>
                 <div style={commStyles.emptyTitle}>
                   No deleted announcements
                 </div>
@@ -31298,7 +31501,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                   background: "#fff",
                   borderRadius: 16,
                   border: `1px solid ${C.border}`,
-                  overflow: "hidden",
+                  overflowX: "auto",
                   boxShadow: "0 2px 10px rgba(0,140,60,0.07)",
                 }}
               >
@@ -31306,7 +31509,8 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 140px 160px 200px",
+                    gridTemplateColumns: "minmax(140px, 1fr) 140px 160px 200px",
+                    minWidth: 710,
                     gap: 8,
                     padding: "10px 16px",
                     borderBottom: `2px solid #f0f5e8`,
@@ -31325,11 +31529,12 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                 </div>
                 {deleteHistory.map((entry, i) => (
                   <div
-                    key={i}
+                    key={entry.id}
                     className="comm-del-row"
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 140px 160px 200px",
+                      gridTemplateColumns: "minmax(140px, 1fr) 140px 160px 200px",
+                    minWidth: 710,
                       gap: 8,
                       alignItems: "center",
                       padding: "12px 16px",
@@ -31367,7 +31572,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                             display: "inline-block",
                           }}
                         >
-                          🖼 Has Image
+                          <ImagePlus size={10} /> Has photo
                         </span>
                       )}
                     </div>
@@ -31503,7 +31708,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                             </span>
                             {pinned && (
                               <span style={commStyles.pinnedBadge}>
-                                🔖 PINNED
+                                <Pin size={11} color="#3b791e" fill="#c9dba0" /> PINNED
                               </span>
                             )}
                             {recent && !pinned && (
@@ -31521,7 +31726,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                                   border: "1px solid #E1E6D8",
                                 }}
                               >
-                                🖼 IMG
+                                <ImagePlus size={10} /> PHOTO
                               </span>
                             )}
                           </div>
@@ -31538,13 +31743,10 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                               className="comm-action-btn"
                               style={commStyles.actionBtn("pin")}
                               onClick={() => handlePin(item)}
+                              aria-pressed={pinned}
                               title={pinned ? "Unpin" : "Pin"}
                             >
-                              {pinned ? (
-                                <span style={{ fontSize: 12 }}>🔖</span>
-                              ) : (
-                                <span style={{ fontSize: 12 }}>📌</span>
-                              )}
+                              <Pin size={14} color="#3b791e" fill={pinned ? "#c9dba0" : "none"} />
                             </button>
                             <button
                               className="comm-action-btn"
@@ -31610,7 +31812,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
             <div
               style={{
                 background: viewingItem.pinned
-                  ? "linear-gradient(135deg,#F9A825,#E65100)"
+                  ? "linear-gradient(135deg,#3b791e,#2c5c16)"
                   : "linear-gradient(135deg,#3b791e,#3b791e)",
                 borderRadius: "20px 20px 0 0",
                 padding: "20px 22px 28px",
@@ -31631,6 +31833,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                 }}
               />
               <button
+                aria-label="Close announcement"
                 onClick={() => setViewingItem(null)}
                 style={{
                   position: "absolute",
@@ -31697,7 +31900,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                           letterSpacing: "0.08em",
                         }}
                       >
-                        🔖 PINNED
+                        <Pin size={11} color="#3b791e" fill="#c9dba0" /> PINNED
                       </span>
                     )}
                     {isRecent(viewingItem) && (
@@ -31741,41 +31944,24 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
             </div>
 
             <div style={{ padding: "22px 24px 28px" }}>
-              {/* Image display */}
-              {viewingItem.image_url && (
-                <div
-                  style={{
-                    marginBottom: 18,
-                    borderRadius: 14,
-                    overflow: "hidden",
-                    border: `1px solid ${C.border}`,
-                  }}
-                >
-                  <img
-                    src={viewingItem.image_url}
-                    alt="Announcement"
-                    style={{
-                      width: "100%",
-                      maxHeight: 280,
-                      objectFit: "cover",
-                      display: "block",
-                    }}
-                    onError={(e) => {
-                      e.target.style.display = "none";
-                    }}
-                  />
-                </div>
-              )}
               <p
                 style={{
                   fontSize: 14.5,
                   color: "#1A3A2A",
                   lineHeight: 1.75,
-                  margin: 0,
+                  whiteSpace: "pre-wrap",
+                  overflowWrap: "anywhere",
+                  margin: "0 0 18px",
                 }}
               >
                 {viewingItem.content}
               </p>
+
+              {/* Photo appears only after opening an announcement, below its content. */}
+              {renderPhoto(normalizePhoto(viewingItem), viewingItem.title || "Announcement photo")}
+              {!normalizePhoto(viewingItem) && <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>
+                No photo attached to this announcement.{isAdminUser(user) && " Use Edit to add a photo."}
+              </div>}
 
               {isAdminUser(user) && (
                 <div
@@ -31800,12 +31986,12 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                       fontFamily: "'Plus Jakarta Sans', sans-serif",
                       border: viewingItem.pinned
                         ? "none"
-                        : "1.5px solid #FFE082",
-                      background: viewingItem.pinned ? "#F9A825" : "#FFF8E1",
-                      color: viewingItem.pinned ? "#fff" : "#F9A825",
+                        : "1.5px solid #c9dba0",
+                      background: "#f0f5e8",
+                      color: "#3b791e",
                     }}
                   >
-                    {viewingItem.pinned ? "🔖 Unpin" : "📌 Pin"}
+                    <Pin size={15} color="#3b791e" fill={viewingItem.pinned ? "#c9dba0" : "none"} /> {viewingItem.pinned ? "Unpin" : "Pin"}
                   </button>
                   <button
                     onClick={() => {
@@ -31860,7 +32046,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
       {/* ── CREATE / EDIT MODAL ── */}
       {isAdminUser(user) && modalVisible && (
         <div
-          onClick={() => setModalVisible(false)}
+          onClick={() => { if (!saving && !imageLoading) setModalVisible(false); }}
           style={{
             position: "fixed",
             inset: 0,
@@ -31899,7 +32085,8 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                 {editing ? "Edit Announcement" : "New Announcement"}
               </span>
               <button
-                onClick={() => setModalVisible(false)}
+                aria-label="Close announcement editor"
+                onClick={() => { if (!saving && !imageLoading) setModalVisible(false); }}
                 style={{
                   width: 30,
                   height: 30,
@@ -31948,7 +32135,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                 />
               </div>
 
-              {/* Image URL */}
+              {/* Photo picker */}
               <div style={{ marginBottom: 20 }}>
                 <label
                   style={{
@@ -31959,7 +32146,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                   }}
                 >
                   <span>
-                    Image URL{" "}
+                    Photo{" "}
                     <span style={{ color: "#9ca3af", fontWeight: 400 }}>
                       (Optional)
                     </span>
@@ -31967,6 +32154,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                   {imageUrl && (
                     <button
                       type="button"
+                      disabled={imageLoading || saving}
                       onClick={() => {
                         setImageUrl("");
                         setImageError(false);
@@ -31980,20 +32168,26 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                         fontWeight: 700,
                       }}
                     >
-                      ✕ Remove
+                      <X size={12} /> Remove
                     </button>
                   )}
                 </label>
-                <input
-                  type="url"
-                  placeholder="https://example.com/image.jpg"
-                  value={imageUrl}
-                  onChange={(e) => {
-                    setImageUrl(e.target.value);
-                    setImageError(false);
-                  }}
-                  style={{ ...bmInput, marginTop: 4 }}
-                />
+                <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp"
+                  aria-label="Choose announcement photo" disabled={imageLoading || saving}
+                  onChange={handlePhotoPick} style={{ display: "none" }} />
+                <button type="button" className={`fa-photo-drop ${draggingPhoto ? "dragging" : ""}`}
+                  disabled={imageLoading || saving} onClick={() => photoInput.current?.click()}
+                  onDragOver={(event) => { event.preventDefault(); if (!saving && !imageLoading) setDraggingPhoto(true); }}
+                  onDragLeave={() => setDraggingPhoto(false)}
+                  onDrop={(event) => { event.preventDefault(); setDraggingPhoto(false); handlePhotoPick({ target: { files: event.dataTransfer.files, value: "" } }); }}>
+                  <span className="fa-upload-icon"><UploadCloud size={23} /></span>
+                  <strong>{imageLoading ? "Preparing your photo…" : imageUrl ? "Replace photo" : "Choose a photo"}</strong>
+                  <small>{photoName || "Click to browse or drag and drop here"}</small>
+                  <small>JPG, PNG or WebP · Up to 10 MB</small>
+                </button>
+                <p aria-live="polite" style={{ fontSize: 11, color: C.muted, margin: "8px 0" }}>
+                  {imageUrl ? "Photo selected. Save the announcement to attach it." : "Your photo will appear in the announcement and its detail view."}
+                </p>
                 {/* Live preview */}
                 {imageUrl && !imageError && (
                   <div
@@ -32011,7 +32205,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                       style={{
                         width: "100%",
                         maxHeight: 180,
-                        objectFit: "cover",
+                        objectFit: "contain",
                         display: "block",
                       }}
                       onError={() => setImageError(true)}
@@ -32047,12 +32241,12 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                       fontWeight: 600,
                     }}
                   >
-                    ⚠ Could not load image. Check the URL and try again.
+                    Could not display this photo. Choose another image.
                   </div>
                 )}
                 {!imageUrl && (
                   <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
-                    Paste a direct link to an image (jpg, png, gif, webp…)
+                    Your selected photo will appear here before you save.
                   </p>
                 )}
               </div>
@@ -32060,7 +32254,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
               <div style={{ display: "flex", gap: 10 }}>
                 <button
                   type="button"
-                  onClick={() => setModalVisible(false)}
+                  onClick={() => { if (!saving && !imageLoading) setModalVisible(false); }}
                   style={{
                     flex: 1,
                     padding: "10px 0",
@@ -32078,6 +32272,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                 </button>
                 <button
                   type="submit"
+                  disabled={saving || imageLoading}
                   style={{
                     flex: 1,
                     display: "flex",
@@ -32096,7 +32291,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                     boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
                   }}
                 >
-                  <Check size={14} /> Save Announcement
+                  <Check size={14} /> {saving ? "Saving…" : imageLoading ? "Preparing photo…" : "Save Announcement"}
                 </button>
               </div>
             </form>
@@ -32104,19 +32299,22 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
         </div>
       )}
 
+      {lightbox && <div role="dialog" aria-modal="true" aria-label="Photo preview"
+        onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, zIndex: 4000, background: "rgba(12,25,14,.65)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <button type="button" aria-label="Close photo preview" onClick={() => setLightbox(null)}
+          style={{ position: "absolute", top: 20, right: 20, border: "1px solid #c9dba0", borderRadius: 12, padding: 10, color: "#fff", background: "#3b791e", cursor: "pointer" }}><X size={20} /></button>
+        <img src={lightbox.src} alt={lightbox.alt} onClick={(event) => event.stopPropagation()}
+          style={{ maxWidth: "100%", maxHeight: "90vh", objectFit: "contain", borderRadius: 0, border: "none" }} />
+      </div>}
       {/* ── ALERT MODAL ── */}
       {alertModal && (
-        <AlertModal
-          message={alertModal.message}
-          type={alertModal.type}
-          onClose={() => setAlertModal(null)}
-        />
+        <AlertModal type={alertModal.type} message={alertModal.message} onClose={() => setAlertModal(null)} />
       )}
 
       {/* ── CONFIRM / DELETE MODAL ── */}
       {confirmModal && (
         <div
-          onClick={() => setConfirmModal(null)}
+          onClick={() => { if (!actionBusy) setConfirmModal(null); }}
           style={{
             position: "fixed",
             inset: 0,
@@ -32189,12 +32387,12 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                 marginBottom: 24,
               }}
             >
-              You can recover this from Delete History.
+              {confirmModal.message}
             </p>
             <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
               <button
                 type="button"
-                onClick={() => setConfirmModal(null)}
+                onClick={() => { if (!actionBusy) setConfirmModal(null); }}
                 style={{
                   padding: "9px 22px",
                   borderRadius: 10,
@@ -32211,10 +32409,8 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  confirmModal.onConfirm();
-                  setConfirmModal(null);
-                }}
+                onClick={confirmAction}
+                disabled={actionBusy}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -32231,7 +32427,7 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
                   boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
                 }}
               >
-                <Trash2 size={14} /> Delete
+                <Trash2 size={14} /> {actionBusy ? "Deleting…" : "Delete"}
               </button>
             </div>
           </div>
