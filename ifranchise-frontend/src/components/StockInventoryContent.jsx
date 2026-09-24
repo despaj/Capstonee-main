@@ -1,4 +1,4 @@
-//copy here design
+//STOCK INVENTORY
 
 import React, {
   useState,
@@ -187,6 +187,48 @@ const FUEL_GRADES = [
   "Diesel",
   "Kerosene",
 ];
+
+// Display-only quantity formatting.
+// UI shows whole numbers with full unit names (e.g. "50 Liters"),
+// while stored numeric values remain unchanged for calculations/API payloads.
+const DISPLAY_UNIT_NAMES = {
+  pcs: "Pieces", piece: "Pieces", pieces: "Pieces",
+  kg: "Kilograms", kilogram: "Kilograms", kilograms: "Kilograms",
+  g: "Grams", gram: "Grams", grams: "Grams",
+  l: "Liters", liter: "Liters", liters: "Liters",
+  ml: "Milliliters", milliliter: "Milliliters", milliliters: "Milliliters",
+  tbsp: "Tablespoons", tablespoon: "Tablespoons", tablespoons: "Tablespoons",
+  tsp: "Teaspoons", teaspoon: "Teaspoons", teaspoons: "Teaspoons",
+  cup: "Cups", cups: "Cups",
+  bottle: "Bottles", bottles: "Bottles",
+  pack: "Packs", packs: "Packs",
+  bag: "Bags", bags: "Bags",
+  box: "Boxes", boxes: "Boxes",
+  can: "Cans", cans: "Cans",
+  gallon: "Gallons", gallons: "Gallons",
+};
+
+const formatQuantityWithUnit = (value, unit) => {
+  const numeric = Number(value || 0);
+  const rawUnit = String(unit || "").trim();
+  const fullUnit =
+    DISPLAY_UNIT_NAMES[rawUnit] ||
+    DISPLAY_UNIT_NAMES[rawUnit.toLowerCase()] ||
+    rawUnit ||
+    "Units";
+  return `${Math.round(numeric).toLocaleString("en-PH")} ${fullUnit}`;
+};
+
+const formatUnitName = (unit) => {
+  const rawUnit = String(unit || "").trim();
+  return (
+    DISPLAY_UNIT_NAMES[rawUnit] ||
+    DISPLAY_UNIT_NAMES[rawUnit.toLowerCase()] ||
+    rawUnit ||
+    "Units"
+  );
+};
+
 const PAGE_SIZE = 15;
 const EXPIRY_WARN_DAYS = 30;
 
@@ -2992,8 +3034,8 @@ function FifoQueue({
             </span>
             <span style={{ opacity: 0.45 }}>•</span>
             <span>
-              {totalStock} {product.unit} · {sorted.length} active batch
-              {sorted.length === 1 ? "" : "es"} · min {product.min_stock}
+              {formatQuantityWithUnit(totalStock, product.unit)} · {sorted.length} active batch
+              {sorted.length === 1 ? "" : "es"}
             </span>
           </div>
         </div>
@@ -3216,9 +3258,7 @@ function FifoQueue({
                   >
                     <span>STOCK</span>
                     <span>
-                      {b.stock}
-                      {product.unit}/{totalStock}
-                      {product.unit}
+                      {formatQuantityWithUnit(b.stock, product.unit)} / {formatQuantityWithUnit(totalStock, product.unit)}
                     </span>
                   </div>
                   <MiniBar pct={stockPct} color={C.green} />
@@ -3550,84 +3590,23 @@ function BrandOverviewCard({ brandDef, brandObj, items, onClick }) {
       </div>
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3,minmax(0,1fr))",
           width: "100%",
-          minHeight: 71,
-          boxSizing: "border-box",
-          gap: 8,
-          padding: "16px 18px",
+          padding: "13px 18px 16px",
+          borderTop: `1px solid ${C.border}`,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 10,
+          color: C.muted,
+          fontSize: 11,
         }}
       >
-        <div>
-          <div
-            style={{
-              fontSize: 10,
-              color: C.muted,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: ".05em",
-            }}
-          >
-            Products
-          </div>
-          <div
-            style={{
-              fontSize: 18,
-              fontWeight: 800,
-              color: C.ink,
-              marginTop: 3,
-            }}
-          >
-            {brandItems.length}
-          </div>
-        </div>
-        <div>
-          <div
-            style={{
-              fontSize: 10,
-              color: C.muted,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: ".05em",
-            }}
-          >
-            {stockMetricLabel}
-          </div>
-          <div
-            style={{
-              fontSize: 18,
-              fontWeight: 800,
-              color: C.ink,
-              marginTop: 3,
-            }}
-          >
-            {stockMetricValue}
-          </div>
-        </div>
-        <div>
-          <div
-            style={{
-              fontSize: 10,
-              color: C.muted,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: ".05em",
-            }}
-          >
-            Low
-          </div>
-          <div
-            style={{
-              fontSize: 18,
-              fontWeight: 800,
-              color: lowCount ? C.red : C.green,
-              marginTop: 3,
-            }}
-          >
-            {lowCount}
-          </div>
-        </div>
+        <span>
+          {brandItems.length} product{brandItems.length === 1 ? "" : "s"} in inventory
+        </span>
+        <span style={{ color: C.greenDk, fontWeight: 750 }}>
+          Open Inventory <ArrowRightIcon size={12} style={{ verticalAlign: "middle", marginLeft: 3 }} />
+        </span>
       </div>
     </div>
   );
@@ -4184,6 +4163,7 @@ function BrandCard({
 
   return (
     <div
+      className="stock-surface"
       style={{
         background: C.white,
         border: `1px solid ${C.border}`,
@@ -4481,8 +4461,9 @@ function BrandCard({
                 <div
                   key={item.id}
                   onClick={() => setSelectedId(item.id)}
+                  className={`stock-product-row${active ? " active" : ""}`}
                   style={{
-                    padding: "10px 14px",
+                    padding: "12px 16px",
                     cursor: "pointer",
                     borderLeft: `3px solid ${active ? C.lime : "transparent"}`,
                     background: active ? "#f6f8ef" : C.white,
@@ -4509,22 +4490,7 @@ function BrandCard({
                     >
                       {item.name}
                     </span>
-                    {low && (
-                      <span
-                        style={{
-                          fontSize: 9,
-                          fontWeight: 800,
-                          color: C.warn,
-                          background: C.warnBg,
-                          padding: "1px 6px",
-                          borderRadius: 4,
-                          flexShrink: 0,
-                        }}
-                      >
-                        LOW
-                      </span>
-                    )}
-                  </div>
+</div>
                   <div
                     style={{
                       fontSize: 10.5,
@@ -4624,14 +4590,7 @@ function BrandCard({
                       </>
                     )}
                   </div>
-                  <div style={{ marginTop: 5 }}>
-                    <MiniBar
-                      pct={stockPct}
-                      color={low ? C.warn : C.green}
-                      height={4}
-                    />
-                  </div>
-                  <div style={{ display: "flex", gap: 6, marginTop: 7 }}>
+<div style={{ display: "flex", gap: 6, marginTop: 7 }}>
                     {!readOnly && (
                       <>
                         <button
@@ -7256,8 +7215,10 @@ function BatchesModal({
               }}
             >
               {ingredient.branch} · Total stock:{" "}
-              {batches.reduce((s, b) => s + Number(b.stock || 0), 0)}{" "}
-              {ingredient.unit}
+              {formatQuantityWithUnit(
+                batches.reduce((s, b) => s + Number(b.stock || 0), 0),
+                ingredient.unit,
+              )}
               <button
                 onClick={() => setShowBatchHistory(true)}
                 style={{
@@ -9076,6 +9037,12 @@ export default function StockInventoryContent({
         select:focus, input:focus, textarea:focus { border-color: #3b791e !important; box-shadow: 0 0 0 3px rgba(59,121,30,0.12); }
         [role="button"] { transition: filter .15s ease, transform .12s ease; }
         [role="button"]:hover { filter: brightness(0.97); }
+        .stock-surface { animation: stockFadeIn .24s ease both; }
+        .stock-product-row { transition: background .16s ease, transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+        .stock-product-row:hover { background:#fbfdf7 !important; transform:translateX(2px); }
+        .stock-product-row.active { box-shadow:inset 3px 0 0 #cac055; }
+        @keyframes stockFadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+
       `}</style>
 
       {/* Landing screen: cards mirror Brand & Branch; deleting a brand removes its inventory card immediately */}
@@ -9775,19 +9742,8 @@ export default function StockInventoryContent({
                 </label>
               </div>
 
-              <div>
-                <label style={invLabelSt}>Minimum Stock *</label>
-                <input
-                  type="number"
-                  style={invInputSt}
-                  value={form.min_stock}
-                  min="0"
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, min_stock: e.target.value }))
-                  }
-                  required
-                />
-              </div>
+              {/* Minimum stock remains stored for compatibility but is not shown in the UI. */}
+
 
               {isPharmaBrand(form.brand || currentBrandName) && (
                 <div

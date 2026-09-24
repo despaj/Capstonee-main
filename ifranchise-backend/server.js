@@ -3,40 +3,41 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const pool = require("./db");
+const { loadSession } = require("./utils/authSession");
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://www.franchisync.business",
+  "https://franchisync.business",
+  "https://franchisync.vercel.app",
+  "http://localhost:8081",
+  "http://192.168.1.194:8081",
+];
 
 app.set("trust proxy", true);
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ limit: "20mb", extended: true }));
 app.use(cookieParser());
-app.use(
-  cors({
-    origin: [
-      "http://localhost:3000",
-      "https://www.franchisync.business",
-      "https://franchisync.business",
-      "https://franchisync.vercel.app",
-      "http://localhost:8081",
-      "http://192.168.1.194:8081",
-    ],
-    allowedHeaders: ["Content-Type", "X-Client", "X-Device-ID"],
-    credentials: true,
-  }),
-);
+app.use(cors({
+  origin: allowedOrigins,
+  allowedHeaders: ["Content-Type", "X-Client", "X-Device-ID"],
+  credentials: true,
+}));
+// Must run before auth and orders so verified requests have req.user.
+app.use(loadSession(allowedOrigins));
 
-setInterval(
-  async () => {
-    await pool.query(
-      `DELETE FROM reports WHERE expires_at < NOW() AND status = 'submitted'`,
-    );
-    console.log("Cleaned up expired reports");
-  },
-  24 * 60 * 60 * 1000,
-);
+setInterval(async () => {
+  try {
+    await pool.query("DELETE FROM reports WHERE expires_at < NOW() AND status = 'submitted'");
+    await pool.query("DELETE FROM website_auth_sessions WHERE expires_at < NOW()");
+    console.log("Cleaned up expired reports and sessions");
+  } catch (err) {
+    console.error("Scheduled cleanup failed:", err.message);
+  }
+}, 24 * 60 * 60 * 1000);
 
-// Routes
 app.use("/", require("./routes/auth"));
 app.use("/", require("./routes/users"));
 app.use("/", require("./routes/applications"));
@@ -56,9 +57,5 @@ app.use("/", require("./routes/activityLogs"));
 app.use("/", require("./routes/paymongo"));
 app.use("/", require("./routes/psgc"));
 app.use("/", require("./routes/uploads"));
-
 app.get("/", (req, res) => res.send("Franchise Backend is Running"));
-
-app.listen(PORT, "0.0.0.0", () =>
-  console.log(`Server running at http://0.0.0.0:${PORT}`),
-);
+app.listen(PORT, "0.0.0.0", () => console.log(`Server running at http://0.0.0.0:${PORT}`));

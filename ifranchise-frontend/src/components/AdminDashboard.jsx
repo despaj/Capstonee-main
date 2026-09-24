@@ -1,4 +1,4 @@
-// AdminDashboard — updated from the supplied September 9 file.
+// AdminDashboard 
 import React, {
   useState,
   useEffect,
@@ -2187,7 +2187,7 @@ export default function AdminDashboard() {
     },
     {
       id: "mobileOrders",
-      label: "Mobile Order Management",
+      label: "Supply Order Management",
       icon: <Package size={20} />,
       section: "main",
     },
@@ -32540,6 +32540,9 @@ function normalizeOrder(o) {
   return {
     id: `ORD-${String(o.id).padStart(4, "0")}`,
     _dbId: o.id,
+    source: o.order_source === "website" ? "Website" : "Mobile",
+    paymentMethod: o.payment_method ?? null,
+    gcashRef: o.gcash_ref ?? null,
     customer: o.user_name ?? `User #${o.user_id}`,
     phone: o.phone ?? "",
     brand: o.brand ?? "",
@@ -33134,7 +33137,7 @@ function OrderCard({
             #{order.id}
           </div>
           <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>
-            {fmtDate(order.createdAt)}
+            {fmtDate(order.createdAt)} · {order.source}
           </div>
         </div>
         <span
@@ -33369,6 +33372,7 @@ function ReceiptSlip({ order }) {
         <div>
           <b>Phone:</b> {order.phone || "—"}
         </div>
+        {order.paymentMethod && <div style={{fontSize:12, margin:"8px 0",overflowWrap:"anywhere"}}><b>Payment:</b> {order.paymentMethod === "gcash" ? "GCash · Awaiting verification" : "Cash on Delivery · Due on delivery"}{order.gcashRef && <div>Reference: {order.gcashRef}</div>}</div>}
         {order.address && (
           <div>
             <b>Address:</b> {order.address}
@@ -33522,6 +33526,7 @@ function OrderDrawer({
             <div>
               <div style={{ fontSize: 17, fontWeight: 800 }}>
                 Order #{order.id}
+                <span style={{display:"block",fontSize:11,fontWeight:600,marginTop:5}}>{order.source} order</span>
               </div>
               <div style={{ fontSize: 11.5, opacity: 0.85, marginTop: 2 }}>
                 Placed {fmtDate(order.createdAt)}
@@ -33609,7 +33614,8 @@ function OrderDrawer({
             </div>
           </SectionCard>
 
-          {order.address && (
+          {order.paymentMethod && <div style={{fontSize:12, margin:"8px 0",overflowWrap:"anywhere"}}><b>Payment:</b> {order.paymentMethod === "gcash" ? "GCash · Awaiting verification" : "Cash on Delivery · Due on delivery"}{order.gcashRef && <div>Reference: {order.gcashRef}</div>}</div>}
+        {order.address && (
             <SectionCard title="Delivery Address" tint="amber">
               <div
                 style={{ display: "flex", gap: 7, alignItems: "flex-start" }}
@@ -34172,6 +34178,11 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     fetchIngredients();
   }, [fetchActivityLog, fetchIngredients]);
 
+  useEffect(() => {
+    const timer = setInterval(() => { if (document.visibilityState === "visible") fetchOrders({ silent: true }); }, 30000);
+    return () => clearInterval(timer);
+  }, [apiUrl, user?.role, user?.brand, user?.branch]);
+
   /* ── NEW: automatic stock availability for all pending orders ──
       Runs whenever the order list changes — no button click needed.
       Caps each item's availability at the linked ingredient's real batch stock,
@@ -34463,7 +34474,7 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
       await advanceStatus(
         order,
         "accepted",
-        `Accepted — stock deducted, moved to shipping`,
+        `Accepted — stock deducted, ready to ship`,
       );
       return true;
     } catch (err) {
@@ -34481,7 +34492,7 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     try {
       const ok = await acceptOrderWithDeduction(order);
       if (ok)
-        showToast("success", "Order accepted", `#${order.id} is now shipping.`);
+        showToast("success", "Order accepted", `#${order.id} is accepted and ready to ship.`);
     } catch (err) {
       showToast("error", "Couldn't accept order", err.message);
     } finally {
@@ -41833,3 +41844,4 @@ export function AppField({ label, value, highlight, large }) {
 }
 // ─── Exports ──────────────────────────────────────────────────────────────────
 export { ActionDropdown, POSContent };
+

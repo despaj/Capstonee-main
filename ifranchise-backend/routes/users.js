@@ -131,6 +131,9 @@ router.put("/users/:id", async (req, res) => {
       brand,
       branch,
       password,
+      contactNumber,
+      contact_number,
+      phone,
       performed_by,
       performed_by_role,
       latitude,
@@ -148,7 +151,7 @@ router.put("/users/:id", async (req, res) => {
     if (password) {
       const bcrypt = require("bcrypt");
       const hashed = await bcrypt.hash(password, 10);
-      query = `UPDATE users SET name=$1, first_name=$2, last_name=$3, middle_initial=$4, suffix=$5, email=$6, role=$7, brand=$8, branch=$9, password=$10 WHERE id=$11 RETURNING *`;
+      query = `UPDATE users SET name=$1, first_name=$2, last_name=$3, middle_initial=$4, suffix=$5, email=$6, role=$7, brand=$8, branch=$9, contact_number=$10, password=$11 WHERE id=$12 RETURNING *`;
       params = [
         name,
         firstName || null,
@@ -159,11 +162,12 @@ router.put("/users/:id", async (req, res) => {
         role,
         brand,
         branch,
+        contactNumber || contact_number || phone || null,
         hashed,
         req.params.id,
       ];
     } else {
-      query = `UPDATE users SET name=$1, first_name=$2, last_name=$3, middle_initial=$4, suffix=$5, email=$6, role=$7, brand=$8, branch=$9 WHERE id=$10 RETURNING *`;
+      query = `UPDATE users SET name=$1, first_name=$2, last_name=$3, middle_initial=$4, suffix=$5, email=$6, role=$7, brand=$8, branch=$9, contact_number=$10 WHERE id=$11 RETURNING *`;
       params = [
         name,
         firstName || null,
@@ -174,6 +178,7 @@ router.put("/users/:id", async (req, res) => {
         role,
         brand,
         branch,
+        contactNumber || contact_number || phone || null,
         req.params.id,
       ];
     }
@@ -251,6 +256,112 @@ router.delete("/users/:id", async (req, res) => {
   } catch (err) {
     console.error("DELETE /users/:id error:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/users/:id", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, first_name, last_name, middle_initial, suffix, email, role, brand, branch, age, address, contact_number, saved_address
+       FROM users
+       WHERE id = $1`,
+      [req.params.id],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const row = result.rows[0];
+    return res.json({
+      id: row.id,
+      name: row.name || "",
+      firstName: row.first_name || "",
+      lastName: row.last_name || "",
+      middleInitial: row.middle_initial || "",
+      suffix: row.suffix || "",
+      email: row.email || "",
+      role: row.role || "",
+      brand: row.brand || "",
+      branch: row.branch || "",
+      age: row.age || "",
+      address: row.address || "",
+      contactNumber: row.contact_number || "",
+      contact_number: row.contact_number || "",
+      savedAddress: row.saved_address || "",
+    });
+  } catch (err) {
+    console.error("GET /users/:id error:", err);
+    return res.status(500).json({ error: "Failed to fetch user" });
+  }
+});
+
+router.post("/users/:id/verify-password", async (req, res) => {
+  try {
+    const password = String(req.body?.password || "");
+    if (!password) {
+      return res.status(400).json({
+        valid: false,
+        error: "Password is required.",
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT password FROM users WHERE id = $1`,
+      [req.params.id],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        valid: false,
+        error: "User not found.",
+      });
+    }
+
+    const storedPassword = String(result.rows[0]?.password || "");
+    if (!storedPassword) {
+      return res.status(401).json({
+        valid: false,
+        error: "This account does not have a valid password set.",
+      });
+    }
+
+    // Supports both modern bcrypt hashes and legacy plaintext passwords.
+    // The database screenshot shows existing accounts storing plaintext values,
+    // so bcrypt.compare() must NOT be the only check.
+    const isBcryptHash = /^\$2[aby]\$\d{2}\$/.test(storedPassword);
+    let valid = false;
+
+    if (isBcryptHash) {
+      valid = await bcrypt.compare(password, storedPassword);
+    } else {
+      valid = storedPassword === password;
+
+      // Opportunistically upgrade a legacy plaintext password after a successful
+      // verification so future checks use bcrypt.
+      if (valid) {
+        const hashed = await bcrypt.hash(password, 10);
+        await pool.query(
+          `UPDATE users SET password=$1 WHERE id=$2`,
+          [hashed, req.params.id],
+        );
+      }
+    }
+
+    if (!valid) {
+      return res.status(401).json({
+        valid: false,
+        error: "Incorrect password.",
+      });
+    }
+
+    return res.json({ valid: true, success: true });
+  } catch (err) {
+    console.error("POST /users/:id/verify-password error:", err);
+    return res.status(500).json({
+      valid: false,
+      error: "Failed to verify password.",
+    });
   }
 });
 
@@ -642,7 +753,14 @@ router.post("/verify-manager-password", async (req, res) => {
     for (const row of result.rows) {
       if (!row.password) continue;
 
-      if (row.password === password) {
+      let valid = false;
+      try {
+        valid = await bcrypt.compare(password, row.password);
+      } catch {
+        valid = row.password === password;
+      }
+
+      if (valid) {
         return res.json({ valid: true });
       }
     }

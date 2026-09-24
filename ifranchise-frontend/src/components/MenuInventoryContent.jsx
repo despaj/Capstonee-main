@@ -1,4 +1,5 @@
-//copy here design
+//PRODUCT CATALOGUE
+
 import React, {
   useState,
   useEffect,
@@ -154,6 +155,48 @@ const fmtPeso = (n) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+
+// Display-only quantity formatting.
+// UI shows whole numbers with full unit names (e.g. "50 Liters"),
+// while stored numeric values remain unchanged for calculations/API payloads.
+const DISPLAY_UNIT_NAMES = {
+  pcs: "Pieces", piece: "Pieces", pieces: "Pieces",
+  kg: "Kilograms", kilogram: "Kilograms", kilograms: "Kilograms",
+  g: "Grams", gram: "Grams", grams: "Grams",
+  l: "Liters", liter: "Liters", liters: "Liters",
+  ml: "Milliliters", milliliter: "Milliliters", milliliters: "Milliliters",
+  tbsp: "Tablespoons", tablespoon: "Tablespoons", tablespoons: "Tablespoons",
+  tsp: "Teaspoons", teaspoon: "Teaspoons", teaspoons: "Teaspoons",
+  cup: "Cups", cups: "Cups",
+  bottle: "Bottles", bottles: "Bottles",
+  pack: "Packs", packs: "Packs",
+  bag: "Bags", bags: "Bags",
+  box: "Boxes", boxes: "Boxes",
+  can: "Cans", cans: "Cans",
+  gallon: "Gallons", gallons: "Gallons",
+};
+
+const formatQuantityWithUnit = (value, unit) => {
+  const numeric = Number(value || 0);
+  const rawUnit = String(unit || "").trim();
+  const fullUnit =
+    DISPLAY_UNIT_NAMES[rawUnit] ||
+    DISPLAY_UNIT_NAMES[rawUnit.toLowerCase()] ||
+    rawUnit ||
+    "Units";
+  return `${Math.round(numeric).toLocaleString("en-PH")} ${fullUnit}`;
+};
+
+const formatUnitName = (unit) => {
+  const rawUnit = String(unit || "").trim();
+  return (
+    DISPLAY_UNIT_NAMES[rawUnit] ||
+    DISPLAY_UNIT_NAMES[rawUnit.toLowerCase()] ||
+    rawUnit ||
+    "Units"
+  );
+};
+
 const PAGE_SIZE = 20;
 const fmtTs = (d) =>
   new Date(d).toLocaleString("en-PH", {
@@ -2325,7 +2368,7 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
               gap: 6,
             }}
           >
-            {item.available_stock != null ? item.available_stock : "—"}
+            {item.available_stock != null ? formatQuantityWithUnit(item.available_stock, item.unit) : "—"}
             {low && (
               <span
                 style={{
@@ -2581,37 +2624,7 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
                 marginTop: 4,
               }}
             >
-              {item.unit || "—"}
-            </div>
-          </div>
-          <div
-            style={{
-              background: C.bg,
-              border: `1px solid ${C.border}`,
-              borderRadius: 10,
-              padding: "10px 12px",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 9.5,
-                fontWeight: 800,
-                color: C.muted,
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-              }}
-            >
-              Minimum Stock
-            </div>
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 800,
-                color: C.ink,
-                marginTop: 4,
-              }}
-            >
-              {Number(item.min_stock || 0).toLocaleString("en-PH")}
+              {formatUnitName(item.unit)}
             </div>
           </div>
         </div>
@@ -3123,6 +3136,7 @@ function MenuBrandCard({
 
   return (
     <div
+      className="catalogue-surface"
       style={{
         background: C.white,
         border: `1px solid ${C.border}`,
@@ -3133,6 +3147,16 @@ function MenuBrandCard({
         flexDirection: "column",
       }}
     >
+      <style>{`
+        .catalogue-surface { animation: catalogueFadeIn .24s ease both; }
+        .catalogue-item-row { transition: background .16s ease, transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+        .catalogue-item-row:hover { background:#fbfdf7 !important; transform:translateX(2px); }
+        .catalogue-item-row.active { box-shadow:inset 3px 0 0 #b3a941; }
+        .catalogue-action-btn { transition:transform .14s ease, background .14s ease, border-color .14s ease, box-shadow .14s ease; }
+        .catalogue-action-btn:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(50,109,32,.08); }
+        @keyframes catalogueFadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
+
       {/* header — flat, matches Stock Inventory's BrandCard */}
       <div
         style={{
@@ -3416,8 +3440,9 @@ function MenuBrandCard({
                 <div
                   key={item.id}
                   onClick={() => setSelectedId(item.id)}
+                  className={`catalogue-item-row${active ? " active" : ""}`}
                   style={{
-                    padding: "10px 14px",
+                    padding: "12px 16px",
                     cursor: "pointer",
                     borderLeft: `3px solid ${active ? C.lime : "transparent"}`,
                     background: active ? "#f6f8ef" : C.white,
@@ -3471,14 +3496,7 @@ function MenuBrandCard({
                       {item.branch}
                     </span>
                   </div>
-                  <div style={{ marginTop: 5 }}>
-                    <MiniBar
-                      pct={stockPct}
-                      color={low ? C.warn : C.green}
-                      height={4}
-                    />
-                  </div>
-                  <div style={{ display: "flex", gap: 6, marginTop: 7 }}>
+<div style={{ display: "flex", gap: 6, marginTop: 7 }}>
                     {directBrand ? (
                       <span
                         style={{
@@ -3504,7 +3522,7 @@ function MenuBrandCard({
                             e.stopPropagation();
                             onEdit(item);
                           }}
-                          className="edit-btn"
+                          className="edit-btn catalogue-action-btn"
                           style={{
                             ...smallBtnSt,
                             height: 24,
@@ -3521,7 +3539,7 @@ function MenuBrandCard({
                             e.stopPropagation();
                             onRequestDelete(item);
                           }}
-                          className="del-btn"
+                          className="del-btn catalogue-action-btn"
                           style={{
                             ...smallBtnSt,
                             height: 24,

@@ -1,4 +1,4 @@
-// UI/UX copied from the admin dashboard reference; franchisee functionality is preserved.
+// FRANCHISEE
 
 import React, {
   useState,
@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import logo from "../assets/logo.png";
 import Receipts from "./Receipts";
+import WebSupplyOrders from "./WebSupplyOrders";
 import jsPDF from "jspdf";
 import ifranchisejpg from "../assets/ifranchisejpg.jpg";
 import franchisync from "../assets/franchisyncjpg.jpg";
@@ -104,9 +105,9 @@ const VIBE_CSS = `
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body, #root, button, input, textarea, select, option { font-family:'Plus Jakarta Sans',sans-serif; }
   :root {
-  --g1:#bdd43c; --g2:#3b791e; --g3:#2c5c16; --g4:#12241B;
+  --g1:#b3a941; --g2:#3b791e; --g3:#2c5c16; --g4:#12241B;
   --green-primary:#3b791e; --green-dark:#2c5c16; --green-light:#509820;
-  --green-accent:#bdd43c; --green-bg:#f0f5e8; --green-mid:#c9dba0; --white:#ffffff;
+  --green-accent:#b3a941; --green-bg:#f0f5e8; --green-mid:#c9dba0; --white:#ffffff;
   --off-white:#F6F7F1; --gray-100:#F3F4F1; --gray-200:#E1E6D8;
   --gray-300:#D4DBC8; --gray-400:#9CA89C; --gray-500:#6B7A65;
   --gray-600:#4B5A45; --gray-700:#374132; --gray-800:#1F2A1B;
@@ -122,7 +123,7 @@ const VIBE_CSS = `
   --amber:#f59e0b; --amber-bg:#fffbeb; --amber-border:#fde68a;
   --grad-main:linear-gradient(135deg,#509820,#3b791e);
   --grad-dark:linear-gradient(135deg,#12241B,#2c5c16);
-  --grad-gold:linear-gradient(135deg,#e9cd30,#bdd43c);
+  --grad-gold:linear-gradient(135deg,#e9cd30,#b3a941);
   --grad-bg:#F6F7F1;
   --grad-blue:linear-gradient(135deg,#3b82f6,#1d4ed8);
   --grad-orange:linear-gradient(135deg,#f59e0b,#d97706);
@@ -209,6 +210,404 @@ const VIBE_CSS = `
   @keyframes spin { to{transform:rotate(360deg)} }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
   @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+`;
+
+const FRANCHISEE_LAYOUT_CSS = `
+/* Shared AdminDashboard tokens; scoped to the franchisee workspace. */
+.franchisee-root { --fr-border:#E1E6D8; --fr-muted:#5C6B60; --fr-ink:#12241B; --fr-green:#3b791e; --fr-surface:#fff; --fr-bg:#F6F7F1; width:100%; }
+.franchisee-root *, .franchisee-root *::before, .franchisee-root *::after { box-sizing:border-box; }
+.franchisee-root .fr-main { width:0; }
+.franchisee-root .fr-content { max-width:1480px; }
+.franchisee-root .fr-topbar-heading { display:flex; align-items:center; gap:12px; min-width:0; }
+.franchisee-root .fr-topbar-context { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--fr-muted); margin-top:4px; overflow-wrap:anywhere; }
+.franchisee-root .fr-topbar { gap:16px; }
+.franchisee-root .fr-topbar-title { line-height:1.3; }
+.franchisee-root .fr-sidebar { overscroll-behavior:contain; height:100dvh; }
+.franchisee-root .fr-sidebar-header { gap:8px; }
+.franchisee-root .fr-sidebar-header > div { min-width:0; }
+.franchisee-root .fr-sidebar-header img { max-width:100% !important; }
+body.fr-admin-ui .franchisee-root .fr-nav-item { width:100%; border:0; background:transparent; justify-content:flex-start; text-align:left; min-height:42px !important; border-radius:10px !important; padding:10px 12px; }
+body.fr-admin-ui .franchisee-root .fr-nav-item.active { background:#F6F7F1; font-weight:700 !important; }
+body.fr-admin-ui .franchisee-root .fr-nav-item:hover { filter:none; }
+body.fr-admin-ui .franchisee-root .fr-avatar { padding:0; border:0; flex-shrink:0; }
+body.fr-admin-ui .franchisee-root .fr-mobile-menu { display:none; }
+body.fr-admin-ui .franchisee-root .fr-mobile-close { display:none; }
+.franchisee-root .fr-skip-link { position:fixed; top:8px; left:8px; transform:translateY(-160%); z-index:5000; padding:12px 18px; background:#fff; color:#2c5c16; border:2px solid #3b791e; border-radius:10px; }
+.franchisee-root .fr-skip-link:focus { transform:none; }
+.franchisee-root .fr-page-enter { animation:frPageEnter .24s ease-out; min-width:0; }
+@keyframes frPageEnter { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+.franchisee-root :is(.v-card,.v-kpi,.fr-db-kpi,.fr-db-chart,.fr-db-ins,.fr-db-arc-panel,.comm-card) { border-color:var(--fr-border) !important; border-radius:16px !important; box-shadow:0 2px 12px rgba(18,36,27,.045) !important; }
+.franchisee-root :is(.v-kpi,.fr-db-kpi) { min-width:0; padding:18px !important; }
+.franchisee-root :is(.v-kpi-value,.fr-db-kpi) { font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.franchisee-root :is(.v-section-head,.ma-page-head) { gap:12px; flex-wrap:wrap; }
+.franchisee-root .v-section-head { border-bottom:1px solid var(--fr-border); }
+.franchisee-root :is(.v-section-title,.ma-page-title) { font-size:17px; line-height:1.4; }
+.franchisee-root :is(.v-empty-sub,.ma-page-sub) { line-height:1.6; }
+.franchisee-root :is(input,select,textarea) { max-width:100%; accent-color:var(--fr-green); }
+.franchisee-root :is(.v-search,.v-form-input,.v-form-select,.fr-db-date) { border-radius:10px !important; border:1px solid var(--fr-border) !important; min-height:38px; font-size:13px !important; }
+.franchisee-root :is(.v-search,.v-form-input,.v-form-select,.fr-db-date):focus { border-color:var(--fr-green) !important; box-shadow:0 0 0 3px rgba(59,121,30,.12) !important; }
+body.fr-admin-ui .franchisee-root :is(.v-btn,.ma-reports .v-btn,.fr-db-apply,.fr-db-arc-btn) { border-radius:999px !important; min-height:38px; padding:8px 16px; line-height:1.35; }
+body.fr-admin-ui .franchisee-root :is(.manager-dashboard-tab) { border-radius:12px !important; min-height:68px; justify-content:flex-start; text-align:left; padding:12px 14px; }
+body.fr-admin-ui .franchisee-root :is(.v-tab,.fr-db-tab,.ma-report-tab) { border-radius:999px !important; white-space:nowrap; }
+body.fr-admin-ui .franchisee-root :is(.v-btn-primary,.fr-db-apply) { background:#3b791e; color:#fff; border-color:#3b791e; }
+body.fr-admin-ui .franchisee-root :is(.v-tab.active,.fr-db-tab.active,.ma-report-tab.active) { background:#3b791e !important; color:#fff !important; }
+.franchisee-root :is(.v-tabs,.fr-db-tab-group,.ma-report-tabs) { max-width:100%; overflow-x:auto; scrollbar-width:thin; }
+.franchisee-root :is(.v-table,table) { font-size:13px; font-variant-numeric:tabular-nums; }
+.franchisee-root .v-table th { padding:12px 14px !important; background:var(--fr-bg); border-bottom:1px solid var(--fr-border); font-size:10px !important; }
+.franchisee-root .v-table td { padding:12px 14px !important; vertical-align:middle; }
+.franchisee-root .v-table tbody tr:hover td { background:#f0f5e8; }
+.franchisee-root .fr-table-scroll { width:100%; max-width:100%; overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:thin; }
+.franchisee-root .fr-table-scroll > table { min-width:600px; }
+.franchisee-root .fr-responsive-grid { min-width:0; }
+.franchisee-root .fr-responsive-grid > * { min-width:0; }
+.franchisee-root .v-modal-overlay { padding:16px; overflow-y:auto; overscroll-behavior:contain; }
+.franchisee-root .v-modal { width:min(100%,600px); max-height:calc(100dvh - 32px); padding:24px; }
+.franchisee-root [role="button"] { cursor:pointer; }
+@media (hover:hover) {
+  .franchisee-root :is(.v-btn,.comm-action-btn):not(:disabled):hover { transform:translateY(-1px); }
+  .franchisee-root .fr-db-kpi[role="button"]:hover { transform:translateY(-2px); box-shadow:0 8px 22px rgba(18,36,27,.09) !important; }
+}
+@media (max-width:1150px) {
+  .franchisee-root .fr-responsive-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  .franchisee-root .fr-content { padding:20px !important; }
+}
+@media (max-width:900px) {
+  body.fr-admin-ui .franchisee-root .fr-sidebar { width:272px !important; max-width:calc(100vw - 48px); transform:translateX(-105%); visibility:hidden; transition:transform .24s ease,visibility .24s; z-index:2100; }
+  body.fr-admin-ui .franchisee-root.fr-drawer-open .fr-sidebar { transform:translateX(0); visibility:visible; }
+  body.fr-admin-ui .franchisee-root .fr-main { margin-left:0 !important; width:100%; }
+  body.fr-admin-ui .franchisee-root .fr-mobile-close { display:flex; margin-bottom:12px; border-color:#E1E6D8; }
+  body.fr-admin-ui .franchisee-root .fr-mobile-menu { display:inline-flex; padding:0; width:40px; height:40px; border:1px solid var(--fr-border); border-radius:10px; flex-shrink:0; }
+  body.fr-admin-ui .franchisee-root .fr-drawer-backdrop { position:fixed; inset:0; z-index:2000; width:100%; height:100%; border:0; border-radius:0 !important; background:rgba(18,36,27,.42); backdrop-filter:blur(3px); animation:vFadeIn .2s ease; }
+  body.fr-admin-ui .franchisee-root .fr-nav-label, .franchisee-root .fr-nav-section { display:block !important; }
+  .franchisee-root .fr-responsive-grid { grid-template-columns:1fr !important; }
+  .franchisee-root .fr-content { padding:16px !important; }
+  .franchisee-root .fr-topbar { padding:12px 16px !important; }
+}
+@media (min-width:901px) { body.fr-admin-ui .franchisee-root .fr-drawer-backdrop { display:none; } }
+@media (max-width:560px) {
+  .franchisee-root .fr-content { padding:12px !important; }
+  .franchisee-root :is(.fr-db-kpi-grid,.fr-db-ins-grid,.fr-db-bot-grid,.v-stat-grid) { grid-template-columns:1fr !important; gap:12px; }
+  .franchisee-root :is(.fr-db-chart,.fr-db-ins,.fr-db-arc-panel,.v-card) { padding:16px !important; }
+  .franchisee-root .v-modal { padding:20px 16px; }
+  .franchisee-root .fr-topbar-title { font-size:17px !important; }
+  .franchisee-root .fr-topbar-context { font-size:10px; }
+  .franchisee-root .fr-topbar { gap:8px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  body.fr-admin-ui .franchisee-root *, body.fr-admin-ui .franchisee-root *::before, body.fr-admin-ui .franchisee-root *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; }
+  body.fr-admin-ui .franchisee-root button:hover, body.fr-admin-ui .franchisee-root button:active { transform:none !important; }
+}
+
+`;
+
+const ADMIN_UI_PARITY_CSS = (sidebarCollapsed) => `
+  /* AdminDashboard UI parity: shared shell, controls, typography, states, and responsive behavior. */
+  :root {
+    --g1:#b3a941; --g2:#3b791e; --g3:#2c5c16; --g4:#12241B;
+    --green-primary:#3b791e; --green-dark:#2c5c16; --green-light:#509820;
+    --lime:#b3a941; --lime-ink:#24310C; --white:#ffffff;
+    --gray-100:#F3F4F1; --gray-200:#E1E6D8; --gray-300:#D4DBC8;
+    --gray-400:#9CA89C; --gray-500:#5C6B60; --gray-600:#4B5A45;
+    --gray-700:#374132; --gray-800:#1F2A1B;
+    --shadow:rgba(50,109,32,0.10); --shadow-strong:rgba(14,59,34,0.20);
+    --card-border:#E1E6D8;
+    --grad-main:linear-gradient(135deg,#509820,#3b791e);
+    --grad-dark:linear-gradient(135deg,#12241B,#2c5c16);
+    --grad-gold:linear-gradient(135deg,#e9cd30,#b3a941);
+    --grad-bg:#F6F7F1;
+  }
+
+  .franchisee-root {
+    font-family:'Plus Jakarta Sans',sans-serif !important;
+    display:flex;
+    min-height:100vh;
+    background:#F6F7F1 !important;
+    background-image:radial-gradient(#E1E6D8 1px,transparent 1px) !important;
+    background-size:22px 22px !important;
+    color:#12241B;
+  }
+
+  .fr-sidebar {
+    width:${sidebarCollapsed ? "76px" : "272px"};
+    background:#fff !important;
+    box-shadow:1px 0 0 #E1E6D8 !important;
+    border-right:none !important;
+    position:fixed !important;
+    top:0; left:0; bottom:0;
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding:18px 14px !important;
+    overflow-y:auto;
+    overflow-x:hidden;
+    z-index:1000;
+    transition:width .3s ease, transform .3s ease;
+  }
+  .fr-sidebar-header {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:4px 6px 18px !important;
+    min-height:56px;
+  }
+  .fr-logo-mark {
+    width:38px !important;
+    height:38px !important;
+    border-radius:10px !important;
+    background:#12241B !important;
+    color:#b3a941 !important;
+    box-shadow:none !important;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:800;
+    font-size:15px;
+    flex-shrink:0;
+    overflow:hidden;
+  }
+  .fr-logo-mark img { width:100%; height:100%; object-fit:contain; display:block; border-radius:10px; }
+  .fr-brand {
+    font-family:'Plus Jakarta Sans',sans-serif !important;
+    color:#12241B !important;
+    font-weight:800 !important;
+    font-size:16px !important;
+    white-space:nowrap;
+  }
+  .fr-toggle {
+    background:#fff !important;
+    border:1px solid #E1E6D8 !important;
+    border-radius:8px !important;
+    width:28px !important;
+    height:28px !important;
+    min-width:28px !important;
+    min-height:28px !important;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    color:#5C6B60 !important;
+    flex-shrink:0;
+    padding:0 !important;
+  }
+  .fr-toggle:hover { color:#2c5c16 !important; background:#F6F7F1 !important; border-color:#c9dba0 !important; }
+
+  .fr-nav {
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    padding:0 !important;
+  }
+  .fr-nav-section {
+    font-size:10.5px !important;
+    font-weight:800 !important;
+    letter-spacing:.08em !important;
+    text-transform:uppercase;
+    color:#9CA89C !important;
+    padding:12px 10px 6px !important;
+    font-family:'Plus Jakarta Sans',sans-serif !important;
+  }
+  .fr-nav-item {
+    font-family:'Plus Jakarta Sans',sans-serif !important;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:10px 12px !important;
+    margin:0 !important;
+    border-radius:12px !important;
+    color:#5C6B60 !important;
+    cursor:pointer;
+    position:relative;
+    font-size:14px !important;
+    font-weight:500 !important;
+    transition:background .15s ease,color .15s ease;
+    min-height:40px !important;
+  }
+  .fr-nav-item:hover { background:#F6F7F1 !important; color:#12241B !important; }
+  .fr-nav-item.active {
+    background:#F6F7F1 !important;
+    color:#2c5c16 !important;
+    box-shadow:none !important;
+    font-weight:700 !important;
+  }
+  .fr-nav-item.active .fr-nav-icon { color:#3b791e !important; }
+  .fr-nav-item.logout { color:#c0392b !important; }
+  .fr-nav-item.logout:hover { background:#fdf1f0 !important; }
+  .fr-nav-icon {
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:22px;
+    height:22px;
+  }
+  .fr-nav-label {
+    display:${sidebarCollapsed ? "none" : "block"};
+    flex:1;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .fr-nav-bar {
+    position:absolute !important;
+    right:6px !important;
+    top:20% !important;
+    height:60% !important;
+    width:3px !important;
+    border-radius:2px !important;
+    background:#b3a941 !important;
+  }
+
+  .fr-main {
+    flex:1;
+    min-width:0;
+    margin-left:${sidebarCollapsed ? "76px" : "272px"};
+    transition:margin-left .3s ease;
+  }
+  .fr-topbar {
+    width:100%;
+    background:#fff !important;
+    box-shadow:none !important;
+    border-bottom:1px solid #E1E6D8 !important;
+    display:flex;
+    position:sticky;
+    top:0;
+    z-index:100;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 30px !important;
+    min-height:72px;
+    box-sizing:border-box;
+  }
+  .fr-topbar-title {
+    font-family:'Plus Jakarta Sans',sans-serif !important;
+    color:#12241B !important;
+    font-size:22px !important;
+    font-weight:800 !important;
+    margin:0;
+  }
+  .fr-avatar {
+    background:#12241B !important;
+    color:#b3a941 !important;
+    box-shadow:none !important;
+    border-radius:12px !important;
+    width:38px !important;
+    height:38px !important;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:700;
+  }
+  .fr-user-name { font-weight:700 !important; font-size:13px !important; color:#12241B !important; text-align:right; }
+  .fr-user-role { font-size:11.5px !important; color:#5C6B60 !important; text-align:right; }
+  .fr-content {
+    width:100%;
+    max-width:1400px;
+    margin:0 auto;
+    padding:20px 30px 40px !important;
+    box-sizing:border-box;
+  }
+
+  /* Same shared control treatment used by AdminDashboard. */
+  body.fr-admin-ui, body.fr-admin-ui *, body.fr-admin-ui *::before, body.fr-admin-ui *::after {
+    font-family:'Plus Jakarta Sans',sans-serif !important;
+    box-sizing:border-box;
+  }
+  body.fr-admin-ui { color:#12241B; background:#F6F7F1; }
+  body.fr-admin-ui :is(button,input,select,textarea) { font-size:12px; }
+  body.fr-admin-ui button {
+    font-size:12px !important;
+    font-weight:600 !important;
+    line-height:1.35 !important;
+    letter-spacing:0 !important;
+    text-transform:none !important;
+    min-height:36px;
+    border-radius:999px;
+    padding:7px 12px;
+    border:1px solid #3b791e;
+    background:#fff;
+    color:#2c5c16;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:7px;
+    vertical-align:middle;
+    box-sizing:border-box;
+    cursor:pointer;
+    box-shadow:none !important;
+    transition:background-color .16s ease,color .16s ease,border-color .16s ease,transform .12s ease,filter .16s ease !important;
+    -webkit-tap-highlight-color:transparent;
+  }
+  body.fr-admin-ui button:not(:disabled):not([aria-disabled="true"]):hover { filter:brightness(.96); }
+  body.fr-admin-ui button:not(:disabled):not([aria-disabled="true"]):active { transform:scale(.97); }
+  body.fr-admin-ui :is(button,a,input,select,textarea,summary,[tabindex]):focus-visible {
+    outline:2px solid #3b791e !important;
+    outline-offset:3px !important;
+  }
+  body.fr-admin-ui button:is(:disabled,[aria-disabled="true"]) {
+    background:#e8ebe5 !important;
+    background-image:none !important;
+    color:#687260 !important;
+    border-color:#e8ebe5 !important;
+    opacity:1 !important;
+    cursor:not-allowed !important;
+    box-shadow:none !important;
+    filter:none !important;
+    transform:none !important;
+  }
+  body.fr-admin-ui button svg { flex-shrink:0; width:16px; height:16px; }
+  body.fr-admin-ui :is(input,select,textarea) { font-weight:500; }
+  body.fr-admin-ui :is(input,textarea)::placeholder { color:#5C6B60; opacity:.85; }
+  body.fr-admin-ui .fr-nav-item { border-radius:10px !important; font-size:13px !important; }
+  body.fr-admin-ui .fr-toggle { min-width:36px; min-height:36px; }
+
+  /* Shared dialog/card/input parity for role dashboards. */
+  body.fr-admin-ui .v-modal-overlay { background:rgba(0,0,0,.55) !important; backdrop-filter:blur(4px); }
+  body.fr-admin-ui .v-modal { border-radius:22px !important; border:1px solid rgba(59,121,30,.15) !important; box-shadow:0 24px 80px rgba(0,0,0,.25) !important; }
+  body.fr-admin-ui .v-modal-title { color:#12241B !important; font-weight:800 !important; }
+  body.fr-admin-ui .v-tabs { background:#F6F7F1 !important; border-color:#E1E6D8 !important; }
+  body.fr-admin-ui .v-tab.active { background:#3b791e !important; color:#fff !important; }
+  body.fr-admin-ui .v-search,
+  body.fr-admin-ui .v-form-input,
+  body.fr-admin-ui .v-form-select {
+    border-color:#E1E6D8 !important;
+    background:#fff !important;
+    color:#12241B !important;
+  }
+  body.fr-admin-ui .v-search:focus,
+  body.fr-admin-ui .v-form-input:focus,
+  body.fr-admin-ui .v-form-select:focus {
+    border-color:#3b791e !important;
+    box-shadow:0 0 0 3px rgba(59,121,30,.1) !important;
+  }
+
+  @media (max-width: 900px) {
+    .fr-sidebar {
+      width:${sidebarCollapsed ? "76px" : "272px"};
+      box-shadow:8px 0 30px rgba(14,59,34,.12) !important;
+      transform:none;
+    }
+    .fr-main { margin-left:${sidebarCollapsed ? "76px" : "272px"} !important; }
+    .fr-topbar { padding:12px 16px !important; min-height:64px; }
+    .fr-content { padding:16px !important; max-width:none; }
+    .fr-topbar-title { font-size:18px !important; }
+    .fr-user-name, .fr-user-role { display:none; }
+  }
+  @media (max-width: 560px) {
+    .fr-content { padding:12px !important; }
+    .fr-topbar { padding:10px 12px !important; }
+    .fr-topbar-title { font-size:17px !important; }
+    .fr-avatar { width:36px !important; height:36px !important; }
+  }
+  @media (pointer:coarse) {
+    body.fr-admin-ui button { min-height:44px; min-width:44px; }
+    .fr-toggle { width:44px !important; height:44px !important; }
+  }
+  @media (prefers-reduced-motion:reduce) {
+    body.fr-admin-ui *, body.fr-admin-ui *::before, body.fr-admin-ui *::after {
+      animation:none !important; transition:none !important; scroll-behavior:auto !important;
+    }
+    body.fr-admin-ui button:active { transform:none !important; }
+  }
 `;
 
 const fmtPeso = (n) =>
@@ -476,13 +875,82 @@ const getUserFromStorage = () => {
 };
 
 export default function FranchiseeDashboard({ onLogout }) {
+  useEffect(() => {
+    const fontId = "fr-plus-jakarta-sans";
+    if (!document.getElementById(fontId)) {
+      const link = document.createElement("link");
+      link.id = fontId;
+      link.rel = "stylesheet";
+      link.href =
+        "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap";
+      document.head.appendChild(link);
+    }
+    document.body.classList.add("fr-admin-ui");
+    return () => document.body.classList.remove("fr-admin-ui");
+  }, []);
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState(() => {
-    return sessionStorage.getItem("fr_activeModule") || "dashboard";
+    const stored = sessionStorage.getItem("fr_activeModule");
+    return ["dashboard", "menuInventory", "stockInventory", "reports", "staff", "communication", "profile"].includes(stored) ? stored : "dashboard";
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const mobileMenuRef = useRef(null);
+  const sidebarRef = useRef(null);
+  const logoutDialogRef = useRef(null);
+
+  // Navigation is a drawer below 900px and a collapsible rail on desktop.
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 900px)");
+    const closeOnDesktop = () => { if (!media.matches) setMobileNavOpen(false); };
+    media.addEventListener("change", closeOnDesktop);
+    return () => media.removeEventListener("change", closeOnDesktop);
+  }, []);
+
+  useEffect(() => {
+    const container = showLogoutModal ? logoutDialogRef.current
+      : mobileNavOpen ? sidebarRef.current : null;
+    if (!container) return undefined;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusables = () => Array.from(container.querySelectorAll(
+      'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]'
+    )).filter((node) => node.getClientRects().length > 0);
+    (focusables()[0] || container).focus();
+    const handleKey = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (showLogoutModal) { if (!isLoggingOut) setShowLogoutModal(false); }
+        else setMobileNavOpen(false);
+      }
+      if (event.key === "Tab") {
+        const items = focusables();
+        if (!items.length) { event.preventDefault(); container.focus(); return; }
+        const first = items[0], last = items[items.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !container.contains(document.activeElement))) {
+          event.preventDefault(); last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !container.contains(document.activeElement))) {
+          event.preventDefault(); first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKey);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [mobileNavOpen, showLogoutModal, isLoggingOut]);
+
+  const selectModule = (id) => {
+    setActiveModule(id);
+    setMobileNavOpen(false);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  };
   const [transactions, setTransactions] = useState([]);
   const [brands, setBrands] = useState([]);
 
@@ -509,6 +977,8 @@ export default function FranchiseeDashboard({ onLogout }) {
   const handleLogout = () => setShowLogoutModal(true);
 
   const confirmLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
     try {
       const stored =
         localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -551,11 +1021,11 @@ export default function FranchiseeDashboard({ onLogout }) {
     { id: "staff", label: "Staff Management", icon: <Users size={20} /> },
     {
       id: "communication",
-      label: "Announcement",
+      label: "Announcements",
       icon: <Megaphone size={20} />,
     },
 
-    { id: "profile", label: "Edit Profile", icon: <User size={20} /> },
+    { id: "profile", label: "Profile Settings", icon: <User size={20} /> },
     {
       id: "logout",
       label: "Logout",
@@ -568,7 +1038,7 @@ export default function FranchiseeDashboard({ onLogout }) {
     navigation.find((n) => n.id === activeModule)?.label || "Dashboard";
 
   return (
-    <div className="franchisee-root">
+    <div className={`franchisee-root${mobileNavOpen ? " fr-drawer-open" : ""}`}>
       <style>
         {VIBE_CSS}
         {`
@@ -630,7 +1100,7 @@ export default function FranchiseeDashboard({ onLogout }) {
         .fr-nav-item.logout:hover { background:#fdf1f0; }
         .fr-nav-icon { flex-shrink:0; display:flex; align-items:center; justify-content:center; width:22px; height:22px; }
         .fr-nav-label { display:${sidebarCollapsed ? "none" : "block"}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .fr-nav-bar { position:absolute; right:6px; top:20%; height:60%; width:3px; border-radius:2px; background:#bdd43c; }
+        .fr-nav-bar { position:absolute; right:6px; top:20%; height:60%; width:3px; border-radius:2px; background:#b3a941; }
         .fr-main { flex:1; margin-left:${sidebarCollapsed ? "76px" : "272px"}; transition:margin-left 0.3s ease; min-width:0; }
         .fr-topbar {
           background:#fff; padding:16px 30px; box-shadow:none; display:flex; justify-content:space-between; align-items:center;
@@ -642,7 +1112,7 @@ export default function FranchiseeDashboard({ onLogout }) {
         .fr-user-role { font-size:11.5px; color:#5C6B60; font-weight:500; font-family:'Plus Jakarta Sans',sans-serif; }
         .fr-avatar {
           width:38px; height:38px; border-radius:12px; background:#12241B; display:flex; align-items:center; justify-content:center;
-          font-size:14px; font-weight:800; color:#bdd43c; cursor:pointer; transition:all .15s; box-shadow:none; font-family:'Plus Jakarta Sans',sans-serif;
+          font-size:14px; font-weight:800; color:#b3a941; cursor:pointer; transition:all .15s; box-shadow:none; font-family:'Plus Jakarta Sans',sans-serif;
         }
         .fr-avatar:hover { transform:translateY(-1px); }
         .fr-content { padding:20px 30px 40px; max-width:1400px; margin:0 auto; width:100%; }
@@ -653,9 +1123,14 @@ export default function FranchiseeDashboard({ onLogout }) {
         }
 `}
       </style>
+      <style>{ADMIN_UI_PARITY_CSS(sidebarCollapsed)}</style>
+      <style>{FRANCHISEE_LAYOUT_CSS}</style>
 
+      <a className="fr-skip-link" href="#fr-workspace">Skip to content</a>
+      {mobileNavOpen && <button type="button" className="fr-drawer-backdrop"
+        aria-label="Close navigation" onClick={() => setMobileNavOpen(false)} tabIndex={-1} />}
       {/* Sidebar */}
-      <aside className="fr-sidebar">
+      <aside id="fr-navigation" ref={sidebarRef} tabIndex={-1} className="fr-sidebar" aria-label="Franchisee navigation">
         <div className="fr-sidebar-header">
           {!sidebarCollapsed && (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -679,7 +1154,8 @@ export default function FranchiseeDashboard({ onLogout }) {
           {!sidebarCollapsed && (
             <button
               className="fr-toggle"
-              onClick={() => setSidebarCollapsed(true)}
+              aria-label="Collapse navigation" type="button"
+              onClick={() => { setMobileNavOpen(false); if (!window.matchMedia("(max-width: 900px)").matches) setSidebarCollapsed(true); }}
             >
               <X size={16} />
             </button>
@@ -695,28 +1171,33 @@ export default function FranchiseeDashboard({ onLogout }) {
           >
             <button
               className="fr-toggle"
+              aria-label="Expand navigation" type="button"
               onClick={() => setSidebarCollapsed(false)}
             >
               <ChevronRight size={16} />
             </button>
           </div>
         )}
+        <button type="button" className="fr-mobile-close" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)}><X size={16} /> Close menu</button>
         <nav className="fr-nav">
           {!sidebarCollapsed && <div className="fr-nav-section">Main Menu</div>}
           {navigation.slice(0, 6).map((item) => (
-            <div
+            <button
+              type="button"
+              aria-label={item.label}
+              aria-current={activeModule === item.id ? "page" : undefined}
               key={item.id}
               className={`fr-nav-item ${activeModule === item.id ? "active" : ""}`}
               onClick={() => {
                 if (item.action) item.action();
-                else setActiveModule(item.id);
+                else selectModule(item.id);
               }}
               title={sidebarCollapsed ? item.label : undefined}
             >
               <span className="fr-nav-icon">{item.icon}</span>
               <span className="fr-nav-label">{item.label}</span>
               {activeModule === item.id && <span className="fr-nav-bar" />}
-            </div>
+            </button>
           ))}
           {!sidebarCollapsed && (
             <div className="fr-nav-section" style={{ marginTop: 8 }}>
@@ -724,18 +1205,21 @@ export default function FranchiseeDashboard({ onLogout }) {
             </div>
           )}
           {navigation.slice(6).map((item) => (
-            <div
+            <button
+              type="button"
+              aria-label={item.label}
+              aria-current={activeModule === item.id ? "page" : undefined}
               key={item.id}
               className={`fr-nav-item ${activeModule === item.id ? "active" : ""} ${item.id === "logout" ? "logout" : ""}`}
               onClick={() => {
                 if (item.action) item.action();
-                else setActiveModule(item.id);
+                else selectModule(item.id);
               }}
               title={sidebarCollapsed ? item.label : undefined}
             >
               <span className="fr-nav-icon">{item.icon}</span>
               <span className="fr-nav-label">{item.label}</span>
-            </div>
+            </button>
           ))}
         </nav>
       </aside>
@@ -743,19 +1227,26 @@ export default function FranchiseeDashboard({ onLogout }) {
       {/* Main */}
       <main className="fr-main">
         <div className="fr-topbar">
-          <div>
+          <div className="fr-topbar-heading">
+            <button type="button" ref={mobileMenuRef} className="fr-mobile-menu"
+              aria-label="Open navigation" aria-controls="fr-navigation" aria-expanded={mobileNavOpen}
+              onClick={() => setMobileNavOpen(true)}><Grid3X3 size={19} /></button>
+            <div>
             <h1 className="fr-topbar-title">{moduleLabel}</h1>
+            <div className="fr-topbar-context"><Store size={12} />{[user?.brand, user?.branch].filter(Boolean).join(" · ") || "Franchisee workspace"}</div>
+            </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ textAlign: "right" }}>
               <div className="fr-user-name">{user?.name}</div>
               <div className="fr-user-role">Franchisee — {user?.branch}</div>
             </div>
-            <div className="fr-avatar">{(user?.name || "F")[0]}</div>
+            <button type="button" className="fr-avatar" aria-label="Open profile settings" title="Profile Settings" onClick={() => selectModule("profile")}>{(user?.name || "F")[0]}</button>
           </div>
         </div>
 
-        <div className="fr-content">
+        <div id="fr-workspace" tabIndex={-1} className="fr-content">
+          <div key={activeModule} className="fr-page-enter">
           {activeModule === "dashboard" && (
             <FrDashboardContent
               transactions={transactions}
@@ -776,7 +1267,8 @@ export default function FranchiseeDashboard({ onLogout }) {
           )}
           {activeModule === "staff" && <FrStaffManagementContent user={user} />}
           {activeModule === "communication" && <FrCommunicationContent />}
-          {activeModule === "profile" && <FrProfileContent user={user} />}
+          {activeModule === "profile" && <FrProfileContent user={user} onUserUpdate={setUser} />}
+          </div>
         </div>
       </main>
 
@@ -791,6 +1283,7 @@ export default function FranchiseeDashboard({ onLogout }) {
         >
           <div
             className="v-modal"
+            ref={logoutDialogRef} role="dialog" aria-modal="true" aria-labelledby="fr-logout-title" tabIndex={-1}
             style={{ maxWidth: 400, textAlign: "center" }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -811,7 +1304,7 @@ export default function FranchiseeDashboard({ onLogout }) {
             >
               <LogOut size={28} />
             </div>
-            <h2 className="v-modal-title" style={{ textAlign: "center" }}>
+            <h2 id="fr-logout-title" className="v-modal-title" style={{ textAlign: "center" }}>
               Log out?
             </h2>
             <p
@@ -935,7 +1428,13 @@ function ProductAnalyticsPanel({
         `${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`,
       );
       const json = await res.json();
-      setData(json);
+      if (!res.ok) throw new Error("Unable to load product analytics.");
+      setData({
+        ...(json && !Array.isArray(json) ? json : {}),
+        top10: Array.isArray(json?.top10) ? json.top10 : [],
+        fastMoving: Array.isArray(json?.fastMoving) ? json.fastMoving : [],
+        slowMoving: Array.isArray(json?.slowMoving) ? json.slowMoving : [],
+      });
     } catch (err) {
       console.error(err);
     } finally {
@@ -1628,7 +2127,7 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
       {analysis && !loading && (
         <>
           {/* KPI row — colored left-border accent */}
-          <div
+          <div className="fr-responsive-grid"
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(4,1fr)",
@@ -1720,7 +2219,7 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
               >
                 Recommendations
               </div>
-              <div
+              <div className="fr-responsive-grid"
                 style={{
                   display: "grid",
                   gridTemplateColumns:
@@ -2475,7 +2974,7 @@ function SalesTrendSection({
         sub={`${getRangeLabel()} · ${filterLabel}`}
       />
       <div style={{ padding: "18px 20px" }}>
-        <div
+        <div className="fr-responsive-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 280px",
@@ -2720,7 +3219,7 @@ function SalesTrendSection({
             </div>
             {hasData ? (
               <>
-                <div
+                <div className="fr-responsive-grid"
                   style={{
                     display: "grid",
                     gridTemplateColumns: "1fr 1fr",
@@ -2924,7 +3423,7 @@ function SalesTrendSection({
           </div>
         </div>
 
-        <div
+        <div className="fr-responsive-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr 1fr",
@@ -3240,7 +3739,7 @@ function PrescriptiveSection({
         }
       />
       <div style={{ padding: "18px 20px" }}>
-        <div
+        <div className="fr-responsive-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(4, 1fr)",
@@ -3350,7 +3849,7 @@ function PrescriptiveSection({
           ))}
         </div>
 
-        <div
+        <div className="fr-responsive-grid"
           style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -3879,7 +4378,13 @@ function SalesVsStockSection({
         `${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`,
       );
       const json = await res.json();
-      setData(json);
+      if (!res.ok) throw new Error("Unable to load product analytics.");
+      setData({
+        ...(json && !Array.isArray(json) ? json : {}),
+        top10: Array.isArray(json?.top10) ? json.top10 : [],
+        fastMoving: Array.isArray(json?.fastMoving) ? json.fastMoving : [],
+        slowMoving: Array.isArray(json?.slowMoving) ? json.slowMoving : [],
+      });
     } catch (err) {
       console.error(err);
     } finally {
@@ -3977,7 +4482,7 @@ function SalesVsStockSection({
     );
     const maxQ = isBuyers ? maxR : Math.max(1, ...list.map((p) => p.totalQty));
     return list.slice(0, 8).map((p, i) => (
-      <div
+      <div className="fr-responsive-grid"
         key={p.name}
         style={{
           display: "grid",
@@ -4275,7 +4780,7 @@ function SalesVsStockSection({
           ))}
         </div>
 
-        <div
+        <div className="fr-responsive-grid"
           style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18 }}
         >
           <div>
@@ -4305,7 +4810,7 @@ function SalesVsStockSection({
                 fast.length > 0 ||
                 slow.length > 0 ||
                 data?.topBuyers?.length > 0) && (
-                <div
+                <div className="fr-responsive-grid"
                   style={{
                     display: "grid",
                     gridTemplateColumns:
@@ -4750,7 +5255,7 @@ function BranchOperationsSnapshot({
               borderRadius: 10,
             }}
           >
-            <table
+            <div className="fr-table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table
               className="v-table"
               style={{
                 minWidth: 700,
@@ -4828,7 +5333,7 @@ function BranchOperationsSnapshot({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </div>
@@ -5407,12 +5912,144 @@ function FrDashboardContent({ transactions, brands, user }) {
     return { revenue, cost, profit, margin, hasCost };
   }, [itemBreakdown]);
 
+
+  // ── POS revenue vs last month ──────────────────────────────────────────────
+  const currentMonthTransactions = useMemo(() => {
+    const now = new Date();
+    return myTransactions.filter((tx) => {
+      const d = new Date(tx.created_at || tx.date || 0);
+      return (
+        !Number.isNaN(d.getTime()) &&
+        d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth()
+      );
+    });
+  }, [myTransactions]);
+
+  const lastMonthTransactions = useMemo(() => {
+    const now = new Date();
+    const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return myTransactions.filter((tx) => {
+      const d = new Date(tx.created_at || tx.date || 0);
+      return (
+        !Number.isNaN(d.getTime()) &&
+        d.getFullYear() === previous.getFullYear() &&
+        d.getMonth() === previous.getMonth()
+      );
+    });
+  }, [myTransactions]);
+
+  const currentMonthRevenue = useMemo(
+    () =>
+      currentMonthTransactions.reduce(
+        (sum, tx) => sum + Number(tx.total || 0),
+        0,
+      ),
+    [currentMonthTransactions],
+  );
+
+  const lastMonthRevenue = useMemo(
+    () =>
+      lastMonthTransactions.reduce(
+        (sum, tx) => sum + Number(tx.total || 0),
+        0,
+      ),
+    [lastMonthTransactions],
+  );
+
+  const posRevenueDifference = currentMonthRevenue - lastMonthRevenue;
+  const hasPreviousPosRevenue = lastMonthRevenue > 0;
+  const posMoM = hasPreviousPosRevenue
+    ? (posRevenueDifference / lastMonthRevenue) * 100
+    : null;
+
+  const posRevenueDirection = !hasPreviousPosRevenue
+    ? "neutral"
+    : posRevenueDifference > 0
+      ? "up"
+      : posRevenueDifference < 0
+        ? "down"
+        : "same";
+
+  const posRevenueStatus =
+    posRevenueDirection === "up"
+      ? {
+          label: "REVENUE UP",
+          title: "POS revenue is higher than last month",
+          color: "#2c5c16",
+          bg: "#f0f5e8",
+          border: "#c9dba0",
+          icon: TrendingUp,
+        }
+      : posRevenueDirection === "down"
+        ? {
+            label: "REVENUE DOWN",
+            title: "POS revenue is lower than last month",
+            color: "#b42318",
+            bg: "#fef3f2",
+            border: "#f2c9c4",
+            icon: TrendingDown,
+          }
+        : posRevenueDirection === "same"
+          ? {
+              label: "NO CHANGE",
+              title: "POS revenue is unchanged from last month",
+              color: "#7c5d12",
+              bg: "#fffbeb",
+              border: "#fde68a",
+              icon: Activity,
+            }
+          : {
+              label: "NO BASELINE",
+              title: "Last-month POS revenue is not available yet",
+              color: "#5C6B60",
+              bg: "#F6F7F1",
+              border: "#E1E6D8",
+              icon: Info,
+            };
+
+  const PosRevenueStatusIcon = posRevenueStatus.icon;
+
+  const currentMonthProductRows = useMemo(
+    () => buildBranchItemBreakdown(currentMonthTransactions),
+    [currentMonthTransactions],
+  );
+
+  const lastMonthProductRows = useMemo(
+    () => buildBranchItemBreakdown(lastMonthTransactions),
+    [lastMonthTransactions],
+  );
+
+  const branchProductSummary = useMemo(() => {
+    const previousMap = new Map(
+      lastMonthProductRows.map((row) => [row.name, row]),
+    );
+
+    return currentMonthProductRows.slice(0, 5).map((row) => {
+      const previous = previousMap.get(row.name);
+      const previousRevenue = Number(previous?.revenue || 0);
+      const change =
+        previousRevenue > 0
+          ? ((row.revenue - previousRevenue) / previousRevenue) * 100
+          : null;
+
+      return {
+        ...row,
+        previousRevenue,
+        change,
+      };
+    });
+  }, [currentMonthProductRows, lastMonthProductRows]);
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <style>{`
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         .fr-db-kpi-grid  { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+        .fr-pos-summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:13px; }
+        .fr-branch-product-row { display:grid; grid-template-columns:minmax(145px,.42fr) minmax(220px,.8fr) minmax(280px,1.25fr); gap:13px; padding:12px 13px; border-radius:12px; align-items:start; }
+        @media(max-width:900px){ .fr-pos-summary-grid{grid-template-columns:1fr}.fr-branch-product-row{grid-template-columns:1fr !important} }
         .fr-db-ins-grid  { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
         .fr-db-bot-grid  { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
         @media(max-width:960px){ .fr-db-kpi-grid{ grid-template-columns:repeat(2,1fr); } }
@@ -5472,6 +6109,7 @@ function FrDashboardContent({ transactions, brands, user }) {
             <button
               key={tab.id}
               className={`manager-dashboard-tab${active ? " active" : ""}`}
+              aria-pressed={active}
               onClick={() => setDashboardTab(tab.id)}
               style={{
                 border: `1px solid ${active ? "#A9C982" : "transparent"}`,
@@ -5494,7 +6132,7 @@ function FrDashboardContent({ transactions, brands, user }) {
                   alignItems: "center",
                   justifyContent: "center",
                   background: active ? "#3b791e" : "#F1F5F0",
-                  color: active ? "#bdd43c" : "#71806F",
+                  color: active ? "#b3a941" : "#71806F",
                 }}
               >
                 <Icon size={16} />
@@ -5753,197 +6391,600 @@ function FrDashboardContent({ transactions, brands, user }) {
         </button>
       </div>
 
-      {/* Compact KPI row — branch financial view */}
-      <div className="fr-db-kpi-grid">
-        {[
-          {
-            label: "Revenue",
-            value: fmtPeso(itemBreakdownTotals.revenue),
-            sub: `${getRangeLabel()} · sales generated`,
-            icon: <DollarSign size={16} />,
-            sort: "revenue",
-          },
-          {
-            label: "Cost",
-            value: itemBreakdownTotals.hasCost
-              ? fmtPeso(itemBreakdownTotals.cost)
-              : "Not available",
-            sub: itemBreakdownTotals.hasCost
-              ? "Recorded cost of goods sold"
-              : "Record cost of goods sold to calculate profit",
-            icon: <Package size={16} />,
-            sort: "cost",
-          },
-          {
-            label: "Gross Profit",
-            value:
-              itemBreakdownTotals.profit == null
-                ? "Not available"
-                : fmtPeso(itemBreakdownTotals.profit),
-            sub:
-              itemBreakdownTotals.profit == null
-                ? "Requires recorded cost"
-                : "Revenue − Cost",
-            icon: <TrendingUp size={16} />,
-            sort: "profit",
-          },
-          {
-            label: "Profit Margin",
-            value:
-              itemBreakdownTotals.margin == null
-                ? "Not available"
-                : `${itemBreakdownTotals.margin.toFixed(1)}%`,
-            sub:
-              itemBreakdownTotals.margin == null
-                ? "Requires revenue and cost"
-                : "Gross Profit ÷ Revenue",
-            icon: <BarChart2 size={16} />,
-            sort: "margin",
-          },
-        ].map((k, i) => {
-          const sortedRows = [...itemBreakdown].sort((a, b) => {
-            const av = Number(a[k.sort] ?? -Infinity);
-            const bv = Number(b[k.sort] ?? -Infinity);
-            return bv - av;
-          });
-
-          const openBreakdown = () =>
-            setDashboardDrilldown({
-              title: `${k.label} Breakdown`,
-              rows: sortedRows,
-              sort: k.sort,
-            });
-
-          return (
+      {/* AdminDashboard-style POS comparison card */}
+      {dashboardTab === "overview" && (
+        <>
+          <div
+            style={{
+              background: posRevenueStatus.bg,
+              border: `1px solid ${posRevenueStatus.border}`,
+              borderLeft: `5px solid ${posRevenueStatus.color}`,
+              borderRadius: 18,
+              padding: "17px 18px",
+              marginBottom: 14,
+              boxShadow: "0 2px 14px rgba(50,109,32,.06)",
+            }}
+          >
             <div
-              key={i}
-              className="fr-db-kpi"
-              role="button"
-              tabIndex={0}
-              onClick={openBreakdown}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  openBreakdown();
-                }
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: 14,
+                flexWrap: "wrap",
               }}
-              style={{ cursor: "pointer" }}
             >
+              <div style={{ minWidth: 260, flex: 1 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 7,
+                    marginBottom: 6,
+                  }}
+                >
+                  <PosRevenueStatusIcon
+                    size={17}
+                    color={posRevenueStatus.color}
+                  />
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 850,
+                      letterSpacing: ".08em",
+                      textTransform: "uppercase",
+                      color: posRevenueStatus.color,
+                    }}
+                  >
+                    POS REVENUE VS LAST MONTH
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 850,
+                    color: "#12241B",
+                    lineHeight: 1.25,
+                  }}
+                >
+                  {posRevenueStatus.title}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 5,
+                    fontSize: 11.5,
+                    color: "#5C6B60",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {hasPreviousPosRevenue ? (
+                    <>
+                      {userBranch || "This branch"} is{" "}
+                      <b style={{ color: posRevenueStatus.color }}>
+                        {Math.abs(posMoM || 0).toFixed(1)}%{" "}
+                        {posRevenueDifference >= 0 ? "higher" : "lower"}
+                      </b>{" "}
+                      this month than last month based on recorded POS sales.
+                    </>
+                  ) : (
+                    <>
+                      There is no previous-month POS revenue available yet for
+                      comparison.
+                    </>
+                  )}
+                </div>
+              </div>
+
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: 12,
+                  gap: 8,
+                  flexWrap: "wrap",
                 }}
               >
-                <div
+                <span
                   style={{
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    background: "#fff",
+                    border: `1px solid ${posRevenueStatus.border}`,
+                    color: posRevenueStatus.color,
                     fontSize: 10,
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    letterSpacing: ".08em",
-                    color: "#6B756D",
+                    fontWeight: 850,
                   }}
                 >
-                  {k.label}
-                </div>
-                <div
+                  {posRevenueStatus.label}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={fetchKpis}
+                  disabled={kpiLoading}
                   style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 9,
-                    background: "#F4F6F3",
-                    color: "#37413A",
-                    border: "1px solid #E1E6D8",
-                    display: "flex",
+                    display: "inline-flex",
                     alignItems: "center",
-                    justifyContent: "center",
+                    gap: 6,
+                    border: "1px solid #DDE8DA",
+                    background: "#fff",
+                    color: "#3b791e",
+                    borderRadius: 9,
+                    padding: "7px 10px",
+                    fontSize: 10.5,
+                    fontWeight: 800,
+                    cursor: kpiLoading ? "wait" : "pointer",
                   }}
                 >
-                  {k.icon}
-                </div>
-              </div>
-              <div
-                style={{
-                  fontSize: 23,
-                  fontWeight: 850,
-                  color: "#12241B",
-                  letterSpacing: "-.02em",
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {k.value}
-              </div>
-              <div
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 600,
-                  color: "#8A948B",
-                  marginTop: 6,
-                  lineHeight: 1.45,
-                }}
-              >
-                {k.sub}
-              </div>
-              <div
-                style={{
-                  fontSize: 9.5,
-                  fontWeight: 750,
-                  color: "#5C6B60",
-                  marginTop: 9,
-                }}
-              >
-                View item breakdown
+                  <RefreshCw
+                    size={12}
+                    style={{
+                      animation: kpiLoading
+                        ? "spin .8s linear infinite"
+                        : "none",
+                    }}
+                  />
+                  Refresh
+                </button>
               </div>
             </div>
-          );
-        })}
-      </div>
 
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #DCE9DB",
-          borderLeft: "4px solid #3b791e",
-          borderRadius: 14,
-          padding: "14px 17px",
-          marginBottom: 18,
-          boxShadow: "0 2px 10px rgba(50,109,32,.04)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 13,
-            fontWeight: 850,
-            color: "#12241B",
-            marginBottom: 4,
-          }}
-        >
-          {dashboardTab === "overview" ? (
-            <Activity size={15} color="#3b791e" />
-          ) : dashboardTab === "sales_ai" ? (
-            <LineChart size={15} color="#3b791e" />
-          ) : (
-            <Layers size={15} color="#3b791e" />
-          )}
-          {dashboardTab === "overview"
-            ? "Start with the branch performance summary"
-            : dashboardTab === "sales_ai"
-              ? "Read the actual sales evidence before the AI guidance"
-              : "Compare stock movement with actual product sales"}
-        </div>
-        <div style={{ fontSize: 10.8, color: "#5C6B60", lineHeight: 1.55 }}>
-          {dashboardTab === "overview"
-            ? "Use revenue, cost, profit, margin, best sellers, and peak hours to understand the branch at a glance."
-            : dashboardTab === "sales_ai"
-              ? "Use the revenue line and period summary to confirm the trend, then review the recommendations generated from the same branch data."
-              : "Prioritize items with low coverage, unusual stock movement, weak sales velocity, or immediate reorder recommendations."}
-        </div>
-      </div>
+            <div className="fr-pos-summary-grid">
+              {[
+                {
+                  label: "This Month",
+                  value: fmtPeso(currentMonthRevenue),
+                },
+                {
+                  label: "Last Month",
+                  value: hasPreviousPosRevenue
+                    ? fmtPeso(lastMonthRevenue)
+                    : "—",
+                },
+                {
+                  label: "Month-on-Month Change",
+                  value: hasPreviousPosRevenue
+                    ? `${posRevenueDifference >= 0 ? "+" : "−"}${fmtPeso(Math.abs(posRevenueDifference))}`
+                    : "—",
+                  color: posRevenueStatus.color,
+                },
+              ].map((card) => (
+                <div
+                  key={card.label}
+                  style={{
+                    background: "#fff",
+                    border: `1px solid ${posRevenueStatus.border}`,
+                    borderRadius: 12,
+                    padding: "12px 13px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9.5,
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: ".06em",
+                      color: "#71806F",
+                      marginBottom: 5,
+                    }}
+                  >
+                    {card.label}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 20,
+                      fontWeight: 850,
+                      color: card.color || "#12241B",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {card.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Same admin-style three-column decision rows, scoped to branch products. */}
+          <div
+            style={{
+              background: "#fff",
+              border: "1px solid #E1E6D8",
+              borderRadius: 18,
+              padding: "18px 19px",
+              marginBottom: 15,
+              boxShadow: "0 2px 14px rgba(50,109,32,.06)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: 14,
+                flexWrap: "wrap",
+                marginBottom: 13,
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 7,
+                    fontSize: 15,
+                    fontWeight: 850,
+                    color: "#12241B",
+                  }}
+                >
+                  <Package size={16} color="#3b791e" /> Branch Product Summary
+                </div>
+                <div
+                  style={{
+                    fontSize: 10.8,
+                    color: "#5C6B60",
+                    marginTop: 4,
+                  }}
+                >
+                  Top products sold by this branch and their POS revenue
+                  compared with last month.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDashboardTab("stock_products")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 11px",
+                  borderRadius: 9,
+                  border: "1px solid #C9DBA0",
+                  background: "#F4F8F0",
+                  color: "#2c5c16",
+                  fontSize: 10.5,
+                  fontWeight: 850,
+                  cursor: "pointer",
+                  fontFamily: FONT,
+                }}
+              >
+                View Product &amp; Stock Analysis <ChevronRight size={12} />
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: 9 }}>
+              {branchProductSummary.length ? (
+                branchProductSummary.map((row, index) => {
+                  const tone =
+                    row.change == null
+                      ? {
+                          accent: "#5C6B60",
+                          bg: "#F6F7F1",
+                          border: "#E1E6D8",
+                          badge: "#EEF1EC",
+                        }
+                      : row.change < 0
+                        ? {
+                            accent: "#b45309",
+                            bg: "#fffbeb",
+                            border: "#fde68a",
+                            badge: "#fef3c7",
+                          }
+                        : {
+                            accent: "#2c5c16",
+                            bg: "#f4f8f0",
+                            border: "#c9dba0",
+                            badge: "#eaf3df",
+                          };
+
+                  return (
+                    <div
+                      className="fr-branch-product-row"
+                      key={`${row.name}-${index}`}
+                      style={{
+                        border: `1px solid ${tone.border}`,
+                        borderLeft: `4px solid ${tone.accent}`,
+                        background: tone.bg,
+                      }}
+                    >
+                      <div>
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            padding: "4px 8px",
+                            borderRadius: 20,
+                            background: tone.badge,
+                            color: tone.accent,
+                            fontSize: 9.3,
+                            fontWeight: 900,
+                            textTransform: "uppercase",
+                            letterSpacing: ".055em",
+                          }}
+                        >
+                          {index + 1}. Product
+                        </span>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 850,
+                            color: "#12241B",
+                            marginTop: 7,
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {row.name}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 9.2,
+                            fontWeight: 850,
+                            color: "#71806F",
+                            textTransform: "uppercase",
+                            letterSpacing: ".06em",
+                            marginBottom: 4,
+                          }}
+                        >
+                          Evidence
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 10.7,
+                            color: "#526052",
+                            lineHeight: 1.55,
+                          }}
+                        >
+                          {Number(row.qty || 0).toLocaleString()} units sold ·{" "}
+                          {fmtPeso(row.revenue)} current-month POS revenue
+                          {row.previousRevenue > 0
+                            ? ` · ${fmtPeso(row.previousRevenue)} last month`
+                            : " · no previous-month baseline"}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 9.2,
+                            fontWeight: 850,
+                            color: tone.accent,
+                            textTransform: "uppercase",
+                            letterSpacing: ".06em",
+                            marginBottom: 4,
+                          }}
+                        >
+                          Comparison
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 10.8,
+                            color: "#26372B",
+                            lineHeight: 1.55,
+                            fontWeight: 650,
+                          }}
+                        >
+                          {row.change == null
+                            ? "No comparable previous-month POS revenue is available yet."
+                            : row.change > 0
+                              ? `Revenue increased ${row.change.toFixed(1)}% versus last month.`
+                              : row.change < 0
+                                ? `Revenue decreased ${Math.abs(row.change).toFixed(1)}% versus last month.`
+                                : "Revenue is unchanged versus last month."}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div
+                  style={{
+                    padding: "13px",
+                    borderRadius: 12,
+                    border: "1px solid #E1E6D8",
+                    background: "#F6F7F1",
+                    color: "#5C6B60",
+                    fontSize: 11,
+                  }}
+                >
+                  No item-level POS sales are available for this branch yet.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Primary branch KPI row — clickable item breakdowns */}
+          <div className="fr-db-kpi-grid">
+            {[
+              {
+                label: "Sales Revenue",
+                value: fmtPeso(itemBreakdownTotals.revenue),
+                sub: `${getRangeLabel()} · sales generated`,
+                icon: <DollarSign size={16} />,
+                sort: "revenue",
+              },
+              {
+                label: "Cost of Sales",
+                value: itemBreakdownTotals.hasCost
+                  ? fmtPeso(itemBreakdownTotals.cost)
+                  : "Not available",
+                sub: itemBreakdownTotals.hasCost
+                  ? "Recorded cost of products sold"
+                  : "Record product cost to calculate profit",
+                icon: <Package size={16} />,
+                sort: "cost",
+              },
+              {
+                label: "Sales Profit",
+                value:
+                  itemBreakdownTotals.profit == null
+                    ? "Not available"
+                    : fmtPeso(itemBreakdownTotals.profit),
+                sub:
+                  itemBreakdownTotals.profit == null
+                    ? "Requires recorded cost"
+                    : "Sales Revenue − Cost of Sales",
+                icon: <TrendingUp size={16} />,
+                sort: "profit",
+              },
+              {
+                label: "Total Transactions",
+                value: periodTransactions.length.toLocaleString(),
+                sub: "Completed POS transactions",
+                icon: <Receipt size={16} />,
+                sort: "qty",
+              },
+            ].map((k, i) => {
+              const sortedRows = [...itemBreakdown].sort((a, b) => {
+                const av = Number(a[k.sort] ?? -Infinity);
+                const bv = Number(b[k.sort] ?? -Infinity);
+                return bv - av;
+              });
+
+              const openBreakdown = () =>
+                setDashboardDrilldown({
+                  title: `${k.label} Breakdown`,
+                  rows: sortedRows,
+                  sort: k.sort,
+                });
+
+              return (
+                <div
+                  key={i}
+                  className="fr-db-kpi"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open ${k.label} breakdown`}
+                  onClick={openBreakdown}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openBreakdown();
+                    }
+                  }}
+                  style={{
+                    cursor: "pointer",
+                    transition:
+                      "transform .18s ease, box-shadow .18s ease, border-color .18s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow =
+                      "0 8px 22px rgba(18,36,27,.09)";
+                    e.currentTarget.style.borderColor = "#C9D2C6";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "";
+                    e.currentTarget.style.boxShadow =
+                      "0 2px 10px rgba(18,36,27,0.045)";
+                    e.currentTarget.style.borderColor = "#DDE3D8";
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 800,
+                        textTransform: "uppercase",
+                        letterSpacing: ".08em",
+                        color: "#6B756D",
+                      }}
+                    >
+                      {k.label}
+                    </div>
+                    <div
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 9,
+                        background: "#F4F6F3",
+                        color: "#37413A",
+                        border: "1px solid #E1E6D8",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {k.icon}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 23,
+                      fontWeight: 850,
+                      color: "#12241B",
+                      letterSpacing: "-.02em",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {k.value}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                      color: "#8A948B",
+                      marginTop: 6,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {k.sub}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 9.5,
+                      fontWeight: 750,
+                      color: "#3b791e",
+                      marginTop: 9,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    View item breakdown <ChevronRight size={11} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              margin: "-4px 0 14px",
+              padding: "8px 2px",
+              color: "#5C6B60",
+              fontSize: 11,
+              flexWrap: "wrap",
+            }}
+          >
+            <span>
+              Profit Margin:{" "}
+              <strong style={{ color: "#12241B" }}>
+                {itemBreakdownTotals.margin == null
+                  ? "Not available"
+                  : `${itemBreakdownTotals.margin.toFixed(1)}%`}
+              </strong>
+            </span>
+            <span>Gross Profit ÷ Revenue · detailed sales metric</span>
+          </div>
+        </>
+      )}
 
       {/* Archive panel */}
       {showArchivePanel && (
@@ -6354,7 +7395,7 @@ function FrDashboardContent({ transactions, brands, user }) {
                 />
               ) : (
                 <>
-                  <div
+                  <div className="fr-responsive-grid"
                     style={{
                       display: "grid",
                       gridTemplateColumns:
@@ -6460,7 +7501,7 @@ function FrDashboardContent({ transactions, brands, user }) {
                       borderRadius: 12,
                     }}
                   >
-                    <table
+                    <div className="fr-table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table
                       style={{
                         width: "100%",
                         minWidth: 830,
@@ -6721,7 +7762,7 @@ function FrDashboardContent({ transactions, brands, user }) {
                           </td>
                         </tr>
                       </tfoot>
-                    </table>
+                    </table></div>
                   </div>
                 </>
               )}
@@ -6740,7 +7781,7 @@ const C = {
   greenLt: "#f0f5e8",
   greenMid: "#c9dba0",
   teal: "#509820",
-  lime: "#bdd43c",
+  lime: "#b3a941",
   limeInk: "#24310C",
   ink: "#12241B",
   muted: "#5C6B60",
@@ -7154,7 +8195,7 @@ function ReadOnlyInventoryTable({ items, page, setPage }) {
   return (
     <div>
       <div style={{ overflowX: "auto" }}>
-        <table
+        <div className="fr-table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table
           style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
         >
           <thead>
@@ -7405,7 +8446,7 @@ function ReadOnlyInventoryTable({ items, page, setPage }) {
               );
             })}
           </tbody>
-        </table>
+        </table></div>
       </div>
       <Pagination
         page={page}
@@ -7417,675 +8458,197 @@ function ReadOnlyInventoryTable({ items, page, setPage }) {
   );
 }
 
-function FrMenuInventoryContent({ user, brands }) {
-  const userBranch = (user?.branch || "").trim();
 
+// Display quantities only: preserve the original values for stock calculations.
+const FR_UNIT_NAMES = {
+  tbsp: ["Tablespoon", "Tablespoons"], tablespoon: ["Tablespoon", "Tablespoons"], tablespoons: ["Tablespoon", "Tablespoons"],
+  tsp: ["Teaspoon", "Teaspoons"], teaspoon: ["Teaspoon", "Teaspoons"], teaspoons: ["Teaspoon", "Teaspoons"],
+  cup: ["Cup", "Cups"], cups: ["Cup", "Cups"],
+
+  l: ["Liter", "Liters"], liter: ["Liter", "Liters"], liters: ["Liter", "Liters"], litre: ["Liter", "Liters"], litres: ["Liter", "Liters"],
+  ml: ["Milliliter", "Milliliters"], milliliter: ["Milliliter", "Milliliters"], milliliters: ["Milliliter", "Milliliters"],
+  kg: ["Kilogram", "Kilograms"], kilogram: ["Kilogram", "Kilograms"], kilograms: ["Kilogram", "Kilograms"],
+  g: ["Gram", "Grams"], gram: ["Gram", "Grams"], grams: ["Gram", "Grams"],
+  mg: ["Milligram", "Milligrams"], milligram: ["Milligram", "Milligrams"], milligrams: ["Milligram", "Milligrams"],
+  pc: ["Piece", "Pieces"], pcs: ["Piece", "Pieces"], piece: ["Piece", "Pieces"], pieces: ["Piece", "Pieces"],
+  unit: ["Unit", "Units"], units: ["Unit", "Units"],
+  bottle: ["Bottle", "Bottles"], bottles: ["Bottle", "Bottles"], btl: ["Bottle", "Bottles"], btls: ["Bottle", "Bottles"],
+  box: ["Box", "Boxes"], boxes: ["Box", "Boxes"], pack: ["Pack", "Packs"], packs: ["Pack", "Packs"], pkt: ["Packet", "Packets"],
+  tablet: ["Tablet", "Tablets"], tablets: ["Tablet", "Tablets"], tab: ["Tablet", "Tablets"], tabs: ["Tablet", "Tablets"],
+  capsule: ["Capsule", "Capsules"], capsules: ["Capsule", "Capsules"], cap: ["Capsule", "Capsules"], caps: ["Capsule", "Capsules"],
+  gal: ["Gallon", "Gallons"], gallon: ["Gallon", "Gallons"], gallons: ["Gallon", "Gallons"],
+  oz: ["Ounce", "Ounces"], lb: ["Pound", "Pounds"], lbs: ["Pound", "Pounds"],
+  sachet: ["Sachet", "Sachets"], sachets: ["Sachet", "Sachets"], bag: ["Bag", "Bags"], bags: ["Bag", "Bags"],
+  can: ["Can", "Cans"], cans: ["Can", "Cans"], roll: ["Roll", "Rolls"], rolls: ["Roll", "Rolls"],
+};
+function frFullUnit(unit, quantity = 2) {
+  const raw = String(unit || "Units").trim();
+  const names = FR_UNIT_NAMES[raw.toLowerCase().replace(/\./g, "")];
+  return names ? names[Math.abs(Number(quantity)) === 1 ? 0 : 1] : raw;
+}
+function frStockQuantity(value, unit) {
+  if (value == null || value === "" || !Number.isFinite(Number(value))) return "—";
+  const whole = Math.round(Number(value));
+  return `${whole.toLocaleString("en-PH", { maximumFractionDigits: 0 })} ${frFullUnit(unit, whole)}`;
+}
+const FR_INVENTORY_CSS = `
+.fr-inventory-workspace { min-width:0; color:#12241B; }
+.fr-inventory-workspace .fr-inventory-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:14px 16px; margin-bottom:16px; border:1px solid #E1E6D8; border-radius:16px; background:#fff; }
+.fr-inventory-workspace .fr-inventory-search { position:relative; flex:1 1 220px; min-width:160px; }
+.fr-inventory-workspace .fr-inventory-search > svg { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#5C6B60; pointer-events:none; }
+.fr-inventory-workspace .fr-inventory-toolbar input, .fr-inventory-workspace .fr-inventory-toolbar select { height:38px !important; font-size:12px !important; border:1px solid #E1E6D8; border-radius:10px; background:#fff; color:#12241B; padding:0 12px; }
+.fr-inventory-workspace .fr-inventory-search input { width:100%; padding-left:36px; }
+.fr-inventory-workspace .fr-inventory-toolbar select { min-width:140px; }
+.fr-inventory-workspace .fr-inventory-card { background:#fff; border:1px solid #E1E6D8; border-radius:18px; overflow:hidden; box-shadow:0 2px 12px rgba(50,109,32,.05); }
+.fr-inventory-workspace .fr-inventory-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:16px 22px; background:#fbfcf8; border-bottom:1px solid #E1E6D8; }
+.fr-inventory-workspace .fr-inventory-heading { display:flex; align-items:center; flex-wrap:wrap; gap:8px; font-size:14px; font-weight:800; }
+.fr-inventory-workspace .fr-inventory-count { color:#5C6B60; font-size:11px; }
+.fr-inventory-workspace .fr-inventory-brand { padding:3px 10px; border:1px solid #c9dba0; border-radius:999px; background:#f0f5e8; color:#2c5c16; font-size:11px; }
+.fr-inventory-workspace .fr-inventory-split { display:grid; grid-template-columns:minmax(260px,380px) minmax(0,1fr) !important; min-height:480px; max-height:none !important; }
+.fr-inventory-workspace .fr-inventory-list { max-height:620px !important; overflow-y:auto; overscroll-behavior:contain; border-right:1px solid #E1E6D8; }
+.fr-inventory-workspace .fr-inventory-detail { min-width:0; max-height:620px !important; overflow-y:auto; padding:20px; scroll-margin-top:100px; }
+body.fr-admin-ui .franchisee-root .fr-inventory-row { display:block; width:100%; min-height:74px; padding:14px 16px; border:0; border-bottom:1px solid #F6F7F1; border-left:3px solid transparent; border-radius:0 !important; background:#fff; color:#12241B; text-align:left; transition:background-color .18s ease,border-color .18s ease,box-shadow .18s ease !important; }
+body.fr-admin-ui .franchisee-root .fr-inventory-row:hover { background:#F6F7F1; filter:none; }
+body.fr-admin-ui .franchisee-root .fr-inventory-row[aria-pressed="true"] { border-left-color:#3b791e; background:#f0f5e8; box-shadow:inset 0 0 0 1px rgba(59,121,30,.05) !important; }
+body.fr-admin-ui .franchisee-root .fr-stock-order-btn {
+  height:28px !important;
+  min-height:28px !important;
+  min-width:auto !important;
+  padding:4px 9px !important;
+  border-radius:8px !important;
+  border:1px solid #3b791e !important;
+  background:#3b791e !important;
+  color:#fff !important;
+  font-size:10.5px !important;
+  font-weight:700 !important;
+  line-height:1 !important;
+  gap:5px !important;
+  box-shadow:none !important;
+  flex-shrink:0;
+}
+body.fr-admin-ui .franchisee-root .fr-stock-order-btn:hover { background:#509820 !important; filter:none !important; transform:none !important; }
+body.fr-admin-ui .franchisee-root .fr-stock-status {
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:2px 6px;
+  border-radius:999px;
+  font-size:9px;
+  font-weight:800;
+  white-space:nowrap;
+  flex-shrink:0;
+}
+body.fr-admin-ui .franchisee-root .fr-stock-status.low {
+  color:#b42318;
+  background:#fef2f2;
+  border:1px solid #fecaca;
+}
+body.fr-admin-ui .franchisee-root .fr-stock-status.low .fr-stock-status-dot {
+  width:5px; height:5px; border-radius:50%; background:#dc2626;
+}
+body.fr-admin-ui .franchisee-root .fr-stock-order-note {
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:6px;
+}
+.fr-inventory-workspace .fr-inventory-row-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.fr-inventory-workspace .fr-inventory-row-name { font-size:13px; font-weight:700; overflow-wrap:anywhere; }
+.fr-inventory-workspace .fr-inventory-row-meta { margin-top:6px; font-size:11px; color:#5C6B60; }
+.fr-inventory-workspace .fr-inventory-badge { display:inline-flex; flex-shrink:0; padding:3px 8px; border-radius:999px; background:#fff7ed; color:#b45309; font-size:10px; font-weight:700; }
+.fr-inventory-workspace .fr-inventory-detail-content { animation:frInventoryEnter .2s ease-out; }
+@keyframes frInventoryEnter { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
+.fr-inventory-workspace .fr-product-title { margin:0; font-size:18px; font-weight:800; overflow-wrap:anywhere; }
+.fr-inventory-workspace .fr-product-meta { margin:6px 0 18px; color:#5C6B60; font-size:12px; }
+.fr-inventory-workspace .fr-product-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:0 0 20px; }
+.fr-inventory-workspace .fr-product-facts > div { padding:12px; border:1px solid #E1E6D8; border-radius:12px; background:#fbfcf8; min-width:0; }
+.fr-inventory-workspace .fr-product-facts dt { font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:#5C6B60; }
+.fr-inventory-workspace .fr-product-facts dd { margin:6px 0 0; font-size:13px; font-weight:700; overflow-wrap:anywhere; }
+.fr-inventory-workspace .fr-ingredient-row { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:12px; border:1px solid #E1E6D8; border-radius:10px; margin-top:8px; font-size:12px; }
+.fr-inventory-workspace .fr-inventory-empty { min-height:180px; padding:32px 20px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; text-align:center; color:#5C6B60; font-size:12px; }
+.fr-inventory-workspace .fr-inventory-error { display:flex; align-items:center; gap:10px; padding:12px; margin-bottom:12px; border:1px solid #f2c9c4; border-radius:10px; background:#fdf1f0; color:#c0392b; font-size:12px; }
+@media(max-width:900px) {
+ .fr-inventory-workspace .fr-inventory-split { grid-template-columns:1fr !important; min-height:0; }
+ .fr-inventory-workspace .fr-inventory-list { max-height:320px !important; border-right:0; border-bottom:1px solid #E1E6D8; }
+ .fr-inventory-workspace .fr-inventory-detail { max-height:none !important; overflow:visible; padding:16px; }
+}
+@media(max-width:560px) {
+ .fr-inventory-workspace .fr-inventory-toolbar { padding:12px; }
+ .fr-inventory-workspace .fr-inventory-toolbar select { flex:1 1 130px; min-width:0; width:auto !important; }
+ .fr-inventory-workspace .fr-inventory-header { padding:14px 16px; }
+ .fr-inventory-workspace .fr-product-facts { grid-template-columns:1fr; }
+}
+@media(prefers-reduced-motion:reduce) { .fr-inventory-workspace .fr-inventory-detail-content { animation:none; } }
+`;
+
+function FrMenuInventoryContent({ user, brands }) {
+  const userBranch = String(user?.branch || "").trim();
+  const userBrand = String(user?.brand || user?.brand_name || "").trim();
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-  const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState(null);
-
+  const detailRef = useRef(null);
   const fetchInventory = useCallback(async () => {
-    if (!userBranch) return;
-    setLoading(true);
+    if (!userBranch) { setInventory([]); return; }
+    setLoading(true); setError("");
     try {
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/inventory?branch=${encodeURIComponent(userBranch)}`,
-      );
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory?branch=${encodeURIComponent(userBranch)}`);
+      if (!res.ok) throw new Error("Unable to load products. Please try again.");
       const d = await res.json();
       setInventory(Array.isArray(d) ? d : []);
-    } catch {
-      setInventory([]);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setError(err.message || "Unable to load products."); }
+    finally { setLoading(false); }
   }, [userBranch]);
-
-  useEffect(() => {
-    if (userBranch) fetchInventory();
-  }, [fetchInventory, userBranch]);
-  useEffect(() => {
-    setPage(0);
-    setSelectedId(null);
-  }, [searchQuery, filterCategory, filterStatus]);
-
-  const categories = useMemo(
-    () => [...new Set(inventory.map((i) => i.category).filter(Boolean))].sort(),
-    [inventory],
-  );
-
-  const filteredItems = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    return inventory.filter((i) => {
-      if (
-        q &&
-        !i.name.toLowerCase().includes(q) &&
-        !(i.category || "").toLowerCase().includes(q)
-      )
-        return false;
-      if (filterCategory && i.category !== filterCategory) return false;
-      if (filterStatus === "low" && Number(i.stock) > Number(i.min_stock))
-        return false;
-      if (filterStatus === "ok" && Number(i.stock) <= Number(i.min_stock))
-        return false;
-      return true;
+  useEffect(() => { fetchInventory(); }, [fetchInventory]);
+  const categories = useMemo(() => [...new Set(inventory.map(i => i.category).filter(Boolean))].sort(), [inventory]);
+  const filteredItems = useMemo(() => inventory.filter(i => {
+    const q = searchQuery.trim().toLowerCase();
+    const matches = `${i.name || ""} ${i.category || ""}`.toLowerCase().includes(q);
+    const low = Number(i.stock) <= Number(i.min_stock);
+    return matches && (!filterCategory || i.category === filterCategory) && (!filterStatus || (filterStatus === "low" ? low : !low));
+  }).sort((a,b) => String(a.name || "").localeCompare(String(b.name || ""))), [inventory, searchQuery, filterCategory, filterStatus]);
+  const selectedItem = filteredItems.find(i => i.id === selectedId) || null;
+  const ingredients = Array.isArray(selectedItem?.ingredients) ? selectedItem.ingredients : [];
+  useEffect(() => { if (selectedId != null && !filteredItems.some(i => i.id === selectedId)) setSelectedId(null); }, [filteredItems, selectedId]);
+  const selectItem = (item) => {
+    setSelectedId(item.id);
+    if (window.matchMedia("(max-width:900px)").matches) requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({ block:"start", behavior:window.matchMedia("(prefers-reduced-motion:reduce)").matches ? "auto" : "smooth" });
     });
-  }, [inventory, searchQuery, filterCategory, filterStatus]);
-
-  const lowCount = filteredItems.filter(
-    (i) => Number(i.stock) <= Number(i.min_stock),
-  ).length;
-  const totalValue = filteredItems.reduce(
-    (s, i) => s + (i.price || 0) * (i.stock || 0),
-    0,
-  );
-
-  const selectedItem = filteredItems.find((i) => i.id === selectedId) || null;
-  const anyFilter = filterCategory || filterStatus || searchQuery;
-  const clearAll = () => {
-    setFilterCategory("");
-    setFilterStatus("");
-    setSearchQuery("");
   };
-
-  return (
-    <div
-      style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: C.ink }}
-    >
-      <style>{`
-        .fr-menu-row:hover { background:#F6F7F1 !important; }
-        @media(max-width:900px){ .fr-menu-master-detail{ grid-template-columns:1fr !important; } .fr-menu-detail{ border-top:1px solid #E1E6D8; } }
-      `}</style>
-
-      <ReadOnlyBanner message="Product Catalogue is view-only. You can search, filter, sort, and inspect item details." />
-
-      <div
-        style={{
-          background: C.white,
-          border: `1px solid ${C.border}`,
-          borderRadius: 18,
-          overflow: "hidden",
-          boxShadow: "0 2px 10px rgba(50,109,32,.05)",
-        }}
-      >
-        {/* Flat header copied from the supplied Menu Inventory card layout */}
-        <div
-          style={{
-            padding: "16px 22px",
-            background: "#fbfcf8",
-            borderBottom: `1px solid ${C.border}`,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 10,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 10,
-                background: C.greenLt,
-                color: C.green,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: `1px solid ${C.greenMid}`,
-              }}
-            >
-              <StoreIcon size={16} color={C.green} />
-            </div>
-            <div>
-              <div style={{ fontSize: 17, fontWeight: 800, color: C.ink }}>
-                Product Catalogue
-              </div>
-              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-                {userBranch}
-              </div>
-            </div>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              fontSize: 11,
-              color: C.muted,
-            }}
-          >
-            <span>
-              {filteredItems.length} item{filteredItems.length === 1 ? "" : "s"}
-            </span>
-            {lowCount > 0 && (
-              <span style={{ color: C.warn, fontWeight: 700 }}>
-                {lowCount} low stock
-              </span>
-            )}
-            <button
-              onClick={fetchInventory}
-              style={{
-                ...smallBtnSt,
-                height: 30,
-                border: `1px solid ${C.border}`,
-                background: C.white,
-                color: C.greenDk,
-              }}
-            >
-              <RefreshCw size={11} /> Refresh
-            </button>
-          </div>
+  return <div className="fr-inventory-workspace">
+    <style>{FR_INVENTORY_CSS}</style>
+    <ReadOnlyBanner message="Product Catalogue is view-only. Search and select a product to view its details and ingredients." />
+    <div className="fr-inventory-toolbar">
+      <div className="fr-inventory-search"><Search size={15}/><input aria-label="Search products" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Search products or categories…" /></div>
+      <select aria-label="Filter product category" value={filterCategory} onChange={e=>setFilterCategory(e.target.value)}><option value="">All Categories</option>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select>
+      <select aria-label="Filter product status" value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}><option value="">All Status</option><option value="low">Low Stock</option><option value="ok">In Stock</option></select>
+      {(searchQuery || filterCategory || filterStatus) && <button type="button" className="v-btn v-btn-secondary" onClick={()=>{setSearchQuery("");setFilterCategory("");setFilterStatus("");}}>Clear filters</button>}
+      <button type="button" className="v-btn v-btn-secondary" onClick={fetchInventory} disabled={loading}><RefreshCw size={14} className={loading ? "fr-spin" : ""}/>{loading ? "Refreshing…" : "Refresh"}</button>
+    </div>
+    {error && <div role="alert" className="fr-inventory-error"><AlertTriangle size={16}/>{error}</div>}
+    <div className="fr-inventory-card" aria-busy={loading}>
+      <div className="fr-inventory-header"><div className="fr-inventory-heading"><Store size={16} color={C.green}/>Product Catalogue — {userBranch}{userBrand && <span className="fr-inventory-brand">{userBrand}</span>}</div><span className="fr-inventory-count" aria-live="polite">{filteredItems.length} {filteredItems.length === 1 ? "item" : "items"}</span></div>
+      <div className="fr-inventory-split">
+        <div className="fr-inventory-list" aria-label="Products">
+          {loading ? <div className="fr-inventory-empty" role="status"><RefreshCw size={20} className="fr-spin"/>Loading products…</div> : filteredItems.length === 0 ? <div className="fr-inventory-empty"><Box size={26}/>{searchQuery || filterCategory || filterStatus ? "No products match your filters." : "No products available."}</div> : filteredItems.map(item=><button type="button" key={item.id} className="fr-inventory-row" aria-pressed={item.id === selectedId} aria-controls="fr-product-detail" onClick={()=>selectItem(item)}><span className="fr-inventory-row-top"><span className="fr-inventory-row-name">{item.name}</span><ChevronRight size={15}/></span><span className="fr-inventory-row-meta" style={{display:"block"}}>{item.category || "Uncategorized"}</span></button>)}
         </div>
-
-        {/* Filter row copied from MenuBrandCard */}
-        <div
-          style={{
-            padding: "12px 18px",
-            borderBottom: `1px solid ${C.border}`,
-            display: "flex",
-            gap: 6,
-            flexWrap: "wrap",
-            background: "#fbfcf8",
-          }}
-        >
-          <div
-            style={{ position: "relative", flex: "1 1 200px", minWidth: 150 }}
-          >
-            <SearchIcon
-              size={11}
-              style={{
-                position: "absolute",
-                left: 9,
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: C.muted,
-              }}
-            />
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search…"
-              style={{
-                ...invInputSt,
-                height: 30,
-                fontSize: 12,
-                paddingLeft: 27,
-              }}
-            />
-          </div>
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            style={{ ...invInputSt, height: 30, fontSize: 11, width: 150 }}
-          >
-            <option value="">All Categories</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            style={{ ...invInputSt, height: 30, fontSize: 11, width: 120 }}
-          >
-            <option value="">All Status</option>
-            <option value="low">Low Stock</option>
-            <option value="ok">In Stock</option>
-          </select>
-          {anyFilter && (
-            <button
-              onClick={clearAll}
-              style={{
-                ...smallBtnSt,
-                height: 30,
-                border: `1px solid ${C.border}`,
-                background: C.white,
-                color: C.muted,
-              }}
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
-
-        {/* Same two-column list/details layout as the supplied Menu Inventory UX */}
-        <div
-          className="fr-menu-master-detail"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "420px 1fr",
-            minHeight: 540,
-            maxHeight: 700,
-          }}
-        >
-          <div
-            style={{
-              borderRight: `1px solid ${C.border}`,
-              overflowY: "auto",
-              maxHeight: 700,
-              minHeight: 0,
-            }}
-          >
-            {loading ? (
-              <div
-                style={{
-                  padding: "40px 14px",
-                  textAlign: "center",
-                  color: C.muted,
-                  fontSize: 12,
-                }}
-              >
-                Loading inventory…
-              </div>
-            ) : filteredItems.length === 0 ? (
-              <div
-                style={{
-                  padding: "40px 14px",
-                  textAlign: "center",
-                  color: C.muted,
-                  fontSize: 12,
-                }}
-              >
-                No items found.
-              </div>
-            ) : (
-              filteredItems.map((item) => {
-                const low = Number(item.stock) <= Number(item.min_stock);
-                const active = item.id === selectedId;
-                const stockPct =
-                  Number(item.min_stock) > 0
-                    ? Math.min(
-                        100,
-                        Math.round(
-                          (Number(item.stock || 0) /
-                            (Number(item.min_stock) * 2)) *
-                            100,
-                        ),
-                      )
-                    : Number(item.stock) > 0
-                      ? 100
-                      : 0;
-                return (
-                  <div
-                    key={item.id}
-                    className="fr-menu-row"
-                    onClick={() => setSelectedId(item.id)}
-                    style={{
-                      padding: "11px 14px",
-                      cursor: "pointer",
-                      borderLeft: `3px solid ${active ? C.lime : "transparent"}`,
-                      background: active ? "#f6f8ef" : C.white,
-                      borderBottom: `1px solid ${C.bg}`,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: 12.5,
-                          fontWeight: active ? 800 : 600,
-                          color: C.ink,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {item.name}
-                      </span>
-                      {low && (
-                        <span
-                          style={{
-                            fontSize: 9,
-                            fontWeight: 800,
-                            color: C.warn,
-                            background: C.warnBg,
-                            padding: "2px 7px",
-                            borderRadius: 20,
-                            flexShrink: 0,
-                          }}
-                        >
-                          LOW
-                        </span>
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 8,
-                        fontSize: 10.5,
-                        color: C.muted,
-                        marginTop: 3,
-                      }}
-                    >
-                      <span>{item.category || "Uncategorized"}</span>
-                      <span style={{ fontWeight: 700, color: C.ink }}>
-                        {item.stock ?? 0}
-                      </span>
-                    </div>
-                    <div style={{ marginTop: 6 }}>
-                      <FrMiniBar
-                        pct={stockPct}
-                        color={low ? C.warn : C.green}
-                        height={4}
-                      />
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          <div
-            className="fr-menu-detail"
-            style={{
-              padding: 22,
-              overflowY: "auto",
-              maxHeight: 700,
-              minHeight: 0,
-            }}
-          >
-            {selectedItem ? (
-              (() => {
-                const low =
-                  Number(selectedItem.stock) <= Number(selectedItem.min_stock);
-                const ingredients = Array.isArray(selectedItem.ingredients)
-                  ? selectedItem.ingredients
-                  : [];
-                return (
-                  <div>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "flex-start",
-                        gap: 12,
-                        marginBottom: 18,
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 18,
-                            fontWeight: 800,
-                            color: C.ink,
-                          }}
-                        >
-                          {selectedItem.name}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: C.muted,
-                            marginTop: 4,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                          }}
-                        >
-                          <StoreIcon size={11} color={C.green} />
-                          {userBranch}
-                        </div>
-                      </div>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 800,
-                          padding: "4px 9px",
-                          borderRadius: 20,
-                          background: low ? C.warnBg : C.okBg,
-                          color: low ? C.warn : C.ok,
-                          border: `1px solid ${low ? "#fed7aa" : C.greenMid}`,
-                        }}
-                      >
-                        {low ? "LOW STOCK" : "IN STOCK"}
-                      </span>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(auto-fit,minmax(130px,1fr))",
-                        gap: 10,
-                        marginBottom: 18,
-                      }}
-                    >
-                      {[
-                        ["Category", selectedItem.category || "—"],
-                        ["Stock", `${selectedItem.stock ?? 0}`],
-                        ["Minimum Stock", `${selectedItem.min_stock ?? 0}`],
-                        ["Price", fmtPeso(selectedItem.price || 0)],
-                      ].map(([label, value]) => (
-                        <div
-                          key={label}
-                          style={{
-                            background: "#fbfcf8",
-                            border: `1px solid ${C.border}`,
-                            borderRadius: 12,
-                            padding: "11px 12px",
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: 9.5,
-                              fontWeight: 800,
-                              textTransform: "uppercase",
-                              letterSpacing: ".06em",
-                              color: C.muted,
-                            }}
-                          >
-                            {label}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 800,
-                              color: C.ink,
-                              marginTop: 4,
-                            }}
-                          >
-                            {value}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div
-                      style={{
-                        borderTop: `1px solid ${C.border}`,
-                        paddingTop: 16,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 800,
-                          textTransform: "uppercase",
-                          letterSpacing: ".07em",
-                          color: C.muted,
-                          marginBottom: 10,
-                        }}
-                      >
-                        Ingredients
-                      </div>
-                      {ingredients.length === 0 ? (
-                        <div
-                          style={{
-                            padding: "28px 0",
-                            textAlign: "center",
-                            color: C.muted,
-                            fontSize: 12,
-                          }}
-                        >
-                          No linked ingredients.
-                        </div>
-                      ) : (
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 8,
-                          }}
-                        >
-                          {ingredients.map((ing, idx) => (
-                            <div
-                              key={idx}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                gap: 10,
-                                padding: "10px 12px",
-                                border: `1px solid ${C.border}`,
-                                borderRadius: 11,
-                                background: C.white,
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: 12,
-                                  fontWeight: 700,
-                                  color: C.ink,
-                                }}
-                              >
-                                {ing.name ||
-                                  ing.ingredient_name ||
-                                  "Ingredient"}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  color: C.greenDk,
-                                }}
-                              >
-                                {ing.qty_required ?? ing.quantity ?? "—"}{" "}
-                                {ing.unit || ""}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  height: "100%",
-                  minHeight: 300,
-                  color: C.muted,
-                  fontSize: 12.5,
-                  textAlign: "center",
-                  padding: 20,
-                }}
-              >
-                <div>
-                  <Box size={28} color={C.green} style={{ marginBottom: 10 }} />
-                  <br />
-                  Select an item on the left
-                  <br />
-                  to view its details and ingredients.
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        <section id="fr-product-detail" ref={detailRef} className="fr-inventory-detail" aria-label="Product details">
+          {selectedItem ? <div key={selectedItem.id} className="fr-inventory-detail-content">
+            <h2 className="fr-product-title">{selectedItem.name}</h2>
+            <p className="fr-product-meta">{[selectedItem.brand || userBrand, selectedItem.branch || userBranch].filter(Boolean).join(" · ")}</p>
+            <dl className="fr-product-facts">{[["Category",selectedItem.category || "—"],["Stock",frStockQuantity(selectedItem.stock,selectedItem.unit)],["Price",fmtPeso(selectedItem.price || 0)]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+            <h3 style={{fontSize:13, margin:"0 0 12px", color:C.greenDk}}>Ingredients</h3>
+            {ingredients.length ? ingredients.map((ing,index)=><div className="fr-ingredient-row" key={ing.id || index}><strong>{ing.name || ing.ingredient_name || "Ingredient"}</strong><span>{ing.qty_required ?? ing.quantity ?? "—"} {frFullUnit(ing.unit, ing.qty_required ?? ing.quantity)}</span></div>) : <div className="fr-inventory-empty" style={{minHeight:100}}>No linked ingredients.</div>}
+          </div> : <div className="fr-inventory-empty"><Box size={28} color={C.green}/><strong>Select a product</strong><span>View its details and ingredients here.</span></div>}
+        </section>
       </div>
     </div>
-  );
-}
-
-/* ── KPI STAT CARD — matches the rounded-card / icon-chip language used
-   throughout StockInventoryContent (BrandOverviewCard, header gradients) ── */
-function KpiStatCard({ icon, label, value, sub, tone = "green" }) {
-  const tones = {
-    green: { bg: C.greenLt, fg: C.greenDk },
-    red: { bg: C.redBg, fg: C.red },
-    blue: { bg: "#eff6ff", fg: "#1d4ed8" },
-    orange: { bg: C.warnBg, fg: C.warn },
-  };
-  const t = tones[tone] || tones.green;
-  return (
-    <div
-      style={{
-        background: C.white,
-        border: "1px solid rgba(59,121,30,0.12)",
-        borderRadius: 16,
-        padding: "16px 18px",
-        boxShadow: "0 2px 16px rgba(59,121,30,0.07)",
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
-      }}
-    >
-      <div
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 12,
-          flexShrink: 0,
-          background: t.bg,
-          color: t.fg,
-          border: `1px solid ${tone === "green" ? C.greenMid : C.border}`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "none",
-        }}
-      >
-        {icon}
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 10.5,
-            fontWeight: 800,
-            color: C.muted,
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-          }}
-        >
-          {label}
-        </div>
-        <div
-          style={{
-            fontSize: 19,
-            fontWeight: 800,
-            color: C.ink,
-            marginTop: 2,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {value}
-        </div>
-        {sub && (
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>
-            {sub}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  </div>;
 }
 
 /* ── FIFO / FEFO helpers (mirrors StockInventoryContent.jsx) ── */
@@ -8234,111 +8797,41 @@ function FrMiniBar({ pct, color, track = "#eef6f1", height = 6 }) {
 function FrFifoQueue({ product, batches, loading }) {
   if (!product) {
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-          minHeight: 300,
-          color: C.muted,
-          fontSize: 12.5,
-          textAlign: "center",
-          padding: 20,
-        }}
-      >
-        <div>
-          Select an ingredient on the left
-          <br />
-          to view its consumption queue.
-        </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 300, color: C.muted, fontSize: 12.5, textAlign: "center", padding: 20 }}>
+        <div>Select a product on the left<br />to view its consumption queue.</div>
       </div>
     );
   }
 
   const fifo = getFifoMethod(product.brand, product.perishable);
-  const sorted = sortBatchesByMethod(
-    batches,
-    product.brand,
-    product.perishable,
-  );
+  const sorted = sortBatchesByMethod(batches, product.brand, product.perishable);
   const totalStock = sorted.reduce((s, b) => s + Number(b.stock || 0), 0);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={{ marginBottom: 10 }}>
-        <div
-          style={{
-            fontSize: 14,
-            fontWeight: 800,
-            color: C.ink,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {product.name}
-        </div>
-        <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-          {totalStock} {product.unit} · {sorted.length} active batch
-          {sorted.length === 1 ? "" : "es"} · min {product.min_stock}
+    <div className="fr-inventory-detail-content" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, gap: 8 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: C.ink, fontFamily: "monospace", display: "flex", alignItems: "center", gap: 7, overflow: "hidden" }}>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{product.sku || "—"}</span>
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: C.ink }}>{product.name}</span>
+            <span style={{ opacity: 0.45 }}>•</span>
+            <span>{frStockQuantity(totalStock, product.unit)} · {sorted.length} active batch{sorted.length === 1 ? "" : "es"}</span>
+          </div>
         </div>
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "6px 10px",
-          borderRadius: 8,
-          background: fifo.method === "FEFO" ? "#fffbeb" : C.greenLt,
-          border: `1px solid ${fifo.method === "FEFO" ? "#fde68a" : C.greenMid}`,
-          fontSize: 10.5,
-          color: fifo.method === "FEFO" ? "#9a3412" : C.greenDk,
-          fontWeight: 700,
-          marginBottom: 10,
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 8, background: fifo.method === "FEFO" ? C.amberBg : C.greenLt, border: `1px solid ${fifo.method === "FEFO" ? C.amberBorder : C.greenMid}`, fontSize: 10.5, color: fifo.method === "FEFO" ? "#9a3412" : C.greenDk, fontWeight: 700, marginBottom: 10 }}>
         <span>{fifo.method} QUEUE</span>
-        <span style={{ fontWeight: 500, opacity: 0.85 }}>
-          — {fifo.queueLabel}
-        </span>
+        <span style={{ fontWeight: 500, opacity: 0.85 }}>— {fifo.queueLabel}</span>
       </div>
 
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          paddingRight: 2,
-          minHeight: 0,
-        }}
-      >
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", paddingRight: 2, minHeight: 0 }}>
         {loading ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "30px 0",
-              color: C.muted,
-              fontSize: 12,
-            }}
-          >
-            Loading queue…
-          </div>
+          <div style={{ textAlign: "center", padding: "30px 0", color: C.muted, fontSize: 12 }}>Loading queue…</div>
         ) : sorted.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "30px 0",
-              color: C.muted,
-              fontSize: 12,
-              fontStyle: "italic",
-            }}
-          >
-            No batches yet for this ingredient.
-          </div>
+          <div style={{ textAlign: "center", padding: "30px 0", color: C.muted, fontSize: 12, fontStyle: "italic" }}>No batches yet for this product.</div>
         ) : (
           sorted.map((b, idx) => {
             const status = computeExpiryStatus(b.exp_date, product.brand);
@@ -8348,284 +8841,55 @@ function FrFifoQueue({ product, batches, loading }) {
             const supplyStr = b.supply_date ? fmtFrTs(b.supply_date) : "—";
             const expStr = fmtFrDate(b.exp_date);
             const dRem = daysRemaining(b.exp_date);
-            const stockPct =
-              totalStock > 0
-                ? Math.round((Number(b.stock || 0) / totalStock) * 100)
-                : 0;
+            const stockPct = totalStock > 0 ? Math.round((Number(b.stock || 0) / totalStock) * 100) : 0;
 
             return (
-              <div
-                key={b.id}
-                style={{
-                  background: C.white,
-                  borderBottom: isLast
-                    ? "none"
-                    : `1px solid ${isFirst ? C.greenMid : C.border}`,
-                  padding: "12px 4px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 6,
-                    gap: 8,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 19,
-                        height: 19,
-                        borderRadius: "50%",
-                        background: isFirst ? C.green : "#b9c9bf",
-                        color: "#fff",
-                        fontSize: 10,
-                        fontWeight: 800,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {idx + 1}
-                    </span>
-                    <span
-                      style={{ fontSize: 12, fontWeight: 800, color: C.ink }}
-                    >
-                      Batch {b.batch_number || "—"}
-                    </span>
-                    {isFirst && (
-                      <span
-                        style={{
-                          fontSize: 9,
-                          fontWeight: 800,
-                          color: C.greenDk,
-                          border: `1px solid ${C.greenMid}`,
-                          padding: "2px 8px",
-                          borderRadius: 20,
-                        }}
-                      >
-                        {fifo.topLabel}
-                      </span>
-                    )}
+              <div key={b.id} style={{ background: C.white, borderBottom: isLast ? "none" : `1px solid ${isFirst ? C.greenMid : C.border}`, padding: "7px 4px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ width: 19, height: 19, borderRadius: "50%", background: isFirst ? C.green : "#b9c9bf", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{idx + 1}</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: C.ink }}>Batch {b.batch_number || "—"}</span>
+                    {isFirst && <span style={{ fontSize: 9, fontWeight: 800, color: C.greenDk, border: `1px solid ${C.greenMid}`, padding: "2px 8px", borderRadius: 20 }}>{fifo.topLabel}</span>}
                   </span>
-                  {ss.label && (
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 800,
-                        color: ss.badgeText,
-                        border: `1px solid ${ss.border}`,
-                        padding: "2px 7px",
-                        borderRadius: 20,
-                      }}
-                    >
-                      {ss.label}
-                    </span>
-                  )}
+                  {ss.label && <span style={{ fontSize: 9, fontWeight: 800, color: ss.badgeText, border: `1px solid ${ss.border}`, padding: "2px 7px", borderRadius: 20 }}>{ss.label}</span>}
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 12,
-                    fontSize: 11,
-                    color: C.muted,
-                    marginBottom: 8,
-                  }}
-                >
-                  {b.supplier && (
-                    <span>
-                      Supplier:{" "}
-                      <strong style={{ color: C.ink }}>{b.supplier}</strong>
-                    </span>
-                  )}
-                  <span>
-                    Arrived:{" "}
-                    <strong style={{ color: C.ink }}>{supplyStr}</strong>
-                  </span>
-                  <span>
-                    Expires:{" "}
-                    <strong style={{ color: ss.dot }}>
-                      {expStr}
-                      {dRem != null
-                        ? ` (${dRem < 0 ? "expired" : dRem + "d left"})`
-                        : ""}
-                    </strong>
-                  </span>
-                  {b.cost_per_unit ? (
-                    <span>
-                      Cost/Unit:{" "}
-                      <strong style={{ color: C.ink }}>
-                        {fmtPeso(b.cost_per_unit)}
-                      </strong>
-                    </span>
-                  ) : null}
-                  {b.storage_location && (
-                    <span>
-                      Location:{" "}
-                      <strong style={{ color: C.ink }}>
-                        {b.storage_location}
-                      </strong>
-                    </span>
-                  )}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 11, color: C.muted, marginBottom: 8 }}>
+                  {b.supplier && <span>Supplier: <strong style={{ color: C.ink }}>{b.supplier}</strong></span>}
+                  <span>Arrived: <strong style={{ color: C.ink }}>{supplyStr}</strong></span>
+                  <span>Expires: <strong style={{ color: ss.dot }}>{expStr}{dRem != null ? ` (${dRem < 0 ? "expired" : dRem + "d left"})` : ""}</strong></span>
+                  {b.cost_per_unit ? <span>Cost/Unit: <strong style={{ color: C.ink }}>{fmtPeso(b.cost_per_unit)}</strong></span> : null}
+                  {b.storage_location && <span>Location: <strong style={{ color: C.ink }}>{b.storage_location}</strong></span>}
                 </div>
 
                 <div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      fontSize: 9.5,
-                      color: C.muted,
-                      fontWeight: 700,
-                      marginBottom: 2,
-                    }}
-                  >
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9.5, color: C.muted, fontWeight: 700, marginBottom: 2 }}>
                     <span>STOCK</span>
-                    <span>
-                      {b.stock}
-                      {product.unit}/{totalStock}
-                      {product.unit}
-                    </span>
+                    <span>{frStockQuantity(b.stock, product.unit)} / {frStockQuantity(totalStock, product.unit)}</span>
                   </div>
                   <FrMiniBar pct={stockPct} color={C.green} />
                 </div>
 
-                {isPharmaBrand(product.brand) &&
-                  (b.lot_number ||
-                    b.ndc_code ||
-                    b.dosage_form ||
-                    b.storage_requirement ||
-                    b.controlled_substance) && (
-                    <div
-                      style={{
-                        marginTop: 8,
-                        paddingTop: 8,
-                        borderTop: `1px dashed ${C.border}`,
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 10,
-                        fontSize: 10.5,
-                        color: C.muted,
-                      }}
-                    >
-                      {b.lot_number && (
-                        <span>
-                          LOT:{" "}
-                          <strong style={{ color: C.ink }}>
-                            {b.lot_number}
-                          </strong>
-                        </span>
-                      )}
-                      {b.ndc_code && (
-                        <span>
-                          NDC:{" "}
-                          <strong style={{ color: C.ink }}>{b.ndc_code}</strong>
-                        </span>
-                      )}
-                      {b.dosage_form && (
-                        <span>
-                          {b.dosage_form}
-                          {b.strength ? ` · ${b.strength}` : ""}
-                        </span>
-                      )}
-                      {b.storage_requirement && (
-                        <span>
-                          Storage:{" "}
-                          <strong style={{ color: C.ink }}>
-                            {b.storage_requirement}
-                          </strong>
-                        </span>
-                      )}
-                      {b.controlled_substance && (
-                        <span style={{ color: "#991b1b", fontWeight: 800 }}>
-                          CONTROLLED SUBSTANCE
-                        </span>
-                      )}
-                    </div>
-                  )}
-                {isFuelBrand(product.brand) &&
-                  (b.tank_id || b.grade || b.octane_rating || b.truck_id) && (
-                    <div
-                      style={{
-                        marginTop: 8,
-                        paddingTop: 8,
-                        borderTop: `1px dashed ${C.border}`,
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 10,
-                        fontSize: 10.5,
-                        color: C.muted,
-                      }}
-                    >
-                      {b.tank_id && (
-                        <span>
-                          Tank:{" "}
-                          <strong style={{ color: C.ink }}>{b.tank_id}</strong>
-                        </span>
-                      )}
-                      {b.grade && (
-                        <span>
-                          Grade:{" "}
-                          <strong style={{ color: C.ink }}>{b.grade}</strong>
-                        </span>
-                      )}
-                      {b.octane_rating && (
-                        <span>
-                          Octane:{" "}
-                          <strong style={{ color: C.ink }}>
-                            {b.octane_rating}
-                          </strong>
-                        </span>
-                      )}
-                      {b.delivery_temp && (
-                        <span>
-                          Delivery Temp:{" "}
-                          <strong style={{ color: C.ink }}>
-                            {b.delivery_temp}°F
-                          </strong>
-                        </span>
-                      )}
-                      {b.truck_id && (
-                        <span>
-                          Truck:{" "}
-                          <strong style={{ color: C.ink }}>{b.truck_id}</strong>
-                        </span>
-                      )}
-                      {b.volume_correction && (
-                        <span>
-                          Corrected Vol (60°F):{" "}
-                          <strong style={{ color: C.ink }}>
-                            {b.volume_correction}
-                          </strong>
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                {b.notes && (
-                  <div
-                    style={{
-                      fontSize: 10.5,
-                      color: C.muted,
-                      marginTop: 6,
-                      fontStyle: "italic",
-                    }}
-                  >
-                    {b.notes}
+                {isPharmaBrand(product.brand) && (b.lot_number || b.ndc_code || b.dosage_form || b.storage_requirement || b.controlled_substance) && (
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.border}`, display: "flex", flexWrap: "wrap", gap: 10, fontSize: 10.5, color: C.muted }}>
+                    {b.lot_number && <span>LOT: <strong style={{ color: C.ink }}>{b.lot_number}</strong></span>}
+                    {b.ndc_code && <span>NDC: <strong style={{ color: C.ink }}>{b.ndc_code}</strong></span>}
+                    {b.dosage_form && <span>{b.dosage_form}{b.strength ? ` · ${b.strength}` : ""}</span>}
+                    {b.storage_requirement && <span>Storage: <strong style={{ color: C.ink }}>{b.storage_requirement}</strong></span>}
+                    {b.controlled_substance && <span style={{ color: "#991b1b", fontWeight: 800 }}>CONTROLLED SUBSTANCE</span>}
                   </div>
                 )}
+                {isFuelBrand(product.brand) && (b.tank_id || b.grade || b.octane_rating || b.truck_id) && (
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.border}`, display: "flex", flexWrap: "wrap", gap: 10, fontSize: 10.5, color: C.muted }}>
+                    {b.tank_id && <span>Tank: <strong style={{ color: C.ink }}>{b.tank_id}</strong></span>}
+                    {b.grade && <span>Grade: <strong style={{ color: C.ink }}>{b.grade}</strong></span>}
+                    {b.octane_rating && <span>Octane: <strong style={{ color: C.ink }}>{b.octane_rating}</strong></span>}
+                    {b.delivery_temp && <span>Delivery Temp: <strong style={{ color: C.ink }}>{b.delivery_temp}°F</strong></span>}
+                    {b.truck_id && <span>Truck: <strong style={{ color: C.ink }}>{b.truck_id}</strong></span>}
+                    {b.volume_correction && <span>Corrected Vol (60°F): <strong style={{ color: C.ink }}>{frStockQuantity(b.volume_correction, product.unit)}</strong></span>}
+                  </div>
+                )}
+                {b.notes && <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6, fontStyle: "italic" }}>{b.notes}</div>}
               </div>
             );
           })
@@ -8635,19 +8899,35 @@ function FrFifoQueue({ product, batches, loading }) {
   );
 }
 
+/*
+ * UX update:
+ * - Keep Stock Inventory branch-specific.
+ * - Remove the separate Smart Reordering page.
+ * - Show a compact LOW STOCK / OUT OF STOCK indicator per row.
+ * - Show the small Order button only when the item needs replenishment.
+ * - The existing WebSupplyOrders flow remains the order handler.
+ */
 /* ── MAIN COMPONENT — read-only two-panel stock inventory for franchisees ── */
 function FrStockInventoryContent({ user, brands }) {
-  const userBranch = (user?.branch || "").trim();
-  const userBrand = (user?.brand || "").trim();
+  const supplyOrdersRef = useRef(null);
+  const [reorderPlan, setReorderPlan] = useState([]);
+  const reorderLevel = (item) => Number(
+    reorderPlan.find((p) => String(p.id) === String(item.id))?.reorder_level ??
+    item.reorder_level ?? item.min_stock ?? 0,
+  );
+  const canOrder = ["franchisee", "manager"].includes(String(user?.role || "").trim().toLowerCase());
+  const userBranch = String(user?.branch || "").trim();
+  const userBrand = String(user?.brand || "").trim();
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [unitFilter, setUnitFilter] = useState("");
-  const [statusFilt, setStatusFilt] = useState("");
-
+  const [categoryF, setCategoryF] = useState("");
+  const [unitF, setUnitF] = useState("");
+  const [statusF, setStatusF] = useState("");
   const [selectedId, setSelectedId] = useState(null);
   const [batches, setBatches] = useState([]);
+  const [receiptVersion, setReceiptVersion] = useState(0);
   const [batchLoading, setBatchLoading] = useState(false);
 
   const extraFields = useMemo(() => getExtraFields(userBrand), [userBrand]);
@@ -8657,9 +8937,7 @@ function FrStockInventoryContent({ user, brands }) {
     if (!userBranch) return;
     setLoading(true);
     try {
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/ingredients?branch=${encodeURIComponent(userBranch)}`,
-      );
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients?branch=${encodeURIComponent(userBranch)}`);
       const d = await res.json();
       setItems(Array.isArray(d) ? d : []);
     } catch {
@@ -8669,426 +8947,145 @@ function FrStockInventoryContent({ user, brands }) {
     }
   }, [userBranch]);
 
-  useEffect(() => {
-    if (userBranch) fetchItems();
-  }, [fetchItems, userBranch]);
+  useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  const categoryOptions = useMemo(
+    () => [...new Set(items.map((i) => String(i.category || "").trim()).filter(Boolean))].sort(),
+    [items],
+  );
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const warnDate = new Date(now);
-    warnDate.setDate(warnDate.getDate() + EXPIRY_WARN_DAYS);
-
-    return items
-      .filter((i) => {
-        if (q && !i.name.toLowerCase().includes(q)) return false;
-        if (unitFilter && i.unit !== unitFilter) return false;
-        if (statusFilt === "low" && i.stock >= i.min_stock) return false;
-        if (statusFilt === "ok" && i.stock < i.min_stock) return false;
-
-        if (statusFilt === "expiring" || statusFilt === "expired") {
-          const expRaw = i.extra_fields?.exp_date;
-          if (!expRaw) return false;
-          const exp = new Date(expRaw);
-          exp.setHours(0, 0, 0, 0);
-          if (statusFilt === "expired") return exp < now;
-          if (statusFilt === "expiring") return exp >= now && exp <= warnDate;
-        }
-        return true;
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [items, search, unitFilter, statusFilt]);
+    const q = search.trim().toLowerCase();
+    return items.filter((i) => {
+      if (q && !String(i.name || "").toLowerCase().includes(q) && !String(i.category || "").toLowerCase().includes(q) && !String(i.sku || "").toLowerCase().includes(q)) return false;
+      if (categoryF && String(i.category || "") !== categoryF) return false;
+      if (unitF && String(i.unit || "") !== unitF) return false;
+      const low = Number(i.stock) <= reorderLevel(i);
+      if (statusF === "low" && !low) return false;
+      if (statusF === "ok" && low) return false;
+      if (statusF === "expiring" || statusF === "expired") {
+        const expRaw = i.extra_fields?.exp_date;
+        if (!expRaw) return false;
+        const exp = new Date(expRaw); exp.setHours(0,0,0,0);
+        const now = new Date(); now.setHours(0,0,0,0);
+        const warn = new Date(now); warn.setDate(warn.getDate()+EXPIRY_WARN_DAYS);
+        if (statusF === "expired" && !(exp < now)) return false;
+        if (statusF === "expiring" && !(exp >= now && exp <= warn)) return false;
+      }
+      return true;
+    }).sort((a,b) => String(a.name || "").localeCompare(String(b.name || "")));
+  }, [items, reorderPlan, search, categoryF, unitF, statusF]);
 
   useEffect(() => {
-    if (selectedId && !filtered.find((i) => i.id === selectedId))
-      setSelectedId(null);
+    if (selectedId && !filtered.some((i) => i.id === selectedId)) setSelectedId(null);
   }, [filtered, selectedId]);
 
   const selected = filtered.find((i) => i.id === selectedId) || null;
 
   useEffect(() => {
-    if (!selectedId) {
-      setBatches([]);
-      return;
-    }
+    if (!selectedId) { setBatches([]); return; }
     let cancelled = false;
     setBatchLoading(true);
-    fetch(
-      `${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${selectedId}`,
-    )
+    setBatches([]);
+    fetch(`${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${selectedId}`)
       .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled) {
-          setBatches(Array.isArray(d) ? d : []);
-          setBatchLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setBatchLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedId]);
+      .then((d) => { if (!cancelled) { setBatches(Array.isArray(d) ? d : []); setBatchLoading(false); } })
+      .catch(() => { if (!cancelled) setBatchLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedId, receiptVersion]);
 
-  const lowCount = items.filter(
-    (i) => Number(i.stock) < Number(i.min_stock),
-  ).length;
-  const totalValue = items.reduce(
-    (s, i) => s + (i.cost_per_unit || 0) * (i.stock || 0),
-    0,
-  );
-
-  const expiringCount = useMemo(() => {
-    if (!hasExpiry) return 0;
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const warnDate = new Date(now);
-    warnDate.setDate(now.getDate() + EXPIRY_WARN_DAYS);
-    return items.filter((i) => {
-      const expRaw = i.extra_fields?.exp_date;
-      if (!expRaw) return false;
-      const exp = new Date(expRaw);
-      exp.setHours(0, 0, 0, 0);
-      return exp >= now && exp <= warnDate;
-    }).length;
-  }, [items, hasExpiry]);
-
-  const expiredCount = useMemo(() => {
-    if (!hasExpiry) return 0;
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    return items.filter((i) => {
-      const expRaw = i.extra_fields?.exp_date;
-      if (!expRaw) return false;
-      const exp = new Date(expRaw);
-      exp.setHours(0, 0, 0, 0);
-      return exp < now;
-    }).length;
-  }, [items, hasExpiry]);
+  const lowCount = items.filter((i) => Number(i.stock) <= reorderLevel(i)).length;
 
   return (
-    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-      <style>{`
-        .fr-inv-row:hover { background: #F6F7F1 !important; }
-      `}</style>
-
-      <ReadOnlyBanner message="Stock inventory is read-only. Contact your admin to add, edit, or delete ingredients." />
-
-      {/* KPI cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${hasExpiry ? 4 : 3}, 1fr)`,
-          gap: 14,
-          marginTop: 16,
-          marginBottom: 18,
-        }}
-      >
-        <KpiStatCard
-          tone="green"
-          icon={<Package size={20} />}
-          label="Total Ingredients"
-          value={items.length}
-          sub="Registered"
-        />
-        <KpiStatCard
-          tone="red"
-          icon={<AlertTriangle size={20} />}
-          label="Low Stock Alerts"
-          value={lowCount}
-          sub="Needs reorder"
-        />
-        <KpiStatCard
-          tone="blue"
-          icon={<DollarSign size={20} />}
-          label="Total Stock Value"
-          value={fmtPeso(totalValue)}
-          sub="Cost basis"
-        />
-        {hasExpiry && (
-          <KpiStatCard
-            tone="orange"
-            icon={<Calendar size={20} />}
-            label="Expiring / Expired"
-            value={`${expiringCount} / ${expiredCount}`}
-            sub={`Within ${EXPIRY_WARN_DAYS} days / already expired`}
-          />
-        )}
+    <div className="stock-surface" style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 10px rgba(50,109,32,.05)", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "12px 18px 12px 22px", background: "#fbfcf8", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", color: C.ink, flexWrap: "wrap", gap: 10 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <StoreIcon size={17} color={C.green} />
+          <span style={{ fontWeight: 800, fontSize: 17, whiteSpace: "nowrap" }}>{userBrand || "Stock Inventory"}</span>
+        </span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginLeft: "auto", flexWrap: "wrap" }}>
+          <span style={{ opacity: 0.92, fontSize: 11, whiteSpace: "nowrap" }}>
+            {filtered.length} item{filtered.length === 1 ? "" : "s"}{lowCount > 0 ? ` · ${lowCount} low` : ""}
+          </span>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", flexShrink: 0 }}>
+            <WebSupplyOrders
+              key={`${user?.id}:${user?.brand}:${user?.branch}`}
+              ref={supplyOrdersRef}
+              user={user}
+              embedded
+              onPlan={setReorderPlan}
+              onReceived={() => { fetchItems(); setReceiptVersion((v) => v + 1); }}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* filter row */}
-      <div
-        style={{
-          background: C.white,
-          border: "1px solid #E1E6D8",
-          borderRadius: 16,
-          padding: "12px 16px",
-          marginBottom: 18,
-          boxShadow: "0 2px 14px rgba(59,121,30,0.06)",
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
-        <div style={{ position: "relative", flex: "1 1 220px", minWidth: 160 }}>
-          <div
-            style={{
-              position: "absolute",
-              left: 9,
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: C.muted,
-            }}
-          >
-            <Search size={13} />
-          </div>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search ingredient…"
-            style={{ ...invInputSt, paddingLeft: 28, height: 34 }}
-          />
+      <div style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 6, flexWrap: "wrap", background: "#fbfcf8" }}>
+        <div style={{ position: "relative", flex: "1 1 160px", minWidth: 100 }}>
+          <div style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: C.muted }}><SearchIcon size={11} /></div>
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" style={{ ...invInputSt, height: 30, fontSize: 12, paddingLeft: 24 }} />
         </div>
-        <select
-          value={unitFilter}
-          onChange={(e) => setUnitFilter(e.target.value)}
-          style={{ ...invInputSt, width: 130, height: 34 }}
-        >
+        <div style={{ ...invInputSt, height: 30, minWidth: 160, fontSize: 11, padding: "6px 10px", background: "#F6F7F1", color: C.ink, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, cursor: "default" }} title="Assigned branch">
+          <StoreIcon size={12} color={C.green} /> {userBranch || "Assigned Branch"}
+        </div>
+        {categoryOptions.length > 0 && (
+          <select value={categoryF} onChange={(e) => setCategoryF(e.target.value)} style={{ ...invInputSt, height: 30, fontSize: 11, width: 150 }}>
+            <option value="">All Categories</option>
+            {categoryOptions.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+          </select>
+        )}
+        <select value={unitF} onChange={(e) => setUnitF(e.target.value)} style={{ ...invInputSt, height: 30, fontSize: 11, width: 100 }}>
           <option value="">All Units</option>
-          {UNITS.map((u) => (
-            <option key={u} value={u}>
-              {u}
-            </option>
-          ))}
+          {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
         </select>
-        <select
-          value={statusFilt}
-          onChange={(e) => setStatusFilt(e.target.value)}
-          style={{ ...invInputSt, width: 170, height: 34 }}
-        >
+        <select value={statusF} onChange={(e) => setStatusF(e.target.value)} style={{ ...invInputSt, height: 30, fontSize: 11, width: 110 }}>
           <option value="">All Status</option>
           <option value="low">Low Stock</option>
           <option value="ok">In Stock</option>
           {hasExpiry && <option value="expiring">Expiring Soon (30d)</option>}
           {hasExpiry && <option value="expired">Expired</option>}
         </select>
-        <button onClick={fetchItems} style={btnSt}>
-          <RefreshCw size={13} /> Refresh
-        </button>
       </div>
 
-      {/* two-panel card — left: product list, right: FIFO/FEFO queue */}
-      <div
-        style={{
-          background: C.white,
-          border: "1px solid #E1E6D8",
-          borderRadius: 18,
-          overflow: "hidden",
-          boxShadow: "0 2px 18px rgba(59,121,30,0.07)",
-        }}
-      >
-        <div
-          style={{
-            padding: "16px 22px",
-            background: "#fbfcf8",
-            borderBottom: `1px solid ${C.border}`,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            color: C.ink,
-            flexWrap: "wrap",
-            gap: 8,
-          }}
-        >
-          <span
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontWeight: 800,
-              fontSize: 14,
-            }}
-          >
-            <StoreIcon size={16} color={C.green} /> Stock Inventory —{" "}
-            {userBranch}
-            {userBrand && (
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  background: C.greenLt,
-                  color: C.greenDk,
-                  border: `1px solid ${C.greenMid}`,
-                  padding: "2px 10px",
-                  borderRadius: 20,
-                }}
-              >
-                {userBrand}
-              </span>
-            )}
-          </span>
-          <span style={{ fontSize: 11, opacity: 0.92 }}>
-            {filtered.length} items · {lowCount} low
-          </span>
-        </div>
-
-        {loading ? (
-          <div
-            style={{
-              padding: "52px 0",
-              textAlign: "center",
-              color: C.muted,
-              fontSize: 13,
-              fontWeight: 700,
-            }}
-          >
-            Loading…
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "380px 1fr",
-              minHeight: 480,
-              maxHeight: 620,
-            }}
-          >
-            {/* LEFT — clickable product list */}
-            <div
-              style={{
-                borderRight: `1px solid ${C.border}`,
-                overflowY: "auto",
-                maxHeight: 620,
-                minHeight: 0,
-              }}
-            >
-              {filtered.length === 0 ? (
-                <div
-                  style={{
-                    padding: "30px 14px",
-                    textAlign: "center",
-                    color: C.muted,
-                    fontSize: 12,
-                  }}
-                >
-                  No ingredients found.
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(360px,.95fr) minmax(430px,1.25fr)", minHeight: 540, maxHeight: 700 }}>
+        <div style={{ borderRight: `1px solid ${C.border}`, overflowY: "auto", maxHeight: 700, minHeight: 0 }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: "30px 14px", textAlign: "center", color: C.muted, fontSize: 12 }}>No products found.</div>
+          ) : filtered.map((item) => {
+            const low = Number(item.stock) <= reorderLevel(item);
+            const active = item.id === selectedId;
+            const stockPct = Number(item.min_stock) > 0 ? Math.min(100, Math.round((Number(item.stock || 0) / (Number(item.min_stock) * 2)) * 100)) : Number(item.stock) > 0 ? 100 : 0;
+            return (
+              <div key={item.id} onClick={() => setSelectedId(item.id)} className={`stock-product-row${active ? " active" : ""}`} style={{ padding: "12px 16px", cursor: "pointer", borderLeft: `3px solid ${active ? C.lime : "transparent"}`, background: active ? "#f6f8ef" : C.white, borderBottom: `1px solid ${C.bg}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: active ? 800 : 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</span>
+                  {low && <span style={{ fontSize: 9.5, fontWeight: 800, color: C.warn, flexShrink: 0 }}>LOW</span>}
                 </div>
-              ) : (
-                filtered.map((item) => {
-                  const low = Number(item.stock) < Number(item.min_stock);
-                  const active = item.id === selectedId;
-                  const stockPct =
-                    Number(item.min_stock) > 0
-                      ? Math.min(
-                          100,
-                          Math.round(
-                            (Number(item.stock || 0) /
-                              (Number(item.min_stock) * 2)) *
-                              100,
-                          ),
-                        )
-                      : Number(item.stock) > 0
-                        ? 100
-                        : 0;
-                  return (
-                    <div
-                      key={item.id}
-                      className="fr-inv-row"
-                      onClick={() => setSelectedId(item.id)}
-                      style={{
-                        padding: "10px 14px",
-                        cursor: "pointer",
-                        borderLeft: `3px solid ${active ? C.green : "transparent"}`,
-                        background: active ? C.greenLt : "transparent",
-                        borderBottom: `1px solid ${C.bg}`,
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          gap: 6,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: 12.5,
-                            fontWeight: active ? 800 : 600,
-                            color: active ? C.greenDk : C.ink,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {item.name}
-                        </span>
-                        {low && (
-                          <span
-                            style={{
-                              fontSize: 9,
-                              fontWeight: 800,
-                              color: C.warn,
-                              background: C.warnBg,
-                              padding: "1px 6px",
-                              borderRadius: 4,
-                              flexShrink: 0,
-                            }}
-                          >
-                            LOW
-                          </span>
-                        )}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 10.5,
-                          color: C.muted,
-                          marginTop: 3,
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <span>
-                          {item.unit} · min {item.min_stock}
-                        </span>
-                        <span style={{ fontWeight: 700, color: C.ink }}>
-                          {item.stock}
-                        </span>
-                      </div>
-                      <div style={{ marginTop: 5 }}>
-                        <FrMiniBar
-                          pct={stockPct}
-                          color={low ? C.warn : C.green}
-                          height={4}
-                        />
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* RIGHT — FIFO / FEFO queue */}
-            <div
-              style={{
-                padding: 20,
-                overflowY: "auto",
-                maxHeight: 620,
-                minHeight: 0,
-              }}
-            >
-              <FrFifoQueue
-                product={selected}
-                batches={batches}
-                loading={batchLoading}
-              />
-            </div>
-          </div>
-        )}
+                <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  {item.sku && <><span style={{ fontSize: 9.5, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.sku}</span><span style={{ opacity: 0.45 }}>•</span></>}
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.branch || userBranch}</span>
+                </div>
+                <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 9.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</span>
+                  <span style={{ opacity: 0.45 }}>•</span>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.branch || userBranch}</span>
+                  {item.category && <><span style={{ opacity: 0.45 }}>•</span><span style={{ color: C.greenDk, fontWeight: 700 }}>{item.category}</span></>}
+                </div>
+                {low && canOrder && (
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 7 }}>
+                    <button type="button" aria-label={`Order ${item.name}`} onClick={(e) => { e.stopPropagation(); supplyOrdersRef.current?.openItem(item); }} style={{ ...smallBtnSt, height: 24, padding: "0 9px", fontSize: 10.5, border: `1px solid ${C.border}`, color: C.green, background: C.white }}>
+                      <ShoppingCart size={10} /> Order
+                    </button>
+                  </div>
+                )}
+                <div style={{ marginTop: 5 }}><FrMiniBar pct={stockPct} color={low ? C.red : C.green} height={4} /></div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ padding: 17, overflowY: "auto", maxHeight: 700, minHeight: 0 }}>
+          <FrFifoQueue key={selected?.id || "empty"} product={selected} batches={batches} loading={batchLoading} />
+        </div>
       </div>
     </div>
   );
@@ -9315,7 +9312,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
       <style>{`@media print{body>*{display:none!important;}.pos-receipt-print{display:block!important;}}`}</style>
 
       <div
-        className="v-stat-grid"
+        className="fr-responsive-grid v-stat-grid"
         style={{ gridTemplateColumns: "repeat(4,1fr)" }}
       >
         <VKpi
@@ -9366,7 +9363,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
       </div>
 
       {activeTab === "cashier" && (
-        <div
+        <div className="fr-responsive-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 380px",
@@ -9426,7 +9423,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
                     (c) => c.id === product.id && c.source === product.source,
                   );
                   return (
-                    <div
+                    <div role="button" tabIndex={0} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); event.currentTarget.click(); } }}
                       key={`${product.source}-${product.id}`}
                       onClick={() => addToCart(product)}
                       style={{
@@ -9806,7 +9803,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
                   >
                     VAT (12%)
                   </label>
-                  <div
+                  <div role="button" tabIndex={0} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); event.currentTarget.click(); } }}
                     onClick={() => setVatEnabled((v) => !v)}
                     style={{
                       width: 44,
@@ -10150,7 +10147,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
               </div>
             ) : (
               <div style={{ overflowX: "auto" }}>
-                <table className="v-table">
+                <div className="fr-table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table className="v-table">
                   <thead>
                     <tr>
                       {[
@@ -10255,7 +10252,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
                       ))
                     )}
                   </tbody>
-                </table>
+                </table></div>
               </div>
             )}
           </div>
@@ -11749,7 +11746,7 @@ ${topItems}
         </div>
 
         <div
-          className="ma-generate-grid"
+          className="fr-responsive-grid ma-generate-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr auto",
@@ -12002,7 +11999,7 @@ ${topItems}
             />
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table className="v-table">
+              <div className="fr-table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table className="v-table">
                 <thead>
                   <tr>
                     <th>Report #</th>
@@ -12229,7 +12226,7 @@ ${topItems}
                       </React.Fragment>
                     ))}
                 </tbody>
-              </table>
+              </table></div>
 
               <Paginator
                 total={reports.length}
@@ -12268,7 +12265,7 @@ ${topItems}
             />
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table className="v-table">
+              <div className="fr-table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table className="v-table">
                 <thead>
                   <tr>
                     <th>Report #</th>
@@ -12464,7 +12461,7 @@ ${topItems}
                       </React.Fragment>
                     ))}
                 </tbody>
-              </table>
+              </table></div>
 
               <Paginator
                 total={submittedReports.length}
@@ -12501,7 +12498,7 @@ ${topItems}
             />
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table className="v-table">
+              <div className="fr-table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table className="v-table">
                 <thead>
                   <tr>
                     <th>Report #</th>
@@ -12614,7 +12611,7 @@ ${topItems}
                       );
                     })}
                 </tbody>
-              </table>
+              </table></div>
               <Paginator
                 total={deletedReports.length}
                 page={delPage}
@@ -12940,7 +12937,6 @@ function FrStaffManagementContent({ user }) {
             name: form.name,
             email: form.email,
             role: form.role,
-            email: form.email,
             ...(form.password && { newPassword: form.password }), // backend expects newPassword not password
           }),
         },
@@ -13039,7 +13035,7 @@ function FrStaffManagementContent({ user }) {
           />
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table className="v-table">
+            <div className="fr-table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table className="v-table">
               <thead>
                 <tr>
                   <th>Name</th>
@@ -13070,7 +13066,7 @@ function FrStaffManagementContent({ user }) {
                             alignItems: "center",
                             justifyContent: "center",
                             fontWeight: 800,
-                            color: "#bdd43c",
+                            color: "#b3a941",
                             fontSize: 13,
                             fontFamily: "Plus Jakarta Sans,sans-serif",
                             flexShrink: 0,
@@ -13164,7 +13160,7 @@ function FrStaffManagementContent({ user }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </div>
@@ -13573,13 +13569,13 @@ function FrCommunicationContent() {
       width: 7,
       height: 7,
       borderRadius: "50%",
-      background: "#bdd43c",
+      background: "#b3a941",
       boxShadow: "0 0 0 3px rgba(212,223,51,0.3)",
     },
     liveTxt: {
       fontSize: 9,
       fontWeight: 800,
-      color: "#bdd43c",
+      color: "#b3a941",
       letterSpacing: "0.15em",
     },
     searchBarWrap: {
@@ -13594,10 +13590,11 @@ function FrCommunicationContent() {
     },
     searchInput: {
       flex: 1,
+      minWidth: 0,
       background: "none",
       border: "none",
       outline: "none",
-      color: "#fff",
+      color: "#12241B",
       fontSize: 13,
       fontFamily: "inherit",
     },
@@ -14579,7 +14576,7 @@ function AlertModal({ message, onClose, type = "info" }) {
   );
 }
 
-function FrProfileContent({ user }) {
+function FrProfileContent({ user, onUserUpdate }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
@@ -14800,7 +14797,9 @@ function FrProfileContent({ user }) {
           suffix: formData.suffix,
           email: formData.email,
         };
-        localStorage.setItem("user", JSON.stringify(updatedUser));
+        const userStorage = localStorage.getItem("user") ? localStorage : sessionStorage;
+        userStorage.setItem("user", JSON.stringify(updatedUser));
+        onUserUpdate?.(updatedUser);
         setIsUnlocked(false);
       } else {
         showAlert(data.error || "Failed to update profile.", "error");
@@ -15243,7 +15242,7 @@ function FrProfileContent({ user }) {
       </div>
 
       {/* ── Two-column: Personal Info + Change Password ── */}
-      <div
+      <div className="fr-responsive-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
@@ -15948,3 +15947,4 @@ function FrProfileContent({ user }) {
 }
 
 
+  
