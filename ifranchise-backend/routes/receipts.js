@@ -6,170 +6,183 @@ const path = require("path");
 const os = require("os");
 const mindee = require("mindee");
 const upload = require("../utils/upload");
+const { authenticate, authorize } = require("../middleware/auth");
 
-router.post("/upload", upload.single("receipt"), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    const { user_id } = req.body;
-    let brand = null,
-      branch = null;
-    if (user_id) {
-      const userResult = await pool.query(
-        "SELECT brand, branch FROM users WHERE id=$1",
-        [user_id],
-      );
-      if (userResult.rows.length > 0) {
-        brand = userResult.rows[0].brand;
-        branch = userResult.rows[0].branch;
-      }
-    }
-
-    const mindeeClient = new mindee.v2.Client({
-      apiKey: process.env.MINDEE_API_KEY,
-    });
-    const inputSource = new mindee.PathInput({ inputPath: req.file.path });
-    const response = await mindeeClient.enqueueAndGetResult(
-      mindee.v2.product.Extraction,
-      inputSource,
-      { modelId: process.env.MINDEE_MODEL_ID },
-    );
-    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-
-    const fields = response.rawHttp.inference.result.fields;
-    const merchant = fields?.supplier_name?.value ?? null;
-    const date = fields?.date?.value ?? null;
-    const total = fields?.total_amount?.value ?? null;
-    const currency = fields?.locale?.fields?.currency?.value ?? "PHP";
-    const vat =
-      fields?.total_tax?.value ??
-      fields?.taxes?.value ??
-      fields?.tax?.value ??
-      null;
-    const referenceNo =
-      fields?.document_number?.value ??
-      fields?.invoice_number?.value ??
-      fields?.receipt_number?.value ??
-      null;
-    const lineItems = (fields?.line_items?.items ?? []).map((item) => ({
-      description: item.fields?.description?.value || "Item",
-      quantity: item.fields?.quantity?.value || 0,
-      unitPrice: item.fields?.unit_price?.value || 0,
-      totalPrice: item.fields?.total_price?.value || 0,
-    }));
-
-    res.json({
-      merchant,
-      date,
-      total,
-      currency,
-      vat,
-      referenceNo,
-      brand,
-      branch,
-      lineItems,
-    });
-
-    const client = await pool.connect();
+router.post(
+  "/upload",
+  authenticate,
+  upload.single("receipt"),
+  async (req, res) => {
     try {
-      await client.query("BEGIN");
-      const receiptResult = await client.query(
-        `INSERT INTO receipts (merchant, date, total_amount, currency, vat, reference_no, brand, branch, uploaded_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-        [
-          merchant,
-          date,
-          total,
-          currency,
-          vat,
-          referenceNo,
-          brand,
-          branch,
-          user_id || null,
-        ],
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+      const { user_id } = req.body;
+      let brand = null,
+        branch = null;
+      if (user_id) {
+        const userResult = await pool.query(
+          "SELECT brand, branch FROM users WHERE id=$1",
+          [user_id],
+        );
+        if (userResult.rows.length > 0) {
+          brand = userResult.rows[0].brand;
+          branch = userResult.rows[0].branch;
+        }
+      }
+
+      const mindeeClient = new mindee.v2.Client({
+        apiKey: process.env.MINDEE_API_KEY,
+      });
+      const inputSource = new mindee.PathInput({ inputPath: req.file.path });
+      const response = await mindeeClient.enqueueAndGetResult(
+        mindee.v2.product.Extraction,
+        inputSource,
+        { modelId: process.env.MINDEE_MODEL_ID },
       );
-      for (const item of lineItems) {
-        await client.query(
-          `INSERT INTO receipt_items (receipt_id, description, quantity, unit_price, total_price) VALUES ($1,$2,$3,$4,$5)`,
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+
+      const fields = response.rawHttp.inference.result.fields;
+      const merchant = fields?.supplier_name?.value ?? null;
+      const date = fields?.date?.value ?? null;
+      const total = fields?.total_amount?.value ?? null;
+      const currency = fields?.locale?.fields?.currency?.value ?? "PHP";
+      const vat =
+        fields?.total_tax?.value ??
+        fields?.taxes?.value ??
+        fields?.tax?.value ??
+        null;
+      const referenceNo =
+        fields?.document_number?.value ??
+        fields?.invoice_number?.value ??
+        fields?.receipt_number?.value ??
+        null;
+      const lineItems = (fields?.line_items?.items ?? []).map((item) => ({
+        description: item.fields?.description?.value || "Item",
+        quantity: item.fields?.quantity?.value || 0,
+        unitPrice: item.fields?.unit_price?.value || 0,
+        totalPrice: item.fields?.total_price?.value || 0,
+      }));
+
+      res.json({
+        merchant,
+        date,
+        total,
+        currency,
+        vat,
+        referenceNo,
+        brand,
+        branch,
+        lineItems,
+      });
+
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const receiptResult = await client.query(
+          `INSERT INTO receipts (merchant, date, total_amount, currency, vat, reference_no, brand, branch, uploaded_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
           [
-            receiptResult.rows[0].id,
-            item.description,
-            item.quantity,
-            item.unitPrice,
-            item.totalPrice,
+            merchant,
+            date,
+            total,
+            currency,
+            vat,
+            referenceNo,
+            brand,
+            branch,
+            user_id || null,
           ],
         );
+        for (const item of lineItems) {
+          await client.query(
+            `INSERT INTO receipt_items (receipt_id, description, quantity, unit_price, total_price) VALUES ($1,$2,$3,$4,$5)`,
+            [
+              receiptResult.rows[0].id,
+              item.description,
+              item.quantity,
+              item.unitPrice,
+              item.totalPrice,
+            ],
+          );
+        }
+        await client.query("COMMIT");
+      } catch (dbErr) {
+        await client.query("ROLLBACK");
+      } finally {
+        client.release();
       }
-      await client.query("COMMIT");
-    } catch (dbErr) {
-      await client.query("ROLLBACK");
-    } finally {
-      client.release();
+    } catch (err) {
+      if (req.file && fs.existsSync(req.file.path))
+        fs.unlinkSync(req.file.path);
+      res.status(500).json({ error: "OCR failed", details: err.message });
     }
-  } catch (err) {
-    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    res.status(500).json({ error: "OCR failed", details: err.message });
-  }
-});
+  },
+);
 
-router.post("/ocr-extract", upload.single("receipt"), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    const { user_id } = req.body;
-    let brand = null,
-      branch = null;
-    if (user_id) {
-      const userResult = await pool.query(
-        "SELECT brand, branch FROM users WHERE id=$1",
-        [user_id],
+router.post(
+  "/ocr-extract",
+  authenticate,
+  upload.single("receipt"),
+  async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+      const { user_id } = req.body;
+      let brand = null,
+        branch = null;
+      if (user_id) {
+        const userResult = await pool.query(
+          "SELECT brand, branch FROM users WHERE id=$1",
+          [user_id],
+        );
+        if (userResult.rows.length > 0) {
+          brand = userResult.rows[0].brand;
+          branch = userResult.rows[0].branch;
+        }
+      }
+
+      const mindeeClient = new mindee.v2.Client({
+        apiKey: process.env.MINDEE_API_KEY,
+      });
+      const inputSource = new mindee.PathInput({ inputPath: req.file.path });
+      const response = await mindeeClient.enqueueAndGetResult(
+        mindee.v2.product.Extraction,
+        inputSource,
+        { modelId: process.env.MINDEE_MODEL_ID },
       );
-      if (userResult.rows.length > 0) {
-        brand = userResult.rows[0].brand;
-        branch = userResult.rows[0].branch;
-      }
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+
+      const fields = response.rawHttp.inference.result.fields;
+      const merchant = fields?.supplier_name?.value ?? null;
+      const date = fields?.date?.value ?? null;
+      const total = fields?.total_amount?.value ?? null;
+      const currency = fields?.locale?.fields?.currency?.value ?? "PHP";
+      const vat = fields?.total_tax?.value ?? null;
+      const referenceNo =
+        fields?.document_number?.value ?? fields?.invoice_number?.value ?? null;
+      const lineItems = (fields?.line_items?.items ?? []).map((item) => ({
+        description: item.fields?.description?.value || "Item",
+        quantity: item.fields?.quantity?.value || 0,
+        unitPrice: item.fields?.unit_price?.value || 0,
+        totalPrice: item.fields?.total_price?.value || 0,
+      }));
+
+      res.json({
+        merchant,
+        date,
+        total,
+        currency,
+        vat,
+        referenceNo,
+        brand,
+        branch,
+        lineItems,
+      });
+    } catch (err) {
+      if (req.file && fs.existsSync(req.file.path))
+        fs.unlinkSync(req.file.path);
+      res.status(500).json({ error: "OCR failed", details: err.message });
     }
-
-    const mindeeClient = new mindee.v2.Client({
-      apiKey: process.env.MINDEE_API_KEY,
-    });
-    const inputSource = new mindee.PathInput({ inputPath: req.file.path });
-    const response = await mindeeClient.enqueueAndGetResult(
-      mindee.v2.product.Extraction,
-      inputSource,
-      { modelId: process.env.MINDEE_MODEL_ID },
-    );
-    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-
-    const fields = response.rawHttp.inference.result.fields;
-    const merchant = fields?.supplier_name?.value ?? null;
-    const date = fields?.date?.value ?? null;
-    const total = fields?.total_amount?.value ?? null;
-    const currency = fields?.locale?.fields?.currency?.value ?? "PHP";
-    const vat = fields?.total_tax?.value ?? null;
-    const referenceNo =
-      fields?.document_number?.value ?? fields?.invoice_number?.value ?? null;
-    const lineItems = (fields?.line_items?.items ?? []).map((item) => ({
-      description: item.fields?.description?.value || "Item",
-      quantity: item.fields?.quantity?.value || 0,
-      unitPrice: item.fields?.unit_price?.value || 0,
-      totalPrice: item.fields?.total_price?.value || 0,
-    }));
-
-    res.json({
-      merchant,
-      date,
-      total,
-      currency,
-      vat,
-      referenceNo,
-      brand,
-      branch,
-      lineItems,
-    });
-  } catch (err) {
-    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    res.status(500).json({ error: "OCR failed", details: err.message });
-  }
-});
+  },
+);
 
 const axios = require("axios");
 const FormData = require("form-data");
@@ -498,18 +511,11 @@ router.post("/api/face-match", async (req, res) => {
   }
 });
 
-router.get("/receipts", async (req, res) => {
+router.get("/receipts", authenticate, async (req, res) => {
   try {
-    const { user_id, brand, branch } = req.query;
-    if (!user_id) return res.status(400).json({ error: "user_id is required" });
-
-    const userResult = await pool.query("SELECT role FROM users WHERE id=$1", [
-      user_id,
-    ]);
-    if (userResult.rows.length === 0)
-      return res.status(404).json({ error: "User not found" });
-
-    const isAdmin = userResult.rows[0].role === "Super Admin";
+    const { brand, branch } = req.query;
+    const user_id = req.user.id;
+    const isAdmin = req.user.role === "Super Admin";
     const conditions = [],
       values = [];
     if (!isAdmin) {
@@ -536,13 +542,16 @@ router.get("/receipts", async (req, res) => {
   }
 });
 
-router.get("/receipts/:id", async (req, res) => {
+router.get("/receipts/:id", authenticate, async (req, res) => {
   try {
     const receipt = await pool.query("SELECT * FROM receipts WHERE id=$1", [
       req.params.id,
     ]);
     if (receipt.rows.length === 0)
       return res.status(404).json({ error: "Receipt not found" });
+    if (req.user.role !== "Super Admin" && String(receipt.rows[0].uploaded_by) !== String(req.user.id)) {
+      return res.status(403).json({ error: "You do not have access to this receipt" });
+    }
     const items = await pool.query(
       "SELECT * FROM receipt_items WHERE receipt_id=$1 ORDER BY id",
       [req.params.id],
@@ -553,7 +562,7 @@ router.get("/receipts/:id", async (req, res) => {
   }
 });
 
-router.post("/receipts/save", async (req, res) => {
+router.post("/receipts/save", authenticate, async (req, res) => {
   const {
     merchant,
     date,
@@ -562,8 +571,9 @@ router.post("/receipts/save", async (req, res) => {
     vat,
     referenceNo,
     lineItems,
-    user_id,
+    user_id: ignored_user_id,
   } = req.body;
+  const user_id = req.user.id;
   let brand = null,
     branch = null;
   if (user_id) {
@@ -617,7 +627,7 @@ router.post("/receipts/save", async (req, res) => {
   }
 });
 
-router.put("/receipts/:id", async (req, res) => {
+router.put("/receipts/:id", authenticate, async (req, res) => {
   const {
     merchant,
     date,
@@ -630,6 +640,9 @@ router.put("/receipts/:id", async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    const ownership = await client.query("SELECT uploaded_by FROM receipts WHERE id=$1 FOR UPDATE", [req.params.id]);
+    if (!ownership.rows.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Receipt not found" }); }
+    if (req.user.role !== "Super Admin" && String(ownership.rows[0].uploaded_by) !== String(req.user.id)) { await client.query("ROLLBACK"); return res.status(403).json({ error: "You do not have access to this receipt" }); }
     await client.query(
       `UPDATE receipts SET merchant=$1, date=$2, total_amount=$3, currency=$4, vat=$5, reference_no=$6 WHERE id=$7`,
       [
@@ -674,13 +687,18 @@ router.put("/receipts/:id", async (req, res) => {
   }
 });
 
-router.delete("/receipts/:id", async (req, res) => {
-  try {
-    await pool.query("DELETE FROM receipts WHERE id=$1", [req.params.id]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to delete receipt" });
-  }
-});
+router.delete(
+  "/receipts/:id",
+  authenticate,
+  authorize("Super Admin"),
+  async (req, res) => {
+    try {
+      await pool.query("DELETE FROM receipts WHERE id=$1", [req.params.id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to delete receipt" });
+    }
+  },
+);
 
 module.exports = router;

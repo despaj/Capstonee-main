@@ -1,9 +1,13 @@
 const express = require("express");
 const router = express.Router();
+
+const { authenticate, authorize } = require("../middleware/auth");
+const { enforceInputScope, enforceQueryScope, requireResourceScope } = require("../middleware/resourceScope");
+router.use(authenticate);
 const pool = require("../db");
 const { syncIngredientFromBatches } = require("../utils/inventoryAutomation");
 
-router.get("/transactions", async (req, res) => {
+router.get("/transactions", authorize("Super Admin", "Franchisee Operations Admin", "Sales Admin", "Manager", "Staff"), enforceQueryScope({ brandField: null }), async (req, res) => {
   try {
     const { branch } = req.query;
     const result = branch
@@ -20,7 +24,7 @@ router.get("/transactions", async (req, res) => {
   }
 });
 
-router.get("/transactions/voided", async (req, res) => {
+router.get("/transactions/voided", authorize("Super Admin", "Franchisee Operations Admin", "Manager"), enforceQueryScope({ brandField: null }), async (req, res) => {
   try {
     const { branch } = req.query;
     const result = branch
@@ -37,7 +41,7 @@ router.get("/transactions/voided", async (req, res) => {
   }
 });
 
-router.post("/transactions", async (req, res) => {
+router.post("/transactions", authorize("Super Admin", "Manager", "Staff"), enforceInputScope({ brandField: null }), async (req, res) => {
   const client = await pool.connect();
   try {
     const {
@@ -155,7 +159,7 @@ router.post("/transactions", async (req, res) => {
 
         if (remaining > 0) {
           throw new Error(
-            `Insufficient stock for ${item.name || ingredientId}`,
+            `Insufficient stock for ${ing.name || ing.ingredient_id}`,
           );
         }
 
@@ -200,13 +204,17 @@ router.post("/transactions", async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("POST /transactions error:", err);
-    res.status(500).json({ error: "Failed to save transaction" });
+    const isStockError = err.message?.startsWith("Insufficient stock");
+
+    res.status(isStockError ? 409 : 500).json({
+      error: isStockError ? err.message : "Failed to save transaction",
+    });
   } finally {
     client.release();
   }
 });
 
-router.post("/transactions/:id/void", async (req, res) => {
+router.post("/transactions/:id/void", authorize("Super Admin", "Manager"), requireResourceScope({ table: "transactions", brandColumn: null }), async (req, res) => {
   try {
     const { voided_by, reason } = req.body || {}; // ← add `|| {}`
     const result = await pool.query(
@@ -225,7 +233,7 @@ router.post("/transactions/:id/void", async (req, res) => {
   }
 });
 
-router.post("/transactions/:id/retrieve", async (req, res) => {
+router.post("/transactions/:id/retrieve", authorize("Super Admin", "Manager"), requireResourceScope({ table: "transactions", brandColumn: null }), async (req, res) => {
   try {
     const result = await pool.query(
       `UPDATE transactions SET is_voided=false, voided_at=NULL, voided_by=NULL, void_reason=NULL

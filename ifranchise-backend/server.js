@@ -7,10 +7,8 @@ const pool = require("./db");
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-app.set("trust proxy", true);
-app.use(express.json({ limit: "20mb" }));
-app.use(express.urlencoded({ limit: "20mb", extended: true }));
-app.use(cookieParser());
+app.set("trust proxy", 1);
+
 app.use(
   cors({
     origin: [
@@ -21,10 +19,19 @@ app.use(
       "http://localhost:8081",
       "http://192.168.1.194:8081",
     ],
-    allowedHeaders: ["Content-Type", "X-Client", "X-Device-ID"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Client",
+      "X-Device-ID",
+    ],
     credentials: true,
   }),
 );
+
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ limit: "20mb", extended: true }));
+app.use(cookieParser());
 
 setInterval(
   async () => {

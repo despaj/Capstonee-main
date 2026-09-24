@@ -14,6 +14,7 @@ import Receipts from "./Receipts";
 import jsPDF from "jspdf";
 import ifranchisejpg from "../assets/ifranchisejpg.jpg";
 import franchisync from "../assets/franchisyncjpg.jpg";
+import { adminModuleFetch } from "../utils/adminModuleFetch";
 import {
   Home,
   Box,
@@ -84,20 +85,6 @@ import {
   Save,
   Receipt,
 } from "lucide-react";
-
-async function adminModuleFetch(input, options) {
-  const response = await fetch(input, options);
-  const method = String(
-    options?.method ||
-      (typeof Request !== "undefined" && input instanceof Request
-        ? input.method
-        : "GET"),
-  ).toUpperCase();
-  if (response.ok && !["GET", "HEAD", "OPTIONS"].includes(method)) {
-    window.dispatchEvent(new Event("franchisync:data-changed"));
-  }
-  return response;
-}
 
 const VIBE_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -459,17 +446,16 @@ const ReadOnlyBanner = ({
 );
 
 const getUserFromStorage = () => {
-  try {
-    const userString =
-      localStorage.getItem("user") ||
-      localStorage.getItem("rememberedUser") ||
-      sessionStorage.getItem("user");
+  const s =
+    localStorage.getItem("user") ||
+    sessionStorage.getItem("user") ||
+    sessionStorage.getItem("tempUser") ||
+    localStorage.getItem("rememberedUser");
 
-    if (!userString || userString === "undefined" || userString === "null")
-      return null;
-    const parsed = JSON.parse(userString);
-    if (!parsed || typeof parsed !== "object" || !parsed.name) return null;
-    return parsed;
+  if (!s) return null;
+
+  try {
+    return JSON.parse(s);
   } catch {
     return null;
   }
@@ -493,28 +479,35 @@ export default function FranchiseeDashboard({ onLogout }) {
   }, [activeModule]);
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL}/transactions`)
+    adminModuleFetch(`${process.env.REACT_APP_API_URL}/transactions`, {
+      credentials: "include",
+    })
       .then((r) => r.json())
-      .then((d) => setTransactions(d))
-      .catch(() => {});
+      .then((d) => setTransactions(Array.isArray(d) ? d : []))
+      .catch(() => setTransactions([]));
   }, []);
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL}/brands`)
+    adminModuleFetch(`${process.env.REACT_APP_API_URL}/brands`, {
+      credentials: "include",
+    })
       .then((r) => r.json())
       .then((d) => setBrands(Array.isArray(d) ? d : []))
-      .catch(() => {});
+      .catch(() => setBrands([]));
   }, []);
-
   const handleLogout = () => setShowLogoutModal(true);
 
   const confirmLogout = async () => {
     try {
+      // Mark logout before clearing the server session.
+      // AdminLogin can use this to avoid trying /session -> /refresh-token.
+      sessionStorage.setItem("isLoggingOut", "true");
+
       const stored =
         localStorage.getItem("user") || sessionStorage.getItem("user");
       const userId = stored ? JSON.parse(stored)?.id : null;
 
-      await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
@@ -528,9 +521,11 @@ export default function FranchiseeDashboard({ onLogout }) {
       sessionStorage.removeItem("user");
       sessionStorage.removeItem("tempUser");
       sessionStorage.removeItem("fr_activeModule");
+
       setShowLogoutModal(false);
       setIsLoggingOut(false);
-      window.location.href = "/admin-login";
+
+      window.location.replace("/admin-login");
     }
   };
 
@@ -931,7 +926,7 @@ function ProductAnalyticsPanel({
       if (filterBranch) {
         params.set("branch", filterBranch);
       }
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`,
       );
       const json = await res.json();
@@ -1367,7 +1362,7 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`,
         {
           method: "POST",
@@ -2406,7 +2401,6 @@ function SalesTrendSection({
     ];
   }, [kpiData, total]);
 
-
   const hasData = total > 0;
   const grossProfit = kpiData?.salesProfit ?? Math.round(total * 0.38);
   const txCount =
@@ -2505,9 +2499,7 @@ function SalesTrendSection({
                     flexWrap: "wrap",
                   }}
                 >
-                  {[
-                    { color: PAL[0], label: "Revenue" },
-                  ].map((l, i) => (
+                  {[{ color: PAL[0], label: "Revenue" }].map((l, i) => (
                     <div
                       key={i}
                       style={{ display: "flex", alignItems: "center", gap: 5 }}
@@ -3113,7 +3105,7 @@ function PrescriptiveSection({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`,
         {
           method: "POST",
@@ -3875,7 +3867,7 @@ function SalesVsStockSection({
         );
         if (names.length) params.set("branches", names.join(","));
       }
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`,
       );
       const json = await res.json();
@@ -4836,7 +4828,6 @@ function BranchOperationsSnapshot({
   );
 }
 
-
 function buildBranchItemBreakdown(transactions = []) {
   const itemMap = new Map();
   let fallbackTransactionRevenue = 0;
@@ -4857,11 +4848,7 @@ function buildBranchItemBreakdown(transactions = []) {
   transactions.forEach((tx) => {
     const txRevenue = Number(tx?.total || 0);
     const txCost = Number(
-      tx?.cogs ??
-        tx?.cost_of_goods_sold ??
-        tx?.cost_of_sales ??
-        tx?.cost ??
-        0,
+      tx?.cogs ?? tx?.cost_of_goods_sold ?? tx?.cost_of_sales ?? tx?.cost ?? 0,
     );
     const items = parseItems(tx);
 
@@ -4909,8 +4896,7 @@ function buildBranchItemBreakdown(transactions = []) {
       const allocatedCost =
         line.explicitCost != null
           ? line.explicitCost
-          : remainingCost *
-            (Math.max(line.revenue, 0) / revenueBasis);
+          : remainingCost * (Math.max(line.revenue, 0) / revenueBasis);
 
       const current = itemMap.get(line.name) || {
         qty: 0,
@@ -4923,15 +4909,16 @@ function buildBranchItemBreakdown(transactions = []) {
       current.revenue += line.revenue;
       current.cost += allocatedCost;
       current.hasCost =
-        current.hasCost ||
-        line.explicitCost != null ||
-        txCost > 0;
+        current.hasCost || line.explicitCost != null || txCost > 0;
 
       itemMap.set(line.name, current);
     });
   });
 
-  if (!itemMap.size && (fallbackTransactionRevenue || fallbackTransactionCost)) {
+  if (
+    !itemMap.size &&
+    (fallbackTransactionRevenue || fallbackTransactionCost)
+  ) {
     itemMap.set("Transaction-level data", {
       qty: transactions.length,
       revenue: fallbackTransactionRevenue,
@@ -5056,7 +5043,7 @@ function FrDashboardContent({ transactions, brands, user }) {
       params.set("branch", userBranch.trim());
       if (!userBranch) return;
 
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`,
       );
       const data = await res.json();
@@ -5403,7 +5390,8 @@ function FrDashboardContent({ transactions, brands, user }) {
       ? itemBreakdown.reduce((sum, row) => sum + Number(row.cost || 0), 0)
       : null;
     const profit = cost == null ? null : revenue - cost;
-    const margin = revenue > 0 && profit != null ? (profit / revenue) * 100 : null;
+    const margin =
+      revenue > 0 && profit != null ? (profit / revenue) * 100 : null;
     return { revenue, cost, profit, margin, hasCost };
   }, [itemBreakdown]);
 
@@ -6371,10 +6359,7 @@ function FrDashboardContent({ transactions, brands, user }) {
                       );
                       const hasCost = rows.some((r) => r.cost != null);
                       const cost = hasCost
-                        ? rows.reduce(
-                            (sum, r) => sum + Number(r.cost || 0),
-                            0,
-                          )
+                        ? rows.reduce((sum, r) => sum + Number(r.cost || 0), 0)
                         : null;
                       const profit = rows.some((r) => r.profit != null)
                         ? rows.reduce(
@@ -6511,8 +6496,7 @@ function FrDashboardContent({ transactions, brands, user }) {
                           <tr
                             key={`${row.name}-${index}`}
                             style={{
-                              background:
-                                index % 2 === 0 ? "#fff" : "#FBFCFA",
+                              background: index % 2 === 0 ? "#fff" : "#FBFCFA",
                             }}
                           >
                             <td
@@ -6620,10 +6604,7 @@ function FrDashboardContent({ transactions, brands, user }) {
                             }}
                           >
                             {dashboardDrilldown.rows
-                              .reduce(
-                                (sum, r) => sum + Number(r.qty || 0),
-                                0,
-                              )
+                              .reduce((sum, r) => sum + Number(r.qty || 0), 0)
                               .toLocaleString()}
                           </td>
                           <td
@@ -7432,7 +7413,7 @@ function FrMenuInventoryContent({ user, brands }) {
     if (!userBranch) return;
     setLoading(true);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/inventory?branch=${encodeURIComponent(userBranch)}`,
       );
       const d = await res.json();
@@ -8657,7 +8638,7 @@ function FrStockInventoryContent({ user, brands }) {
     if (!userBranch) return;
     setLoading(true);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ingredients?branch=${encodeURIComponent(userBranch)}`,
       );
       const d = await res.json();
@@ -8714,7 +8695,7 @@ function FrStockInventoryContent({ user, brands }) {
     }
     let cancelled = false;
     setBatchLoading(true);
-    fetch(
+    adminModuleFetch(
       `${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${selectedId}`,
     )
       .then((r) => r.json())
@@ -9121,7 +9102,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
   const fetchProducts = useCallback(async () => {
     if (!userBranch) return;
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/inventory?branch=${encodeURIComponent(userBranch)}`,
       );
       const d = await res.json();
@@ -9135,7 +9116,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
     if (!userBranch) return;
     setLoadingTx(true);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/transactions?branch=${encodeURIComponent(userBranch)}`,
       );
       const d = await res.json();
@@ -9253,11 +9234,14 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
           subtotal: c.price * c.qty,
         })),
       };
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/transactions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
       const d = await res.json();
       if (d.success) {
         setLastReceipt({
@@ -10714,8 +10698,12 @@ function FrReportsContent({ user, transactions = [] }) {
     const fetchSavedReports = async () => {
       try {
         const [savedRes, liveRes] = await Promise.all([
-          fetch(`${process.env.REACT_APP_API_URL}/generated-reports`),
-          fetch(`${process.env.REACT_APP_API_URL}/reports?branch=${branch}`),
+          adminModuleFetch(
+            `${process.env.REACT_APP_API_URL}/generated-reports?branch=${encodeURIComponent(user?.branch || "")}`,
+          ),
+          adminModuleFetch(
+            `${process.env.REACT_APP_API_URL}/reports?branch=${branch}`,
+          ),
         ]);
 
         const savedData = await savedRes.json();
@@ -10762,7 +10750,7 @@ function FrReportsContent({ user, transactions = [] }) {
     setKpiLoading(true);
     try {
       const params = new URLSearchParams({ from, to, branch });
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`,
       );
       const data = await res.json();
@@ -10776,7 +10764,7 @@ function FrReportsContent({ user, transactions = [] }) {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await fetch(
+        const res = await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/reports/history?branch=${branch}`,
         );
         const data = await res.json();
@@ -10819,7 +10807,7 @@ function FrReportsContent({ user, transactions = [] }) {
     const fetchDeletedReports = async () => {
       if (!branch) return;
       try {
-        const res = await fetch(
+        const res = await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/reports/deleted?branch=${branch}`,
         );
         const data = await res.json();
@@ -10998,14 +10986,17 @@ ${topItems}
       ═══════════════════════════════════════════════════════════════
       `.trim();
 
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/ai/report`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          max_tokens: 4000,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/ai/report`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            max_tokens: 4000,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        },
+      );
 
       const data = await res.json();
       const reportText =
@@ -11036,7 +11027,7 @@ ${topItems}
       const cleanReportText = sanitizeReport(reportText);
       setAiReport(cleanReportText);
 
-      const submitRes = await fetch(
+      const submitRes = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports`,
         {
           method: "POST",
@@ -11100,7 +11091,7 @@ ${topItems}
 
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports/${report.id}/soft-delete`,
         {
           method: "POST",
@@ -11162,7 +11153,7 @@ ${topItems}
     setRetrieving(report.id);
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports/${report.id}/retrieve`,
         {
           method: "POST",
@@ -11449,7 +11440,7 @@ ${topItems}
     }
     setSavingId(report.id);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports/${report.id}/save`,
         {
           method: "POST",
@@ -11490,7 +11481,7 @@ ${topItems}
     setSubmitting(report.id);
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports/submit`,
         {
           method: "POST",
@@ -12869,11 +12860,16 @@ function FrStaffManagementContent({ user }) {
 
   const fetchStaff = async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users?branch=${encodeURIComponent(franchiseeBranch)}`,
+        {
+          credentials: "include",
+        },
       );
+
       const d = await res.json();
       const normalizedBranch = franchiseeBranch.toLowerCase();
+
       setStaff(
         (Array.isArray(d) ? d : [])
           .filter((u) => ["Staff", "Manager"].includes(u.role))
@@ -12907,11 +12903,14 @@ function FrStaffManagementContent({ user }) {
       return;
     }
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, branch: franchiseeBranch }),
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/users`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...form, branch: franchiseeBranch }),
+        },
+      );
       const d = await res.json();
       if (d.success) {
         await fetchStaff();
@@ -12931,7 +12930,7 @@ function FrStaffManagementContent({ user }) {
       return;
     }
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users/${editingStaff.id}`,
         {
           method: "PUT",
@@ -12964,9 +12963,12 @@ function FrStaffManagementContent({ user }) {
       return;
     }
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/users/${id}`, {
-        method: "DELETE",
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/users/${id}`,
+        {
+          method: "DELETE",
+        },
+      );
       const d = await res.json();
       if (d.success) {
         await fetchStaff();
@@ -13346,7 +13348,12 @@ function FrCommunicationContent() {
   const fetchAnnouncements = async () => {
     setFetching(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/announcements`);
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/announcements`,
+        {
+          credentials: "include",
+        },
+      );
       const data = await res.json();
       setAnnouncements(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -13398,7 +13405,7 @@ function FrCommunicationContent() {
         ? `${process.env.REACT_APP_API_URL}/announcements/${editing.id}`
         : `${process.env.REACT_APP_API_URL}/announcements`;
       const method = editing ? "PUT" : "POST";
-      const res = await fetch(url, {
+      const res = await adminModuleFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -13428,7 +13435,7 @@ function FrCommunicationContent() {
     if (!isAdminUser(commUser)) return;
     if (!window.confirm("Delete this announcement?")) return;
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/announcements/${id}`,
         {
           method: "DELETE",
@@ -14581,17 +14588,19 @@ function AlertModal({ message, onClose, type = "info" }) {
 
 function FrProfileContent({ user }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
+
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    middleInitial: "",
-    suffix: "",
-    name: "",
-    email: "",
-    role: "",
-    branch: "",
-    password: "",
+    name: user?.name || "",
+    email: user?.email || "",
+    personalEmail: "",
+    role: user?.role || "Sales Admin",
+    branch: user?.branch || "",
+    brand: user?.brand || "",
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
   });
+
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [otp, setOtp] = useState("");
@@ -14604,6 +14613,19 @@ function FrProfileContent({ user }) {
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
+  useEffect(() => {
+    if (!user) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      name: user.name || "",
+      email: user.email || "",
+      role: user.role || "Sales Admin",
+      branch: user.branch || "",
+      brand: user.brand || "",
+    }));
+  }, [user]);
+
   // ── UI modal state ──
   const [alertModal, setAlertModal] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
@@ -14613,20 +14635,8 @@ function FrProfileContent({ user }) {
   const showConfirm = (message, onConfirm) =>
     setConfirmModal({ message, onConfirm });
 
+  // ── Keep formData in sync with user prop without re-rendering on every keystroke ──
   const formDataRef = React.useRef(formData);
-  useEffect(() => {
-    setFormData((prev) => ({
-      ...prev,
-      firstName: user.firstName || "",
-      lastName: user.lastName || "",
-      middleInitial: user.middleInitial || "",
-      suffix: user.suffix || "",
-      name: user.name || "",
-      email: user.email || "",
-      role: user.role || "",
-      personalEmail: user.personalEmail || "",
-    }));
-  }, [user]);
   const handleInputChange = React.useCallback((e) => {
     const { name, value } = e.target;
     formDataRef.current = { ...formDataRef.current, [name]: value };
@@ -14687,7 +14697,7 @@ function FrProfileContent({ user }) {
     try {
       setOtpError("");
       const emailToVerify = formData.personalEmail || formData.email;
-      const response = await fetch(
+      const response = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users/${user.id}/password`,
         {
           method: "PUT",
@@ -14705,13 +14715,9 @@ function FrProfileContent({ user }) {
         setShowOtpModal(false);
         setShowSuccessModal(true);
         localStorage.removeItem("user");
-        localStorage.removeItem("rememberedUser");
         localStorage.removeItem("tempUser");
-        sessionStorage.removeItem("user");
-        sessionStorage.removeItem("tempUser");
-        sessionStorage.removeItem("fr_activeModule");
         setTimeout(() => {
-          window.location.href = "/";
+          window.location.href = "/admin-login";
         }, 3000);
       } else {
         setOtpError(data.error || "Failed to change password");
@@ -14763,25 +14769,13 @@ function FrProfileContent({ user }) {
 
   const updateProfile = async () => {
     try {
-      const fullName = [
-        formData.firstName,
-        formData.middleInitial ? formData.middleInitial + "." : "",
-        formData.lastName,
-        formData.suffix,
-      ]
-        .filter(Boolean)
-        .join(" ");
       const response = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users/${user.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: fullName,
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            middleInitial: formData.middleInitial || null,
-            suffix: formData.suffix || null,
+            name: formData.name,
             email: formData.email,
             role: formData.role,
             branch: user.branch,
@@ -14793,11 +14787,7 @@ function FrProfileContent({ user }) {
         showAlert("Profile updated successfully!", "success");
         const updatedUser = {
           ...user,
-          name: fullName,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          middleInitial: formData.middleInitial,
-          suffix: formData.suffix,
+          name: formData.name,
           email: formData.email,
         };
         localStorage.setItem("user", JSON.stringify(updatedUser));
@@ -14814,10 +14804,6 @@ function FrProfileContent({ user }) {
   const handleCancel = () => {
     showConfirm("Discard all unsaved changes?", () => {
       setFormData({
-        firstName: user.firstName || "",
-        lastName: user.lastName || "",
-        middleInitial: user.middleInitial || "",
-        suffix: user.suffix || "",
         name: user.name,
         email: user.email,
         personalEmail: "",
@@ -14836,6 +14822,20 @@ function FrProfileContent({ user }) {
     });
   };
 
+  if (!user) {
+    return (
+      <div
+        style={{
+          padding: 24,
+          textAlign: "center",
+          color: "#5a7a65",
+        }}
+      >
+        Loading profile...
+      </div>
+    );
+  }
+
   const initials = user.name
     ? user.name
         .trim()
@@ -14851,9 +14851,9 @@ function FrProfileContent({ user }) {
     ...bmInput,
     marginTop: 4,
     background: disabled ? "#f5f8f5" : "#fff",
-    color: disabled ? "#9ca3af" : "#12241B",
+    color: disabled ? "#9ca3af" : "#0d2b1e",
     cursor: disabled ? "not-allowed" : "text",
-    border: disabled ? "1.5px solid #e5e7eb" : "1.5px solid #E1E6D8",
+    border: disabled ? "1.5px solid #e5e7eb" : "1.5px solid #b2dfdb",
   });
 
   const PwChecklist = () => (
@@ -14862,16 +14862,16 @@ function FrProfileContent({ user }) {
         marginTop: 8,
         fontSize: 12,
         padding: "10px 14px",
-        background: "#f0f5e8",
+        background: "#f0fdf5",
         borderRadius: 10,
-        border: "1.5px solid #E1E6D8",
+        border: "1.5px solid #b2dfdb",
       }}
     >
       <div
         style={{
           marginBottom: 6,
           fontWeight: 700,
-          color: "#12241B",
+          color: "#0d2b1e",
           fontSize: 11,
           textTransform: "uppercase",
           letterSpacing: "0.06em",
@@ -14889,7 +14889,7 @@ function FrProfileContent({ user }) {
         <div
           key={key}
           style={{
-            color: passwordErrors.includes(key) ? "#c0392b" : "#059669",
+            color: passwordErrors.includes(key) ? "#dc2626" : "#059669",
             marginBottom: 3,
             fontSize: 12,
             display: "flex",
@@ -14898,7 +14898,14 @@ function FrProfileContent({ user }) {
             fontWeight: 600,
           }}
         >
-          <span>{passwordErrors.includes(key) ? "✗" : "✓"}</span> {text}
+          <span style={{ display: "inline-flex", alignItems: "center" }}>
+            {passwordErrors.includes(key) ? (
+              <X size={12} />
+            ) : (
+              <Check size={12} />
+            )}
+          </span>{" "}
+          {text}
         </div>
       ))}
     </div>
@@ -14909,7 +14916,7 @@ function FrProfileContent({ user }) {
       <span
         style={{
           fontSize: 11,
-          color: "#c0392b",
+          color: "#dc2626",
           marginTop: 4,
           display: "block",
           fontWeight: 600,
@@ -14932,7 +14939,7 @@ function FrProfileContent({ user }) {
         background: "none",
         border: "none",
         cursor: disabled ? "not-allowed" : "pointer",
-        color: "#5C6B60",
+        color: "#5a7a65",
         display: "flex",
         alignItems: "center",
         padding: 0,
@@ -14986,7 +14993,7 @@ function FrProfileContent({ user }) {
       >
         <div
           style={{
-            background: "linear-gradient(135deg,#3b791e,#3b791e)",
+            background: "linear-gradient(135deg,#2E7D32,#00897b)",
             padding: "16px 22px",
           }}
         >
@@ -15013,7 +15020,7 @@ function FrProfileContent({ user }) {
               justifyContent: "center",
               fontSize: 22,
               fontWeight: 800,
-              color: "#2c5c16",
+              color: "#00695c",
               flexShrink: 0,
               letterSpacing: 1,
               border: "2.5px solid #a7f3d0",
@@ -15026,7 +15033,7 @@ function FrProfileContent({ user }) {
               style={{
                 fontWeight: 800,
                 fontSize: 20,
-                color: "#12241B",
+                color: "#0d2b1e",
                 marginBottom: 4,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -15038,7 +15045,7 @@ function FrProfileContent({ user }) {
             <div
               style={{
                 fontSize: 13,
-                color: "#5C6B60",
+                color: "#5a7a65",
                 marginBottom: 8,
                 display: "flex",
                 alignItems: "center",
@@ -15050,7 +15057,7 @@ function FrProfileContent({ user }) {
                 height={13}
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#5C6B60"
+                stroke="#5a7a65"
                 strokeWidth={2}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -15071,7 +15078,7 @@ function FrProfileContent({ user }) {
               <span
                 style={{
                   background: "rgba(0,137,123,0.1)",
-                  color: "#2c5c16",
+                  color: "#00695c",
                   padding: "3px 12px",
                   borderRadius: 20,
                   fontSize: 11,
@@ -15083,13 +15090,13 @@ function FrProfileContent({ user }) {
               {user.branch && (
                 <span
                   style={{
-                    background: "#f0f5e8",
-                    color: "#12241B",
+                    background: "#f0fdf5",
+                    color: "#0d2b1e",
                     padding: "3px 12px",
                     borderRadius: 20,
                     fontSize: 11,
                     fontWeight: 700,
-                    border: "1.5px solid #E1E6D8",
+                    border: "1.5px solid #b2dfdb",
                   }}
                 >
                   {user.branch}
@@ -15110,8 +15117,8 @@ function FrProfileContent({ user }) {
               style={{
                 padding: "8px 16px",
                 borderRadius: 12,
-                background: "#f0f5e8",
-                border: "1.5px solid #E1E6D8",
+                background: "#f0fdf5",
+                border: "1.5px solid #b2dfdb",
               }}
             >
               <div
@@ -15120,7 +15127,7 @@ function FrProfileContent({ user }) {
                   fontWeight: 800,
                   textTransform: "uppercase",
                   letterSpacing: "0.07em",
-                  color: "#5C6B60",
+                  color: "#5a7a65",
                   marginBottom: 2,
                 }}
               >
@@ -15155,8 +15162,8 @@ function FrProfileContent({ user }) {
                 style={{
                   padding: "8px 16px",
                   borderRadius: 12,
-                  background: "#f0f5e8",
-                  border: "1.5px solid #E1E6D8",
+                  background: "#f0fdf5",
+                  border: "1.5px solid #b2dfdb",
                 }}
               >
                 <div
@@ -15165,14 +15172,14 @@ function FrProfileContent({ user }) {
                     fontWeight: 800,
                     textTransform: "uppercase",
                     letterSpacing: "0.07em",
-                    color: "#5C6B60",
+                    color: "#5a7a65",
                     marginBottom: 2,
                   }}
                 >
                   Branch
                 </div>
                 <div
-                  style={{ fontWeight: 800, fontSize: 13, color: "#12241B" }}
+                  style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e" }}
                 >
                   {user.branch}
                 </div>
@@ -15188,8 +15195,8 @@ function FrProfileContent({ user }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: isUnlocked ? "#f0f5e8" : "#f5f8f5",
-          border: `1.5px solid ${isUnlocked ? "#E1E6D8" : "#e5e7eb"}`,
+          background: isUnlocked ? "#f0fdf5" : "#f5f8f5",
+          border: `1.5px solid ${isUnlocked ? "#b2dfdb" : "#e5e7eb"}`,
           borderRadius: 14,
           padding: "12px 20px",
           marginBottom: 20,
@@ -15199,10 +15206,10 @@ function FrProfileContent({ user }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {isUnlocked ? <Unlock size={18} /> : <Lock size={18} />}
           <div>
-            <div style={{ fontWeight: 800, fontSize: 13, color: "#12241B" }}>
+            <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e" }}>
               {isUnlocked ? "Editing Enabled" : "Profile Locked"}
             </div>
-            <div style={{ fontSize: 11, color: "#5C6B60" }}>
+            <div style={{ fontSize: 11, color: "#5a7a65" }}>
               {isUnlocked
                 ? "Make your changes and save when done."
                 : "Click Unlock to edit your profile."}
@@ -15228,17 +15235,25 @@ function FrProfileContent({ user }) {
             fontSize: 12,
             fontWeight: 700,
             cursor: "pointer",
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontFamily: "inherit",
             background: isUnlocked
-              ? "linear-gradient(135deg,#c0392b,#c0392b)"
-              : "linear-gradient(135deg,#3b791e,#3b791e)",
+              ? "linear-gradient(135deg,#dc2626,#ef4444)"
+              : "linear-gradient(135deg,#2E7D32,#00897b)",
             color: "#fff",
             boxShadow: isUnlocked
               ? "0 2px 8px rgba(220,38,38,0.3)"
               : "0 2px 8px rgba(0,180,90,0.3)",
           }}
         >
-          {isUnlocked ? "✕ Cancel" : " Unlock"}
+          {isUnlocked ? (
+            <>
+              <X size={13} /> Cancel
+            </>
+          ) : (
+            <>
+              <Unlock size={13} /> Unlock
+            </>
+          )}
         </button>
       </div>
 
@@ -15263,7 +15278,7 @@ function FrProfileContent({ user }) {
         >
           <div
             style={{
-              background: "linear-gradient(135deg,#3b791e,#3b791e)",
+              background: "linear-gradient(135deg,#2E7D32,#00897b)",
               padding: "16px 22px",
             }}
           >
@@ -15272,55 +15287,20 @@ function FrProfileContent({ user }) {
             </span>
           </div>
           <form onSubmit={handleSubmit} style={{ padding: "22px 24px" }}>
-            {/* Name */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-              <div style={{ flex: 2 }}>
-                <label style={bmLabel}>Last Name</label>
-                <input
-                  type="text"
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleInputChange}
-                  disabled={!isUnlocked}
-                  style={inputStyle(!isUnlocked)}
-                />
-              </div>
-              <div style={{ flex: 2 }}>
-                <label style={bmLabel}>First Name</label>
-                <input
-                  type="text"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleInputChange}
-                  disabled={!isUnlocked}
-                  style={inputStyle(!isUnlocked)}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={bmLabel}>M.I.</label>
-                <input
-                  type="text"
-                  name="middleInitial"
-                  maxLength={1}
-                  value={formData.middleInitial}
-                  onChange={handleInputChange}
-                  disabled={!isUnlocked}
-                  style={inputStyle(!isUnlocked)}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={bmLabel}>Suffix</label>
-                <input
-                  type="text"
-                  name="suffix"
-                  value={formData.suffix}
-                  onChange={handleInputChange}
-                  disabled={!isUnlocked}
-                  style={inputStyle(!isUnlocked)}
-                />
-              </div>
+            {/* Full Name */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Full Name</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                disabled={!isUnlocked}
+                style={inputStyle(!isUnlocked)}
+              />
+              <FieldError name="name" />
             </div>
-            <FieldError name="lastName" />
+
             {/* Work Email */}
             <div style={{ marginBottom: 14 }}>
               <label style={bmLabel}>Work Email Address</label>
@@ -15380,13 +15360,13 @@ function FrProfileContent({ user }) {
                   borderRadius: 10,
                   border: "none",
                   background: isUnlocked
-                    ? "linear-gradient(135deg,#3b791e,#3b791e)"
+                    ? "linear-gradient(135deg,#2E7D32,#00897b)"
                     : "#d1d5db",
                   color: "#fff",
                   fontSize: 13,
                   fontWeight: 800,
                   cursor: isUnlocked ? "pointer" : "not-allowed",
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontFamily: "inherit",
                   boxShadow: isUnlocked
                     ? "0 2px 10px rgba(0,180,90,0.28)"
                     : "none",
@@ -15411,7 +15391,7 @@ function FrProfileContent({ user }) {
         >
           <div
             style={{
-              background: "linear-gradient(135deg,#3b791e,#3b791e)",
+              background: "linear-gradient(135deg,#2E7D32,#00897b)",
               padding: "16px 22px",
             }}
           >
@@ -15422,7 +15402,7 @@ function FrProfileContent({ user }) {
           <form onSubmit={handleSubmit} style={{ padding: "22px 24px" }}>
             <div
               style={{
-                background: isUnlocked ? "#f0f5e8" : "#f5f8f5",
+                background: isUnlocked ? "#f0fdf5" : "#f5f8f5",
                 borderRadius: 12,
                 padding: "12px 16px",
                 marginBottom: 20,
@@ -15515,15 +15495,21 @@ function FrProfileContent({ user }) {
                     color:
                       formData.newPassword === formData.confirmPassword
                         ? "#059669"
-                        : "#c0392b",
+                        : "#dc2626",
                     display: "flex",
                     alignItems: "center",
                     gap: 4,
                   }}
                 >
-                  {formData.newPassword === formData.confirmPassword
-                    ? "✓ Passwords match"
-                    : "✗ Passwords do not match"}
+                  {formData.newPassword === formData.confirmPassword ? (
+                    <>
+                      <Check size={12} /> Passwords match
+                    </>
+                  ) : (
+                    <>
+                      <X size={12} /> Passwords do not match
+                    </>
+                  )}
                 </div>
               )}
               <FieldError name="confirmPassword" />
@@ -15538,13 +15524,13 @@ function FrProfileContent({ user }) {
                 borderRadius: 10,
                 border: "none",
                 background: isUnlocked
-                  ? "linear-gradient(135deg,#3b791e,#3b791e)"
+                  ? "linear-gradient(135deg,#2E7D32,#00897b)"
                   : "#d1d5db",
                 color: "#fff",
                 fontSize: 13,
                 fontWeight: 800,
                 cursor: isUnlocked ? "pointer" : "not-allowed",
-                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontFamily: "inherit",
                 boxShadow: isUnlocked
                   ? "0 2px 10px rgba(0,180,90,0.28)"
                   : "none",
@@ -15597,14 +15583,14 @@ function FrProfileContent({ user }) {
                   fontSize: "1.6rem",
                 }}
               >
-                🔑
+                <Lock size={24} />
               </div>
               <h2
                 style={{
                   fontFamily: "'Plus Jakarta Sans', sans-serif",
                   fontSize: 18,
                   fontWeight: 800,
-                  color: "#12241B",
+                  color: "#0d2b1e",
                   marginBottom: 6,
                 }}
               >
@@ -15612,7 +15598,7 @@ function FrProfileContent({ user }) {
               </h2>
               <p style={{ fontSize: 13, color: C.muted }}>
                 Code sent to{" "}
-                <strong style={{ color: "#12241B" }}>
+                <strong style={{ color: "#0d2b1e" }}>
                   {formData.personalEmail || formData.email}
                 </strong>
               </p>
@@ -15661,10 +15647,10 @@ function FrProfileContent({ user }) {
               <div
                 style={{
                   padding: "10px 14px",
-                  background: "#fdf1f0",
+                  background: "#fee2e2",
                   borderRadius: 10,
-                  border: "1.5px solid #f2c9c4",
-                  color: "#c0392b",
+                  border: "1.5px solid #fecaca",
+                  color: "#dc2626",
                   fontSize: 12,
                   fontWeight: 700,
                   textAlign: "center",
@@ -15681,7 +15667,7 @@ function FrProfileContent({ user }) {
                 style={{
                   background: "none",
                   border: "none",
-                  color: "#3b791e",
+                  color: "#00897b",
                   cursor: "pointer",
                   fontSize: 12,
                   fontWeight: 700,
@@ -15704,13 +15690,13 @@ function FrProfileContent({ user }) {
                   flex: 1,
                   padding: "10px 0",
                   borderRadius: 10,
-                  border: "1.5px solid #E1E6D8",
-                  background: "#f0f5e8",
-                  color: "#5C6B60",
+                  border: "1.5px solid #b2dfdb",
+                  background: "#f0fdf5",
+                  color: "#5a7a65",
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: "pointer",
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontFamily: "inherit",
                 }}
               >
                 Cancel
@@ -15724,12 +15710,12 @@ function FrProfileContent({ user }) {
                   padding: "10px 0",
                   borderRadius: 10,
                   border: "none",
-                  background: "linear-gradient(135deg,#3b791e,#3b791e)",
+                  background: "linear-gradient(135deg,#2E7D32,#00897b)",
                   color: "#fff",
                   fontSize: 13,
                   fontWeight: 800,
                   cursor: otp.length !== 6 ? "not-allowed" : "pointer",
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontFamily: "inherit",
                   opacity: otp.length !== 6 ? 0.5 : 1,
                 }}
               >
@@ -15779,14 +15765,14 @@ function FrProfileContent({ user }) {
                 fontSize: "2.2rem",
               }}
             >
-              ✅
+              <CheckCircle2 size={28} />
             </div>
             <h2
               style={{
                 fontFamily: "'Plus Jakarta Sans', sans-serif",
                 fontSize: 22,
                 fontWeight: 800,
-                color: "#12241B",
+                color: "#0d2b1e",
                 marginBottom: 10,
               }}
             >
@@ -15806,7 +15792,7 @@ function FrProfileContent({ user }) {
             </p>
             <div
               style={{
-                background: "#f0f5e8",
+                background: "#f0fdf5",
                 borderRadius: 12,
                 padding: "10px 16px",
                 fontSize: 12,
@@ -15817,7 +15803,7 @@ function FrProfileContent({ user }) {
                 gap: 8,
               }}
             >
-              💡 Use your new password on the next login
+              <Info size={14} /> Use your new password on the next login
             </div>
           </div>
         </div>
@@ -15858,7 +15844,7 @@ function FrProfileContent({ user }) {
               maxWidth: 400,
               boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
               border: "1px solid rgba(0,168,76,0.15)",
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontFamily: "Plus Jakarta Sans, sans-serif",
               textAlign: "center",
             }}
           >
@@ -15875,13 +15861,13 @@ function FrProfileContent({ user }) {
                 fontSize: 22,
               }}
             >
-              ↩
+              <RotateCcw size={22} />
             </div>
             <h2
               style={{
                 fontSize: 17,
                 fontWeight: 800,
-                color: "#12241B",
+                color: "#0d2b1e",
                 marginBottom: 8,
               }}
             >
@@ -15890,7 +15876,7 @@ function FrProfileContent({ user }) {
             <p
               style={{
                 fontSize: 13,
-                color: "#5C6B60",
+                color: "#5a7a65",
                 lineHeight: 1.6,
                 marginBottom: 24,
               }}
@@ -15904,13 +15890,13 @@ function FrProfileContent({ user }) {
                 style={{
                   padding: "9px 22px",
                   borderRadius: 10,
-                  border: "1px solid #E1E6D8",
-                  background: "#f0f5e8",
-                  color: "#5C6B60",
+                  border: "1px solid #b2dfdb",
+                  background: "#f0fdf5",
+                  color: "#5a7a65",
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: "pointer",
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontFamily: "inherit",
                 }}
               >
                 Keep Editing
@@ -15933,7 +15919,7 @@ function FrProfileContent({ user }) {
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: "pointer",
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontFamily: "inherit",
                   boxShadow: "0 2px 10px rgba(194,65,12,0.35)",
                 }}
               >
@@ -15946,5 +15932,3 @@ function FrProfileContent({ user }) {
     </div>
   );
 }
-
-

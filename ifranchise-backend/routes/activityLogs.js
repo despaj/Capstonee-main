@@ -1,5 +1,16 @@
 const express = require("express");
 const router = express.Router();
+
+const { authenticate, authorize } = require("../middleware/auth");
+router.use(authenticate);
+router.use(
+  authorize(
+    "Super Admin",
+    "Franchisee Operations Admin",
+    "Sales Admin",
+    "Manager",
+  ),
+);
 const { logActivity } = require("../utils/activityLogger");
 const pool = require("../db");
 const UAParser = require("ua-parser-js");
@@ -7,17 +18,16 @@ const geoip = require("geoip-lite");
 
 const ACTIVITY_TABLE = "users_activity_log";
 
-// route -> module label stored in the `module` column
 const LOG_MODULES = [
-  { route: "menu-activity-log",          module: "Menu Inventory" }, 
-  { route: "stockInv-activity-log",     module: "Stock Inventory" },
-  { route: "shop-activity-log",          module: "Mobile Shop" },
-  { route: "orders-activity-log",        module: "Orders" },
-  { route: "users-activity-log",         module: "User Management" },
-  { route: "applications-activity-log",  module: "Applications" },
-  { route: "reports-activity-log",       module: "Reports" },
+  { route: "menu-activity-log", module: "Menu Inventory" },
+  { route: "stockInv-activity-log", module: "Stock Inventory" },
+  { route: "shop-activity-log", module: "Mobile Shop" },
+  { route: "orders-activity-log", module: "Orders" },
+  { route: "users-activity-log", module: "User Management" },
+  { route: "applications-activity-log", module: "Applications" },
+  { route: "reports-activity-log", module: "Reports" },
   { route: "announcements-activity-log", module: "Announcements" },
-  { route: "brands-activity-log",        module: "Brands" },
+  { route: "brands-activity-log", module: "Brands" },
 ];
 
 function getClientIp(req) {
@@ -35,12 +45,11 @@ function getDeviceLabel(req) {
 }
 
 for (const { route, module } of LOG_MODULES) {
-  // GET /<route> -> rows from the shared table filtered by module
   router.get(`/${route}`, async (req, res) => {
     try {
       const result = await pool.query(
         `SELECT * FROM ${ACTIVITY_TABLE} WHERE module = $1 ORDER BY created_at DESC`,
-        [module]
+        [module],
       );
       res.json(result.rows);
     } catch (err) {
@@ -52,7 +61,8 @@ for (const { route, module } of LOG_MODULES) {
   // POST /<route> -> insert into the shared table, tagged with this module
   router.post(`/${route}`, async (req, res) => {
     try {
-      const { action, item_name, branch, performed_by, role, changes } = req.body;
+      const { action, item_name, branch, performed_by, role, changes } =
+        req.body;
       const ip = getClientIp(req);
       const device = getDeviceLabel(req);
       const geo = geoip.lookup(ip);
@@ -73,7 +83,7 @@ for (const { route, module } of LOG_MODULES) {
           ip,
           device,
           geo ? `${geo.city || ""}, ${geo.country || ""}` : null,
-        ]
+        ],
       );
 
       res.json({ success: true, entry: result.rows[0] });
@@ -84,12 +94,10 @@ for (const { route, module } of LOG_MODULES) {
   });
 }
 
-// Combined feed across all modules — no UNION ALL needed anymore,
-// since everything already lives in one table.
 router.get("/activity-logs", async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT * FROM ${ACTIVITY_TABLE} ORDER BY created_at DESC LIMIT 500`
+      `SELECT * FROM ${ACTIVITY_TABLE} ORDER BY created_at DESC LIMIT 500`,
     );
     res.json({ logs: result.rows });
   } catch (err) {

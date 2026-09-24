@@ -20,6 +20,7 @@ import html2canvas from "html2canvas";
 import logoIfranchise from "../assets/report/ifranchise-logo.png";
 import logoSync from "../assets/report/franchsync-logo.png";
 import { supabase } from "../supabaseClient";
+import { adminModuleFetch } from "../utils/adminModuleFetch";
 
 import {
   Home,
@@ -139,20 +140,6 @@ async function fetchApplicationRecords() {
   } finally {
     clearTimeout(timer);
   }
-}
-
-async function adminModuleFetch(input, options) {
-  const response = await fetch(input, options);
-  const method = String(
-    options?.method ||
-      (typeof Request !== "undefined" && input instanceof Request
-        ? input.method
-        : "GET"),
-  ).toUpperCase();
-  if (response.ok && !["GET", "HEAD", "OPTIONS"].includes(method)) {
-    window.dispatchEvent(new Event("franchisync:data-changed"));
-  }
-  return response;
 }
 
 function useAdminLiveRefresh(refresh, dependencies) {
@@ -843,8 +830,6 @@ function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
         const currentCount = currentById.get(id);
         const readCount = Number(next[id] || 0);
 
-        // If the server count decreased after an item was resolved,
-        // keep the remembered read count within the current total.
         if (readCount > currentCount) {
           next[id] = currentCount;
           changed = true;
@@ -1822,7 +1807,7 @@ function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
 
 //////here dito wonwoo
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ user, onLogout }) {
   useEffect(() => {
     // A link loads reliably even when another module inserts its own style tag.
     const fontId = "fr-plus-jakarta-sans";
@@ -1859,15 +1844,6 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [inventoryFocus, setInventoryFocus] = useState(null);
 
-  const getUserFromStorage = () => {
-    const userString =
-      localStorage.getItem("user") ||
-      localStorage.getItem("rememberedUser") ||
-      sessionStorage.getItem("user");
-    if (userString) return JSON.parse(userString);
-    return null;
-  };
-
   const fetchAppDeleteHistory = async () => {
     try {
       const res = await adminModuleFetch(
@@ -1900,12 +1876,16 @@ export default function AdminDashboard() {
   }, []);
 
   const confirmLogout = async () => {
-    setIsLoggingOut(true);
     try {
+      // Mark logout before clearing the server session.
+      // AdminLogin can use this to avoid trying /session -> /refresh-token.
+      sessionStorage.setItem("isLoggingOut", "true");
+
       const stored =
         localStorage.getItem("user") || sessionStorage.getItem("user");
       const userId = stored ? JSON.parse(stored)?.id : null;
-      await adminModuleFetch(`${ADMIN_API_BASE}/logout`, {
+
+      await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
@@ -1919,9 +1899,11 @@ export default function AdminDashboard() {
       sessionStorage.removeItem("user");
       sessionStorage.removeItem("tempUser");
       sessionStorage.removeItem("fr_activeModule");
-      setIsLoggingOut(false);
+
       setShowLogoutModal(false);
-      window.location.href = "/admin-login";
+      setIsLoggingOut(false);
+
+      window.location.replace("/admin-login");
     }
   };
 
@@ -1946,13 +1928,11 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  const [user, setUser] = useState(getUserFromStorage);
-
   useEffect(() => {
-    const currentUser = getUserFromStorage();
-    if (!currentUser) navigate("/admin-login");
-    else setUser(currentUser);
-  }, []);
+    if (!user) {
+      navigate("/admin-login");
+    }
+  }, [user, navigate]);
 
   const [brands, setBrands] = useState([]);
   useAdminLiveRefresh(async () => {
@@ -24630,7 +24610,6 @@ function ApplicationsContent({
       {/* ── View Application Modal ── */}
       {viewApp && (
         <>
-          {console.log("viewApp:", JSON.stringify(viewApp, null, 2))}
           <div
             onClick={() => setViewApp(null)}
             style={{
@@ -29453,14 +29432,20 @@ function UsersContent({ user, brands: propBrands = [] }) {
   const fetchUsers = async () => {
     try {
       const response = await adminModuleFetch(`${ADMIN_API_BASE}/users`);
+      if (!response.ok) {
+        console.error("Failed to fetch users:", response.status);
+        setUsers([]);
+        showAlert("Failed to load users.", "error");
+        return;
+      }
       const data = await response.json();
-      console.log("users from API:", data);
-      setUsers(data);
+      setUsers(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error fetching users:", error);
       showAlert("Failed to load users.", "error");
     }
   };
+
   const fetchDeleteHistory = async () => {
     const res = await adminModuleFetch(`${ADMIN_API_BASE}/delete-history`);
     const data = await res.json();
@@ -30544,7 +30529,6 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
 
   const handlePin = (item) => {
     if (!isAdminUser(user)) return;
-    console.log("DEBUG user:", user);
     const id = String(item.id);
     setPinnedIds((prev) => {
       const next = new Set(prev);
@@ -30581,14 +30565,6 @@ function CommunicationContent({ user, brands: propBrands = [] }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    console.log(
-      "DEBUG handleSave user:",
-      user,
-      "title:",
-      title,
-      "content:",
-      content,
-    );
     if (!isAdminUser(user)) {
       showAlert("Only administrators can post announcements.", "error");
       return;
@@ -33938,22 +33914,68 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
   const fetchOrders = async ({ silent = false } = {}) => {
     if (!silent) setLoadingData(true);
     setError(null);
+
     try {
+      let currentUser = user;
+
+      // If user was not passed to this component,
+      // get the authenticated user from the JWT session.
+      if (!currentUser) {
+        const sessionRes = await fetch(`${apiUrl}/session`, {
+          credentials: "include",
+        });
+
+        if (!sessionRes.ok) {
+          throw new Error("Unable to get authenticated user.");
+        }
+
+        const sessionData = await sessionRes.json();
+        currentUser = sessionData?.user;
+      }
+
+      if (!currentUser?.role) {
+        throw new Error("User role is unavailable.");
+      }
+
       const HQ_ROLES = ["Super Admin", "Franchisee Operations Admin"];
-      const params = new URLSearchParams({ role: user?.role || "" });
-      if (!HQ_ROLES.includes(user?.role)) {
-        if (user?.branch) params.set("branch", user.branch);
-        if (user?.brand) params.set("brand", user.brand);
+
+      const params = new URLSearchParams({
+        role: currentUser.role,
+      });
+
+      if (!HQ_ROLES.includes(currentUser.role)) {
+        if (currentUser.branch) {
+          params.set("branch", currentUser.branch);
+        }
+
+        if (currentUser.brand) {
+          params.set("brand", currentUser.brand);
+        }
       }
 
       const res = await adminModuleFetch(
         `${apiUrl}/orders?${params.toString()}`,
-        { credentials: "include" },
+        {
+          credentials: "include",
+        },
       );
-      if (!res.ok) throw new Error("Failed to load orders");
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+
+        throw new Error(
+          errorData.message ||
+            errorData.error ||
+            `Failed to load orders (${res.status})`,
+        );
+      }
+
       const data = await res.json();
-      setOrders(data.map(normalizeOrder));
+
+      setOrders((Array.isArray(data) ? data : []).map(normalizeOrder));
     } catch (err) {
+      console.error("Failed to fetch orders:", err);
+      setOrders([]);
       setError(err.message);
     } finally {
       if (!silent) setLoadingData(false);
@@ -33974,7 +33996,7 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     fetchOrders();
     fetchActivityLog();
     fetchIngredients();
-  }, [fetchActivityLog, fetchIngredients]);
+  }, [user, fetchActivityLog, fetchIngredients]);
 
   /* ── NEW: automatic stock availability for all pending orders ──
       Runs whenever the order list changes — no button click needed.
@@ -34778,6 +34800,9 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
 }
 
 function ProfileContent({ user }) {
+  const [profileUser, setProfileUser] = useState(user || null);
+  const [isProfileLoading, setIsProfileLoading] = useState(!user);
+
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
@@ -34811,20 +34836,61 @@ function ProfileContent({ user }) {
   const showConfirm = (message, onConfirm) =>
     setConfirmModal({ message, onConfirm });
 
-  const formDataRef = React.useRef(formData);
   useEffect(() => {
+    const loadProfileUser = async () => {
+      // If the dashboard already gave us the user, use it.
+      if (user) {
+        setProfileUser(user);
+        setIsProfileLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/session`, {
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          setProfileUser(null);
+          return;
+        }
+
+        const data = await res.json();
+
+        if (data?.user) {
+          setProfileUser(data.user);
+        } else {
+          setProfileUser(null);
+        }
+      } catch (error) {
+        console.error("Failed to load profile user:", error);
+        setProfileUser(null);
+      } finally {
+        setIsProfileLoading(false);
+      }
+    };
+
+    loadProfileUser();
+  }, [user]);
+
+  const formDataRef = React.useRef(formData);
+
+  useEffect(() => {
+    if (!profileUser) return;
+
     setFormData((prev) => ({
       ...prev,
-      firstName: user.firstName || "",
-      lastName: user.lastName || "",
-      middleInitial: user.middleInitial || "",
-      suffix: user.suffix || "",
-      name: user.name || "",
-      email: user.email || "",
-      role: user.role || "",
-      personalEmail: user.personalEmail || "",
+      firstName: profileUser.firstName || "",
+      lastName: profileUser.lastName || "",
+      middleInitial: profileUser.middleInitial || "",
+      suffix: profileUser.suffix || "",
+      name: profileUser.name || "",
+      email: profileUser.email || "",
+      role: profileUser.role || "",
+      branch: profileUser.branch || "",
+      personalEmail: profileUser.personalEmail || "",
     }));
-  }, [user]);
+  }, [profileUser]);
   const handleInputChange = React.useCallback((e) => {
     const { name, value } = e.target;
     formDataRef.current = { ...formDataRef.current, [name]: value };
@@ -34886,7 +34952,7 @@ function ProfileContent({ user }) {
       setOtpError("");
       const emailToVerify = formData.personalEmail || formData.email;
       const response = await fetch(
-        `${ADMIN_API_BASE}/users/${user.id}/password`,
+        `${ADMIN_API_BASE}/users/${profileUser.id}/password`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -34970,7 +35036,7 @@ function ProfileContent({ user }) {
         .filter(Boolean)
         .join(" ");
       const response = await adminModuleFetch(
-        `${ADMIN_API_BASE}/users/${user.id}`,
+        `${ADMIN_API_BASE}/users/${profileUser.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -34982,7 +35048,7 @@ function ProfileContent({ user }) {
             suffix: formData.suffix || null,
             email: formData.email,
             role: formData.role,
-            branch: user.branch,
+            branch: profileUser.branch,
           }),
         },
       );
@@ -35012,14 +35078,14 @@ function ProfileContent({ user }) {
   const handleCancel = () => {
     showConfirm("Discard all unsaved changes?", () => {
       setFormData({
-        firstName: user.firstName || "",
-        lastName: user.lastName || "",
-        middleInitial: user.middleInitial || "",
-        suffix: user.suffix || "",
-        name: user.name,
-        email: user.email,
+        firstName: profileUser.firstName || "",
+        lastName: profileUser.lastName || "",
+        middleInitial: profileUser.middleInitial || "",
+        suffix: profileUser.suffix || "",
+        name: profileUser.name,
+        email: profileUser.email,
         personalEmail: "",
-        role: user.role,
+        role: profileUser.role,
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
@@ -35033,9 +35099,38 @@ function ProfileContent({ user }) {
       setIsUnlocked(false);
     });
   };
+  if (isProfileLoading) {
+    return (
+      <div
+        style={{
+          padding: 24,
+          textAlign: "center",
+          color: "#5C6B60",
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}
+      >
+        Loading profile...
+      </div>
+    );
+  }
 
-  const initials = user.name
-    ? user.name
+  if (!profileUser) {
+    return (
+      <div
+        style={{
+          padding: 24,
+          textAlign: "center",
+          color: "#c0392b",
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}
+      >
+        Unable to load profile. Please log in again.
+      </div>
+    );
+  }
+
+  const initials = profileUser.name
+    ? profileUser.name
         .trim()
         .split(/\s+/)
         .map((w) => w[0])
@@ -35043,7 +35138,6 @@ function ProfileContent({ user }) {
         .slice(0, 2)
         .toUpperCase()
     : "?";
-
   // ── Shared input style ──
   const inputStyle = (disabled) => ({
     ...bmInput,
@@ -35231,7 +35325,7 @@ function ProfileContent({ user }) {
                 whiteSpace: "nowrap",
               }}
             >
-              {user.name}
+              {profileUser.name}
             </div>
             <div
               style={{
@@ -35256,7 +35350,7 @@ function ProfileContent({ user }) {
                 <rect x="2" y="4" width="20" height="16" rx="2" />
                 <path d="m22 7-10 7L2 7" />
               </svg>
-              {user.email}
+              {profileUser.email}
             </div>
             <div
               style={{
@@ -35276,9 +35370,9 @@ function ProfileContent({ user }) {
                   fontWeight: 700,
                 }}
               >
-                {user.role}
+                {profileUser.role}
               </span>
-              {user.branch && (
+              {profileUser.branch && (
                 <span
                   style={{
                     background: "#f0f5e8",
@@ -35290,7 +35384,7 @@ function ProfileContent({ user }) {
                     border: "1.5px solid #E1E6D8",
                   }}
                 >
-                  {user.branch}
+                  {profileUser.branch}
                 </span>
               )}
             </div>
@@ -35348,7 +35442,7 @@ function ProfileContent({ user }) {
                 </span>
               </div>
             </div>
-            {user.branch && (
+            {profileUser.branch && (
               <div
                 style={{
                   padding: "8px 16px",
@@ -35372,7 +35466,7 @@ function ProfileContent({ user }) {
                 <div
                   style={{ fontWeight: 800, fontSize: 13, color: "#12241B" }}
                 >
-                  {user.branch}
+                  {profileUser.branch}
                 </div>
               </div>
             )}

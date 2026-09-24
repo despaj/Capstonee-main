@@ -281,6 +281,38 @@ const normalizeCatalogueStockItem = (row) => {
   };
 };
 
+async function adminModuleFetch(input, options = {}) {
+  let response = await fetch(input, {
+    ...options,
+    credentials: "include",
+    headers: {
+      ...(options.headers || {}),
+    },
+  });
+
+  if (response.status === 401) {
+    const refreshResponse = await fetch(
+      `${process.env.REACT_APP_API_URL}/refresh-token`,
+      {
+        method: "POST",
+        credentials: "include",
+      },
+    );
+
+    if (refreshResponse.ok) {
+      response = await fetch(input, {
+        ...options,
+        credentials: "include",
+        headers: {
+          ...(options.headers || {}),
+        },
+      });
+    }
+  }
+
+  return response;
+}
+
 const getBrowserLocation = () => {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
@@ -3050,6 +3082,7 @@ function MenuBrandCard({
   items,
   branchOptions,
   categories,
+  canModifyBranch,
   onEdit,
   onRequestDelete,
   deletingId,
@@ -3062,7 +3095,9 @@ function MenuBrandCard({
   restrictBranch = "",
 }) {
   const [search, setSearch] = useState("");
-  const [branchF, setBranchF] = useState(restrictBranch || "");
+  const [branchF, setBranchF] = useState(
+    restrictBranch || "San Juan (Head Office)",
+  );
   const [statusF, setStatusF] = useState("");
   const [categoryF, setCategoryF] = useState("");
   const [selectedId, setSelectedId] = useState(null);
@@ -3070,33 +3105,29 @@ function MenuBrandCard({
 
   useEffect(() => {
     if (restrictBranch) {
-      setBranchF(restrictBranch);
+      setBranchF((current) =>
+        current === restrictBranch ? current : restrictBranch,
+      );
       didSetDefaultBranch.current = true;
       return;
     }
 
     if (!didSetDefaultBranch.current && branchOptions.length > 0) {
-      const headOffice = branchOptions.find(
-        (b) => b.toLowerCase() === "head office",
+      const defaultBranch = branchOptions.find(
+        (b) =>
+          String(b).trim().toLowerCase() ===
+          "san juan (head office)".toLowerCase(),
       );
 
-      if (headOffice) {
-        setBranchF(headOffice);
+      if (defaultBranch) {
+        setBranchF((current) =>
+          current === defaultBranch ? current : defaultBranch,
+        );
       }
 
       didSetDefaultBranch.current = true;
     }
   }, [restrictBranch, branchOptions]);
-
-  useEffect(() => {
-    if (!didSetDefaultBranch.current && branchOptions.length > 0) {
-      const headOffice = branchOptions.find(
-        (b) => b.toLowerCase() === "head office",
-      );
-      if (headOffice) setBranchF(headOffice);
-      didSetDefaultBranch.current = true;
-    }
-  }, [branchOptions]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -3120,6 +3151,8 @@ function MenuBrandCard({
   const selected = items.find((i) => i.id === selectedId) || null;
   const lowCount = items.filter((i) => i.is_low).length;
   const directBrand = isDirectBrandName(brandName);
+
+  const selectedBranchCanModify = !!branchF && canModifyBranch?.(branchF);
 
   return (
     <div
@@ -3206,7 +3239,7 @@ function MenuBrandCard({
             >
               <Link2 size={12} /> Auto-synced from Stock Inventory
             </span>
-          ) : (
+          ) : selectedBranchCanModify ? (
             <button
               onClick={onQuickAdd}
               title="Add a new menu item"
@@ -3228,7 +3261,7 @@ function MenuBrandCard({
             >
               <PlusIcon size={12} /> Add Item
             </button>
-          )}
+          ) : null}
         </span>
       </div>
 
@@ -3343,7 +3376,7 @@ function MenuBrandCard({
             )}
           </button>
         )}
-        {!directBrand && (
+        {!directBrand && selectedBranchCanModify && (
           <label
             style={{
               ...smallBtnSt,
@@ -3497,7 +3530,7 @@ function MenuBrandCard({
                       >
                         <Link2 size={10} /> Managed in Stock Inventory
                       </span>
-                    ) : (
+                    ) : canModifyBranch?.(item.branch) ? (
                       <>
                         <button
                           onClick={(e) => {
@@ -3534,7 +3567,7 @@ function MenuBrandCard({
                           <TrashIcon size={10} /> Delete
                         </button>
                       </>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               );
@@ -3589,11 +3622,52 @@ export default function MenuInventoryContent({
   user,
   brands: propBrands = [],
 }) {
-  const isAdmin = user?.role === "Super Admin" || user?.role === "Sales Admin";
+  const normalizedUserRole = String(user?.role || "")
+    .trim()
+    .toLowerCase();
 
-  const isManager = user?.role === "Manager";
+  const isAdmin =
+    normalizedUserRole === "super admin" ||
+    normalizedUserRole === "sales admin";
+
+  const isManager = normalizedUserRole === "manager";
+
+  const isFranchiseeOperationsAdmin =
+    normalizedUserRole === "franchisee operations admin" ||
+    normalizedUserRole === "franchise operations admin" ||
+    normalizedUserRole === "franchisor operations admin";
 
   const userBranch = String(user?.branch || "").trim();
+
+  const HEAD_OFFICE_BRANCH = "san juan (head office)";
+
+  const canModifyBranch = useCallback(
+    (branchName) => {
+      const branch = String(branchName || "")
+        .trim()
+        .toLowerCase();
+
+      if (isFranchiseeOperationsAdmin) {
+        return false;
+      }
+
+      if (isAdmin) {
+        return branch === HEAD_OFFICE_BRANCH;
+      }
+
+      if (isManager) {
+        return (
+          branch ===
+          String(userBranch || "")
+            .trim()
+            .toLowerCase()
+        );
+      }
+
+      return false;
+    },
+    [isAdmin, isManager, isFranchiseeOperationsAdmin, userBranch],
+  );
 
   const userBrand = String(
     user?.brand || user?.brand_name || user?.brandName || "",
@@ -3711,10 +3785,9 @@ export default function MenuInventoryContent({
     );
   }, [formData.branch, brandList]);
 
-  const [formCategories, setFormCategories] = useState([]);
-  useEffect(() => {
+  const formCategories = useMemo(() => {
     const cats = formBrand?.categories || inventoryCategories;
-    setFormCategories(cats.length ? cats : []);
+    return Array.isArray(cats) ? cats : [];
   }, [formBrand, inventoryCategories]);
 
   useEffect(() => {
@@ -3736,7 +3809,9 @@ export default function MenuInventoryContent({
     setLoading(true);
     try {
       const q = branch ? `?branch=${encodeURIComponent(branch)}` : "";
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory${q}`);
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/inventory${q}`,
+      );
       const d = await res.json();
       setInventory(Array.isArray(d) ? d : []);
     } catch {
@@ -3752,7 +3827,7 @@ export default function MenuInventoryContent({
       if (branch) params.set("branch", branch);
       if (brand) params.set("brand", brand);
       const q = params.toString() ? `?${params.toString()}` : "";
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ingredients${q}`,
       );
       const d = await res.json();
@@ -3778,7 +3853,7 @@ export default function MenuInventoryContent({
 
       const query = params.toString() ? `?${params.toString()}` : "";
 
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ingredients${query}`,
       );
 
@@ -3816,7 +3891,7 @@ export default function MenuInventoryContent({
 
   const fetchDeleteHistory = useCallback(async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/inventory-delete-history`,
       );
       const data = await res.json();
@@ -3836,17 +3911,23 @@ export default function MenuInventoryContent({
     }
   }, []);
 
-  useEffect(() => {
-    if (!formData.branch && !formBrandId) return;
+  const selectedFormBrandName = useMemo(() => {
     const brandObj = brandList.find(
       (b) => String(b.id) === String(formBrandId),
     );
-    fetchStockItems(formData.branch, brandObj?.name || "");
-  }, [formData.branch, formBrandId, brandList, fetchStockItems]);
+
+    return brandObj?.name || "";
+  }, [brandList, formBrandId]);
+
+  useEffect(() => {
+    if (!formData.branch && !formBrandId) return;
+
+    fetchStockItems(formData.branch, selectedFormBrandName);
+  }, [formData.branch, formBrandId, selectedFormBrandName, fetchStockItems]);
 
   const fetchActivityLog = useCallback(async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/menu-activity-log`,
       );
       const data = await res.json();
@@ -3894,10 +3975,14 @@ export default function MenuInventoryContent({
       );
     };
   }, [fetchCatalogStockItems]);
+
   useEffect(() => {
-    fetchDeleteHistory();
+    if (isAdmin) {
+      fetchDeleteHistory();
+    }
+
     fetchActivityLog();
-  }, [fetchDeleteHistory, fetchActivityLog]);
+  }, [isAdmin, fetchDeleteHistory, fetchActivityLog]);
 
   const refetch = () => fetchInventory(isAdmin ? undefined : userBranch);
 
@@ -4170,6 +4255,19 @@ export default function MenuInventoryContent({
   const handleAddItem = async (e) => {
     e.preventDefault();
     const targetBranches = isAdmin ? formData.branches || [] : [userBranch];
+
+    const unauthorizedBranches = targetBranches.filter(
+      (branch) => !canModifyBranch(branch),
+    );
+
+    if (unauthorizedBranches.length > 0) {
+      showToast(
+        "error",
+        "Read Only Access",
+        "You cannot add menu items to the selected branch.",
+      );
+      return;
+    }
     const requestedBrand =
       formData.brand || branchToBrand[targetBranches[0]] || "";
     if (isDirectBrandName(requestedBrand)) {
@@ -4246,11 +4344,14 @@ export default function MenuInventoryContent({
       };
 
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+        const res = await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/inventory`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          },
+        );
         const d = await res.json();
         if (d.success) {
           if (
@@ -4258,7 +4359,7 @@ export default function MenuInventoryContent({
             formData.ingredients &&
             formData.ingredients.length > 0
           ) {
-            const ingRes = await fetch(
+            const ingRes = await adminModuleFetch(
               `${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`,
               {
                 method: "POST",
@@ -4337,6 +4438,16 @@ export default function MenuInventoryContent({
   const handleEditItem = async (e) => {
     e.preventDefault();
     const originalBranch = editingItem.branch;
+
+    if (!canModifyBranch(originalBranch)) {
+      showToast(
+        "error",
+        "Read Only Access",
+        "You cannot edit menu items in this branch.",
+      );
+      return;
+    }
+
     const selectedBranches = isAdmin ? formData.branches || [] : [userBranch];
 
     if (isAdmin && !selectedBranches.includes(originalBranch)) {
@@ -4380,7 +4491,7 @@ export default function MenuInventoryContent({
     let editSucceeded = false;
 
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`,
         {
           method: "PUT",
@@ -4391,7 +4502,7 @@ export default function MenuInventoryContent({
       const d = await res.json();
       if (d.success) {
         if (!directProduct) {
-          const ingRes = await fetch(
+          const ingRes = await adminModuleFetch(
             `${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}/ingredients`,
             {
               method: "POST",
@@ -4462,11 +4573,14 @@ export default function MenuInventoryContent({
       };
 
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(extraPayload),
-        });
+        const res = await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/inventory`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(extraPayload),
+          },
+        );
         const d = await res.json();
         if (d.success) {
           if (
@@ -4474,7 +4588,7 @@ export default function MenuInventoryContent({
             formData.ingredients &&
             formData.ingredients.length > 0
           ) {
-            await fetch(
+            await adminModuleFetch(
               `${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`,
               {
                 method: "POST",
@@ -4532,10 +4646,21 @@ export default function MenuInventoryContent({
   };
 
   const handleDeleteItem = async (id) => {
+    const item = inventory.find((row) => String(row.id) === String(id));
+
+    if (!item || !canModifyBranch(item.branch)) {
+      showToast(
+        "error",
+        "Read Only Access",
+        "You cannot delete menu items from this branch.",
+      );
+      return;
+    }
+
     setDeletingId(id);
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/inventory/${id}`,
         {
           method: "DELETE",
@@ -4572,35 +4697,49 @@ export default function MenuInventoryContent({
   };
 
   const handleRestore = async (entry) => {
+    const d = entry.inventory_data || {};
+
+    if (!canModifyBranch(d.branch)) {
+      showToast(
+        "error",
+        "Read Only Access",
+        "You cannot restore menu items to this branch.",
+      );
+      return;
+    }
+
     setRestoringId(entry.id);
+
     try {
-      const d = entry.inventory_data;
       const ings = entry.ingredients_data || [];
       const coords = await getBrowserLocation();
 
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: d.name,
-          category: d.category,
-          branch: d.branch,
-          brand: d.brand,
-          stock: d.stock,
-          min_stock: d.min_stock,
-          cost: d.cost,
-          price: d.price,
-          performed_by: userName,
-          performed_by_role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-          restored: true,
-        }),
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/inventory`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: d.name,
+            category: d.category,
+            branch: d.branch,
+            brand: d.brand,
+            stock: d.stock,
+            min_stock: d.min_stock,
+            cost: d.cost,
+            price: d.price,
+            performed_by: userName,
+            performed_by_role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+            restored: true,
+          }),
+        },
+      );
       const result = await res.json();
       if (result.success) {
         if (ings.length > 0) {
-          await fetch(
+          await adminModuleFetch(
             `${process.env.REACT_APP_API_URL}/inventory/${result.item.id}/ingredients`,
             {
               method: "POST",
@@ -4615,7 +4754,7 @@ export default function MenuInventoryContent({
             },
           );
         }
-        await fetch(
+        await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/inventory-delete-history/${entry.id}`,
           { method: "DELETE" },
         );
@@ -4920,6 +5059,11 @@ export default function MenuInventoryContent({
       const skippedNames = [];
 
       for (const item of items) {
+        if (!canModifyBranch(item.branch)) {
+          skipped++;
+          skippedNames.push(`${item.name} (${item.branch} - read only)`);
+          continue;
+        }
         const combined = [...currentInventory];
         const duplicate = findDuplicate(item.name, item.branch, combined);
         if (duplicate) {
@@ -4930,7 +5074,7 @@ export default function MenuInventoryContent({
 
         try {
           const { ingredients, ...itemData } = item;
-          const res = await fetch(
+          const res = await adminModuleFetch(
             `${process.env.REACT_APP_API_URL}/inventory`,
             {
               method: "POST",
@@ -4960,7 +5104,7 @@ export default function MenuInventoryContent({
                 })
                 .filter(Boolean);
               if (ingPayload.length > 0) {
-                await fetch(
+                await adminModuleFetch(
                   `${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`,
                   {
                     method: "POST",
@@ -5315,7 +5459,7 @@ export default function MenuInventoryContent({
                   const fd = new FormData();
                   fd.append("image", file);
                   try {
-                    const res = await fetch(
+                    const res = await adminModuleFetch(
                       `${process.env.REACT_APP_API_URL}/api/upload-menu-image`,
                       {
                         method: "POST",
@@ -5917,11 +6061,12 @@ export default function MenuInventoryContent({
               value={formData.category}
               onChange={(val) => setFormData((p) => ({ ...p, category: val }))}
               categories={formCategories}
-              onAddCategory={(cat) =>
-                setFormCategories((prev) =>
-                  prev.includes(cat) ? prev : [...prev, cat],
-                )
-              }
+              onAddCategory={(cat) => {
+                setFormData((p) => ({
+                  ...p,
+                  category: cat,
+                }));
+              }}
             />
           )}
         </div>
@@ -6312,6 +6457,7 @@ export default function MenuInventoryContent({
           items={filteredItems}
           branchOptions={branchOptionsForCard}
           categories={filteredCategories}
+          canModifyBranch={canModifyBranch}
           restrictBranch={isAdmin ? "" : userBranch}
           onEdit={openEditModal}
           onRequestDelete={setDeleteTarget}

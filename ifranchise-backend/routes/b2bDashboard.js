@@ -1,5 +1,9 @@
 const express = require("express");
 const router = express.Router();
+
+const { authenticate, authorize } = require("../middleware/auth");
+router.use(authenticate);
+router.use(authorize("Super Admin", "Franchisee Operations Admin", "Sales Admin", "Manager"));
 const pool = require("../db");
 
 // Monetary values are summed as integer centavos in the model.
@@ -607,13 +611,11 @@ const endpoint = (handler) => async (req, res) => {
     res.json(handler(raw, req.query, model, req.params));
   } catch (e) {
     console.error("B2B evidence", e);
-    res
-      .status(e.status || 500)
-      .json({
-        error: e.status
-          ? e.message
-          : "Failed to load QA evidence; no estimated substitute is returned.",
-      });
+    res.status(e.status || 500).json({
+      error: e.status
+        ? e.message
+        : "Failed to load QA evidence; no estimated substitute is returned.",
+    });
   }
 };
 router.get("/dashboard/b2b/overview", endpoint(overview));

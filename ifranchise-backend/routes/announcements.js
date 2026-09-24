@@ -1,153 +1,282 @@
 const express = require("express");
 const router = express.Router();
+
+const { authenticate, authorize } = require("../middleware/auth");
+router.use(authenticate);
 const pool = require("../db");
 const { sendPushNotification } = require("../utils/pushNotif");
 const { logActivity } = require("../utils/activityLogger");
 
-router.get("/announcements/delete-history", async (req, res) => {
-  try {
-    await pool.query(`DELETE FROM announcement_delete_history WHERE deleted_at < NOW() - INTERVAL '30 days'`);
-    const result = await pool.query(`SELECT * FROM announcement_delete_history WHERE deleted_at >= NOW() - INTERVAL '30 days' ORDER BY deleted_at DESC`);
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch delete history" });
-  }
-});
-
-router.delete("/announcements/delete-history/:id", async (req, res) => {
-  try {
-    await pool.query("DELETE FROM announcement_delete_history WHERE id=$1", [req.params.id]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to remove from history" });
-  }
-});
-
-router.get("/announcements", async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT a.*, u.name AS author FROM announcements a LEFT JOIN users u ON a.created_by=u.id ORDER BY a.created_at DESC`
-    );
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch announcements" });
-  }
-});
-
-router.post("/announcements", async (req, res) => {
-  try {
-    const { title, content, userId, performed_by, role, latitude, longitude, restored } = req.body;
-    const userResult = await pool.query("SELECT role, branch FROM users WHERE id=$1", [userId]);
-    if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
-    if (userResult.rows[0].role !== "Super Admin" && userResult.rows[0].role !== "Franchisee Operations Admin")
-      return res.status(403).json({ error: "Only admin can post announcements" });
-
-    const result = await pool.query(
-      `INSERT INTO announcements (title, content, created_by) VALUES ($1,$2,$3) RETURNING *`,
-      [title, content, userId]
-    );
-
-    await logActivity(
-      restored ? "restore" : "create",
-      title,
-      performed_by || "System",
-      { note: restored ? "Restored from delete history" : undefined },
-      req, userResult.rows[0].branch || null, "Announcements", latitude, longitude, role || "Unknown"
-    );
-
+router.get(
+  "/announcements/delete-history",
+  authorize("Super Admin", "Franchisee Operations Admin"),
+  async (req, res) => {
     try {
-      const announcementId = result.rows[0].id;
-      const allUsers = await pool.query("SELECT id FROM users");
-      await Promise.all(allUsers.rows.map(u =>
-        pool.query(
-          `INSERT INTO notifications (user_id, type, title, body, reference_id) VALUES ($1,'announcement',$2,$3,$4) ON CONFLICT DO NOTHING`,
-          [u.id, title, content.length > 80 ? content.slice(0, 80) + "…" : content, announcementId]
-        )
-      ));
-      const tokens = await pool.query("SELECT push_token FROM users WHERE push_token IS NOT NULL");
-      await Promise.all(tokens.rows.map(r => sendPushNotification(r.push_token, "New Announcement", title)));
-    } catch (notifErr) {
-      console.error("Notification insert failed (non-fatal):", notifErr.message);
-    }
-
-    res.json({ success: true, announcement: result.rows[0] });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to create announcement" });
-  }
-});
-
-router.put("/announcements/:id", async (req, res) => {
-  try {
-    const { title, content, userId, performed_by, role, latitude, longitude } = req.body;
-    const userResult = await pool.query("SELECT role, branch FROM users WHERE id=$1", [userId]);
-    if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
-    if (userResult.rows[0].role !== "Super Admin" && userResult.rows[0].role !== "Franchisee Operations Admin")
-      return res.status(403).json({ error: "Unauthorized" });
-
-    const result = await pool.query(
-      "UPDATE announcements SET title=$1, content=$2 WHERE id=$3 RETURNING *",
-      [title, content, req.params.id]
-    );
-
-    await logActivity(
-      "update",
-      title,
-      performed_by || "System",
-      {},
-      req, userResult.rows[0].branch || null,  "Announcements", latitude, longitude, role || "Unknown"
-    );
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to update announcement" });
-  }
-});
-
-router.delete("/announcements/:id", async (req, res) => {
-  try {
-    const { userId, performed_by, role, latitude, longitude } = req.body;
-    const userResult = await pool.query("SELECT role, branch FROM users WHERE id=$1", [userId]);
-    if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
-    if (userResult.rows[0].role !== "Super Admin" && userResult.rows[0].role !== "Franchisee Operations Admin")
-      return res.status(403).json({ error: "Unauthorized" });
-
-    const ann = await pool.query("SELECT * FROM announcements WHERE id=$1", [req.params.id]);
-    if (ann.rows.length > 0) {
-      const a = ann.rows[0];
       await pool.query(
-        `INSERT INTO announcement_delete_history (announcement_id, title, content, image_url, created_by, original_created_at, deleted_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [a.id, a.title, a.content, a.image_url || null, a.created_by, a.created_at, userId]
+        `DELETE FROM announcement_delete_history WHERE deleted_at < NOW() - INTERVAL '30 days'`,
       );
+      const result = await pool.query(
+        `SELECT * FROM announcement_delete_history WHERE deleted_at >= NOW() - INTERVAL '30 days' ORDER BY deleted_at DESC`,
+      );
+      res.json(result.rows);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch delete history" });
     }
+  },
+);
 
-    await pool.query("DELETE FROM announcements WHERE id=$1", [req.params.id]);
+router.delete(
+  "/announcements/delete-history/:id",
+  authorize("Super Admin", "Franchisee Operations Admin"),
+  async (req, res) => {
+    try {
+      await pool.query("DELETE FROM announcement_delete_history WHERE id=$1", [
+        req.params.id,
+      ]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to remove from history" });
+    }
+  },
+);
 
-    await logActivity(
-      "delete",
-      ann.rows[0]?.title,
-      performed_by || "System",
-      {},
-      req, userResult.rows[0].branch || null, "Announcements", latitude, longitude, role || "Unknown"
-    );
+router.get(
+  "/announcements",
+  authorize(
+    "Super Admin",
+    "Franchisee Operations Admin",
+    "Sales Admin",
+    "Manager",
+    "Staff",
+    "Franchisee",
+  ),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT a.*, u.name AS author FROM announcements a LEFT JOIN users u ON a.created_by=u.id ORDER BY a.created_at DESC`,
+      );
+      res.json(result.rows);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch announcements" });
+    }
+  },
+);
 
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to delete announcement" });
-  }
-});
+router.post(
+  "/announcements",
+  authorize("Super Admin", "Franchisee Operations Admin"),
+  async (req, res) => {
+    try {
+      const {
+        title,
+        content,
+        userId,
+        performed_by,
+        role,
+        latitude,
+        longitude,
+        restored,
+      } = req.body;
+      const userResult = await pool.query(
+        "SELECT role, branch FROM users WHERE id=$1",
+        [userId],
+      );
+      if (userResult.rows.length === 0)
+        return res.status(404).json({ error: "User not found" });
+      if (
+        userResult.rows[0].role !== "Super Admin" &&
+        userResult.rows[0].role !== "Franchisee Operations Admin"
+      )
+        return res
+          .status(403)
+          .json({ error: "Only admin can post announcements" });
 
-router.get("/announcements-activity-log", async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT * FROM users_activity_log WHERE module = $1 ORDER BY created_at DESC",
-      ["Announcements"]
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error("Failed to fetch announcements activity log:", err);
-    res.status(500).json({ error: "Failed to fetch announcements activity log" });
-  }
-});
+      const result = await pool.query(
+        `INSERT INTO announcements (title, content, created_by) VALUES ($1,$2,$3) RETURNING *`,
+        [title, content, userId],
+      );
+
+      await logActivity(
+        restored ? "restore" : "create",
+        title,
+        performed_by || "System",
+        { note: restored ? "Restored from delete history" : undefined },
+        req,
+        userResult.rows[0].branch || null,
+        "Announcements",
+        latitude,
+        longitude,
+        role || "Unknown",
+      );
+
+      try {
+        const announcementId = result.rows[0].id;
+        const allUsers = await pool.query("SELECT id FROM users");
+        await Promise.all(
+          allUsers.rows.map((u) =>
+            pool.query(
+              `INSERT INTO notifications (user_id, type, title, body, reference_id) VALUES ($1,'announcement',$2,$3,$4) ON CONFLICT DO NOTHING`,
+              [
+                u.id,
+                title,
+                content.length > 80 ? content.slice(0, 80) + "…" : content,
+                announcementId,
+              ],
+            ),
+          ),
+        );
+        const tokens = await pool.query(
+          "SELECT push_token FROM users WHERE push_token IS NOT NULL",
+        );
+        await Promise.all(
+          tokens.rows.map((r) =>
+            sendPushNotification(r.push_token, "New Announcement", title),
+          ),
+        );
+      } catch (notifErr) {
+        console.error(
+          "Notification insert failed (non-fatal):",
+          notifErr.message,
+        );
+      }
+
+      res.json({ success: true, announcement: result.rows[0] });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to create announcement" });
+    }
+  },
+);
+
+router.put(
+  "/announcements/:id",
+  authorize("Super Admin", "Franchisee Operations Admin"),
+  async (req, res) => {
+    try {
+      const {
+        title,
+        content,
+        userId,
+        performed_by,
+        role,
+        latitude,
+        longitude,
+      } = req.body;
+      const userResult = await pool.query(
+        "SELECT role, branch FROM users WHERE id=$1",
+        [userId],
+      );
+      if (userResult.rows.length === 0)
+        return res.status(404).json({ error: "User not found" });
+      if (
+        userResult.rows[0].role !== "Super Admin" &&
+        userResult.rows[0].role !== "Franchisee Operations Admin"
+      )
+        return res.status(403).json({ error: "Unauthorized" });
+
+      const result = await pool.query(
+        "UPDATE announcements SET title=$1, content=$2 WHERE id=$3 RETURNING *",
+        [title, content, req.params.id],
+      );
+
+      await logActivity(
+        "update",
+        title,
+        performed_by || "System",
+        {},
+        req,
+        userResult.rows[0].branch || null,
+        "Announcements",
+        latitude,
+        longitude,
+        role || "Unknown",
+      );
+
+      res.json(result.rows[0]);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to update announcement" });
+    }
+  },
+);
+
+router.delete(
+  "/announcements/:id",
+  authorize("Super Admin", "Franchisee Operations Admin"),
+  async (req, res) => {
+    try {
+      const { userId, performed_by, role, latitude, longitude } = req.body;
+      const userResult = await pool.query(
+        "SELECT role, branch FROM users WHERE id=$1",
+        [userId],
+      );
+      if (userResult.rows.length === 0)
+        return res.status(404).json({ error: "User not found" });
+      if (
+        userResult.rows[0].role !== "Super Admin" &&
+        userResult.rows[0].role !== "Franchisee Operations Admin"
+      )
+        return res.status(403).json({ error: "Unauthorized" });
+
+      const ann = await pool.query("SELECT * FROM announcements WHERE id=$1", [
+        req.params.id,
+      ]);
+      if (ann.rows.length > 0) {
+        const a = ann.rows[0];
+        await pool.query(
+          `INSERT INTO announcement_delete_history (announcement_id, title, content, image_url, created_by, original_created_at, deleted_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [
+            a.id,
+            a.title,
+            a.content,
+            a.image_url || null,
+            a.created_by,
+            a.created_at,
+            userId,
+          ],
+        );
+      }
+
+      await pool.query("DELETE FROM announcements WHERE id=$1", [
+        req.params.id,
+      ]);
+
+      await logActivity(
+        "delete",
+        ann.rows[0]?.title,
+        performed_by || "System",
+        {},
+        req,
+        userResult.rows[0].branch || null,
+        "Announcements",
+        latitude,
+        longitude,
+        role || "Unknown",
+      );
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to delete announcement" });
+    }
+  },
+);
+
+router.get(
+  "/announcements-activity-log",
+  authorize("Super Admin", "Franchisee Operations Admin"),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        "SELECT * FROM users_activity_log WHERE module = $1 ORDER BY created_at DESC",
+        ["Announcements"],
+      );
+      res.json(result.rows);
+    } catch (err) {
+      console.error("Failed to fetch announcements activity log:", err);
+      res
+        .status(500)
+        .json({ error: "Failed to fetch announcements activity log" });
+    }
+  },
+);
 
 module.exports = router;

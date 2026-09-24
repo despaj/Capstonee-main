@@ -27,6 +27,7 @@ import {
   SmilePlus,
 } from "lucide-react";
 import logoSync from "../assets/report/franchsync-logo.png";
+import { adminModuleFetch } from "../utils/adminModuleFetch";
 
 const fmtPeso = (n) =>
   "₱" +
@@ -272,7 +273,7 @@ function GCashQRModal({ totalAmt, onConfirm, onCancel, fmtPHP }) {
   React.useEffect(() => {
     const create = async () => {
       try {
-        const res = await fetch(
+        const res = await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/paymongo/create-gcash`,
           {
             method: "POST",
@@ -312,7 +313,7 @@ function GCashQRModal({ totalAmt, onConfirm, onCancel, fmtPHP }) {
   const startPolling = (id) => {
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(
+        const res = await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/paymongo/link-status/${id}`,
         );
         const data = await res.json();
@@ -1225,7 +1226,7 @@ function VoidModal({ show, tx, branch, onClose, onConfirm }) {
     setVerifying(true);
     setErr("");
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/verify-manager-password`,
         {
           method: "POST",
@@ -1583,8 +1584,11 @@ export function POSContent({ user }) {
   const fetchProducts = useCallback(async () => {
     if (!userBranch) return;
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/inventory?branch=${encodeURIComponent(userBranch)}`,
+        {
+          credentials: "include",
+        },
       );
       const d = await res.json();
       setMenuItems(Array.isArray(d) ? d : []);
@@ -1598,11 +1602,17 @@ export function POSContent({ user }) {
     setLoadingTx(true);
     try {
       const [activeRes, voidedRes] = await Promise.all([
-        fetch(
+        adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/transactions?branch=${encodeURIComponent(userBranch)}`,
+          {
+            credentials: "include",
+          },
         ),
-        fetch(
+        adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/transactions/voided?branch=${encodeURIComponent(userBranch)}`,
+          {
+            credentials: "include",
+          },
         ),
       ]);
       const active = await activeRes.json();
@@ -1660,22 +1670,73 @@ export function POSContent({ user }) {
 
   const confirmUnitAdd = () => {
     const product = unitPickerProduct;
+
+    if (!product) return;
+
+    const availableStock = Number(product.stock) || 0;
     const pcsPerUnit = pcsForUnit(product, unitType);
 
-    const price = getUnitPrice(product, unitType);
+    if (availableStock <= 0) {
+      showAlert(
+        "Out of Stock",
+        `${product.displayName || product.name} is currently out of stock.`,
+        "warning",
+      );
+      setUnitPickerProduct(null);
+      return;
+    }
 
+    if (availableStock < pcsPerUnit) {
+      showAlert(
+        "Insufficient Stock",
+        `${unitType} requires ${pcsPerUnit} pcs, but only ${availableStock} pcs are available.`,
+        "warning",
+      );
+      return;
+    }
+
+    const price = getUnitPrice(product, unitType);
     const compositeId = `${product.id}-${unitType}`;
+
     const label =
       unitType === "Pc"
         ? product.displayName
         : `${product.displayName} (${unitType} · ${pcsPerUnit} pcs)`;
 
     setCart((prev) => {
+      // Count ALL units of this same product already in the cart.
+      // Example: 1 Strip (10 pcs) + 2 Pc = 12 pcs used.
+      const alreadyUsedPieces = prev
+        .filter(
+          (c) =>
+            String(c.baseProductId ?? c.id).split("-")[0] ===
+            String(product.id),
+        )
+        .reduce(
+          (total, c) => total + Number(c.qty || 0) * Number(c.unitPcs || 1),
+          0,
+        );
+
+      const requestedPieces = alreadyUsedPieces + pcsPerUnit;
+
+      if (requestedPieces > availableStock) {
+        showAlert(
+          "Insufficient Stock",
+          `Only ${availableStock} pcs of ${product.displayName || product.name} are available.`,
+          "warning",
+        );
+
+        return prev;
+      }
+
       const existing = prev.find((c) => c.id === compositeId);
-      if (existing)
+
+      if (existing) {
         return prev.map((c) =>
           c.id === compositeId ? { ...c, qty: c.qty + 1 } : c,
         );
+      }
+
       return [
         ...prev,
         {
@@ -1695,29 +1756,210 @@ export function POSContent({ user }) {
     setUnitPickerProduct(null);
   };
 
-  // ── Cart ──────────────────────────────────────────────────────────────────
   const addToCart = (product) => {
+    const availableStock = Number(product.stock) || 0;
+
+    if (availableStock <= 0) {
+      showAlert(
+        "Out of Stock",
+        `${product.displayName || product.name} is currently out of stock.`,
+        "warning",
+      );
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.find((c) => c.id === product.id);
-      if (existing)
+
+      if (existing) {
+        if (existing.qty >= availableStock) {
+          showAlert(
+            "Insufficient Stock",
+            `Only ${availableStock} item${availableStock !== 1 ? "s" : ""} available in stock.`,
+            "warning",
+          );
+          return prev;
+        }
+
         return prev.map((c) =>
           c.id === product.id ? { ...c, qty: c.qty + 1 } : c,
         );
+      }
+
       return [
         ...prev,
-        { ...product, source: product.source || "menu", qty: 1 },
+        {
+          ...product,
+          source: product.source || "menu",
+          qty: 1,
+        },
       ];
     });
   };
 
-  const updateQty = (id, delta) =>
-    setCart((prev) =>
-      prev
-        .map((c) =>
-          c.id === id ? { ...c, qty: Math.max(0, c.qty + delta) } : c,
+  const updateQty = (id, change) => {
+    setCart((prev) => {
+      const targetItem = prev.find((item) => item.id === id);
+
+      if (!targetItem) return prev;
+
+      const newQty = targetItem.qty + change;
+
+      // Remove item if quantity becomes 0
+      if (newQty <= 0) {
+        return prev.filter((item) => item.id !== id);
+      }
+
+      // Only need stock validation when increasing quantity
+      if (change > 0) {
+        const baseProductId = targetItem.baseProductId ?? targetItem.id;
+
+        // Find the original product so we get its latest stock
+        const product = menuItems.find(
+          (p) => String(p.id) === String(baseProductId),
+        );
+
+        const availableStock = Number(product?.stock ?? targetItem.stock) || 0;
+
+        // Pc = 1 piece
+        // Strip = pcs_per_strip
+        // Box = pcs_per_strip * strips_per_box
+        const piecesPerUnit =
+          Number(targetItem.unitPcs) || Number(targetItem.unit_pcs) || 1;
+
+        // Count pieces already being used by OTHER cart entries
+        // belonging to the same product.
+        const otherPiecesInCart = prev
+          .filter(
+            (item) =>
+              item.id !== id &&
+              String(item.baseProductId ?? item.id) === String(baseProductId),
+          )
+          .reduce((sum, item) => {
+            const itemPieces =
+              Number(item.unitPcs) || Number(item.unit_pcs) || 1;
+
+            return sum + Number(item.qty || 0) * itemPieces;
+          }, 0);
+
+        // Pieces this cart entry would use after pressing +
+        const targetPieces = newQty * piecesPerUnit;
+
+        const totalPiecesNeeded = otherPiecesInCart + targetPieces;
+
+        if (totalPiecesNeeded > availableStock) {
+          showAlert(
+            "Insufficient Stock",
+            `Only ${availableStock} piece${
+              availableStock !== 1 ? "s" : ""
+            } of ${product?.displayName || product?.name || targetItem.name} are available.`,
+            "warning",
+          );
+
+          return prev;
+        }
+      }
+
+      return prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              qty: newQty,
+            }
+          : item,
+      );
+    });
+  };
+
+  const setCartQty = (id, value) => {
+    // Allow the input to temporarily be empty while typing
+    if (value === "") {
+      setCart((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                qty: "",
+              }
+            : item,
+        ),
+      );
+      return;
+    }
+
+    // Whole numbers only
+    const requestedQty = parseInt(value, 10);
+
+    if (isNaN(requestedQty)) return;
+
+    // Minimum quantity = 1
+    if (requestedQty < 1) {
+      return;
+    }
+
+    setCart((prev) => {
+      const targetItem = prev.find((item) => item.id === id);
+
+      if (!targetItem) return prev;
+
+      const baseProductId = targetItem.baseProductId ?? targetItem.id;
+
+      // Get latest product stock
+      const product = menuItems.find(
+        (p) => String(p.id) === String(baseProductId),
+      );
+
+      const availableStock = Number(product?.stock ?? targetItem.stock) || 0;
+
+      const piecesPerUnit =
+        Number(targetItem.unitPcs) || Number(targetItem.unit_pcs) || 1;
+
+      // Count other cart entries for the same product.
+      // Important for iPharma Pc / Strip / Box combinations.
+      const otherPiecesInCart = prev
+        .filter(
+          (item) =>
+            item.id !== id &&
+            String(item.baseProductId ?? item.id) === String(baseProductId),
         )
-        .filter((c) => c.qty > 0),
-    );
+        .reduce((sum, item) => {
+          const itemPieces = Number(item.unitPcs) || Number(item.unit_pcs) || 1;
+
+          return sum + Number(item.qty || 0) * itemPieces;
+        }, 0);
+
+      const requestedPieces = requestedQty * piecesPerUnit;
+
+      const totalPiecesNeeded = otherPiecesInCart + requestedPieces;
+
+      if (totalPiecesNeeded > availableStock) {
+        // Calculate maximum quantity allowed for THIS cart row
+        const remainingPieces = Math.max(0, availableStock - otherPiecesInCart);
+
+        const maxQty = Math.floor(remainingPieces / piecesPerUnit);
+
+        showAlert(
+          "Insufficient Stock",
+          `You can only enter up to ${maxQty} ${
+            targetItem.unitType || "item"
+          }${maxQty !== 1 ? "s" : ""}. Available stock: ${availableStock} pcs.`,
+          "warning",
+        );
+
+        return prev;
+      }
+
+      return prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              qty: requestedQty,
+            }
+          : item,
+      );
+    });
+  };
+
   const removeFromCart = (id) =>
     setCart((prev) => prev.filter((c) => c.id !== id));
   const clearCart = () => {
@@ -1756,7 +1998,7 @@ export function POSContent({ user }) {
     setDiscountVerifying(true);
     setDiscountAuthErr("");
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/verify-manager-password`,
         {
           method: "POST",
@@ -1908,11 +2150,14 @@ export function POSContent({ user }) {
         })),
       };
 
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/transactions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
       const d = await res.json();
       if (d.success) {
         setLastReceipt({
@@ -1953,7 +2198,7 @@ export function POSContent({ user }) {
   };
   const handleVoidConfirm = async (tx) => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/transactions/${tx.id}/void`,
         {
           method: "POST",
@@ -2026,6 +2271,19 @@ export function POSContent({ user }) {
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
       `}</style>
+
+      <style>{`
+  .cart-qty-input::-webkit-inner-spin-button,
+  .cart-qty-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .cart-qty-input {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+`}</style>
 
       {/* ── Modals ── */}
       <Modal
@@ -2542,17 +2800,32 @@ export function POSContent({ user }) {
                   return (
                     <div
                       key={product.id}
-                      onClick={() =>
-                        isIpharmaBrand(product.brand)
-                          ? openUnitPicker(product)
-                          : addToCart(product)
-                      }
+                      onClick={() => {
+                        if (Number(product.stock) <= 0) {
+                          showAlert(
+                            "Out of Stock",
+                            `${product.displayName || product.name} is currently out of stock.`,
+                            "warning",
+                          );
+                          return;
+                        }
+
+                        if (isIpharmaBrand(product.brand)) {
+                          openUnitPicker(product);
+                        } else {
+                          addToCart(product);
+                        }
+                      }}
                       style={{
                         background: C.white,
                         border: `2px solid ${inCart ? C.teal : C.border}`,
                         borderRadius: 13,
                         padding: "13px 11px",
-                        cursor: "pointer",
+                        cursor:
+                          Number(product.stock) <= 0
+                            ? "not-allowed"
+                            : "pointer",
+                        opacity: Number(product.stock) <= 0 ? 0.55 : 1,
                         transition: "all .15s",
                         boxShadow: inCart
                           ? "0 4px 14px rgba(80,152,32,0.18)"
@@ -2642,7 +2915,9 @@ export function POSContent({ user }) {
                             marginTop: 2,
                           }}
                         >
-                          Stock: {product.stock}
+                          {Number(product.stock) <= 0
+                            ? "OUT OF STOCK"
+                            : `Stock: ${product.stock}`}
                         </div>
                       )}
                     </div>
@@ -2779,17 +3054,47 @@ export function POSContent({ user }) {
                         >
                           −
                         </button>
-                        <span
+                        <input
+                          className="cart-qty-input"
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={item.qty}
+                          onChange={(e) => setCartQty(item.id, e.target.value)}
+                          onBlur={(e) => {
+                            if (
+                              e.target.value === "" ||
+                              Number(e.target.value) < 1
+                            ) {
+                              setCartQty(item.id, "1");
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (
+                              e.key === "-" ||
+                              e.key === "+" ||
+                              e.key === "." ||
+                              e.key === "e" ||
+                              e.key === "E"
+                            ) {
+                              e.preventDefault();
+                            }
+                          }}
                           style={{
-                            fontSize: 12,
+                            width: 48,
+                            height: 30,
+                            border: `1.5px solid ${C.border}`,
+                            borderRadius: 8,
+                            textAlign: "center",
+                            fontFamily: FONT,
+                            fontSize: 13,
                             fontWeight: 800,
                             color: C.ink,
-                            minWidth: 18,
-                            textAlign: "center",
+                            outline: "none",
+                            background: C.white,
+                            boxSizing: "border-box",
                           }}
-                        >
-                          {item.qty}
-                        </span>
+                        />
                         <button
                           onClick={() => updateQty(item.id, +1)}
                           style={{
@@ -4452,28 +4757,9 @@ export function POSContent({ user }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // STAFF DASHBOARD SHELL
 // ─────────────────────────────────────────────────────────────────────────────
-export default function StaffDashboard() {
+export default function StaffDashboard({ user, onLogout }) {
   const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-
-  const getUserFromStorage = () => {
-    const s =
-      localStorage.getItem("user") ||
-      localStorage.getItem("rememberedUser") ||
-      sessionStorage.getItem("user");
-
-    if (s) return JSON.parse(s);
-    navigate("/admin-login");
-    return null;
-  };
-
-  const [user, setUser] = useState(getUserFromStorage);
-
-  useEffect(() => {
-    const u = getUserFromStorage();
-    if (!u) navigate("/admin-login");
-    else setUser(u);
-  }, []);
 
   const confirmLogout = async () => {
     try {
@@ -4481,7 +4767,7 @@ export default function StaffDashboard() {
         localStorage.getItem("user") || sessionStorage.getItem("user");
       const userId = stored ? JSON.parse(stored)?.id : null;
 
-      await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
@@ -4499,7 +4785,6 @@ export default function StaffDashboard() {
       window.location.href = "/admin-login";
     }
   };
-  if (!user) return null;
 
   return (
     <div

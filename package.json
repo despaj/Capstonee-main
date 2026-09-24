@@ -2,6 +2,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",
     "geoip-lite": "^2.0.3",
+    "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.1",
     "ua-parser-js": "^2.0.10"
   }

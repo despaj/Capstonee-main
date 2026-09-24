@@ -14,6 +14,8 @@ import StockInventoryContent from "./StockInventoryContent";
 import ReceiptPrintTemplate from "./ReceiptPrintTemplate";
 import logoIfranchise from "../assets/report/ifranchise-logo.png";
 import logoSync from "../assets/report/franchsync-logo.png";
+import { adminModuleFetch } from "../utils/adminModuleFetch";
+
 import {
   Home,
   FileCheck,
@@ -82,20 +84,6 @@ const ADMIN_API_BASE = String(process.env.REACT_APP_API_URL || "")
   .trim()
   .replace(/;+$/, "")
   .replace(/\/+$/, "");
-
-async function adminModuleFetch(input, options) {
-  const response = await fetch(input, options);
-  const method = String(
-    options?.method ||
-      (typeof Request !== "undefined" && input instanceof Request
-        ? input.method
-        : "GET"),
-  ).toUpperCase();
-  if (response.ok && !["GET", "HEAD", "OPTIONS"].includes(method)) {
-    window.dispatchEvent(new Event("franchisync:data-changed"));
-  }
-  return response;
-}
 
 function useAdminLiveRefresh(refresh, dependencies) {
   useEffect(() => {
@@ -1193,12 +1181,46 @@ export default function FranchiseAdminDashboard() {
   const getUserFromStorage = () => {
     const s =
       localStorage.getItem("user") ||
-      localStorage.getItem("rememberedUser") ||
-      sessionStorage.getItem("user");
-    return s ? JSON.parse(s) : null;
+      sessionStorage.getItem("user") ||
+      sessionStorage.getItem("tempUser") ||
+      localStorage.getItem("rememberedUser");
+
+    if (!s) return null;
+
+    try {
+      return JSON.parse(s);
+    } catch {
+      return null;
+    }
   };
 
-  const [user, setUser] = useState(getUserFromStorage);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const response = await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/me`,
+          {
+            cache: "no-store",
+          },
+        );
+
+        if (!response.ok) {
+          console.error("Failed to load current user:", response.status);
+          return;
+        }
+
+        const data = await response.json();
+
+        setUser(data.user || data);
+      } catch (error) {
+        console.error("Failed to load current user:", error);
+      }
+    };
+
+    loadCurrentUser();
+  }, []);
 
   const [transactions, setTransactions] = useState([]);
 
@@ -1206,13 +1228,6 @@ export default function FranchiseAdminDashboard() {
     const u = getUserFromStorage();
     if (!u) navigate("/admin-login");
     else setUser(u);
-  }, []);
-
-  useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL}/transactions`)
-      .then((res) => res.json())
-      .then((data) => setTransactions(data))
-      .catch((err) => console.error("Failed to fetch transactions", err));
   }, []);
 
   useEffect(() => {
@@ -1242,7 +1257,7 @@ export default function FranchiseAdminDashboard() {
       const stored =
         localStorage.getItem("user") || sessionStorage.getItem("user");
       const userId = stored ? JSON.parse(stored)?.id : null;
-      await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
@@ -1260,13 +1275,44 @@ export default function FranchiseAdminDashboard() {
     }
   };
 
-  // ── Fetch brands for sub-modules that need them ──
   const [brands, setBrands] = useState([]);
+
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL}/brands`)
-      .then((r) => r.json())
-      .then((d) => setBrands(Array.isArray(d) ? d : []))
-      .catch(() => {});
+    let cancelled = false;
+
+    const loadBrands = async () => {
+      try {
+        const response = await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/brands`,
+          { cache: "no-store" },
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            errorData.message || `Failed to fetch brands (${response.status})`,
+          );
+        }
+
+        const data = await response.json();
+
+        if (!cancelled) {
+          setBrands(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch brands:", error);
+
+        if (!cancelled) {
+          setBrands([]);
+        }
+      }
+    };
+
+    loadBrands();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const navigation = [
@@ -3168,7 +3214,7 @@ function PrescriptiveSection({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`,
         {
           method: "POST",
@@ -5008,10 +5054,10 @@ function SalesVsStockSection({
         if (names.length) params.set("branches", names.join(","));
       }
       const [analyticsRes, inventoryRes] = await Promise.all([
-        fetch(
+        adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`,
         ),
-        fetch(`${process.env.REACT_APP_API_URL}/ingredients`),
+        adminModuleFetch(`${process.env.REACT_APP_API_URL}/ingredients`),
       ]);
       const json = analyticsRes.ok ? await analyticsRes.json() : {};
       const inventoryJson = inventoryRes.ok ? await inventoryRes.json() : [];
@@ -5666,7 +5712,7 @@ function SalesVsStockSection({
               <tbody>
                 {stockEvidence.map((r, i) => (
                   <tr
-                    key={r.name}
+                    key={`${r.id ?? "no-id"}-${r.branch ?? "no-branch"}-${r.brand ?? "no-brand"}-${i}`}
                     style={{ background: i % 2 ? "#f5fcf7" : "#fff" }}
                   >
                     <td
@@ -8981,20 +9027,22 @@ function B2BRevenueAssuranceDashboard({
       );
     });
 
-    const pos = (transactions || []).filter((tx) => {
-      const rowBranch = b2bBranchName(tx);
+    const pos = (Array.isArray(transactions) ? transactions : []).filter(
+      (tx) => {
+        const rowBranch = b2bBranchName(tx);
 
-      // POS stores brand in shop in your transactions table.
-      const rowBrand =
-        b2bBrandName(tx) || tx?.shop || tx?.brand || tx?.brand_name || "";
+        // POS stores brand in shop in your transactions table.
+        const rowBrand =
+          b2bBrandName(tx) || tx?.shop || tx?.brand || tx?.brand_name || "";
 
-      return (
-        b2bIsCompletedTx(tx) &&
-        isOfficialBrandBranch(rowBranch, rowBrand) &&
-        brandAllows(normalizeB2BBrand(rowBrand)) &&
-        branchAllows(rowBranch)
-      );
-    });
+        return (
+          b2bIsCompletedTx(tx) &&
+          isOfficialBrandBranch(rowBranch, rowBrand) &&
+          brandAllows(normalizeB2BBrand(rowBrand)) &&
+          branchAllows(rowBranch)
+        );
+      },
+    );
 
     const inventory = (rawInventory || []).filter((row) => {
       const rowBranch = b2bBranchName(row);
@@ -16476,7 +16524,9 @@ function FAMenuInventoryContent({ user, brands: propBrands = [] }) {
     setLoading(true);
     try {
       const q = branch ? `?branch=${encodeURIComponent(branch)}` : "";
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory${q}`);
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/inventory${q}`,
+      );
       const d = await res.json();
       setInventory(Array.isArray(d) ? d : []);
     } catch {
@@ -17692,7 +17742,7 @@ function FAStockInventoryContent({ user, brands: propBrands = [] }) {
     setLoading(true);
     try {
       const q = branch ? `?branch=${encodeURIComponent(branch)}` : "";
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ingredients${q}`,
       );
       const d = await res.json();
@@ -24427,7 +24477,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
   const fetchActivityLog = useCallback(async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/announcements-activity-log`,
       );
       const data = await res.json();
@@ -24481,7 +24531,9 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
   const fetchAnnouncements = async () => {
     setFetching(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/announcements`);
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/announcements`,
+      );
       const data = await res.json();
       setAnnouncements(Array.isArray(data) ? data : []);
     } catch {
@@ -24493,7 +24545,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
   const fetchDeleteHistory = async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/announcements/delete-history`,
       );
       const data = await res.json();
@@ -24544,7 +24596,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
         ? `${process.env.REACT_APP_API_URL}/announcements/${wasEditing.id}`
         : `${process.env.REACT_APP_API_URL}/announcements`;
       const method = wasEditing ? "PUT" : "POST";
-      const res = await fetch(url, {
+      const res = await adminModuleFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -24590,7 +24642,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
         setDeletingId(item.id);
         try {
           const coords = await getBrowserLocation();
-          const res = await fetch(
+          const res = await adminModuleFetch(
             `${process.env.REACT_APP_API_URL}/announcements/${item.id}`,
             {
               method: "DELETE",
@@ -24630,7 +24682,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     setRestoringId(entry.id);
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/announcements`,
         {
           method: "POST",
@@ -24650,7 +24702,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
       );
       const data = await res.json();
       if (res.ok) {
-        await fetch(
+        await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/announcements/delete-history/${entry.id}`,
           { method: "DELETE" },
         );
@@ -26819,7 +26871,7 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
 
   const fetchActivityLog = useCallback(async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/brands-activity-log`,
       );
       const data = await res.json();
@@ -26844,7 +26896,7 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
 
   const fetchDeleteHistory = async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/brand-delete-history`,
       );
       const data = await res.json();
@@ -26868,7 +26920,9 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
   const fetchBrands = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/brands`,
+      );
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       const sorted = [...list]
@@ -26916,17 +26970,20 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
     showLoading("Adding brand…");
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...brandForm,
-          performed_by: user?.name || "System",
-          role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-        }),
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/brands`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...brandForm,
+            performed_by: user?.name || "System",
+            role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+          }),
+        },
+      );
       const data = await res.json();
       if (data.success) {
         await fetchBrands();
@@ -26949,7 +27006,7 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
     showLoading("Updating brand…");
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`,
         {
           method: "PUT",
@@ -27006,28 +27063,34 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
     showLoading("Deleting brand…");
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          performed_by: user?.name || "System",
-          role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
-          method: "POST",
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/brands/${id}`,
+        {
+          method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            type: "brand",
-            name,
-            brand_name: null,
-            data: brandToSave,
+            performed_by: user?.name || "System",
+            role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
           }),
-        });
+        },
+      );
+      const data = await res.json();
+      if (data.success) {
+        await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/brand-delete-history`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "brand",
+              name,
+              brand_name: null,
+              data: brandToSave,
+            }),
+          },
+        );
         await fetchBrands();
         await fetchDeleteHistory();
         await fetchActivityLog();
@@ -27067,17 +27130,20 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
     showLoading("Adding branch…");
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...branchForm,
-          performed_by: user?.name || "System",
-          role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-        }),
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/branches`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...branchForm,
+            performed_by: user?.name || "System",
+            role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+          }),
+        },
+      );
       const data = await res.json();
       if (data.success) {
         await fetchBrands();
@@ -27103,7 +27169,7 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
     showLoading("Updating branch…");
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`,
         {
           method: "PUT",
@@ -27148,7 +27214,7 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
     showLoading("Deleting branch…");
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/branches/${id}`,
         {
           method: "DELETE",
@@ -27163,16 +27229,19 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
       );
       const data = await res.json();
       if (data.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: "branch",
-            name,
-            brand_name: brandName,
-            data: branch,
-          }),
-        });
+        await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/brand-delete-history`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "branch",
+              name,
+              brand_name: brandName,
+              data: branch,
+            }),
+          },
+        );
         await fetchBrands();
         await fetchDeleteHistory();
         await fetchActivityLog();
@@ -27203,18 +27272,21 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
       if (entry.type === "brand") {
         const { branches, ...brandFields } = entry.data;
         const branchList = Array.isArray(branches) ? branches : [];
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...brandFields,
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-            restored: true,
-          }),
-        });
+        const res = await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/brands`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...brandFields,
+              performed_by: user?.name || "System",
+              role: user?.role || "Unknown",
+              latitude: coords?.latitude,
+              longitude: coords?.longitude,
+              restored: true,
+            }),
+          },
+        );
         const data = await res.json();
         if (!data.success) {
           showError(
@@ -27226,7 +27298,7 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
         const newBrandId = data.brand?.id;
         for (const br of branchList) {
           const { id: _ignore, brand_id: _ignore2, ...branchFields } = br;
-          await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+          await adminModuleFetch(`${process.env.REACT_APP_API_URL}/branches`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -27245,7 +27317,7 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
             }),
           });
         }
-        await fetch(
+        await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`,
           { method: "DELETE" },
         );
@@ -27266,27 +27338,30 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
           return;
         }
         const { id: _id, brand_id: _bid, ...branchFields } = entry.data;
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: branchFields.name,
-            region: branchFields.region || null,
-            manager: branchFields.manager || null,
-            contact: branchFields.contact || null,
-            address: branchFields.address || null,
-            concept: branchFields.concept || null,
-            brand_id: parentBrand.id,
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-            restored: true,
-          }),
-        });
+        const res = await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/branches`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: branchFields.name,
+              region: branchFields.region || null,
+              manager: branchFields.manager || null,
+              contact: branchFields.contact || null,
+              address: branchFields.address || null,
+              concept: branchFields.concept || null,
+              brand_id: parentBrand.id,
+              performed_by: user?.name || "System",
+              role: user?.role || "Unknown",
+              latitude: coords?.latitude,
+              longitude: coords?.longitude,
+              restored: true,
+            }),
+          },
+        );
         const data = await res.json();
         if (data.success) {
-          await fetch(
+          await adminModuleFetch(
             `${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`,
             { method: "DELETE" },
           );
@@ -27996,15 +28071,19 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
 
 function FAProfileContent({ user }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
+
   const [formData, setFormData] = useState({
     name: user?.name || "",
     email: user?.email || "",
     personalEmail: "",
-    role: user?.role || "",
+    role: user?.role || "Sales Admin",
+    branch: user?.branch || "",
+    brand: user?.brand || "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
+
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [otp, setOtp] = useState("");
@@ -28016,8 +28095,52 @@ function FAProfileContent({ user }) {
   const [showNewPw, setShowNewPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
+
+  useEffect(() => {
+    if (!user) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      name: user.name || "",
+      email: user.email || "",
+      role: user.role || "Sales Admin",
+      branch: user.branch || "",
+      brand: user.brand || "",
+    }));
+  }, [user]);
+
+  // ── UI modal state ──
   const [alertModal, setAlertModal] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
+
+  const showAlert = (message, type = "info") =>
+    setAlertModal({ message, type });
+  const showConfirm = (message, onConfirm) =>
+    setConfirmModal({ message, onConfirm });
+
+  // ── Keep formData in sync with user prop without re-rendering on every keystroke ──
+  const formDataRef = React.useRef(formData);
+  const handleInputChange = React.useCallback((e) => {
+    const { name, value } = e.target;
+    formDataRef.current = { ...formDataRef.current, [name]: value };
+    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Clear field error on change
+    setFieldErrors((prev) => ({ ...prev, [name]: "" }));
+
+    if (name === "newPassword") {
+      if (value) {
+        setShowPasswordValidation(true);
+        setPasswordErrors(validatePasswordStrength(value).errors);
+      } else {
+        setShowPasswordValidation(false);
+        setPasswordErrors([]);
+      }
+    }
+    if (name === "confirmPassword") {
+      // live match feedback handled by fieldErrors below
+    }
+  }, []);
 
   const validatePasswordStrength = (password) => {
     const errors = [];
@@ -28030,25 +28153,10 @@ function FAProfileContent({ user }) {
     return { isValid: errors.length === 0, errors };
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setFieldErrors((prev) => ({ ...prev, [name]: "" }));
-    if (name === "newPassword") {
-      if (value) {
-        setShowPasswordValidation(true);
-        setPasswordErrors(validatePasswordStrength(value).errors);
-      } else {
-        setShowPasswordValidation(false);
-        setPasswordErrors([]);
-      }
-    }
-  };
-
   const sendOtp = async () => {
     try {
       const emailToSend = formData.personalEmail || formData.email;
-      const res = await fetch(
+      const response = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/send-otp-password-change`,
         {
           method: "POST",
@@ -28056,20 +28164,15 @@ function FAProfileContent({ user }) {
           body: JSON.stringify({ email: emailToSend }),
         },
       );
-      const data = await res.json();
+      const data = await response.json();
       if (data.success) {
         setOtpSent(true);
-        setAlertModal({
-          message: `OTP sent to ${emailToSend}`,
-          type: "success",
-        });
+        showAlert(`OTP has been sent to ${emailToSend}`, "success");
       } else
-        setAlertModal({
-          message: data.message || "Failed to send OTP.",
-          type: "error",
-        });
-    } catch {
-      setAlertModal({ message: "Failed to send OTP.", type: "error" });
+        showAlert(data.message || data.error || "Failed to send OTP.", "error");
+    } catch (error) {
+      console.error("Error sending OTP:", error);
+      showAlert("Failed to send OTP. Please try again.", "error");
     }
   };
 
@@ -28077,7 +28180,7 @@ function FAProfileContent({ user }) {
     try {
       setOtpError("");
       const emailToVerify = formData.personalEmail || formData.email;
-      const res = await fetch(
+      const response = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users/${user.id}/password`,
         {
           method: "PUT",
@@ -28090,7 +28193,7 @@ function FAProfileContent({ user }) {
           }),
         },
       );
-      const data = await res.json();
+      const data = await response.json();
       if (data.success) {
         setShowOtpModal(false);
         setShowSuccessModal(true);
@@ -28099,8 +28202,11 @@ function FAProfileContent({ user }) {
         setTimeout(() => {
           window.location.href = "/admin-login";
         }, 3000);
-      } else setOtpError(data.error || "Failed to change password");
-    } catch {
+      } else {
+        setOtpError(data.error || "Failed to change password");
+      }
+    } catch (error) {
+      console.error("Error changing password:", error);
       setOtpError("Failed to change password. Please try again.");
     }
   };
@@ -28108,36 +28214,45 @@ function FAProfileContent({ user }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!isUnlocked) return;
+
     const errs = {};
     const isPasswordChange =
       formData.currentPassword ||
       formData.newPassword ||
       formData.confirmPassword;
+
     if (isPasswordChange) {
       if (!formData.currentPassword)
-        errs.currentPassword = "Enter your current password.";
-      if (!formData.newPassword) errs.newPassword = "Enter a new password.";
+        errs.currentPassword = "Please enter your current password.";
+      if (!formData.newPassword)
+        errs.newPassword = "Please enter a new password.";
       else {
         const pv = validatePasswordStrength(formData.newPassword);
         if (!pv.isValid)
-          errs.newPassword = "Password does not meet requirements.";
+          errs.newPassword = "Password does not meet all requirements.";
       }
-      if (!formData.confirmPassword)
-        errs.confirmPassword = "Confirm your new password.";
-      else if (formData.newPassword !== formData.confirmPassword)
+      if (!formData.confirmPassword) {
+        errs.confirmPassword = "Please confirm your new password.";
+      } else if (formData.newPassword !== formData.confirmPassword) {
         errs.confirmPassword = "Passwords do not match.";
+      }
+      if (!formData.personalEmail && !formData.email)
+        errs.personalEmail = "An email is required to receive OTP.";
+
       if (Object.keys(errs).length > 0) {
         setFieldErrors(errs);
         return;
       }
       sendOtp();
       setShowOtpModal(true);
-    } else updateProfile();
+    } else {
+      updateProfile();
+    }
   };
 
   const updateProfile = async () => {
     try {
-      const res = await fetch(
+      const response = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users/${user.id}`,
         {
           method: "PUT",
@@ -28150,29 +28265,61 @@ function FAProfileContent({ user }) {
           }),
         },
       );
-      const data = await res.json();
+      const data = await response.json();
       if (data.success) {
-        setAlertModal({ message: "Profile updated!", type: "success" });
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            ...user,
-            name: formData.name,
-            email: formData.email,
-          }),
-        );
+        showAlert("Profile updated successfully!", "success");
+        const updatedUser = {
+          ...user,
+          name: formData.name,
+          email: formData.email,
+        };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
         setIsUnlocked(false);
-      } else
-        setAlertModal({
-          message: data.error || "Failed to update.",
-          type: "error",
-        });
-    } catch {
-      setAlertModal({ message: "Failed to update.", type: "error" });
+      } else {
+        showAlert(data.error || "Failed to update profile.", "error");
+      }
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      showAlert("Failed to update profile. Please try again.", "error");
     }
   };
 
-  const initials = user?.name
+  const handleCancel = () => {
+    showConfirm("Discard all unsaved changes?", () => {
+      setFormData({
+        name: user.name,
+        email: user.email,
+        personalEmail: "",
+        role: user.role,
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      setOtp("");
+      setOtpSent(false);
+      setShowOtpModal(false);
+      setShowPasswordValidation(false);
+      setPasswordErrors([]);
+      setFieldErrors({});
+      setIsUnlocked(false);
+    });
+  };
+
+  if (!user) {
+    return (
+      <div
+        style={{
+          padding: 24,
+          textAlign: "center",
+          color: "#5a7a65",
+        }}
+      >
+        Loading profile...
+      </div>
+    );
+  }
+
+  const initials = user.name
     ? user.name
         .trim()
         .split(/\s+/)
@@ -28180,8 +28327,9 @@ function FAProfileContent({ user }) {
         .join("")
         .slice(0, 2)
         .toUpperCase()
-    : "F";
+    : "?";
 
+  // ── Shared input style ──
   const inputStyle = (disabled) => ({
     ...bmInput,
     marginTop: 4,
@@ -28190,6 +28338,76 @@ function FAProfileContent({ user }) {
     cursor: disabled ? "not-allowed" : "text",
     border: disabled ? "1.5px solid #e5e7eb" : "1.5px solid #b2dfdb",
   });
+
+  const PwChecklist = () => (
+    <div
+      style={{
+        marginTop: 8,
+        fontSize: 12,
+        padding: "10px 14px",
+        background: "#f0fdf5",
+        borderRadius: 10,
+        border: "1.5px solid #b2dfdb",
+      }}
+    >
+      <div
+        style={{
+          marginBottom: 6,
+          fontWeight: 700,
+          color: "#0d2b1e",
+          fontSize: 11,
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+        }}
+      >
+        Password must contain:
+      </div>
+      {[
+        ["minLength", "At least 8 characters"],
+        ["uppercase", "Uppercase letter (A-Z)"],
+        ["lowercase", "Lowercase letter (a-z)"],
+        ["number", "Number (0-9)"],
+        ["specialChar", "Special character (!@#$%^&*...)"],
+      ].map(([key, text]) => (
+        <div
+          key={key}
+          style={{
+            color: passwordErrors.includes(key) ? "#dc2626" : "#059669",
+            marginBottom: 3,
+            fontSize: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontWeight: 600,
+          }}
+        >
+          <span style={{ display: "inline-flex", alignItems: "center" }}>
+            {passwordErrors.includes(key) ? (
+              <X size={12} />
+            ) : (
+              <Check size={12} />
+            )}
+          </span>{" "}
+          {text}
+        </div>
+      ))}
+    </div>
+  );
+
+  const FieldError = ({ name }) =>
+    fieldErrors[name] ? (
+      <span
+        style={{
+          fontSize: 11,
+          color: "#dc2626",
+          marginTop: 4,
+          display: "block",
+          fontWeight: 600,
+        }}
+      >
+        {fieldErrors[name]}
+      </span>
+    ) : null;
 
   const EyeToggle = ({ show, onToggle, disabled }) => (
     <button
@@ -28210,23 +28428,62 @@ function FAProfileContent({ user }) {
         padding: 0,
       }}
     >
-      {show ? <Eye size={16} /> : <Lock size={16} />}
+      {show ? (
+        <svg
+          width={16}
+          height={16}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+          <line x1="1" y1="1" x2="23" y2="23" />
+        </svg>
+      ) : (
+        <svg
+          width={16}
+          height={16}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      )}
     </button>
   );
 
   return (
     <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-      {alertModal && (
-        <AlertModal
-          message={alertModal.message}
-          type={alertModal.type}
-          onClose={() => setAlertModal(null)}
-        />
-      )}
-
-      {/* Account overview */}
-      <BmSection style={{ marginBottom: 24 }}>
-        <BmSectionHeader title="Account Overview" />
+      {/* ── Account Overview Card ── */}
+      <div
+        style={{
+          background: C.white,
+          border: "1px solid rgba(0,168,76,0.12)",
+          borderRadius: 18,
+          boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
+          overflow: "hidden",
+          marginBottom: 24,
+        }}
+      >
+        <div
+          style={{
+            background: "linear-gradient(135deg,#2E7D32,#00897b)",
+            padding: "16px 22px",
+          }}
+        >
+          <span style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>
+            Account Overview
+          </span>
+        </div>
         <div
           style={{
             padding: "22px 24px",
@@ -28240,16 +28497,16 @@ function FAProfileContent({ user }) {
               width: 68,
               height: 68,
               borderRadius: "50%",
-              background: "linear-gradient(135deg,#e9cd30,#ffa875)",
+              background: "linear-gradient(135deg,#d1fae5,#6ee7b7)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontSize: 22,
               fontWeight: 800,
-              color: "#3d2000",
+              color: "#00695c",
               flexShrink: 0,
               letterSpacing: 1,
-              border: "2.5px solid rgba(233,205,48,0.4)",
+              border: "2.5px solid #a7f3d0",
             }}
           >
             {initials}
@@ -28261,12 +28518,37 @@ function FAProfileContent({ user }) {
                 fontSize: 20,
                 color: "#0d2b1e",
                 marginBottom: 4,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
               }}
             >
-              {user?.name}
+              {user.name}
             </div>
-            <div style={{ fontSize: 13, color: "#5a7a65", marginBottom: 8 }}>
-              {user?.email}
+            <div
+              style={{
+                fontSize: 13,
+                color: "#5a7a65",
+                marginBottom: 8,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <svg
+                width={13}
+                height={13}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#5a7a65"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="m22 7-10 7L2 7" />
+              </svg>
+              {user.email}
             </div>
             <div
               style={{
@@ -28278,19 +28560,17 @@ function FAProfileContent({ user }) {
             >
               <span
                 style={{
-                  background:
-                    "linear-gradient(135deg,rgba(233,205,48,0.2),rgba(255,168,117,0.15))",
-                  color: "#3d2000",
+                  background: "rgba(0,137,123,0.1)",
+                  color: "#00695c",
                   padding: "3px 12px",
                   borderRadius: 20,
                   fontSize: 11,
-                  fontWeight: 800,
-                  border: "1px solid rgba(233,205,48,0.3)",
+                  fontWeight: 700,
                 }}
               >
-                {ROLE_LABEL}
+                {user.role}
               </span>
-              {user?.branch && (
+              {user.branch && (
                 <span
                   style={{
                     background: "#f0fdf5",
@@ -28307,10 +28587,92 @@ function FAProfileContent({ user }) {
               )}
             </div>
           </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              flexShrink: 0,
+              textAlign: "right",
+            }}
+          >
+            <div
+              style={{
+                padding: "8px 16px",
+                borderRadius: 12,
+                background: "#f0fdf5",
+                border: "1.5px solid #b2dfdb",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.07em",
+                  color: "#5a7a65",
+                  marginBottom: 2,
+                }}
+              >
+                Account Status
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-end",
+                  gap: 5,
+                }}
+              >
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: "#059669",
+                    display: "inline-block",
+                  }}
+                />
+                <span
+                  style={{ fontWeight: 800, fontSize: 13, color: "#059669" }}
+                >
+                  Active
+                </span>
+              </div>
+            </div>
+            {user.branch && (
+              <div
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 12,
+                  background: "#f0fdf5",
+                  border: "1.5px solid #b2dfdb",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.07em",
+                    color: "#5a7a65",
+                    marginBottom: 2,
+                  }}
+                >
+                  Branch
+                </div>
+                <div
+                  style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e" }}
+                >
+                  {user.branch}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </BmSection>
+      </div>
 
-      {/* Lock/Unlock banner */}
+      {/* ── Lock/Unlock Banner ── */}
       <div
         style={{
           display: "flex",
@@ -28325,11 +28687,7 @@ function FAProfileContent({ user }) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {isUnlocked ? (
-            <Unlock size={18} color="#00897b" />
-          ) : (
-            <Lock size={18} color="#94a3b8" />
-          )}
+          {isUnlocked ? <Unlock size={18} /> : <Lock size={18} />}
           <div>
             <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e" }}>
               {isUnlocked ? "Editing Enabled" : "Profile Locked"}
@@ -28345,22 +28703,10 @@ function FAProfileContent({ user }) {
           type="button"
           onClick={() => {
             if (isUnlocked) {
-              setConfirmModal({
-                message: "Discard all unsaved changes?",
-                onConfirm: () => {
-                  setFormData({
-                    name: user?.name || "",
-                    email: user?.email || "",
-                    personalEmail: "",
-                    role: user?.role || "",
-                    currentPassword: "",
-                    newPassword: "",
-                    confirmPassword: "",
-                  });
-                  setIsUnlocked(false);
-                },
-              });
-            } else setIsUnlocked(true);
+              handleCancel();
+            } else {
+              setIsUnlocked(true);
+            }
           }}
           style={{
             display: "flex",
@@ -28377,13 +28723,24 @@ function FAProfileContent({ user }) {
               ? "linear-gradient(135deg,#dc2626,#ef4444)"
               : "linear-gradient(135deg,#2E7D32,#00897b)",
             color: "#fff",
+            boxShadow: isUnlocked
+              ? "0 2px 8px rgba(220,38,38,0.3)"
+              : "0 2px 8px rgba(0,180,90,0.3)",
           }}
         >
-          {isUnlocked ? "✕ Cancel" : " Unlock"}
+          {isUnlocked ? (
+            <>
+              <X size={13} /> Cancel
+            </>
+          ) : (
+            <>
+              <Unlock size={13} /> Unlock
+            </>
+          )}
         </button>
       </div>
 
-      {/* Two-column form */}
+      {/* ── Two-column: Personal Info + Change Password ── */}
       <div
         style={{
           display: "grid",
@@ -28392,74 +28749,139 @@ function FAProfileContent({ user }) {
           alignItems: "start",
         }}
       >
-        {/* Personal Info */}
-        <BmSection>
-          <BmSectionHeader title="Personal Information" />
+        {/* ── Personal Information Card ── */}
+        <div
+          style={{
+            background: C.white,
+            border: "1px solid rgba(0,168,76,0.12)",
+            borderRadius: 18,
+            boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              background: "linear-gradient(135deg,#2E7D32,#00897b)",
+              padding: "16px 22px",
+            }}
+          >
+            <span style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>
+              Personal Information
+            </span>
+          </div>
           <form onSubmit={handleSubmit} style={{ padding: "22px 24px" }}>
-            {[
-              ["Full Name", "name", "text"],
-              ["Work Email", "email", "email"],
-            ].map(([label, name, type]) => (
-              <div key={name} style={{ marginBottom: 14 }}>
-                <label style={bmLabel}>{label}</label>
-                <input
-                  type={type}
-                  name={name}
-                  value={formData[name]}
-                  onChange={handleInputChange}
-                  disabled={!isUnlocked}
-                  style={inputStyle(!isUnlocked)}
-                />
-                {fieldErrors[name] && (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: "#dc2626",
-                      marginTop: 4,
-                      display: "block",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {fieldErrors[name]}
-                  </span>
-                )}
-              </div>
-            ))}
+            {/* Full Name */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Full Name</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                disabled={!isUnlocked}
+                style={inputStyle(!isUnlocked)}
+              />
+              <FieldError name="name" />
+            </div>
+
+            {/* Work Email */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Work Email Address</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                disabled={!isUnlocked}
+                style={inputStyle(!isUnlocked)}
+              />
+              <FieldError name="email" />
+            </div>
+
+            {/* Personal Email */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>
+                Personal Email{" "}
+                <span style={{ color: "#9ca3af", fontWeight: 400 }}>
+                  (Optional)
+                </span>
+              </label>
+              <input
+                type="email"
+                name="personalEmail"
+                value={formData.personalEmail}
+                onChange={handleInputChange}
+                placeholder="your.personal@email.com"
+                disabled={!isUnlocked}
+                style={inputStyle(!isUnlocked)}
+              />
+              <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                OTP for password changes will be sent here
+              </p>
+              <FieldError name="personalEmail" />
+            </div>
+
+            {/* Role (always locked) */}
             <div style={{ marginBottom: 14 }}>
               <label style={bmLabel}>Role</label>
               <input
+                type="text"
+                name="role"
                 value={formData.role}
                 disabled
                 style={{ ...inputStyle(true), background: "#f0f0f0" }}
               />
             </div>
-            <button
-              type="submit"
-              disabled={!isUnlocked}
-              style={{
-                width: "100%",
-                padding: "10px 0",
-                borderRadius: 10,
-                border: "none",
-                background: isUnlocked
-                  ? "linear-gradient(135deg,#2E7D32,#00897b)"
-                  : "#d1d5db",
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 800,
-                cursor: isUnlocked ? "pointer" : "not-allowed",
-                fontFamily: "inherit",
-                opacity: isUnlocked ? 1 : 0.6,
-              }}
-            >
-              Save Changes
-            </button>
-          </form>
-        </BmSection>
 
-        {/* Change Password */}
-        <BmSection>
-          <BmSectionHeader title="Change Password" />
+            <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+              <button
+                type="submit"
+                disabled={!isUnlocked}
+                style={{
+                  flex: 1,
+                  padding: "10px 0",
+                  borderRadius: 10,
+                  border: "none",
+                  background: isUnlocked
+                    ? "linear-gradient(135deg,#2E7D32,#00897b)"
+                    : "#d1d5db",
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: isUnlocked ? "pointer" : "not-allowed",
+                  fontFamily: "inherit",
+                  boxShadow: isUnlocked
+                    ? "0 2px 10px rgba(0,180,90,0.28)"
+                    : "none",
+                  opacity: isUnlocked ? 1 : 0.6,
+                }}
+              >
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* ── Change Password Card ── */}
+        <div
+          style={{
+            background: C.white,
+            border: "1px solid rgba(0,168,76,0.12)",
+            borderRadius: 18,
+            boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              background: "linear-gradient(135deg,#2E7D32,#00897b)",
+              padding: "16px 22px",
+            }}
+          >
+            <span style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>
+              Change Password
+            </span>
+          </div>
           <form onSubmit={handleSubmit} style={{ padding: "22px 24px" }}>
             <div
               style={{
@@ -28470,128 +28892,112 @@ function FAProfileContent({ user }) {
                 border: `1.5px solid ${isUnlocked ? C.border : "#e5e7eb"}`,
                 fontSize: 12,
                 color: C.muted,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
               }}
             >
               {isUnlocked
                 ? "An OTP will be sent to your email for verification"
                 : "Unlock your profile to change your password"}
             </div>
-            {[
-              [
-                "currentPassword",
-                "Current Password",
-                showCurrentPw,
-                () => setShowCurrentPw((v) => !v),
-              ],
-              [
-                "newPassword",
-                "New Password",
-                showNewPw,
-                () => setShowNewPw((v) => !v),
-              ],
-              [
-                "confirmPassword",
-                "Confirm New Password",
-                showConfirmPw,
-                () => setShowConfirmPw((v) => !v),
-              ],
-            ].map(([name, label, show, toggle]) => (
-              <div key={name} style={{ marginBottom: 14 }}>
-                <label style={bmLabel}>{label}</label>
-                <div style={{ position: "relative", marginTop: 4 }}>
-                  <input
-                    type={show ? "text" : "password"}
-                    name={name}
-                    value={formData[name]}
-                    onChange={handleInputChange}
-                    placeholder={
-                      isUnlocked ? `Enter ${label.toLowerCase()}` : "••••••••"
-                    }
-                    disabled={!isUnlocked}
-                    style={{ ...inputStyle(!isUnlocked), paddingRight: 40 }}
-                  />
-                  <EyeToggle
-                    show={show}
-                    onToggle={toggle}
-                    disabled={!isUnlocked}
-                  />
-                </div>
-                {name === "newPassword" &&
-                  isUnlocked &&
-                  showPasswordValidation && (
-                    <div
-                      style={{
-                        marginTop: 8,
-                        fontSize: 12,
-                        padding: "10px 14px",
-                        background: "#f0fdf5",
-                        borderRadius: 10,
-                        border: "1.5px solid #b2dfdb",
-                      }}
-                    >
-                      {[
-                        ["minLength", "At least 8 characters"],
-                        ["uppercase", "Uppercase letter"],
-                        ["lowercase", "Lowercase letter"],
-                        ["number", "Number (0-9)"],
-                        ["specialChar", "Special character"],
-                      ].map(([k, t]) => (
-                        <div
-                          key={k}
-                          style={{
-                            color: passwordErrors.includes(k)
-                              ? "#dc2626"
-                              : "#059669",
-                            marginBottom: 2,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 5,
-                          }}
-                        >
-                          {passwordErrors.includes(k) ? "✗" : "✓"} {t}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                {name === "confirmPassword" &&
-                  isUnlocked &&
-                  formData.confirmPassword && (
-                    <div
-                      style={{
-                        fontSize: 11,
-                        marginTop: 4,
-                        fontWeight: 600,
-                        color:
-                          formData.newPassword === formData.confirmPassword
-                            ? "#059669"
-                            : "#dc2626",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                    >
-                      {formData.newPassword === formData.confirmPassword
-                        ? "✓ Passwords match"
-                        : "✗ Passwords do not match"}
-                    </div>
-                  )}
-                {fieldErrors[name] && (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: "#dc2626",
-                      marginTop: 4,
-                      display: "block",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {fieldErrors[name]}
-                  </span>
-                )}
+
+            {/* Current Password */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Current Password</label>
+              <div style={{ position: "relative", marginTop: 4 }}>
+                <input
+                  type={showCurrentPw ? "text" : "password"}
+                  name="currentPassword"
+                  value={formData.currentPassword}
+                  onChange={handleInputChange}
+                  placeholder={
+                    isUnlocked ? "Enter current password" : "••••••••"
+                  }
+                  disabled={!isUnlocked}
+                  style={{ ...inputStyle(!isUnlocked), paddingRight: 40 }}
+                />
+                <EyeToggle
+                  show={showCurrentPw}
+                  onToggle={() => setShowCurrentPw((v) => !v)}
+                  disabled={!isUnlocked}
+                />
               </div>
-            ))}
+              <FieldError name="currentPassword" />
+            </div>
+
+            {/* New Password */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>New Password</label>
+              <div style={{ position: "relative", marginTop: 4 }}>
+                <input
+                  type={showNewPw ? "text" : "password"}
+                  name="newPassword"
+                  value={formData.newPassword}
+                  onChange={handleInputChange}
+                  placeholder={isUnlocked ? "Enter new password" : "••••••••"}
+                  disabled={!isUnlocked}
+                  style={{ ...inputStyle(!isUnlocked), paddingRight: 40 }}
+                />
+                <EyeToggle
+                  show={showNewPw}
+                  onToggle={() => setShowNewPw((v) => !v)}
+                  disabled={!isUnlocked}
+                />
+              </div>
+              {isUnlocked && showPasswordValidation && <PwChecklist />}
+              <FieldError name="newPassword" />
+            </div>
+
+            {/* Confirm New Password */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Confirm New Password</label>
+              <div style={{ position: "relative", marginTop: 4 }}>
+                <input
+                  type={showConfirmPw ? "text" : "password"}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleInputChange}
+                  placeholder={isUnlocked ? "Confirm new password" : "••••••••"}
+                  disabled={!isUnlocked}
+                  style={{ ...inputStyle(!isUnlocked), paddingRight: 40 }}
+                />
+                <EyeToggle
+                  show={showConfirmPw}
+                  onToggle={() => setShowConfirmPw((v) => !v)}
+                  disabled={!isUnlocked}
+                />
+              </div>
+              {/* Live match indicator */}
+              {isUnlocked && formData.confirmPassword && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    marginTop: 4,
+                    fontWeight: 600,
+                    color:
+                      formData.newPassword === formData.confirmPassword
+                        ? "#059669"
+                        : "#dc2626",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  {formData.newPassword === formData.confirmPassword ? (
+                    <>
+                      <Check size={12} /> Passwords match
+                    </>
+                  ) : (
+                    <>
+                      <X size={12} /> Passwords do not match
+                    </>
+                  )}
+                </div>
+              )}
+              <FieldError name="confirmPassword" />
+            </div>
+
             <button
               type="submit"
               disabled={!isUnlocked}
@@ -28608,16 +29014,19 @@ function FAProfileContent({ user }) {
                 fontWeight: 800,
                 cursor: isUnlocked ? "pointer" : "not-allowed",
                 fontFamily: "inherit",
+                boxShadow: isUnlocked
+                  ? "0 2px 10px rgba(0,180,90,0.28)"
+                  : "none",
                 opacity: isUnlocked ? 1 : 0.6,
               }}
             >
               Update Password
             </button>
           </form>
-        </BmSection>
+        </div>
       </div>
 
-      {/* OTP Modal */}
+      {/* ── OTP Modal ── */}
       {showOtpModal && (
         <div
           style={{
@@ -28657,11 +29066,11 @@ function FAProfileContent({ user }) {
                   fontSize: "1.6rem",
                 }}
               >
-                🔑
+                <Lock size={24} />
               </div>
               <h2
                 style={{
-                  fontFamily: "Plus Jakarta Sans,sans-serif",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
                   fontSize: 18,
                   fontWeight: 800,
                   color: "#0d2b1e",
@@ -28684,7 +29093,8 @@ function FAProfileContent({ user }) {
                 placeholder="000000"
                 value={otp}
                 onChange={(e) => {
-                  setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+                  setOtp(v);
                   setOtpError("");
                 }}
                 maxLength={6}
@@ -28695,10 +29105,27 @@ function FAProfileContent({ user }) {
                   fontSize: 24,
                   textAlign: "center",
                   letterSpacing: "0.6rem",
-                  fontFamily: FONT,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
                 }}
               />
             </div>
+            {otpSent && !otpError && (
+              <div
+                style={{
+                  padding: "10px 14px",
+                  background: "rgba(16,185,129,0.08)",
+                  borderRadius: 10,
+                  border: "1px solid #a7f3d0",
+                  color: "#059669",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  textAlign: "center",
+                  marginBottom: 12,
+                }}
+              >
+                OTP sent successfully
+              </div>
+            )}
             {otpError && (
               <div
                 style={{
@@ -28713,7 +29140,7 @@ function FAProfileContent({ user }) {
                   marginBottom: 12,
                 }}
               >
-                {otpError}
+                Please try again {otpError}
               </div>
             )}
             <div style={{ textAlign: "center", marginBottom: 20 }}>
@@ -28782,7 +29209,7 @@ function FAProfileContent({ user }) {
         </div>
       )}
 
-      {/* Success Modal */}
+      {/* ── Success Modal ── */}
       {showSuccessModal && (
         <div
           style={{
@@ -28821,11 +29248,11 @@ function FAProfileContent({ user }) {
                 fontSize: "2.2rem",
               }}
             >
-              ✅
+              <CheckCircle2 size={28} />
             </div>
             <h2
               style={{
-                fontFamily: "Plus Jakarta Sans,sans-serif",
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
                 fontSize: 22,
                 fontWeight: 800,
                 color: "#0d2b1e",
@@ -28834,14 +29261,47 @@ function FAProfileContent({ user }) {
             >
               Password Changed!
             </h2>
-            <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.7 }}>
-              Your password has been updated successfully. Redirecting to login…
+            <p
+              style={{
+                color: C.muted,
+                fontSize: 13,
+                lineHeight: 1.7,
+                marginBottom: 20,
+              }}
+            >
+              Your password has been updated successfully.
+              <br />
+              You'll be redirected to login shortly.
             </p>
+            <div
+              style={{
+                background: "#f0fdf5",
+                borderRadius: 12,
+                padding: "10px 16px",
+                fontSize: 12,
+                color: C.muted,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+              }}
+            >
+              <Info size={14} /> Use your new password on the next login
+            </div>
           </div>
         </div>
       )}
 
-      {/* Confirm Modal */}
+      {/* ── Alert Modal ── */}
+      {alertModal && (
+        <AlertModal
+          message={alertModal.message}
+          type={alertModal.type}
+          onClose={() => setAlertModal(null)}
+        />
+      )}
+
+      {/* ── Confirm Modal ── */}
       {confirmModal && (
         <div
           onClick={() => setConfirmModal(null)}
@@ -28884,7 +29344,7 @@ function FAProfileContent({ user }) {
                 fontSize: 22,
               }}
             >
-              ↩
+              <RotateCcw size={22} />
             </div>
             <h2
               style={{
@@ -28908,6 +29368,7 @@ function FAProfileContent({ user }) {
             </p>
             <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
               <button
+                type="button"
                 onClick={() => setConfirmModal(null)}
                 style={{
                   padding: "9px 22px",
@@ -28924,6 +29385,7 @@ function FAProfileContent({ user }) {
                 Keep Editing
               </button>
               <button
+                type="button"
                 onClick={() => {
                   confirmModal.onConfirm();
                   setConfirmModal(null);
@@ -28941,6 +29403,7 @@ function FAProfileContent({ user }) {
                   fontWeight: 700,
                   cursor: "pointer",
                   fontFamily: "inherit",
+                  boxShadow: "0 2px 10px rgba(194,65,12,0.35)",
                 }}
               >
                 Discard

@@ -21,7 +21,9 @@ router.post("/api/upload-loi", upload.single("file"), async (req, res) => {
 
   if (error) return res.status(400).json({ error: error.message });
 
-  const { data } = supabaseAdmin.storage.from("application-documents").getPublicUrl(path);
+  const { data } = supabaseAdmin.storage
+    .from("application-documents")
+    .getPublicUrl(path);
   res.json({ url: data.publicUrl });
 });
 
@@ -35,7 +37,9 @@ router.post("/api/upload-id-image", upload.single("file"), async (req, res) => {
 
   if (error) return res.status(400).json({ error: error.message });
 
-  const { data } = supabaseAdmin.storage.from("application-documents").getPublicUrl(path);
+  const { data } = supabaseAdmin.storage
+    .from("application-documents")
+    .getPublicUrl(path);
   res.json({ url: data.publicUrl });
 });
 

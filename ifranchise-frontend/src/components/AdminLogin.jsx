@@ -231,6 +231,7 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState("");
 
   const [step, setStep] = useState("login");
@@ -268,13 +269,8 @@ export default function AdminLogin() {
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutTime, setLockoutTime] = useState(null);
-  const MAX_ATTEMPTS = 2;
-  const LOCKOUT_DURATIONS = [
-    2 * 60 * 1000,
-    5 * 60 * 1000,
-    15 * 60 * 1000,
-    45 * 60 * 1000,
-  ];
+  const MAX_ATTEMPTS = 5;
+  const LOGIN_LOCKOUT_DURATION = 15 * 60 * 1000;
   const [lockoutLevel, setLockoutLevel] = useState(0);
   const [showPasswordValidation, setShowPasswordValidation] = useState(false);
   const [passwordErrors, setPasswordErrors] = useState([]);
@@ -320,7 +316,7 @@ export default function AdminLogin() {
   };
 
   const OTP_MAX_ATTEMPTS = 5;
-  const OTP_LOCKOUT_DURATION = 2 * 60 * 60 * 1000;
+  const OTP_LOCKOUT_DURATION = 10 * 60 * 1000;
 
   // Login OTP lockout
   const [otpAttempts, setOtpAttempts] = useState(0);
@@ -377,32 +373,52 @@ export default function AdminLogin() {
   }, [step, resetDoneCountdown]);
 
   useEffect(() => {
-    const stored =
-      localStorage.getItem("user") || sessionStorage.getItem("user");
+    (async () => {
+      // If the user intentionally logged out, do not try to restore
+      // the session or refresh token.
+      const wasLoggingOut = sessionStorage.getItem("isLoggingOut") === "true";
 
-    if (stored) {
+      if (wasLoggingOut) {
+        setIsCheckingSession(false);
+        return;
+      }
+
       try {
-        const user = JSON.parse(stored);
-        if (
-          user &&
-          user.role &&
-          user.sessionExpiry &&
-          Date.now() < user.sessionExpiry
-        ) {
+        let res = await fetch(`${process.env.REACT_APP_API_URL}/session`, {
+          credentials: "include",
+        });
+
+        if (res.status === 401) {
+          const refreshRes = await fetch(
+            `${process.env.REACT_APP_API_URL}/refresh-token`,
+            {
+              method: "POST",
+              credentials: "include",
+            },
+          );
+
+          if (refreshRes.ok) {
+            res = await fetch(`${process.env.REACT_APP_API_URL}/session`, {
+              credentials: "include",
+            });
+          }
+        }
+
+        if (res.ok) {
+          const data = await res.json();
+
+          setCurrentUser(data.user);
           setLoggedIn(true);
-          setUserRole(user.role);
-          // ← Add this
+          setUserRole(data.user.role);
+
           window.history.pushState({ loggedIn: true }, "");
-        } else {
-          localStorage.removeItem("user");
-          sessionStorage.removeItem("user");
         }
       } catch {
-        localStorage.removeItem("user");
-        sessionStorage.removeItem("user");
+        // No valid session — stay on login screen
+      } finally {
+        setIsCheckingSession(false);
       }
-    }
-    setIsCheckingSession(false);
+    })();
   }, []);
 
   // Keep the required three-second welcome splash.
@@ -414,35 +430,35 @@ export default function AdminLogin() {
   // ── Login lockout from storage ──
   useEffect(() => {
     if (!email) return;
-    const storedLockout = localStorage.getItem(
-      `loginLockout_${email.toLowerCase()}`,
-    );
-    const storedAttempts = localStorage.getItem(
-      `loginAttempts_${email.toLowerCase()}`,
-    );
-    const storedLevel = localStorage.getItem(
-      `lockoutLevel_${email.toLowerCase()}`,
-    );
+
+    const emailKey = email.trim().toLowerCase();
+
+    const storedLockout = localStorage.getItem(`loginLockout_${emailKey}`);
+
+    const storedAttempts = localStorage.getItem(`loginAttempts_${emailKey}`);
+
     if (storedLockout) {
-      const lockTime = parseInt(storedLockout);
+      const lockTime = parseInt(storedLockout, 10);
+
       if (Date.now() < lockTime) {
         setIsLocked(true);
         setLockoutTime(lockTime);
         setLoginAttempts(MAX_ATTEMPTS);
-        setLockoutLevel(parseInt(storedLevel) || 0);
       } else {
-        localStorage.removeItem(`loginLockout_${email.toLowerCase()}`);
-        localStorage.removeItem(`loginAttempts_${email.toLowerCase()}`);
+        // Lockout has expired
+        localStorage.removeItem(`loginLockout_${emailKey}`);
+        localStorage.removeItem(`loginAttempts_${emailKey}`);
+
         setIsLocked(false);
+        setLockoutTime(null);
         setLoginAttempts(0);
       }
     } else if (storedAttempts) {
-      setLoginAttempts(parseInt(storedAttempts));
-      setLockoutLevel(parseInt(storedLevel) || 0);
+      setLoginAttempts(parseInt(storedAttempts, 10));
+      setIsLocked(false);
     } else {
       setLoginAttempts(0);
       setIsLocked(false);
-      setLockoutLevel(parseInt(storedLevel) || 0);
     }
   }, [email]);
 
@@ -620,26 +636,12 @@ export default function AdminLogin() {
         sessionStorage.setItem("tempUser", JSON.stringify(data.user));
 
         if (data.skipOtp) {
-          const user = data.user;
-          rememberMe
-            ? localStorage.setItem(
-                "user",
-                JSON.stringify({
-                  ...user,
-                  sessionExpiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-                }),
-              )
-            : sessionStorage.setItem(
-                "user",
-                JSON.stringify({
-                  ...user,
-                  sessionExpiry: Date.now() + 24 * 60 * 60 * 1000,
-                }),
-              );
-          sessionStorage.removeItem("tempUser");
           clearDashboardSessions();
+
+          setCurrentUser(data.user);
           setLoggedIn(true);
-          setUserRole(user.role);
+          setUserRole(data.user.role);
+
           return;
         }
 
@@ -659,35 +661,40 @@ export default function AdminLogin() {
   };
 
   const incrementAttempts = () => {
-    const n = loginAttempts + 1;
+    const emailKey = email.trim().toLowerCase();
+
+    const storedAttempts =
+      parseInt(localStorage.getItem(`loginAttempts_${emailKey}`), 10) || 0;
+
+    const n = storedAttempts + 1;
+
     setLoginAttempts(n);
-    localStorage.setItem(`loginAttempts_${email.toLowerCase()}`, n.toString());
+    localStorage.setItem(`loginAttempts_${emailKey}`, n.toString());
+
     if (n >= MAX_ATTEMPTS) {
-      const lvl = Math.min(lockoutLevel, LOCKOUT_DURATIONS.length - 1);
-      const lockTime = Date.now() + LOCKOUT_DURATIONS[lvl];
+      const lockTime = Date.now() + LOGIN_LOCKOUT_DURATION;
+
       setIsLocked(true);
       setLockoutTime(lockTime);
-      localStorage.setItem(
-        `loginLockout_${email.toLowerCase()}`,
-        lockTime.toString(),
-      );
-      const nextLvl = Math.min(lvl + 1, LOCKOUT_DURATIONS.length - 1);
-      localStorage.setItem(
-        `lockoutLevel_${email.toLowerCase()}`,
-        nextLvl.toString(),
-      );
-      setLockoutLevel(nextLvl);
-      const mins = Math.floor(LOCKOUT_DURATIONS[lvl] / 60000);
+
+      localStorage.setItem(`loginLockout_${emailKey}`, lockTime.toString());
+
       setAuthError(
-        `Too many failed attempts. Account locked for ${mins} minute${mins !== 1 ? "s" : ""}.`,
+        "Too many login attempts. Please try again after 15 minutes.",
       );
-    } else {
-      const rem = MAX_ATTEMPTS - n;
-      setAuthError(
-        `Invalid credentials. ${rem} attempt${rem !== 1 ? "s" : ""} remaining.`,
-      );
+
+      return;
     }
+
+    const remaining = MAX_ATTEMPTS - n;
+
+    setAuthError(
+      `Invalid credentials. ${remaining} attempt${
+        remaining !== 1 ? "s" : ""
+      } remaining.`,
+    );
   };
+
   const sendOtpSilent = async (e, method = "email") => {
     try {
       const endpoint =
@@ -759,7 +766,7 @@ export default function AdminLogin() {
         if (n >= OTP_MAX_ATTEMPTS) {
           setOtpLockedUntil(Date.now() + OTP_LOCKOUT_DURATION);
           setOtpError(
-            "Maximum OTP attempts reached. You are locked out for 2 hours.",
+            "Too many OTP verification attempts. Please try again after 10 minutes.",
           );
         } else {
           setOtpError(
@@ -771,29 +778,14 @@ export default function AdminLogin() {
 
       setOtpAttempts(0);
       setOtpLockedUntil(null);
-      const user = data.user;
-
-      if (rememberMe) {
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            ...user,
-            sessionExpiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-          }),
-        );
-      } else {
-        sessionStorage.setItem(
-          "user",
-          JSON.stringify({
-            ...user,
-            sessionExpiry: Date.now() + 24 * 60 * 60 * 1000,
-          }),
-        );
-      }
+      setOtpAttempts(0);
+      setOtpLockedUntil(null);
       sessionStorage.removeItem("tempUser");
       clearDashboardSessions();
+
+      setCurrentUser(data.user);
       setLoggedIn(true);
-      setUserRole(user.role);
+      setUserRole(data.user.role);
     } catch {
       setOtpError("OTP verification failed");
     } finally {
@@ -944,7 +936,7 @@ export default function AdminLogin() {
         if (n >= OTP_MAX_ATTEMPTS) {
           setForgotOtpLockedUntil(Date.now() + OTP_LOCKOUT_DURATION);
           setForgotOtpError(
-            "Maximum OTP attempts reached. Locked out for 2 hours.",
+            "Too many OTP verification attempts. Please try again after 10 minutes.",
           );
         } else {
           setForgotOtpError(
@@ -1144,26 +1136,38 @@ export default function AdminLogin() {
   const handleLogout = async () => {
     if (!window.confirm("Are you sure you want to logout?")) return;
 
+    sessionStorage.setItem("isLoggingOut", "true");
+
     try {
       await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
       });
-    } catch {}
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
 
     localStorage.removeItem("user");
     localStorage.removeItem("rememberedUser");
+
     sessionStorage.removeItem("user");
     sessionStorage.removeItem("tempUser");
-    window.history.replaceState(null, "", window.location.href);
-    navigate("/");
+
+    clearDashboardSessions();
+
     setLoggedIn(false);
     setUserRole(null);
+    setCurrentUser(null);
     setEmail("");
     setPassword("");
+
     setOtp(["", "", "", "", "", ""]);
     setOtpEmail("");
+    setStep("login");
+
+    window.history.replaceState(null, "", "/admin-login");
+    navigate("/admin-login", { replace: true });
   };
 
   // ── Step progress index ──
@@ -1186,17 +1190,26 @@ export default function AdminLogin() {
   if (loggedIn && userRole) {
     switch (userRole) {
       case "Super Admin":
-        return <AdminDashboard onLogout={handleLogout} />;
+        return <AdminDashboard user={currentUser} onLogout={handleLogout} />;
+
       case "Franchisee Operations Admin":
-        return <FranchiseAdminDashboard onLogout={handleLogout} />;
+        return (
+          <FranchiseAdminDashboard user={currentUser} onLogout={handleLogout} />
+        );
+
       case "Sales Admin":
-        return <SalesAdmin onLogout={handleLogout} />;
+        return <SalesAdmin user={currentUser} onLogout={handleLogout} />;
+
       case "Franchisee":
-        return <FranchiseeDashboard onLogout={handleLogout} />;
+        return (
+          <FranchiseeDashboard user={currentUser} onLogout={handleLogout} />
+        );
+
       case "Manager":
-        return <ManagerDashboard onLogout={handleLogout} />;
+        return <ManagerDashboard user={currentUser} onLogout={handleLogout} />;
+
       case "Staff":
-        return <StaffDashboard onLogout={handleLogout} />;
+        return <StaffDashboard user={currentUser} onLogout={handleLogout} />;
       default:
         return (
           <UnknownRoleScreen

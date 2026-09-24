@@ -12,6 +12,15 @@ const UAParser = require("ua-parser-js");
 const crypto = require("crypto");
 const resetTokenStore = require("../utils/resetTokenStore");
 
+const { authenticate } = require("../middleware/auth");
+const {
+  signAccessToken,
+  generateRefreshToken,
+  hashToken,
+  setAuthCookies,
+  clearAuthCookies,
+} = require("../utils/jwt");
+
 function getClientIp(req) {
   const fwd = req.headers["x-forwarded-for"];
   if (fwd) return fwd.split(",")[0].trim();
@@ -103,6 +112,37 @@ async function logLogin(user, req, latitude, longitude) {
   }
 }
 
+async function issueSession(res, user, deviceId) {
+  const accessToken = signAccessToken(user);
+  const { token: refreshToken, tokenHash, expiresAt } = generateRefreshToken();
+
+  await pool.query(
+    `INSERT INTO refresh_tokens (user_id, token_hash, device_id, expires_at) VALUES ($1,$2,$3,$4)`,
+    [user.id, tokenHash, deviceId, expiresAt],
+  );
+
+  setAuthCookies(res, accessToken, refreshToken);
+}
+
+router.get("/me", authenticate, async (req, res) => {
+  try {
+    res.json({
+      id: req.user.id,
+      name: req.user.name,
+      email: req.user.email,
+      role: req.user.role,
+      branch: req.user.branch,
+      brand: req.user.brand,
+    });
+  } catch (error) {
+    console.error("GET /me error:", error);
+
+    res.status(500).json({
+      message: "Failed to load current user",
+    });
+  }
+});
+
 router.post("/login", async (req, res) => {
   const { email, password, latitude, longitude } = req.body;
   const deviceId = getOrCreateDeviceId(req, res);
@@ -146,6 +186,7 @@ router.post("/login", async (req, res) => {
         `Trusted device or OTP-exempt account for ${email} — skipping OTP`,
       );
       await logLogin(safeUser, req, latitude, longitude);
+      await issueSession(res, safeUser, deviceId);
       return res.json({ success: true, skipOtp: true, user: safeUser });
     }
 
@@ -241,6 +282,7 @@ router.post("/verify-otp-login", async (req, res) => {
     }
 
     await logLogin(safeUser, req, latitude, longitude);
+    await issueSession(res, safeUser, deviceId);
     return res.json({ success: true, user: safeUser });
   } catch (err) {
     console.error("OTP verification error:", err);
@@ -248,8 +290,78 @@ router.post("/verify-otp-login", async (req, res) => {
   }
 });
 
+router.get("/session", authenticate, async (req, res) => {
+  try {
+    const user = await pool.query(
+      "SELECT id, name, email, role, branch, brand FROM users WHERE id=$1",
+      [req.user.id],
+    );
+    if (user.rows.length === 0)
+      return res.status(404).json({ message: "User not found" });
+    res.json({ success: true, user: user.rows[0] });
+  } catch (err) {
+    console.error("GET /session error:", err);
+    res.status(500).json({ message: "Failed to load session" });
+  }
+});
+
+router.post("/refresh-token", async (req, res) => {
+  const refreshToken = req.cookies?.refresh_token;
+  if (!refreshToken)
+    return res.status(401).json({ message: "No refresh token" });
+
+  try {
+    const tokenHash = hashToken(refreshToken);
+    const stored = await pool.query(
+      `SELECT * FROM refresh_tokens WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at > NOW()`,
+      [tokenHash],
+    );
+    if (stored.rows.length === 0) {
+      return res.status(401).json({
+        message: "Invalid or expired session",
+      });
+    }
+
+    const row = stored.rows[0];
+    const user = await pool.query("SELECT * FROM users WHERE id=$1", [
+      row.user_id,
+    ]);
+    if (user.rows.length === 0) {
+      clearAuthCookies(res);
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    await pool.query("UPDATE refresh_tokens SET revoked_at=NOW() WHERE id=$1", [
+      row.id,
+    ]);
+
+    const safeUser = {
+      id: user.rows[0].id,
+      name: user.rows[0].name,
+      email: user.rows[0].email,
+      role: user.rows[0].role,
+      branch: user.rows[0].branch,
+      brand: user.rows[0].brand,
+    };
+    await issueSession(res, safeUser, row.device_id);
+
+    res.json({ success: true, user: safeUser });
+  } catch (err) {
+    console.error("Refresh token error:", err);
+    res.status(500).json({ message: "Failed to refresh session" });
+  }
+});
+
 router.post("/logout", async (req, res) => {
   try {
+    const refreshToken = req.cookies?.refresh_token;
+    if (refreshToken) {
+      await pool.query(
+        "UPDATE refresh_tokens SET revoked_at=NOW() WHERE token_hash=$1",
+        [hashToken(refreshToken)],
+      );
+    }
+    clearAuthCookies(res);
     res.clearCookie("device_id", { httpOnly: true, sameSite: "lax" });
     res.json({ success: true });
   } catch (err) {
@@ -312,7 +424,9 @@ router.post("/verify-sms-otp", async (req, res) => {
       return res.json({ success: true, resetToken: token });
     }
 
+    const deviceId = getOrCreateDeviceId(req, res);
     await logLogin(safeUser, req, latitude, longitude);
+    await issueSession(res, safeUser, deviceId);
     return res.json({ success: true, user: safeUser });
   } catch (err) {
     console.error("SMS OTP verification error:", err);

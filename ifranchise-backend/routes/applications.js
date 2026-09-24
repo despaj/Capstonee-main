@@ -7,6 +7,7 @@ const crypto = require("crypto");
 const { Resend } = require("resend");
 const resend = new Resend(process.env.RESEND_API_KEY);
 const { buildICS } = require("../utils/ics");
+const { authenticate, authorize } = require("../middleware/auth");
 
 router.post("/check-duplicate", async (req, res) => {
   const { email, mobile } = req.body;
@@ -25,9 +26,13 @@ router.post("/check-duplicate", async (req, res) => {
   }
 });
 
-router.get("/applications", async (req, res) => {
-  try {
-    const result = await pool.query(`
+router.get(
+  "/applications",
+  authenticate,
+  authorize("Super Admin", "Franchisee Operations Admin", "Sales Admin"),
+  async (req, res) => {
+    try {
+      const result = await pool.query(`
       SELECT
         'ip-' || id::text AS id,
         name, NULL AS first_name, NULL AS last_name, NULL AS middle_initial, NULL AS suffix,
@@ -69,25 +74,32 @@ router.get("/applications", async (req, res) => {
 
       ORDER BY created_at DESC
     `);
-    res.json(result.rows.map(rowToApplication));
-  } catch (err) {
-    console.error("Failed to fetch applications:", err);
-    res.status(500).json({ error: "Failed to fetch applications" });
-  }
-});
+      res.json(result.rows.map(rowToApplication));
+    } catch (err) {
+      console.error("Failed to fetch applications:", err);
+      res.status(500).json({ error: "Failed to fetch applications" });
+    }
+  },
+);
 
-router.get("/applications/:id", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT * FROM applications WHERE id=$1", [
-      req.params.id,
-    ]);
-    if (result.rows.length === 0)
-      return res.status(404).json({ error: "Application not found" });
-    res.json(rowToApplication(result.rows[0]));
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch application" });
-  }
-});
+router.get(
+  "/applications/:id",
+  authenticate,
+  authorize("Super Admin", "Franchisee Operations Admin", "Sales Admin"),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        "SELECT * FROM applications WHERE id=$1",
+        [req.params.id],
+      );
+      if (result.rows.length === 0)
+        return res.status(404).json({ error: "Application not found" });
+      res.json(rowToApplication(result.rows[0]));
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch application" });
+    }
+  },
+);
 
 router.post("/applications", async (req, res) => {
   try {
@@ -256,91 +268,102 @@ router.post("/ipharma-applications", async (req, res) => {
   }
 });
 
-router.put("/applications/:id/status", async (req, res) => {
-  try {
-    const rawId = req.params.id;
-    const isIpharma = rawId.startsWith("ip-");
-    const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
-    const sourceTable = isIpharma ? "ipharma_applications" : "applications";
-    const { status, performed_by, role, latitude, longitude } = req.body;
+router.put(
+  "/applications/:id/status",
+  authenticate,
+  authorize("Super Admin", "Franchisee Operations Admin", "Sales Admin"),
+  async (req, res) => {
+    try {
+      const rawId = req.params.id;
+      const isIpharma = rawId.startsWith("ip-");
+      const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
+      const sourceTable = isIpharma ? "ipharma_applications" : "applications";
+      const { status, performed_by, role, latitude, longitude } = req.body;
 
-    const before = await pool.query(
-      `SELECT * FROM ${sourceTable} WHERE id=$1`,
-      [id],
-    );
-    if (before.rows.length === 0)
-      return res
-        .status(404)
-        .json({ success: false, error: "Application not found" });
-    const oldApp = before.rows[0];
+      const before = await pool.query(
+        `SELECT * FROM ${sourceTable} WHERE id=$1`,
+        [id],
+      );
+      if (before.rows.length === 0)
+        return res
+          .status(404)
+          .json({ success: false, error: "Application not found" });
+      const oldApp = before.rows[0];
 
-    const result = await pool.query(
-      `UPDATE ${sourceTable} SET status=$1 WHERE id=$2 RETURNING *`,
-      [status, id],
-    );
-    if (result.rows.length === 0)
-      return res
-        .status(404)
-        .json({ success: false, error: "Application not found" });
+      const result = await pool.query(
+        `UPDATE ${sourceTable} SET status=$1 WHERE id=$2 RETURNING *`,
+        [status, id],
+      );
+      if (result.rows.length === 0)
+        return res
+          .status(404)
+          .json({ success: false, error: "Application not found" });
 
-    const updatedApp = rowToApplication(result.rows[0]);
+      const updatedApp = rowToApplication(result.rows[0]);
 
-    const action =
-      status === "approved"
-        ? "approve"
-        : status === "rejected"
-          ? "reject"
-          : "update";
+      const action =
+        status === "approved"
+          ? "approve"
+          : status === "rejected"
+            ? "reject"
+            : "update";
 
-    await logActivity(
-      action,
-      updatedApp.name,
-      performed_by || "System",
-      { status: { from: oldApp.status, to: status } },
-      req,
-      updatedApp.franchise || (isIpharma ? "iPharma Mart" : null),
-      "Applications",
-      latitude,
-      longitude,
-      role || "Unknown",
-    );
+      await logActivity(
+        action,
+        updatedApp.name,
+        performed_by || "System",
+        { status: { from: oldApp.status, to: status } },
+        req,
+        updatedApp.franchise || (isIpharma ? "iPharma Mart" : null),
+        "Applications",
+        latitude,
+        longitude,
+        role || "Unknown",
+      );
 
-    res.json({
-      success: true,
-      message: "Status updated",
-      application: updatedApp,
-    });
-  } catch (err) {
-    console.error("Error updating status:", err);
-    res.status(500).json({ success: false, error: "Failed to update status" });
-  }
-});
+      res.json({
+        success: true,
+        message: "Status updated",
+        application: updatedApp,
+      });
+    } catch (err) {
+      console.error("Error updating status:", err);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to update status" });
+    }
+  },
+);
 
-router.post("/send-appointment", async (req, res) => {
-  const {
-    to,
-    name,
-    appointmentDate,
-    appointmentLocation,
-    appointmentNotes,
-    rescheduleToken,
-    isReschedule,
-  } = req.body;
-  try {
-    const fmtDate = new Date(appointmentDate).toLocaleString("en-PH", {
-      dateStyle: "long",
-      timeStyle: "short",
-      timeZone: "Asia/Manila",
-    });
-    const rescheduleLink = `${process.env.FRONTEND_URL}/reschedule/${rescheduleToken}`;
-
-    await resend.emails.send({
-      from: "Franchisync <noreply@franchisync.business>",
+router.post(
+  "/send-appointment",
+  authenticate,
+  authorize("Super Admin", "Franchisee Operations Admin", "Sales Admin"),
+  async (req, res) => {
+    const {
       to,
-      subject: isReschedule
-        ? "Your Franchisync Interview Has Been Rescheduled"
-        : "Your Franchisync Interview is Scheduled!",
-      html: `
+      name,
+      appointmentDate,
+      appointmentLocation,
+      appointmentNotes,
+      rescheduleToken,
+      isReschedule,
+    } = req.body;
+    try {
+      const fmtDate = new Date(appointmentDate).toLocaleString("en-PH", {
+        dateStyle: "long",
+        timeStyle: "short",
+        timeZone: "Asia/Manila",
+      });
+      const rescheduleLink = `${process.env.FRONTEND_URL}/reschedule/${rescheduleToken}`;
+
+      await resend.emails.send({
+        from: "Franchisync <noreply@franchisync.business>",
+        to,
+        subject: isReschedule
+          ? "Your Franchisync Interview Has Been Rescheduled"
+          : "Your Franchisync Interview is Scheduled!",
+        html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
           <h2 style="color: #2E7D32;">Your Franchise Interview is Scheduled!</h2>
           <p>Hi ${name},</p>
@@ -352,213 +375,229 @@ router.post("/send-appointment", async (req, res) => {
           <p>Need to change or cancel this schedule?</p>
           <p><a href="${rescheduleLink}" style="display:inline-block;padding:10px 20px;background:#2E7D32;color:#fff;text-decoration:none;border-radius:8px;">Cancel / Request Reschedule</a></p>
         </div>`,
-    });
-    res.json({ success: true });
-  } catch (err) {
-    console.error("Resend error:", err);
-    res.status(500).json({ error: "Failed to send appointment email" });
-  }
-});
-
-router.put("/applications/:id/appointment", async (req, res) => {
-  try {
-    const rawId = req.params.id;
-    const isIpharma = rawId.startsWith("ip-");
-    const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
-    const sourceTable = isIpharma ? "ipharma_applications" : "applications";
-    const {
-      appointmentDate,
-      appointmentLocation,
-      appointmentNotes,
-      performed_by,
-      role,
-      latitude,
-      longitude,
-    } = req.body;
-
-    if (!appointmentDate) {
-      return res
-        .status(400)
-        .json({ success: false, error: "appointmentDate is required" });
+      });
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Resend error:", err);
+      res.status(500).json({ error: "Failed to send appointment email" });
     }
+  },
+);
 
-    const before = await pool.query(
-      `SELECT * FROM ${sourceTable} WHERE id=$1`,
-      [id],
-    );
-    if (before.rows.length === 0)
-      return res
-        .status(404)
-        .json({ success: false, error: "Application not found" });
-    const oldApp = before.rows[0];
-    const isReschedule = !!oldApp.appointment_date;
+router.put(
+  "/applications/:id/appointment",
+  authenticate,
+  authorize("Super Admin", "Franchisee Operations Admin", "Sales Admin"),
+  async (req, res) => {
+    try {
+      const rawId = req.params.id;
+      const isIpharma = rawId.startsWith("ip-");
+      const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
+      const sourceTable = isIpharma ? "ipharma_applications" : "applications";
+      const {
+        appointmentDate,
+        appointmentLocation,
+        appointmentNotes,
+        performed_by,
+        role,
+        latitude,
+        longitude,
+      } = req.body;
 
-    const token = crypto.randomBytes(24).toString("hex");
+      if (!appointmentDate) {
+        return res
+          .status(400)
+          .json({ success: false, error: "appointmentDate is required" });
+      }
 
-    const result = await pool.query(
-      `UPDATE ${sourceTable}
+      const before = await pool.query(
+        `SELECT * FROM ${sourceTable} WHERE id=$1`,
+        [id],
+      );
+      if (before.rows.length === 0)
+        return res
+          .status(404)
+          .json({ success: false, error: "Application not found" });
+      const oldApp = before.rows[0];
+      const isReschedule = !!oldApp.appointment_date;
+
+      const token = crypto.randomBytes(24).toString("hex");
+
+      const result = await pool.query(
+        `UPDATE ${sourceTable}
       SET appointment_date=$1, appointment_location=$2, appointment_notes=$3,
           appointment_status='scheduled', appointment_token=$4, status='scheduled'
       WHERE id=$5 RETURNING *`,
-      [
-        appointmentDate,
-        appointmentLocation || null,
-        appointmentNotes || null,
-        token,
-        id,
-      ],
-    );
+        [
+          appointmentDate,
+          appointmentLocation || null,
+          appointmentNotes || null,
+          token,
+          id,
+        ],
+      );
 
-    const updatedApp = rowToApplication(result.rows[0]);
+      const updatedApp = rowToApplication(result.rows[0]);
 
-    await logActivity(
-      isReschedule ? "reschedule_appointment" : "schedule_appointment",
-      updatedApp.name,
-      performed_by || "System",
-      {
-        appointment: {
-          from: oldApp.appointment_date,
-          to: appointmentDate,
-          location: appointmentLocation || null,
+      await logActivity(
+        isReschedule ? "reschedule_appointment" : "schedule_appointment",
+        updatedApp.name,
+        performed_by || "System",
+        {
+          appointment: {
+            from: oldApp.appointment_date,
+            to: appointmentDate,
+            location: appointmentLocation || null,
+          },
         },
-      },
-      req,
-      updatedApp.franchise || (isIpharma ? "iPharma Mart" : null),
-      "Applications",
-      latitude,
-      longitude,
-      role || "Unknown",
-    );
+        req,
+        updatedApp.franchise || (isIpharma ? "iPharma Mart" : null),
+        "Applications",
+        latitude,
+        longitude,
+        role || "Unknown",
+      );
 
-    res.json({
-      success: true,
-      message: "Appointment scheduled",
-      application: updatedApp,
-      appointmentToken: token,
-      isReschedule,
-    });
-  } catch (err) {
-    console.error("Error scheduling appointment:", err);
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to schedule appointment" });
-  }
-});
-
-router.put("/applications/:id/schedule-options", async (req, res) => {
-  try {
-    const rawId = req.params.id;
-    const isIpharma = rawId.startsWith("ip-");
-    const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
-    const sourceTable = isIpharma ? "ipharma_applications" : "applications";
-    const {
-      optionADate,
-      optionBDate,
-      optionCDate,
-      performed_by,
-      role,
-      latitude,
-      longitude,
-    } = req.body;
-
-    if (!optionADate || !optionBDate || !optionCDate) {
-      return res
-        .status(400)
-        .json({ success: false, error: "All three date options are required" });
+      res.json({
+        success: true,
+        message: "Appointment scheduled",
+        application: updatedApp,
+        appointmentToken: token,
+        isReschedule,
+      });
+    } catch (err) {
+      console.error("Error scheduling appointment:", err);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to schedule appointment" });
     }
+  },
+);
 
-    const before = await pool.query(
-      `SELECT * FROM ${sourceTable} WHERE id=$1`,
-      [id],
-    );
-    if (before.rows.length === 0)
-      return res
-        .status(404)
-        .json({ success: false, error: "Application not found" });
-    const oldApp = before.rows[0];
+router.put(
+  "/applications/:id/schedule-options",
+  authenticate,
+  async (req, res) => {
+    try {
+      const rawId = req.params.id;
+      const isIpharma = rawId.startsWith("ip-");
+      const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
+      const sourceTable = isIpharma ? "ipharma_applications" : "applications";
+      const {
+        optionADate,
+        optionBDate,
+        optionCDate,
+        performed_by,
+        role,
+        latitude,
+        longitude,
+      } = req.body;
 
-    const token =
-      oldApp.appointment_token || crypto.randomBytes(24).toString("hex");
-    const isResend =
-      !!oldApp.appointment_date || oldApp.appointment_status === "options_sent";
+      if (!optionADate || !optionBDate || !optionCDate) {
+        return res.status(400).json({
+          success: false,
+          error: "All three date options are required",
+        });
+      }
 
-    const result = await pool.query(
-      `UPDATE ${sourceTable}
+      const before = await pool.query(
+        `SELECT * FROM ${sourceTable} WHERE id=$1`,
+        [id],
+      );
+      if (before.rows.length === 0)
+        return res
+          .status(404)
+          .json({ success: false, error: "Application not found" });
+      const oldApp = before.rows[0];
+
+      const token =
+        oldApp.appointment_token || crypto.randomBytes(24).toString("hex");
+      const isResend =
+        !!oldApp.appointment_date ||
+        oldApp.appointment_status === "options_sent";
+
+      const result = await pool.query(
+        `UPDATE ${sourceTable}
        SET reschedule_option_a=$1, reschedule_option_b=$2, reschedule_option_c=$3,
            appointment_status='options_sent', appointment_token=$4,
            appointment_date=NULL, status='pending'
        WHERE id=$5 RETURNING *`,
-      [optionADate, optionBDate, optionCDate, token, id],
-    );
+        [optionADate, optionBDate, optionCDate, token, id],
+      );
 
-    const updatedApp = rowToApplication(result.rows[0]);
+      const updatedApp = rowToApplication(result.rows[0]);
 
-    await logActivity(
-      isResend ? "resend_schedule_options" : "send_schedule_options",
-      updatedApp.name,
-      performed_by || "System",
-      { optionA: optionADate, optionB: optionBDate, optionC: optionCDate },
-      req,
-      updatedApp.franchise || (isIpharma ? "iPharma Mart" : null),
-      "Applications",
-      latitude,
-      longitude,
-      role || "Unknown",
-    );
+      await logActivity(
+        isResend ? "resend_schedule_options" : "send_schedule_options",
+        updatedApp.name,
+        performed_by || "System",
+        { optionA: optionADate, optionB: optionBDate, optionC: optionCDate },
+        req,
+        updatedApp.franchise || (isIpharma ? "iPharma Mart" : null),
+        "Applications",
+        latitude,
+        longitude,
+        role || "Unknown",
+      );
 
-    res.json({
-      success: true,
-      application: updatedApp,
-      appointmentToken: token,
-    });
-  } catch (err) {
-    console.error("Error sending schedule options:", err);
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to send schedule options" });
-  }
-});
+      res.json({
+        success: true,
+        application: updatedApp,
+        appointmentToken: token,
+      });
+    } catch (err) {
+      console.error("Error sending schedule options:", err);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to send schedule options" });
+    }
+  },
+);
 
-router.patch("/applications/:id/account-created", async (req, res) => {
-  try {
-    const rawId = req.params.id;
-    const isIpharma = rawId.startsWith("ip-");
-    const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
-    const sourceTable = isIpharma ? "ipharma_applications" : "applications";
-    const { performed_by, role, latitude, longitude } = req.body;
+router.patch(
+  "/applications/:id/account-created",
+  authenticate,
+  async (req, res) => {
+    try {
+      const rawId = req.params.id;
+      const isIpharma = rawId.startsWith("ip-");
+      const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
+      const sourceTable = isIpharma ? "ipharma_applications" : "applications";
+      const { performed_by, role, latitude, longitude } = req.body;
 
-    const result = await pool.query(
-      `UPDATE ${sourceTable} SET account_created_at=NOW() WHERE id=$1 RETURNING *`,
-      [id],
-    );
-    if (result.rows.length === 0)
-      return res
-        .status(404)
-        .json({ success: false, error: "Application not found" });
+      const result = await pool.query(
+        `UPDATE ${sourceTable} SET account_created_at=NOW() WHERE id=$1 RETURNING *`,
+        [id],
+      );
+      if (result.rows.length === 0)
+        return res
+          .status(404)
+          .json({ success: false, error: "Application not found" });
 
-    const updatedApp = rowToApplication(result.rows[0]);
+      const updatedApp = rowToApplication(result.rows[0]);
 
-    await logActivity(
-      "account_created",
-      updatedApp.name,
-      performed_by || "System",
-      { note: "Franchisee account created and credentials sent" },
-      req,
-      updatedApp.franchise || (isIpharma ? "iPharma Mart" : null),
-      "Applications",
-      latitude,
-      longitude,
-      role || "Unknown",
-    );
+      await logActivity(
+        "account_created",
+        updatedApp.name,
+        performed_by || "System",
+        { note: "Franchisee account created and credentials sent" },
+        req,
+        updatedApp.franchise || (isIpharma ? "iPharma Mart" : null),
+        "Applications",
+        latitude,
+        longitude,
+        role || "Unknown",
+      );
 
-    res.json({ success: true, application: updatedApp });
-  } catch (err) {
-    console.error("Error marking account created:", err);
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to mark account created" });
-  }
-});
+      res.json({ success: true, application: updatedApp });
+    } catch (err) {
+      console.error("Error marking account created:", err);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to mark account created" });
+    }
+  },
+);
 
 router.get("/public/appointments/:token", async (req, res) => {
   try {
@@ -643,22 +682,26 @@ router.post(
   },
 );
 
-router.post("/send-schedule-options", async (req, res) => {
-  const { to, name, optionADate, optionBDate, optionCDate, token } = req.body;
-  try {
-    const fmt = (d) =>
-      new Date(d).toLocaleString("en-PH", {
-        dateStyle: "long",
-        timeStyle: "short",
-        timeZone: "Asia/Manila",
-      });
-    const link = `${process.env.FRONTEND_URL}/reschedule/${token}`;
+router.post(
+  "/send-schedule-options",
+  authenticate,
+  authorize("Super Admin", "Franchisee Operations Admin", "Sales Admin"),
+  async (req, res) => {
+    const { to, name, optionADate, optionBDate, optionCDate, token } = req.body;
+    try {
+      const fmt = (d) =>
+        new Date(d).toLocaleString("en-PH", {
+          dateStyle: "long",
+          timeStyle: "short",
+          timeZone: "Asia/Manila",
+        });
+      const link = `${process.env.FRONTEND_URL}/reschedule/${token}`;
 
-    await resend.emails.send({
-      from: "Franchisync <noreply@franchisync.business>",
-      to,
-      subject: "FranchiSync Application Interview Appointment",
-      html: `
+      await resend.emails.send({
+        from: "Franchisync <noreply@franchisync.business>",
+        to,
+        subject: "FranchiSync Application Interview Appointment",
+        html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
           <h2 style="color: #2E7D32;">Choose Your Interview Time</h2>
           <p>Hi ${name},</p>
@@ -670,13 +713,14 @@ router.post("/send-schedule-options", async (req, res) => {
           </div>
           <p><a href="${link}" style="display:inline-block;padding:12px 24px;background:#2E7D32;color:#fff;text-decoration:none;border-radius:8px;">Choose Your Time</a></p>
         </div>`,
-    });
-    res.json({ success: true });
-  } catch (err) {
-    console.error("Resend error:", err);
-    res.status(500).json({ error: "Failed to send schedule options email" });
-  }
-});
+      });
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Resend error:", err);
+      res.status(500).json({ error: "Failed to send schedule options email" });
+    }
+  },
+);
 
 router.get("/public/appointments/:token", async (req, res) => {
   try {
@@ -829,114 +873,139 @@ router.post("/public/appointments/:token/select-option", async (req, res) => {
   }
 });
 
-router.delete("/applications/:id", async (req, res) => {
-  try {
-    const rawId = req.params.id;
-    const isIpharma = rawId.startsWith("ip-");
-    const id = isIpharma ? rawId.replace("ip-", "") : rawId;
-    const sourceTable = isIpharma ? "ipharma_applications" : "applications";
-    const { deleted_by, role, latitude, longitude } = req.body || {}; // ← add role here
+router.delete(
+  "/applications/:id",
+  authenticate,
+  authorize("Super Admin"),
+  async (req, res) => {
+    try {
+      const rawId = req.params.id;
+      const isIpharma = rawId.startsWith("ip-");
+      const id = isIpharma ? rawId.replace("ip-", "") : rawId;
+      const sourceTable = isIpharma ? "ipharma_applications" : "applications";
+      const { deleted_by, role, latitude, longitude } = req.body || {}; // ← add role here
 
-    const existing = await pool.query(
-      `SELECT * FROM ${sourceTable} WHERE id=$1`,
-      [id],
-    );
-    if (existing.rows.length === 0)
-      return res
-        .status(404)
-        .json({ success: false, error: "Application not found" });
-    const app = existing.rows[0];
+      const existing = await pool.query(
+        `SELECT * FROM ${sourceTable} WHERE id=$1`,
+        [id],
+      );
+      if (existing.rows.length === 0)
+        return res
+          .status(404)
+          .json({ success: false, error: "Application not found" });
+      const app = existing.rows[0];
 
-    await pool.query(
-      "INSERT INTO application_delete_history (application_data) VALUES ($1)",
-      [JSON.stringify(app)],
-    );
-    await pool.query(`DELETE FROM ${sourceTable} WHERE id=$1`, [id]);
+      await pool.query(
+        "INSERT INTO application_delete_history (application_data) VALUES ($1)",
+        [JSON.stringify(app)],
+      );
+      await pool.query(`DELETE FROM ${sourceTable} WHERE id=$1`, [id]);
 
-    await logActivity(
-      "delete",
-      app.name,
-      deleted_by || "System",
-      {
-        franchise: app.franchise || (isIpharma ? "iPharma Mart" : null),
-        status: app.status,
-      },
-      req,
-      app.franchise || (isIpharma ? "iPharma Mart" : null),
-      "Applications",
-      latitude,
-      longitude,
-      role || "Unknown", // ← add as final arg
-    );
+      await logActivity(
+        "delete",
+        app.name,
+        deleted_by || "System",
+        {
+          franchise: app.franchise || (isIpharma ? "iPharma Mart" : null),
+          status: app.status,
+        },
+        req,
+        app.franchise || (isIpharma ? "iPharma Mart" : null),
+        "Applications",
+        latitude,
+        longitude,
+        role || "Unknown", // ← add as final arg
+      );
 
-    res.json({ success: true, message: "Application deleted successfully" });
-  } catch (err) {
-    console.error("Error deleting application:", err);
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to delete application" });
-  }
-});
+      res.json({ success: true, message: "Application deleted successfully" });
+    } catch (err) {
+      console.error("Error deleting application:", err);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to delete application" });
+    }
+  },
+);
 
-router.get("/application-delete-history", async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT * FROM application_delete_history ORDER BY deleted_at DESC",
-    );
-    res.json(
-      result.rows.map((row) => ({
-        id: row.id,
-        data: row.application_data,
-        deletedAt: row.deleted_at,
-      })),
-    );
-  } catch (err) {
-    res
-      .status(500)
-      .json({ error: "Failed to fetch application delete history." });
-  }
-});
+router.get(
+  "/application-delete-history",
+  authenticate,
+  authorize("Super Admin", "Franchisee Operations Admin"),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        "SELECT * FROM application_delete_history ORDER BY deleted_at DESC",
+      );
+      res.json(
+        result.rows.map((row) => ({
+          id: row.id,
+          data: row.application_data,
+          deletedAt: row.deleted_at,
+        })),
+      );
+    } catch (err) {
+      res
+        .status(500)
+        .json({ error: "Failed to fetch application delete history." });
+    }
+  },
+);
 
-router.post("/application-delete-history", async (req, res) => {
-  try {
-    await pool.query(
-      "INSERT INTO application_delete_history (application_data) VALUES ($1)",
-      [JSON.stringify(req.body.application_data)],
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res
-      .status(500)
-      .json({ error: "Failed to save application delete history." });
-  }
-});
+router.post(
+  "/application-delete-history",
+  authenticate,
+  authorize("Super Admin"),
+  async (req, res) => {
+    try {
+      await pool.query(
+        "INSERT INTO application_delete_history (application_data) VALUES ($1)",
+        [JSON.stringify(req.body.application_data)],
+      );
+      res.json({ success: true });
+    } catch (err) {
+      res
+        .status(500)
+        .json({ error: "Failed to save application delete history." });
+    }
+  },
+);
 
-router.delete("/application-delete-history/:id", async (req, res) => {
-  try {
-    await pool.query("DELETE FROM application_delete_history WHERE id=$1", [
-      req.params.id,
-    ]);
-    res.json({ success: true });
-  } catch (err) {
-    res
-      .status(500)
-      .json({ error: "Failed to delete application history entry." });
-  }
-});
+router.delete(
+  "/application-delete-history/:id",
+  authenticate,
+  authorize("Super Admin"),
+  async (req, res) => {
+    try {
+      await pool.query("DELETE FROM application_delete_history WHERE id=$1", [
+        req.params.id,
+      ]);
+      res.json({ success: true });
+    } catch (err) {
+      res
+        .status(500)
+        .json({ error: "Failed to delete application history entry." });
+    }
+  },
+);
 
-router.get("/applications-activity-log", async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT * FROM users_activity_log WHERE module = $1 ORDER BY created_at DESC",
-      ["Applications"],
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error("Failed to fetch applications activity log:", err);
-    res
-      .status(500)
-      .json({ error: "Failed to fetch applications activity log" });
-  }
-});
+router.get(
+  "/applications-activity-log",
+  authenticate,
+  authorize("Super Admin", "Franchisee Operations Admin", "Sales Admin"),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        "SELECT * FROM users_activity_log WHERE module = $1 ORDER BY created_at DESC",
+        ["Applications"],
+      );
+      res.json(result.rows);
+    } catch (err) {
+      console.error("Failed to fetch applications activity log:", err);
+      res
+        .status(500)
+        .json({ error: "Failed to fetch applications activity log" });
+    }
+  },
+);
 
 module.exports = router;

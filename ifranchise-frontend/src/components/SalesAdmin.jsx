@@ -89,24 +89,12 @@ import {
   Printer,
 } from "lucide-react";
 
+import { adminModuleFetch } from "../utils/adminModuleFetch";
+
 const ADMIN_API_BASE = String(process.env.REACT_APP_API_URL || "")
   .trim()
   .replace(/;+$/, "")
   .replace(/\/+$/, "");
-
-async function adminModuleFetch(input, options) {
-  const response = await fetch(input, options);
-  const method = String(
-    options?.method ||
-      (typeof Request !== "undefined" && input instanceof Request
-        ? input.method
-        : "GET"),
-  ).toUpperCase();
-  if (response.ok && !["GET", "HEAD", "OPTIONS"].includes(method)) {
-    window.dispatchEvent(new Event("franchisync:data-changed"));
-  }
-  return response;
-}
 
 function useAdminLiveRefresh(refresh, dependencies) {
   useEffect(() => {
@@ -579,12 +567,47 @@ export default function SalesAdmin() {
   const getUserFromStorage = () => {
     const s =
       localStorage.getItem("user") ||
-      localStorage.getItem("rememberedUser") ||
-      sessionStorage.getItem("user");
-    return s ? JSON.parse(s) : null;
+      sessionStorage.getItem("user") ||
+      sessionStorage.getItem("tempUser") ||
+      localStorage.getItem("rememberedUser");
+
+    if (!s) return null;
+
+    try {
+      return JSON.parse(s);
+    } catch {
+      return null;
+    }
   };
 
-  const [user, setUser] = useState(getUserFromStorage);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const response = await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/me`,
+          {
+            cache: "no-store",
+          },
+        );
+
+        if (!response.ok) {
+          console.error("Failed to load current user:", response.status);
+          return;
+        }
+
+        const data = await response.json();
+
+        setUser(data.user || data);
+      } catch (error) {
+        console.error("Failed to load current user:", error);
+      }
+    };
+
+    loadCurrentUser();
+  }, []);
+
   const [activeModule, setActiveModule] = useState(
     () => sessionStorage.getItem("sa_activeModule") || "dashboard",
   );
@@ -624,14 +647,14 @@ export default function SalesAdmin() {
   }, []);
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL}/brands`)
+    adminModuleFetch(`${process.env.REACT_APP_API_URL}/brands`)
       .then((r) => r.json())
       .then((d) => setBrands(Array.isArray(d) ? d : []))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL}/transactions`)
+    adminModuleFetch(`${process.env.REACT_APP_API_URL}/transactions`)
       .then((r) => r.json())
       .then((d) => setTransactions(Array.isArray(d) ? d : []))
       .catch(() => {});
@@ -642,7 +665,7 @@ export default function SalesAdmin() {
       const stored =
         localStorage.getItem("user") || sessionStorage.getItem("user");
       const userId = stored ? JSON.parse(stored)?.id : null;
-      await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
@@ -2930,7 +2953,7 @@ function PrescriptiveSection({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`,
         {
           method: "POST",
@@ -4764,10 +4787,10 @@ function SalesVsStockSection({
         if (names.length) params.set("branches", names.join(","));
       }
       const [analyticsRes, inventoryRes] = await Promise.all([
-        fetch(
+        adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`,
         ),
-        fetch(`${process.env.REACT_APP_API_URL}/ingredients`),
+        adminModuleFetch(`${process.env.REACT_APP_API_URL}/ingredients`),
       ]);
       const json = analyticsRes.ok ? await analyticsRes.json() : {};
       const inventoryJson = inventoryRes.ok ? await inventoryRes.json() : [];
@@ -5422,7 +5445,7 @@ function SalesVsStockSection({
               <tbody>
                 {stockEvidence.map((r, i) => (
                   <tr
-                    key={r.name}
+                    key={r.id ?? `${r.name}-${r.branch}-${r.brand}`}
                     style={{ background: i % 2 ? "#f5fcf7" : "#fff" }}
                   >
                     <td
@@ -8357,24 +8380,25 @@ function B2BRevenueAssuranceDashboard({
 
   const fetchRawOrdersFallback = useCallback(async () => {
     const params = new URLSearchParams();
-    params.set("role", user?.role || "Super Admin");
-    if (
-      user?.branch &&
-      !["Super Admin", "Franchisee Operations Admin"].includes(user?.role)
-    )
+
+    if (user?.branch) {
       params.set("branch", user.branch);
-    if (
-      user?.brand &&
-      !["Super Admin", "Franchisee Operations Admin"].includes(user?.role)
-    )
+    }
+
+    if (user?.brand) {
       params.set("brand", user.brand);
-    const data = await fetchJson(`${API}/orders?${params.toString()}`);
+    }
+
+    const query = params.toString();
+
+    const data = await fetchJson(`${API}/orders${query ? `?${query}` : ""}`);
+
     if (Array.isArray(data)) return data;
     if (Array.isArray(data?.orders)) return data.orders;
     if (Array.isArray(data?.data)) return data.data;
-    throw new Error("Supply orders were not returned as a list");
-  }, [API, user?.role, user?.branch, user?.brand, fetchJson]);
 
+    throw new Error("Supply orders were not returned as a list");
+  }, [API, user?.branch, user?.brand, fetchJson]);
   const loadB2B = useCallback(async () => {
     if (!API) {
       setLoading(false);
@@ -17673,7 +17697,7 @@ function SalesReportsContent({ user, brands: propBrands = [] }) {
 
   const fetchActivityLog = useCallback(async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports-activity-log`,
       );
       const data = await res.json();
@@ -17686,18 +17710,21 @@ function SalesReportsContent({ user, brands: propBrands = [] }) {
   const logActivity = useCallback(
     async (action, itemName, branchName, changes = null) => {
       try {
-        await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action,
-            item_name: itemName,
-            branch: branchName,
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            changes,
-          }),
-        });
+        await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/shop-activity-log`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action,
+              item_name: itemName,
+              branch: branchName,
+              performed_by: user?.name || "System",
+              role: user?.role || "Unknown",
+              changes,
+            }),
+          },
+        );
       } catch (err) {
         console.warn("Activity log failed (non-fatal):", err);
       }
@@ -17717,7 +17744,7 @@ function SalesReportsContent({ user, brands: propBrands = [] }) {
       if (filterStatus !== "all") params.set("status", filterStatus);
       if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
 
-      const res = await fetch(`${API}/reports?${params}`);
+      const res = await adminModuleFetch(`${API}/reports?${params}`);
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       const data = await res.json();
       setReports(data);
@@ -17793,7 +17820,7 @@ function SalesReportsContent({ user, brands: propBrands = [] }) {
     setActionLoading(true);
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports/${report.id}/approve`,
         {
           method: "PATCH",
@@ -19243,15 +19270,19 @@ function AlertModal({ message, type = "info", onClose }) {
 
 function SalesProfileContent({ user }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
+
   const [formData, setFormData] = useState({
-    name: user.name,
-    email: user.email,
+    name: user?.name || "",
+    email: user?.email || "",
     personalEmail: "",
-    role: user.role,
+    role: user?.role || "Sales Admin",
+    branch: user?.branch || "",
+    brand: user?.brand || "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
+
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [otp, setOtp] = useState("");
@@ -19263,6 +19294,19 @@ function SalesProfileContent({ user }) {
   const [showNewPw, setShowNewPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
+
+  useEffect(() => {
+    if (!user) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      name: user.name || "",
+      email: user.email || "",
+      role: user.role || "Sales Admin",
+      branch: user.branch || "",
+      brand: user.brand || "",
+    }));
+  }, [user]);
 
   // ── UI modal state ──
   const [alertModal, setAlertModal] = useState(null);
@@ -19311,7 +19355,7 @@ function SalesProfileContent({ user }) {
   const sendOtp = async () => {
     try {
       const emailToSend = formData.personalEmail || formData.email;
-      const response = await fetch(
+      const response = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/send-otp-password-change`,
         {
           method: "POST",
@@ -19335,7 +19379,7 @@ function SalesProfileContent({ user }) {
     try {
       setOtpError("");
       const emailToVerify = formData.personalEmail || formData.email;
-      const response = await fetch(
+      const response = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users/${user.id}/password`,
         {
           method: "PUT",
@@ -19407,7 +19451,7 @@ function SalesProfileContent({ user }) {
 
   const updateProfile = async () => {
     try {
-      const response = await fetch(
+      const response = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users/${user.id}`,
         {
           method: "PUT",
@@ -19459,6 +19503,20 @@ function SalesProfileContent({ user }) {
       setIsUnlocked(false);
     });
   };
+
+  if (!user) {
+    return (
+      <div
+        style={{
+          padding: 24,
+          textAlign: "center",
+          color: "#5a7a65",
+        }}
+      >
+        Loading profile...
+      </div>
+    );
+  }
 
   const initials = user.name
     ? user.name
@@ -20596,7 +20654,9 @@ function CreateAccountModal({
   useEffect(() => {
     const fetchBrands = async () => {
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
+        const res = await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/brands`,
+        );
         const data = await res.json();
         setBrands(Array.isArray(data) ? data : []);
       } catch (err) {
@@ -20632,29 +20692,35 @@ function CreateAccountModal({
 
     setSending(true);
     try {
-      const userRes = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          email,
-          password: tempPassword,
-          role,
-          brand,
-          branch,
-        }),
-      });
+      const userRes = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/users`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            email,
+            password: tempPassword,
+            role,
+            brand,
+            branch,
+          }),
+        },
+      );
       if (!userRes.ok) {
         const err = await userRes.json();
         onAlert(err.error || "Failed to create account.", "error");
         setSending(false);
         return;
       }
-      await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: email, name, password: tempPassword }),
-      });
+      await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/send-credentials`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: email, name, password: tempPassword }),
+        },
+      );
       onAlert(`Account created and credentials sent to ${email}!`, "success");
       onClose();
     } catch (err) {

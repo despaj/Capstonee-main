@@ -38,6 +38,7 @@ import {
   Truck,
   Package,
 } from "lucide-react";
+import { adminModuleFetch } from "../utils/adminModuleFetch";
 
 const C = {
   green: "#3b791e",
@@ -1647,7 +1648,9 @@ function BatchTransferHistoryModal({ batch, ingredient, apiUrl, onClose }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`${apiUrl}/ingredient-batches/${batch.id}/transfer-history`)
+    adminModuleFetch(
+      `${apiUrl}/ingredient-batches/${batch.id}/transfer-history`,
+    )
       .then((r) => r.json())
       .then((d) => {
         if (!cancelled) {
@@ -2897,11 +2900,6 @@ function ActivityLogPanel({ log, onClose }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   FIFO / FEFO QUEUE (right column of each brand card)
-   Simple white rows, divided by a thin bottom line (green for the next-out
-   batch, gray for the rest) instead of colored backgrounds.
-───────────────────────────────────────────────────────────────────────── */
 function FifoQueue({
   product,
   batches,
@@ -2911,6 +2909,12 @@ function FifoQueue({
   onViewHistory,
   readOnly = false,
 }) {
+  const productBranch = String(product?.branch || "")
+    .trim()
+    .toLowerCase();
+
+  const canModifyBatch =
+    !readOnly && productBranch === "san juan (head office)";
   if (!product) {
     return (
       <div
@@ -3349,13 +3353,10 @@ function FifoQueue({
                   </div>
                 )}
 
-                {(!readOnly ||
-                  (product.branch || "")
-                    .trim()
-                    .toLowerCase()
-                    .includes("head office")) && (
+                {(canModifyBatch ||
+                  productBranch === "san juan (head office)") && (
                   <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                    {!readOnly && (
+                    {canModifyBatch && (
                       <>
                         <button
                           onClick={() => onEditBatch(b)}
@@ -3370,6 +3371,7 @@ function FifoQueue({
                         >
                           <EditIcon size={9} /> Edit
                         </button>
+
                         <button
                           onClick={() => onDeleteBatch(b)}
                           className="del-btn"
@@ -3385,10 +3387,8 @@ function FifoQueue({
                         </button>
                       </>
                     )}
-                    {(product.branch || "")
-                      .trim()
-                      .toLowerCase()
-                      .includes("head office") && (
+
+                    {productBranch === "san juan (head office)" && (
                       <button
                         onClick={() => onViewHistory(b)}
                         className="hist-btn"
@@ -3776,14 +3776,11 @@ function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   BRAND CARD — filters + (left, scrollable) product list + (right) FIFO/FEFO queue
-   pass expanded=true for the single-brand full-width view
-───────────────────────────────────────────────────────────────────────── */
 function BrandCard({
   brandDef,
   brandObj,
   items,
+  item,
   apiUrl,
   onEdit,
   onDelete,
@@ -3807,8 +3804,71 @@ function BrandCard({
 }) {
   const [search, setSearch] = useState("");
   const [branchF, setBranchF] = useState(
-    restrictBranch || initialBranchFilter || "",
+    restrictBranch || initialBranchFilter || "San Juan (Head Office)",
   );
+  const HEAD_OFFICE_BRANCH = "San Juan (Head Office)";
+
+  const normalizedUserRole = String(userRole || "")
+    .trim()
+    .toLowerCase();
+
+  const canModifyItem = (item) => {
+    if (!item) return false;
+
+    const itemBranch = String(item?.branch || "")
+      .trim()
+      .toLowerCase();
+
+    const normalizedRestrictedBranch = String(restrictBranch || "")
+      .trim()
+      .toLowerCase();
+
+    if (
+      normalizedUserRole === "franchisee operations admin" ||
+      normalizedUserRole === "franchise operations admin" ||
+      normalizedUserRole === "franchisor operations admin"
+    ) {
+      return false;
+    }
+
+    if (
+      normalizedUserRole === "super admin" ||
+      normalizedUserRole === "sales admin"
+    ) {
+      return itemBranch === HEAD_OFFICE_BRANCH.toLowerCase();
+    }
+
+    if (
+      normalizedUserRole === "manager" ||
+      normalizedUserRole === "franchisee"
+    ) {
+      return (
+        !!normalizedRestrictedBranch &&
+        itemBranch === normalizedRestrictedBranch
+      );
+    }
+
+    return false;
+  };
+
+  const selectedBranchNormalized = String(branchF || "")
+    .trim()
+    .toLowerCase();
+
+  const restrictedBranchNormalized = String(restrictBranch || "")
+    .trim()
+    .toLowerCase();
+
+  const canEditSelectedBranch =
+    ((normalizedUserRole === "super admin" ||
+      normalizedUserRole === "sales admin") &&
+      selectedBranchNormalized === HEAD_OFFICE_BRANCH.toLowerCase()) ||
+    ((normalizedUserRole === "manager" ||
+      normalizedUserRole === "franchisee") &&
+      !!restrictedBranchNormalized &&
+      selectedBranchNormalized === restrictedBranchNormalized);
+
+  const branchReadOnly = readOnly || !canEditSelectedBranch;
   const [categoryF, setCategoryF] = useState("");
   const [unitF, setUnitF] = useState("");
   const [statusF, setStatusF] = useState(initialStatusFilter);
@@ -3870,7 +3930,12 @@ function BrandCard({
   }, [brandItems, search, branchF, categoryF, unitF, statusF]);
 
   useEffect(() => {
-    if (!restrictBranch && branchF && !branchOptions.includes(branchF)) {
+    if (
+      !restrictBranch &&
+      branchOptions.length > 0 &&
+      branchF &&
+      !branchOptions.includes(branchF)
+    ) {
       setBranchF("");
     }
   }, [branchF, branchOptions, restrictBranch]);
@@ -3896,24 +3961,45 @@ function BrandCard({
     setStatusF(initialStatusFilter);
   }, [initialStatusFilter]);
 
-  // Keep a newly added/edited/received product visible even when the current
-  // branch/category/status filter would otherwise hide the result immediately.
   useEffect(() => {
-    const changed = focusMutation?.item;
-    if (!changed || !itemBelongsToBrand(changed, brandDef, brandObj)) return;
-
-    if (!restrictBranch && branchF && changed.branch !== branchF) {
-      setBranchF("");
+    if (!selectedId) {
+      setBatches([]);
+      return;
     }
-    if (categoryF && String(changed.category || "") !== categoryF)
-      setCategoryF("");
 
-    const isLow = Number(changed.stock || 0) < Number(changed.min_stock || 0);
-    if ((statusF === "low" && !isLow) || (statusF === "ok" && isLow))
-      setStatusF("");
+    let cancelled = false;
+    setBatchLoading(true);
 
-    if (changed.id != null) setSelectedId(changed.id);
-  }, [focusMutation?.stamp, brandDef, brandObj]);
+    adminModuleFetch(`${apiUrl}/ingredient-batches?ingredient_id=${selectedId}`)
+      .then(async (r) => {
+        if (!r.ok) {
+          const data = await r.json().catch(() => ({}));
+          throw new Error(
+            data.message || data.error || "Failed to fetch batches",
+          );
+        }
+
+        return r.json();
+      })
+      .then((d) => {
+        if (!cancelled) {
+          setBatches(Array.isArray(d) ? d : []);
+          setBatchLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch ingredient batches:", err);
+
+        if (!cancelled) {
+          setBatches([]);
+          setBatchLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, apiUrl, refreshToken]);
 
   useEffect(() => {
     if (selectedId && !brandItems.find((i) => i.id === selectedId))
@@ -3928,7 +4014,7 @@ function BrandCard({
       return;
     }
     setBatchLoading(true);
-    fetch(`${apiUrl}/ingredient-batches?ingredient_id=${selectedId}`)
+    adminModuleFetch(`${apiUrl}/ingredient-batches?ingredient_id=${selectedId}`)
       .then((r) => r.json())
       .then((d) => {
         setBatches(Array.isArray(d) ? d : []);
@@ -3941,7 +4027,7 @@ function BrandCard({
 
   const syncIngredientStock = async (ingredient) => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`,
       );
       const freshBatches = await res.json();
@@ -3955,7 +4041,7 @@ function BrandCard({
         ingredient.brand,
         !!ingredient.perishable,
       );
-      await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
+      await adminModuleFetch(`${apiUrl}/ingredients/${ingredient.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -4078,8 +4164,9 @@ function BrandCard({
         : {}),
     };
     try {
-      await fetch(`${apiUrl}/ingredient-batches/${batch.id}`, {
+      await adminModuleFetch(`${apiUrl}/ingredient-batches/${batch.id}`, {
         method: "PUT",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
@@ -4115,8 +4202,9 @@ function BrandCard({
     const { batch, ingredient } = deleteConfirmBatch;
     setDeletingBatch(true);
     try {
-      await fetch(`${apiUrl}/ingredient-batch-delete-history`, {
+      await adminModuleFetch(`${apiUrl}/ingredient-batch-delete-history`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           batch_data: batch,
@@ -4125,8 +4213,9 @@ function BrandCard({
           deleted_by: userName,
         }),
       });
-      await fetch(`${apiUrl}/ingredient-batches/${batch.id}`, {
+      await adminModuleFetch(`${apiUrl}/ingredient-batches/${batch.id}`, {
         method: "DELETE",
+        credentials: "include",
       });
       await syncIngredientStock(ingredient);
       refreshBatches();
@@ -4153,19 +4242,36 @@ function BrandCard({
       setBatches([]);
       return;
     }
+
     let cancelled = false;
     setBatchLoading(true);
-    fetch(`${apiUrl}/ingredient-batches?ingredient_id=${selectedId}`)
-      .then((r) => r.json())
+
+    adminModuleFetch(`${apiUrl}/ingredient-batches?ingredient_id=${selectedId}`)
+      .then(async (r) => {
+        if (!r.ok) {
+          const data = await r.json().catch(() => ({}));
+          throw new Error(
+            data.message || data.error || "Failed to fetch batches",
+          );
+        }
+
+        return r.json();
+      })
       .then((d) => {
         if (!cancelled) {
           setBatches(Array.isArray(d) ? d : []);
           setBatchLoading(false);
         }
       })
-      .catch(() => {
-        if (!cancelled) setBatchLoading(false);
+      .catch((err) => {
+        console.error("Failed to fetch ingredient batches:", err);
+
+        if (!cancelled) {
+          setBatches([]);
+          setBatchLoading(false);
+        }
       });
+
     return () => {
       cancelled = true;
     };
@@ -4285,7 +4391,30 @@ function BrandCard({
               </span>
             )}
           </button>
-          {!readOnly && (
+          {canModifyItem(selected) && (
+            <button
+              onClick={() => onReceiveStock(brandDef, selected)}
+              title="Receive stock for this brand"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                height: 26,
+                padding: "0 11px",
+                borderRadius: 7,
+                border: `1px solid ${C.border}`,
+                background: C.white,
+                color: C.greenDk,
+                fontSize: 11,
+                fontWeight: 700,
+                fontFamily: "inherit",
+              }}
+            >
+              <PlusIcon size={11} /> Receive Stock
+            </button>
+          )}
+
+          {canEditSelectedBranch && (
             <>
               <button
                 onClick={() => onReceiveStock(brandDef, selected)}
@@ -4307,9 +4436,10 @@ function BrandCard({
               >
                 <PlusIcon size={11} /> Receive Stock
               </button>
+
               <button
                 onClick={() => onQuickAdd(brandDef, branchF)}
-                title="Add a new ingredient to this brand"
+                title="Add a new item to this brand"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -4632,7 +4762,7 @@ function BrandCard({
                     />
                   </div>
                   <div style={{ display: "flex", gap: 6, marginTop: 7 }}>
-                    {!readOnly && (
+                    {canModifyItem(item) && (
                       <>
                         <button
                           onClick={(e) => {
@@ -4689,15 +4819,24 @@ function BrandCard({
             product={selected}
             batches={batches}
             loading={batchLoading}
-            readOnly={readOnly}
+            readOnly={!selected || !canModifyItem(selected)}
             onEditBatch={(b) =>
-              setEditingBatch({ batch: b, ingredient: selected })
+              setEditingBatch({
+                batch: b,
+                ingredient: selected,
+              })
             }
             onDeleteBatch={(b) =>
-              setDeleteConfirmBatch({ batch: b, ingredient: selected })
+              setDeleteConfirmBatch({
+                batch: b,
+                ingredient: selected,
+              })
             }
             onViewHistory={(b) =>
-              setTransferHistoryBatch({ batch: b, ingredient: selected })
+              setTransferHistoryBatch({
+                batch: b,
+                ingredient: selected,
+              })
             }
           />
         </div>
@@ -4893,7 +5032,7 @@ function ReceiveStockModal({
   const maxExpiryDateStr = expiryRule ? expiryBounds.maxStr : "";
 
   const syncIngredientStock = async (prod) => {
-    const res = await fetch(
+    const res = await adminModuleFetch(
       `${apiUrl}/ingredient-batches?ingredient_id=${prod.id}`,
     );
     const freshBatches = await res.json();
@@ -4908,15 +5047,18 @@ function ReceiveStockModal({
       !!prod.perishable,
     );
 
-    const updateRes = await fetch(`${apiUrl}/ingredients/${prod.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...prod,
-        stock: totalStock,
-        ...(nextOutCost !== null ? { cost_per_unit: nextOutCost } : {}),
-      }),
-    });
+    const updateRes = await adminModuleFetch(
+      `${apiUrl}/ingredients/${prod.id}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...prod,
+          stock: totalStock,
+          ...(nextOutCost !== null ? { cost_per_unit: nextOutCost } : {}),
+        }),
+      },
+    );
     if (!updateRes.ok)
       throw new Error("Failed to sync product totals after receiving stock.");
   };
@@ -5104,7 +5246,7 @@ function ReceiveStockModal({
       }
       const body = buildBody(prod, f, userName, userRole, coords);
       try {
-        const res = await fetch(`${apiUrl}/ingredient-batches`, {
+        const res = await adminModuleFetch(`${apiUrl}/ingredient-batches`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -6863,6 +7005,22 @@ function BatchesModal({
   readOnly = false,
 }) {
   const pharma = isPharmaBrand(ingredient.brand);
+  const normalizedUserRole = String(userRole || "")
+    .trim()
+    .toLowerCase();
+
+  const ingredientBranch = String(ingredient?.branch || "")
+    .trim()
+    .toLowerCase();
+
+  const isBatchWriteRole =
+    normalizedUserRole === "super admin" ||
+    normalizedUserRole === "sales admin";
+
+  const canModifyBatch =
+    !readOnly &&
+    isBatchWriteRole &&
+    ingredientBranch === "san juan (head office)";
   const [editingBatch, setEditingBatch] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [batchDeleteHistory, setBatchDeleteHistory] = useState([]);
@@ -6875,7 +7033,7 @@ function BatchesModal({
 
   const fetchBatchHistory = useCallback(async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${apiUrl}/ingredient-batch-delete-history?ingredient_id=${ingredient.id}`,
       );
       const data = await res.json();
@@ -6925,7 +7083,7 @@ function BatchesModal({
 
   const syncIngredientStock = async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`,
       );
       const freshBatches = await res.json();
@@ -6939,7 +7097,7 @@ function BatchesModal({
         ingredient.brand,
         !!ingredient.perishable,
       );
-      await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
+      await adminModuleFetch(`${apiUrl}/ingredients/${ingredient.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -7031,6 +7189,15 @@ function BatchesModal({
   };
 
   const saveBatch = async (form) => {
+    if (!canModifyBatch) {
+      showUiModal({
+        type: "error",
+        title: "Read Only Access",
+        message:
+          "Batches can only be edited by Super Admin or Sales Admin in San Juan (Head Office).",
+      });
+      return;
+    }
     const errors = validateBatchForm(form);
     if (errors.length > 0) {
       showUiModal({
@@ -7073,11 +7240,14 @@ function BatchesModal({
       longitude: coords?.longitude,
     };
     try {
-      await fetch(`${apiUrl}/ingredient-batches/${editingBatch.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      await adminModuleFetch(
+        `${apiUrl}/ingredient-batches/${editingBatch.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
       await syncIngredientStock();
       setEditingBatch(null);
       onRefresh();
@@ -7101,7 +7271,7 @@ function BatchesModal({
   const deleteBatch = async (id) => {
     // Find the batch data before deleting
     const batchToDelete = batches.find((b) => b.id === id);
-    await fetch(`${apiUrl}/ingredient-batch-delete-history`, {
+    await adminModuleFetch(`${apiUrl}/ingredient-batch-delete-history`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -7111,16 +7281,28 @@ function BatchesModal({
         deleted_by: userName,
       }),
     });
-    await fetch(`${apiUrl}/ingredient-batches/${id}`, { method: "DELETE" });
+    await adminModuleFetch(`${apiUrl}/ingredient-batches/${id}`, {
+      method: "DELETE",
+    });
     await syncIngredientStock();
     await fetchBatchHistory();
     onRefresh();
   };
 
-  // Step 1: user clicks "Delete" on a batch row — open confirmation modal instead of deleting immediately
-  const requestDeleteBatch = (batch) => setDeleteConfirmBatch(batch);
+  const requestDeleteBatch = (batch) => {
+    if (!canModifyBatch) {
+      showUiModal({
+        type: "error",
+        title: "Read Only Access",
+        message:
+          "Batches can only be deleted by Super Admin or Sales Admin in San Juan (Head Office).",
+      });
+      return;
+    }
 
-  // Step 2: user confirms in the modal — perform the actual delete
+    setDeleteConfirmBatch(batch);
+  };
+
   const confirmDeleteBatch = async () => {
     if (!deleteConfirmBatch) return;
     setDeletingBatch(true);
@@ -7147,7 +7329,7 @@ function BatchesModal({
     setRestoringBatchId(entry.id);
     try {
       const d = entry.data || {};
-      const res = await fetch(`${apiUrl}/ingredient-batches`, {
+      const res = await adminModuleFetch(`${apiUrl}/ingredient-batches`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -7165,9 +7347,12 @@ function BatchesModal({
       });
       const result = await res.json();
       if (result && (result.id || result.success)) {
-        await fetch(`${apiUrl}/ingredient-batch-delete-history/${entry.id}`, {
-          method: "DELETE",
-        });
+        await adminModuleFetch(
+          `${apiUrl}/ingredient-batch-delete-history/${entry.id}`,
+          {
+            method: "DELETE",
+          },
+        );
         await fetchBatchHistory();
         onRefresh();
         setToast({
@@ -7481,7 +7666,7 @@ function BatchesModal({
                     )}
                   </div>
                   <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                    {!readOnly && (
+                    {canModifyBatch && (
                       <>
                         <button
                           onClick={() => setEditingBatch(batch)}
@@ -7627,15 +7812,18 @@ export default function StockInventoryContent({
   const isFranchisee = normalizedRole === "franchisee";
   const isManager = normalizedRole === "manager";
 
+  const userBranch = String(user?.branch || "").trim();
+
   const canViewAllInventory = isSuperAdmin || isSalesAdmin || isOperationsAdmin;
 
   const isAdmin = canViewAllInventory;
 
-  const canEditInventory = isSuperAdmin || isSalesAdmin || isManager;
+  const canRoleEditInventory =
+    isSuperAdmin || isSalesAdmin || isManager || isFranchisee;
 
-  const isReadOnly = isOperationsAdmin || isFranchisee;
+  const [activeBatchReadOnly, setActiveBatchReadOnly] = useState(true);
 
-  const userBranch = String(user?.branch || "").trim();
+  const isReadOnly = isOperationsAdmin || !canRoleEditInventory;
 
   const userBrand = String(
     user?.brand || user?.brand_name || user?.brandName || "",
@@ -7648,15 +7836,70 @@ export default function StockInventoryContent({
   const [restoringId, setRestoringId] = useState(null);
   const [toast, setToast] = useState(null);
 
-  const brandList = propBrands.length > 0 ? propBrands : [];
+  // Use brands from parent when available.
+  // Otherwise Stock Inventory will load them directly from the backend.
+  const [localBrands, setLocalBrands] = useState([]);
 
-  const connectedBrandDefs = useMemo(
-    () =>
-      BRAND_DEFS.filter((bd) =>
-        brandList.some((b) => bd.match((b.name || "").toLowerCase())),
-      ).sort((a, b) => a.label.localeCompare(b.label)),
-    [brandList],
-  );
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadBrands = async () => {
+      try {
+        const res = await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/brands`,
+          {
+            method: "GET",
+            credentials: "include",
+            cache: "no-store",
+          },
+        );
+
+        if (!res.ok) {
+          throw new Error(`Failed to fetch brands: ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        const loadedBrands = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.brands)
+            ? data.brands
+            : [];
+
+        if (!cancelled) {
+          setLocalBrands(loadedBrands);
+        }
+      } catch (error) {
+        console.error("Stock Inventory brand fetch error:", error);
+
+        if (!cancelled) {
+          setLocalBrands([]);
+        }
+      }
+    };
+
+    loadBrands();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const brandList = localBrands;
+
+  const connectedBrandDefs = useMemo(() => {
+    const matched = BRAND_DEFS.filter((bd) =>
+      brandList.some((b) => {
+        const brandName = String(b?.name || "")
+          .trim()
+          .toLowerCase();
+
+        return bd.match(brandName);
+      }),
+    ).sort((a, b) => a.label.localeCompare(b.label));
+
+    return matched;
+  }, [brandList]);
 
   const defaultBulkQtyForUnit = (unit) =>
     ["g", "ml"].includes(unit)
@@ -7856,43 +8099,100 @@ export default function StockInventoryContent({
     setLoading(true);
 
     try {
-      const params = new URLSearchParams();
+      let currentUser = user;
 
-      if (!isAdmin) {
-        if (userBranch) {
-          params.set("branch", userBranch);
+      // Recover the authenticated user from the JWT session
+      // if the parent has not passed it yet.
+      if (!currentUser) {
+        const sessionRes = await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/session`,
+          {
+            credentials: "include",
+          },
+        );
+
+        if (!sessionRes.ok) {
+          throw new Error("Unable to get authenticated user.");
         }
 
-        if (userBrand) {
-          params.set("brand", userBrand);
+        const sessionData = await sessionRes.json();
+        currentUser = sessionData?.user;
+      }
+
+      if (!currentUser?.role) {
+        throw new Error("User role is unavailable.");
+      }
+
+      const currentRole = String(currentUser.role || "")
+        .trim()
+        .toLowerCase();
+
+      const currentIsAdmin =
+        currentRole === "super admin" ||
+        currentRole === "sales admin" ||
+        currentRole === "franchisee operations admin" ||
+        currentRole === "franchise operations admin" ||
+        currentRole === "franchisor operations admin";
+
+      const currentBranch = String(currentUser.branch || "").trim();
+
+      const currentBrand = String(
+        currentUser.brand ||
+          currentUser.brand_name ||
+          currentUser.brandName ||
+          "",
+      ).trim();
+
+      const params = new URLSearchParams();
+
+      if (!currentIsAdmin) {
+        if (currentBranch) {
+          params.set("branch", currentBranch);
+        }
+
+        if (currentBrand) {
+          params.set("brand", currentBrand);
         }
       }
 
       const query = params.toString() ? `?${params.toString()}` : "";
 
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ingredients${query}`,
+        {
+          credentials: "include",
+        },
       );
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+
+        throw new Error(
+          errorData.message ||
+            errorData.error ||
+            `Failed to load inventory (${res.status})`,
+        );
+      }
 
       const d = await res.json();
 
       const rows = Array.isArray(d)
         ? d.map(normalizeStockItem).filter((item) => {
-            if (isAdmin) {
+            if (currentIsAdmin) {
               return true;
             }
 
             const sameBranch =
-              !userBranch ||
+              !currentBranch ||
               String(item.branch || "")
                 .trim()
-                .toLowerCase() === userBranch.toLowerCase();
+                .toLowerCase() === currentBranch.toLowerCase();
 
             const sameBrand =
-              !userBrand ||
+              !currentBrand ||
               String(item.brand || "")
                 .trim()
-                .toLowerCase() === userBrand.toLowerCase();
+                .toLowerCase() === currentBrand.toLowerCase();
 
             return sameBranch && sameBrand;
           })
@@ -7902,21 +8202,29 @@ export default function StockInventoryContent({
 
       return rows;
     } catch (err) {
-      console.error("Failed to fetch manager stock inventory:", err);
-
+      console.error("Failed to fetch stock inventory:", err);
       setItems([]);
-
       return [];
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, userBranch, userBrand]);
+  }, [user]);
 
   const fetchDeleteHistory = useCallback(async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ingredient-delete-history`,
+        {
+          credentials: "include",
+        },
       );
+
+      if (!res.ok) {
+        throw new Error(
+          `Failed to load ingredient delete history (${res.status})`,
+        );
+      }
+
       const data = await res.json();
       setDeleteHistory(
         Array.isArray(data)
@@ -7935,9 +8243,19 @@ export default function StockInventoryContent({
 
   const fetchActivityLog = useCallback(async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ingredient-activity-log`,
+        {
+          credentials: "include",
+        },
       );
+
+      if (!res.ok) {
+        throw new Error(
+          `Failed to load ingredient activity log (${res.status})`,
+        );
+      }
+
       const data = await res.json();
       setActivityLog(
         Array.isArray(data)
@@ -7991,33 +8309,65 @@ export default function StockInventoryContent({
   useEffect(() => {
     setPage(0);
   }, [search, brand, branch, unitFilter, statusFilt]);
+
   useEffect(() => {
     if (!activeBatchIngredient) return;
+
     setBatchLoading(true);
-    fetch(
+
+    adminModuleFetch(
       `${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${activeBatchIngredient.id}`,
+      {
+        credentials: "include",
+      },
     )
-      .then((r) => r.json())
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to load ingredient batches (${res.status})`);
+        }
+
+        return res.json();
+      })
       .then((d) => {
         setBatches(Array.isArray(d) ? d : []);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch ingredient batches:", err);
+        setBatches([]);
+      })
+      .finally(() => {
         setBatchLoading(false);
       });
   }, [activeBatchIngredient]);
 
   const importExcel = (e) => {
-    if (!canEditInventory) {
+    const role = String(user?.role || "")
+      .trim()
+      .toLowerCase();
+
+    const isSuperAdmin = role === "super admin";
+    const isSalesAdmin = role === "sales admin";
+    const isFranchiseeOperationsAdmin = role === "franchisee operations admin";
+
+    const HEAD_OFFICE = "san juan (head office)";
+
+    // Only Super Admin and Sales Admin can import.
+    if (isFranchiseeOperationsAdmin || (!isSuperAdmin && !isSalesAdmin)) {
       e.target.value = "";
 
       showUiModal({
         type: "error",
         title: "Read Only Access",
-        message: "Your account cannot import inventory records.",
+        message:
+          "Your account has read-only access and cannot import inventory records.",
       });
 
       return;
     }
+
     const file = e.target.files[0];
     if (!file) return;
+
     setImportLoading(true);
     setImportProgress({
       percent: 5,
@@ -8025,48 +8375,76 @@ export default function StockInventoryContent({
       current: 0,
       total: 0,
     });
+
     const reader = new FileReader();
+
     reader.onload = async (ev) => {
       try {
         const coords = await getBrowserLocation();
+
         setImportProgress({
           percent: 15,
           label: "Parsing spreadsheet…",
           current: 0,
           total: 0,
         });
+
         const wb = XLSX.read(ev.target.result, { type: "array" });
+
         const rows_to_save = [];
+        const readOnlyBranchRows = [];
+
         wb.SheetNames.forEach((sheetName) => {
           const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {
             defval: "",
           });
+
           rows.forEach((row) => {
             const name = capitalizeName(
               String(
                 row.name || row.Name || row["INGREDIENT NAME"] || "",
               ).trim(),
             );
+
             if (!name) return;
+
             const rowBranch =
               String(row.branch || row.Branch || "").trim() || "Unknown";
+
+            // Super Admin and Sales Admin may only import into Head Office.
+            if (rowBranch.toLowerCase() !== HEAD_OFFICE) {
+              readOnlyBranchRows.push({
+                name,
+                branch: rowBranch,
+              });
+              return;
+            }
+
             const alreadyExists = items.some(
               (i) =>
                 normalizeName(i.name) === normalizeName(name) &&
-                i.branch.trim().toLowerCase() === rowBranch.toLowerCase(),
+                String(i.branch || "")
+                  .trim()
+                  .toLowerCase() === rowBranch.toLowerCase(),
             );
+
             if (alreadyExists) return;
+
             const rawListInShop = row.list_in_shop ?? row["List In Shop"] ?? "";
+
             const listInShop =
               rawListInShop === 1 ||
               rawListInShop === true ||
               String(rawListInShop).trim().toLowerCase() === "1" ||
               String(rawListInShop).trim().toLowerCase() === "yes" ||
               String(rawListInShop).trim().toLowerCase() === "true";
+
             const rowBrand = String(row.brand || row.Brand || "").trim();
+
             const rowCategory = String(
               row.category || row.Category || "",
             ).trim();
+
             rows_to_save.push({
               name,
               branch: rowBranch,
@@ -8089,63 +8467,102 @@ export default function StockInventoryContent({
           });
         });
 
+        // If nothing can be imported because all rows belong to other branches.
+        if (rows_to_save.length === 0 && readOnlyBranchRows.length > 0) {
+          setImportLoading(false);
+          e.target.value = "";
+
+          showUiModal({
+            type: "error",
+            title: "Read Only Branch",
+            message:
+              "No records were imported. Stock Inventory can only be imported into San Juan (Head Office).",
+            lines: readOnlyBranchRows.map((item) => ({
+              text: `${item.name} — ${item.branch}`,
+              warn: true,
+            })),
+          });
+
+          return;
+        }
+
         setImportProgress({
           percent: 25,
           label: `Found ${rows_to_save.length} rows. Importing…`,
           current: 0,
           total: rows_to_save.length,
         });
-        let saved = 0,
-          shopSaved = 0,
-          skipped = 0;
+
+        let saved = 0;
+        let shopSaved = 0;
+        let skipped = 0;
+
         const skippedNames = [];
 
         for (let idx = 0; idx < rows_to_save.length; idx++) {
           const item = rows_to_save[idx];
+
           setImportProgress({
-            percent: 25 + Math.round(((idx + 1) / rows_to_save.length) * 65),
+            percent:
+              25 +
+              Math.round(((idx + 1) / Math.max(rows_to_save.length, 1)) * 65),
             label: `Saving "${item.name}"…`,
             current: idx + 1,
             total: rows_to_save.length,
           });
+
           try {
-            const res = await fetch(
+            const res = await adminModuleFetch(
               `${process.env.REACT_APP_API_URL}/ingredients`,
               {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                  "Content-Type": "application/json",
+                },
                 body: JSON.stringify({
                   ...item,
                   performed_by: userName,
+                  performed_by_role: user?.role || "Unknown",
                   latitude: coords?.latitude,
                   longitude: coords?.longitude,
                   imported: true,
                 }),
               },
             );
+
             const d = await res.json();
+
             if (d.success) {
               saved++;
+
               if (item.listInShop && item.shopPrice > 0) {
                 try {
-                  const checkRes = await fetch(
+                  const checkRes = await adminModuleFetch(
                     `${process.env.REACT_APP_API_URL}/shop-items`,
                   );
+
                   const checkData = await checkRes.json();
-                  if (
-                    !checkData.some(
-                      (s) =>
-                        s.name.trim().toLowerCase() ===
-                          item.name.toLowerCase() &&
-                        s.shop.trim().toLowerCase() ===
-                          item.shopCategory.toLowerCase(),
-                    )
-                  ) {
-                    const shopRes = await fetch(
+
+                  const shopItems = Array.isArray(checkData) ? checkData : [];
+
+                  const alreadyInShop = shopItems.some(
+                    (s) =>
+                      String(s.name || "")
+                        .trim()
+                        .toLowerCase() === item.name.toLowerCase() &&
+                      String(s.shop || "")
+                        .trim()
+                        .toLowerCase() === item.shopCategory.toLowerCase(),
+                  );
+
+                  if (!alreadyInShop) {
+                    const shopRes = await adminModuleFetch(
                       `${process.env.REACT_APP_API_URL}/shop-items`,
                       {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
                         body: JSON.stringify({
                           name: item.name,
                           price: item.shopPrice,
@@ -8155,21 +8572,34 @@ export default function StockInventoryContent({
                           brand: item.brand || "",
                           image_url: "...",
                           is_visible: true,
+                          performed_by: userName,
                           performed_by_role: user?.role || "Unknown",
                           latitude: coords?.latitude,
                           longitude: coords?.longitude,
                         }),
                       },
                     );
-                    if ((await shopRes.json()).success) shopSaved++;
+
+                    const shopResult = await shopRes.json();
+
+                    if (shopResult.success) {
+                      shopSaved++;
+                    }
                   }
-                } catch {}
+                } catch (error) {
+                  console.error(
+                    "Failed to add imported item to Mobile Shop:",
+                    error,
+                  );
+                }
               }
             } else {
               skipped++;
               skippedNames.push(item.name);
             }
-          } catch {
+          } catch (error) {
+            console.error("Failed to import ingredient:", error);
+
             skipped++;
             skippedNames.push(item.name);
           }
@@ -8181,37 +8611,75 @@ export default function StockInventoryContent({
           current: rows_to_save.length,
           total: rows_to_save.length,
         });
+
         await fetchItems();
         await fetchActivityLog();
+
         const summaryLines = [
-          { text: `${rows_to_save.length} row(s) parsed from file` },
-          { text: `${saved} ingredient(s) saved successfully` },
+          {
+            text: `${rows_to_save.length} Head Office row(s) parsed from file`,
+          },
+          {
+            text: `${saved} ingredient(s) saved successfully`,
+          },
+
           ...(shopSaved > 0
-            ? [{ text: `${shopSaved} item(s) also added to Mobile Shop` }]
+            ? [
+                {
+                  text: `${shopSaved} item(s) also added to Mobile Shop`,
+                },
+              ]
             : []),
+
+          ...(readOnlyBranchRows.length > 0
+            ? [
+                {
+                  text: `${readOnlyBranchRows.length} row(s) skipped because the branch is read-only`,
+                  warn: true,
+                },
+                ...readOnlyBranchRows.map((item) => ({
+                  text: `${item.name} — ${item.branch}`,
+                  warn: true,
+                })),
+              ]
+            : []),
+
           ...(skipped > 0
             ? [
-                { text: `${skipped} item(s) failed or skipped`, warn: true },
-                ...skippedNames.map((n) => ({ text: n, warn: true })),
+                {
+                  text: `${skipped} item(s) failed or were skipped`,
+                  warn: true,
+                },
+                ...skippedNames.map((name) => ({
+                  text: name,
+                  warn: true,
+                })),
               ]
             : []),
         ];
+
         setTimeout(() => {
           setImportLoading(false);
           e.target.value = "";
+
+          const totalSkipped = skipped + readOnlyBranchRows.length;
+
           showUiModal({
-            type: skipped > 0 ? "info" : "success",
+            type: totalSkipped > 0 ? "info" : "success",
             title: "Import Complete",
             message:
-              skipped > 0
-                ? `${saved} ingredient(s) saved. ${skipped} item(s) were skipped.`
+              totalSkipped > 0
+                ? `${saved} ingredient(s) imported. ${totalSkipped} row(s) were skipped.`
                 : `Successfully imported ${saved} ingredient(s).`,
             lines: summaryLines,
           });
         }, 400);
-      } catch {
+      } catch (error) {
+        console.error("Excel import failed:", error);
+
         setImportLoading(false);
         e.target.value = "";
+
         showUiModal({
           type: "error",
           title: "Import Failed",
@@ -8219,6 +8687,7 @@ export default function StockInventoryContent({
         });
       }
     };
+
     reader.readAsArrayBuffer(file);
   };
 
@@ -8282,15 +8751,68 @@ export default function StockInventoryContent({
   const pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const saveItem = async (e) => {
-    if (!canEditInventory) {
+    e.preventDefault();
+
+    const role = String(user?.role || "")
+      .trim()
+      .toLowerCase();
+
+    const isSuperAdmin = role === "super admin";
+    const isSalesAdmin = role === "sales admin";
+    const isFranchiseeOperationsAdmin = role === "franchisee operations admin";
+
+    // Franchisee Operations Admin is always read-only.
+    if (isFranchiseeOperationsAdmin) {
       showUiModal({
         type: "error",
         title: "Read Only Access",
-        message: "Your account can view Stock Inventory but cannot modify it.",
+        message:
+          "Franchisee Operations Admin has read-only access to Stock Inventory.",
       });
       return;
     }
-    e.preventDefault();
+
+    // Determine which branch is being modified.
+    const targetBranch = editing
+      ? editing.branch
+      : form.branches?.length === 1
+        ? form.branches[0]
+        : null;
+
+    // Super Admin and Sales Admin may modify Head Office only.
+    if (
+      (isSuperAdmin || isSalesAdmin) &&
+      targetBranch &&
+      String(targetBranch).trim().toLowerCase() !== "san juan (head office)"
+    ) {
+      showUiModal({
+        type: "error",
+        title: "Read Only Access",
+        message:
+          "Stock Inventory can only be modified in San Juan (Head Office). Other branches are read-only.",
+      });
+      return;
+    }
+
+    // When adding to multiple branches, prevent non-Head Office branches.
+    if (
+      (isSuperAdmin || isSalesAdmin) &&
+      !editing &&
+      Array.isArray(form.branches) &&
+      form.branches.some(
+        (branch) =>
+          String(branch).trim().toLowerCase() !== "san juan (head office)",
+      )
+    ) {
+      showUiModal({
+        type: "error",
+        title: "Read Only Access",
+        message:
+          "You can only add Stock Inventory records to San Juan (Head Office). Other branches are read-only.",
+      });
+      return;
+    }
+
     const errors = [];
     if (!form.name || !form.name.trim())
       errors.push("Ingredient name is required.");
@@ -8405,7 +8927,7 @@ export default function StockInventoryContent({
       let updatedItem = null;
 
       try {
-        const res = await fetch(
+        const res = await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/ingredients/${editing.id}`,
           {
             method: "PUT",
@@ -8426,7 +8948,7 @@ export default function StockInventoryContent({
               : Math.round(parseFloat(form.cost_per_unit) * 1.1 * 100) / 100;
             try {
               const ingredientId = editing.id;
-              const shopRes = await fetch(
+              const shopRes = await adminModuleFetch(
                 `${process.env.REACT_APP_API_URL}/shop-items`,
               );
               const shopData = await shopRes.json();
@@ -8444,7 +8966,7 @@ export default function StockInventoryContent({
                 longitude: payload.longitude,
               };
               if (existingShopItem) {
-                await fetch(
+                await adminModuleFetch(
                   `${process.env.REACT_APP_API_URL}/shop-items/${existingShopItem.id}`,
                   {
                     method: "PUT",
@@ -8453,20 +8975,23 @@ export default function StockInventoryContent({
                   },
                 );
               } else {
-                await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    ...shopBody,
-                    stock: 0,
-                    image_url:
-                      "https://placehold.co/150x150/e8f5e9/2e7d32?text=" +
-                      encodeURIComponent(payload.name.slice(0, 8)),
-                    is_visible: true,
-                    branches: [],
-                    ingredient_id: ingredientId,
-                  }),
-                });
+                await adminModuleFetch(
+                  `${process.env.REACT_APP_API_URL}/shop-items`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      ...shopBody,
+                      stock: 0,
+                      image_url:
+                        "https://placehold.co/150x150/e8f5e9/2e7d32?text=" +
+                        encodeURIComponent(payload.name.slice(0, 8)),
+                      is_visible: true,
+                      branches: [],
+                      ingredient_id: ingredientId,
+                    }),
+                  },
+                );
               }
             } catch {}
           }
@@ -8533,7 +9058,7 @@ export default function StockInventoryContent({
         }
 
         try {
-          const res = await fetch(
+          const res = await adminModuleFetch(
             `${process.env.REACT_APP_API_URL}/ingredients`,
             {
               method: "POST",
@@ -8649,7 +9174,7 @@ export default function StockInventoryContent({
       }
 
       try {
-        const res = await fetch(
+        const res = await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/ingredients`,
           {
             method: "POST",
@@ -8745,20 +9270,50 @@ export default function StockInventoryContent({
   const handleDeleteItem = (item) => setDeleteTarget(item);
 
   const confirmDelete = async () => {
-    if (!canEditInventory) {
+    if (!deleteTarget) return;
+
+    const item = deleteTarget;
+
+    const role = String(user?.role || "")
+      .trim()
+      .toLowerCase();
+
+    const isSuperAdmin = role === "super admin";
+    const isSalesAdmin = role === "sales admin";
+    const isFranchiseeOperationsAdmin = role === "franchisee operations admin";
+
+    // Franchisee Operations Admin can never delete.
+    if (isFranchiseeOperationsAdmin) {
       showUiModal({
         type: "error",
         title: "Read Only Access",
-        message: "Your account cannot delete inventory records.",
+        message:
+          "Franchisee Operations Admin has read-only access to Stock Inventory.",
       });
       return;
     }
-    if (!deleteTarget) return;
-    const item = deleteTarget;
+
+    // Super Admin and Sales Admin can delete from Head Office only.
+    const itemBranch = String(item?.branch || "")
+      .trim()
+      .toLowerCase();
+
+    if (
+      (isSuperAdmin || isSalesAdmin) &&
+      itemBranch !== "san juan (head office)"
+    ) {
+      showUiModal({
+        type: "error",
+        title: "Read Only Access",
+        message:
+          "Inventory can only be deleted from San Juan (Head Office). Other branches are read-only.",
+      });
+      return;
+    }
     setDeletingItem(true);
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ingredients/${item.id}`,
         {
           method: "DELETE",
@@ -8773,7 +9328,7 @@ export default function StockInventoryContent({
       );
       const d = await res.json();
       if (d.success) {
-        await fetch(
+        await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/ingredient-delete-history`,
           {
             method: "POST",
@@ -8818,35 +9373,85 @@ export default function StockInventoryContent({
   };
 
   const handleRestore = async (entry) => {
-    setRestoringId(entry.id);
-    try {
-      const d = entry.data;
-      const coords = await getBrowserLocation();
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: d.name,
-          branch: d.branch,
-          brand: d.brand,
-          category: d.category || "",
-          unit: d.unit,
-          stock: d.stock,
-          min_stock: d.min_stock,
-          cost_per_unit: d.cost_per_unit,
-          performed_by: userName,
-          performed_by_role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-          restored: true,
-        }),
+    const d = entry?.data;
+
+    if (!d) {
+      showUiModal({
+        type: "error",
+        title: "Restore Failed",
+        message: "The deleted inventory record could not be found.",
       });
+      return;
+    }
+
+    const role = String(user?.role || "")
+      .trim()
+      .toLowerCase();
+
+    const isSuperAdmin = role === "super admin";
+    const isSalesAdmin = role === "sales admin";
+    const isFranchiseeOperationsAdmin = role === "franchisee operations admin";
+
+    // Franchisee Operations Admin can never restore.
+    if (isFranchiseeOperationsAdmin) {
+      showUiModal({
+        type: "error",
+        title: "Read Only Access",
+        message:
+          "Franchisee Operations Admin has read-only access to Stock Inventory.",
+      });
+      return;
+    }
+
+    // Restore goes back to the branch stored in the deleted record.
+    const restoredBranch = String(d.branch || "").trim();
+
+    const canRestore =
+      (isSuperAdmin || isSalesAdmin) &&
+      restoredBranch.toLowerCase() === "san juan (head office)";
+
+    if (!canRestore) {
+      showUiModal({
+        type: "error",
+        title: "Read Only Access",
+        message:
+          "Inventory can only be restored to San Juan (Head Office). Other branches are read-only.",
+      });
+      return;
+    }
+
+    setRestoringId(entry.id);
+
+    try {
+      const coords = await getBrowserLocation();
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/ingredients`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: d.name,
+            branch: d.branch,
+            brand: d.brand,
+            category: d.category || "",
+            unit: d.unit,
+            stock: d.stock,
+            min_stock: d.min_stock,
+            cost_per_unit: d.cost_per_unit,
+            performed_by: userName,
+            performed_by_role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+            restored: true,
+          }),
+        },
+      );
       const result = await res.json();
       if (result.success) {
         if (result.item?.id != null && d.category) {
           persistStockCategory(result.item.id, d.category);
         }
-        await fetch(
+        await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/ingredient-delete-history/${entry.id}`,
           { method: "DELETE" },
         );
@@ -8902,7 +9507,9 @@ export default function StockInventoryContent({
     setEditing(item);
     let shopMatch = null;
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/shop-items`,
+      );
       const data = await res.json();
       if (Array.isArray(data)) {
         shopMatch = data.find((s) => s.ingredient_id === item.id) || null;
@@ -9129,6 +9736,15 @@ export default function StockInventoryContent({
             onDelete={handleDeleteItem}
             onManageBatches={(item) => {
               if (item) {
+                const itemIsHeadOffice =
+                  String(item.branch || "")
+                    .trim()
+                    .toLowerCase() === "san juan (head office)".toLowerCase();
+
+                const canManage =
+                  (isSuperAdmin || isSalesAdmin) && itemIsHeadOffice;
+
+                setActiveBatchReadOnly(!canManage);
                 setActiveBatchIngredient(item);
                 setBatches([]);
               }
@@ -9175,7 +9791,7 @@ export default function StockInventoryContent({
             initialBranchFilter={initialFocus?.branch || ""}
             initialStatusFilter={initialFocus?.lowStockOnly ? "low" : ""}
             expanded
-            readOnly={isReadOnly}
+            readOnly={activeBatchReadOnly}
             userName={userName}
             userRole={user?.role}
             showUiModal={showUiModal}
@@ -10189,7 +10805,7 @@ export default function StockInventoryContent({
       )}
 
       {/* ── RECEIVE STOCK MODAL ── */}
-      {receiveTarget && canEditInventory && (
+      {receiveTarget && (
         <ReceiveStockModal
           brandDef={receiveTarget.brandDef}
           brandItems={brandItemsFor(receiveTarget.brandDef)}
@@ -10201,16 +10817,20 @@ export default function StockInventoryContent({
           onDone={async (receivedProduct) => {
             const freshRows = await fetchItems();
             await fetchActivityLog();
+
             const freshItem =
               freshRows.find(
                 (row) => String(row.id) === String(receivedProduct?.id),
               ) || receivedProduct;
-            if (freshItem)
+
+            if (freshItem) {
               setFocusMutation({
                 item: freshItem,
                 stamp: Date.now(),
                 reason: "receive",
               });
+            }
+
             setStockRefreshToken((v) => v + 1);
             setReceiveTarget(null);
           }}
@@ -10230,10 +10850,10 @@ export default function StockInventoryContent({
           userRole={user?.role}
           showUiModal={showUiModal}
           setToast={setToast}
-          readOnly={isReadOnly}
+          readOnly={activeBatchReadOnly}
           onRefresh={() => {
             setBatchLoading(true);
-            fetch(
+            adminModuleFetch(
               `${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${activeBatchIngredient.id}`,
             )
               .then((r) => r.json())
