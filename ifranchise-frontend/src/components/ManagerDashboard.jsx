@@ -719,7 +719,7 @@ const ReadOnlyBanner = ({
   </div>
 );
 
-export default function ManagerDashboard() {
+export default function ManagerDashboard({ onLogout }) {
   useEffect(() => {
     const fontId = "fr-plus-jakarta-sans";
     if (!document.getElementById(fontId)) {
@@ -740,6 +740,7 @@ export default function ManagerDashboard() {
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [brands, setBrands] = useState([]);
 
@@ -965,30 +966,15 @@ export default function ManagerDashboard() {
 
   const handleLogout = () => setShowLogoutModal(true);
 
-  const confirmLogout = async () => {
-    try {
-      const stored =
-        localStorage.getItem("user") || sessionStorage.getItem("user");
-      const userId = stored ? JSON.parse(stored)?.id : null;
+  const confirmLogout = () => {
+    if (isLoggingOut) return;
 
-      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/logout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-        credentials: "include",
-      });
-    } catch (err) {
-      console.error("Logout error:", err);
-    } finally {
-      localStorage.removeItem("user");
-      localStorage.removeItem("rememberedUser");
-      sessionStorage.removeItem("user");
-      sessionStorage.removeItem("tempUser");
-      sessionStorage.removeItem("fr_activeModule");
-      setShowLogoutModal(false);
-      window.location.href = "/admin-login";
-    }
+    setIsLoggingOut(true);
+    setShowLogoutModal(false);
+
+    onLogout?.();
   };
+
   const navigation = [
     { id: "dashboard", label: "Dashboard", icon: <Home size={20} /> },
     {

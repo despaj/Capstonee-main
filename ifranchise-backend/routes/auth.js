@@ -32,13 +32,7 @@ const crypto = require("crypto");
 const resetTokenStore = require("../utils/resetTokenStore");
 
 const { authenticate } = require("../middleware/auth");
-const {
-  signAccessToken,
-  generateRefreshToken,
-  hashToken,
-  setAuthCookies,
-  clearAuthCookies,
-} = require("../utils/jwt");
+const { hashToken, clearAuthCookies } = require("../utils/jwt");
 
 function getClientIp(req) {
   const fwd = req.headers["x-forwarded-for"];
@@ -131,18 +125,6 @@ async function logLogin(user, req, latitude, longitude) {
   }
 }
 
-async function issueSession(res, user, deviceId) {
-  const accessToken = signAccessToken(user);
-  const { token: refreshToken, tokenHash, expiresAt } = generateRefreshToken();
-
-  await pool.query(
-    `INSERT INTO refresh_tokens (user_id, token_hash, device_id, expires_at) VALUES ($1,$2,$3,$4)`,
-    [user.id, tokenHash, deviceId, expiresAt],
-  );
-
-  setAuthCookies(res, accessToken, refreshToken);
-}
-
 router.get("/me", authenticate, async (req, res) => {
   try {
     res.json({
@@ -205,7 +187,7 @@ router.post("/login", async (req, res) => {
         `Trusted device or OTP-exempt account for ${email} — skipping OTP`,
       );
       await logLogin(safeUser, req, latitude, longitude);
-      await issueSession(res, safeUser, deviceId);
+      await issueSession(req, res, user.rows[0]);
       return res.json({ success: true, skipOtp: true, user: safeUser });
     }
 
@@ -302,8 +284,11 @@ router.post("/verify-otp-login", async (req, res) => {
 
     await finishOtpSession(req, res, user.rows[0]);
     await logLogin(safeUser, req, latitude, longitude);
-    await issueSession(res, safeUser, deviceId);
-    return res.json({ success: true, user: safeUser });
+
+    return res.json({
+      success: true,
+      user: safeUser,
+    });
   } catch (err) {
     console.error("OTP verification error:", err);
     res
@@ -365,7 +350,7 @@ router.post("/refresh-token", async (req, res) => {
       branch: user.rows[0].branch,
       brand: user.rows[0].brand,
     };
-    await issueSession(res, safeUser, row.device_id);
+    await issueSession(req, res, user.rows[0]);
 
     res.json({ success: true, user: safeUser });
   } catch (err) {
@@ -472,7 +457,6 @@ router.post("/verify-sms-otp", async (req, res) => {
 
     await finishOtpSession(req, res, user.rows[0]);
     await logLogin(safeUser, req, latitude, longitude);
-    await issueSession(res, safeUser, deviceId);
 
     return res.json({
       success: true,

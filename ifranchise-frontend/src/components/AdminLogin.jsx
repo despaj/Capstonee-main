@@ -2,12 +2,6 @@ import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
 import welcome from "../assets/welcomepage.png";
-import AdminDashboard from "./AdminDashboard";
-import StaffDashboard from "./StaffDashboard";
-import FranchiseeDashboard from "./FranchiseeDashboard";
-import ManagerDashboard from "./ManagerDashboard";
-import FranchiseAdminDashboard from "./FranchiseAdminDashboard";
-import SalesAdmin from "./SalesAdmin";
 import { Eye, EyeOff, CheckCircle } from "lucide-react";
 
 const TEST_ACCOUNTS = [
@@ -224,14 +218,10 @@ function UnknownRoleScreen({ userRole, onBackToLogin }) {
     </div>
   );
 }
-
-export default function AdminLogin() {
+export default function AdminLogin({ onLogin }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState("");
 
   const [step, setStep] = useState("login");
@@ -262,7 +252,6 @@ export default function AdminLogin() {
   const [otpError, setOtpError] = useState("");
 
   const [showSplash, setShowSplash] = useState(true);
-  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [resendDisabled, setResendDisabled] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
 
@@ -332,24 +321,6 @@ export default function AdminLogin() {
 
   const [resetDoneCountdown, setResetDoneCountdown] = useState(3);
 
-  // ── Block browser back button when logged in ──
-  useEffect(() => {
-    if (!loggedIn) return;
-
-    // Push a sentinel entry so there's something to intercept
-    window.history.pushState({ loggedIn: true }, "");
-
-    const handlePopState = () => {
-      if (loggedIn) {
-        // Re-push to keep them pinned — back button goes nowhere
-        window.history.pushState({ loggedIn: true }, "");
-      }
-    };
-
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [loggedIn]);
-
   useEffect(() => {
     if (step !== "resetDone") {
       setResetDoneCountdown(3); // reset for next time
@@ -372,94 +343,56 @@ export default function AdminLogin() {
     return () => clearTimeout(timer);
   }, [step, resetDoneCountdown]);
 
-  useEffect(() => {
-    (async () => {
-      // If the user intentionally logged out, do not try to restore
-      // the session or refresh token.
-      const wasLoggingOut = sessionStorage.getItem("isLoggingOut") === "true";
-
-      if (wasLoggingOut) {
-        setIsCheckingSession(false);
-        return;
-      }
-
-      try {
-        let res = await fetch(`${process.env.REACT_APP_API_URL}/session`, {
-          credentials: "include",
-        });
-
-        if (res.status === 401) {
-          const refreshRes = await fetch(
-            `${process.env.REACT_APP_API_URL}/refresh-token`,
-            {
-              method: "POST",
-              credentials: "include",
-            },
-          );
-
-          if (refreshRes.ok) {
-            res = await fetch(`${process.env.REACT_APP_API_URL}/session`, {
-              credentials: "include",
-            });
-          }
-        }
-
-        if (res.ok) {
-          const data = await res.json();
-
-          setCurrentUser(data.user);
-          setLoggedIn(true);
-          setUserRole(data.user.role);
-
-          window.history.pushState({ loggedIn: true }, "");
-        }
-      } catch {
-        // No valid session — stay on login screen
-      } finally {
-        setIsCheckingSession(false);
-      }
-    })();
-  }, []);
-
   // Keep the required three-second welcome splash.
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 3000);
     return () => clearTimeout(timer);
   }, []);
 
-  // ── Login lockout from storage ──
+  // ── Login lockout from storage — PER EMAIL ──
   useEffect(() => {
-    if (!email) return;
+    if (!email.trim()) {
+      setIsLocked(false);
+      setLockoutTime(null);
+      setLoginAttempts(0);
+      setAuthError("");
+      return;
+    }
 
     const emailKey = email.trim().toLowerCase();
 
     const storedLockout = localStorage.getItem(`loginLockout_${emailKey}`);
 
-    const storedAttempts = localStorage.getItem(`loginAttempts_${emailKey}`);
+    const storedAttempts =
+      parseInt(localStorage.getItem(`loginAttempts_${emailKey}`), 10) || 0;
 
-    if (storedLockout) {
-      const lockTime = parseInt(storedLockout, 10);
+    // Always reset the currently displayed account state first
+    setIsLocked(false);
+    setLockoutTime(null);
+    setLoginAttempts(storedAttempts);
+    setAuthError("");
 
-      if (Date.now() < lockTime) {
-        setIsLocked(true);
-        setLockoutTime(lockTime);
-        setLoginAttempts(MAX_ATTEMPTS);
-      } else {
-        // Lockout has expired
-        localStorage.removeItem(`loginLockout_${emailKey}`);
-        localStorage.removeItem(`loginAttempts_${emailKey}`);
-
-        setIsLocked(false);
-        setLockoutTime(null);
-        setLoginAttempts(0);
-      }
-    } else if (storedAttempts) {
-      setLoginAttempts(parseInt(storedAttempts, 10));
-      setIsLocked(false);
-    } else {
-      setLoginAttempts(0);
-      setIsLocked(false);
+    if (!storedLockout) {
+      return;
     }
+
+    const lockTime = parseInt(storedLockout, 10);
+
+    // This specific email is still locked
+    if (Date.now() < lockTime) {
+      setIsLocked(true);
+      setLockoutTime(lockTime);
+      setLoginAttempts(MAX_ATTEMPTS);
+      return;
+    }
+
+    // This specific email's lockout has expired
+    localStorage.removeItem(`loginLockout_${emailKey}`);
+    localStorage.removeItem(`loginAttempts_${emailKey}`);
+
+    setIsLocked(false);
+    setLockoutTime(null);
+    setLoginAttempts(0);
   }, [email]);
 
   useEffect(() => {
@@ -638,13 +571,13 @@ export default function AdminLogin() {
         if (data.skipOtp) {
           clearDashboardSessions();
 
-          setCurrentUser(data.user);
-          setLoggedIn(true);
-          setUserRole(data.user.role);
+          sessionStorage.removeItem("tempUser");
+          sessionStorage.setItem("user", JSON.stringify(data.user));
+
+          onLogin(data.user);
 
           return;
         }
-
         await sendOtpSilent(email.trim());
         setStep("otp");
       } else {
@@ -669,15 +602,16 @@ export default function AdminLogin() {
     const n = storedAttempts + 1;
 
     setLoginAttempts(n);
+
     localStorage.setItem(`loginAttempts_${emailKey}`, n.toString());
 
     if (n >= MAX_ATTEMPTS) {
       const lockTime = Date.now() + LOGIN_LOCKOUT_DURATION;
 
+      localStorage.setItem(`loginLockout_${emailKey}`, lockTime.toString());
+
       setIsLocked(true);
       setLockoutTime(lockTime);
-
-      localStorage.setItem(`loginLockout_${emailKey}`, lockTime.toString());
 
       setAuthError(
         "Too many login attempts. Please try again after 15 minutes.",
@@ -778,14 +712,13 @@ export default function AdminLogin() {
 
       setOtpAttempts(0);
       setOtpLockedUntil(null);
-      setOtpAttempts(0);
-      setOtpLockedUntil(null);
+
       sessionStorage.removeItem("tempUser");
+      sessionStorage.setItem("user", JSON.stringify(data.user));
+
       clearDashboardSessions();
 
-      setCurrentUser(data.user);
-      setLoggedIn(true);
-      setUserRole(data.user.role);
+      onLogin(data.user);
     } catch {
       setOtpError("OTP verification failed");
     } finally {
@@ -1133,43 +1066,6 @@ export default function AdminLogin() {
     return deviceId;
   };
 
-  const handleLogout = async () => {
-    if (!window.confirm("Are you sure you want to logout?")) return;
-
-    sessionStorage.setItem("isLoggingOut", "true");
-
-    try {
-      await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-      });
-    } catch (err) {
-      console.error("Logout error:", err);
-    }
-
-    localStorage.removeItem("user");
-    localStorage.removeItem("rememberedUser");
-
-    sessionStorage.removeItem("user");
-    sessionStorage.removeItem("tempUser");
-
-    clearDashboardSessions();
-
-    setLoggedIn(false);
-    setUserRole(null);
-    setCurrentUser(null);
-    setEmail("");
-    setPassword("");
-
-    setOtp(["", "", "", "", "", ""]);
-    setOtpEmail("");
-    setStep("login");
-
-    window.history.replaceState(null, "", "/admin-login");
-    navigate("/admin-login", { replace: true });
-  };
-
   // ── Step progress index ──
   const getForgotStepIndex = () => {
     if (step === "forgotPassword") return 0;
@@ -1178,53 +1074,6 @@ export default function AdminLogin() {
     if (step === "resetDone") return 3;
     return -1;
   };
-
-  if (isCheckingSession)
-    return (
-      <div className="splash" role="status" aria-label="Checking session">
-        <img src={logo} alt="iFranchise" className="splash-logo" />
-        <style>{styles(welcome)}</style>
-      </div>
-    );
-
-  if (loggedIn && userRole) {
-    switch (userRole) {
-      case "Super Admin":
-        return <AdminDashboard user={currentUser} onLogout={handleLogout} />;
-
-      case "Franchisee Operations Admin":
-        return (
-          <FranchiseAdminDashboard user={currentUser} onLogout={handleLogout} />
-        );
-
-      case "Sales Admin":
-        return <SalesAdmin user={currentUser} onLogout={handleLogout} />;
-
-      case "Franchisee":
-        return (
-          <FranchiseeDashboard user={currentUser} onLogout={handleLogout} />
-        );
-
-      case "Manager":
-        return <ManagerDashboard user={currentUser} onLogout={handleLogout} />;
-
-      case "Staff":
-        return <StaffDashboard user={currentUser} onLogout={handleLogout} />;
-      default:
-        return (
-          <UnknownRoleScreen
-            userRole={userRole}
-            onBackToLogin={() => {
-              localStorage.removeItem("rememberedUser");
-              localStorage.removeItem("user");
-              sessionStorage.removeItem("user");
-              setLoggedIn(false);
-              setUserRole(null);
-            }}
-          />
-        );
-    }
-  }
 
   if (showSplash)
     return (

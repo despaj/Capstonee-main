@@ -999,39 +999,14 @@ export default function FranchiseeDashboard({ onLogout }) {
   }, []);
   const handleLogout = () => setShowLogoutModal(true);
 
-  const confirmLogout = async () => {
-    if (isLoggingOut) return;
-    setIsLoggingOut(true);
-    try {
-      // Mark logout before clearing the server session.
-      // AdminLogin can use this to avoid trying /session -> /refresh-token.
-      sessionStorage.setItem("isLoggingOut", "true");
+const confirmLogout = () => {
+  if (isLoggingOut) return;
 
-      const stored =
-        localStorage.getItem("user") || sessionStorage.getItem("user");
-      const userId = stored ? JSON.parse(stored)?.id : null;
+  setIsLoggingOut(true);
+  setShowLogoutModal(false);
 
-      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/logout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-        credentials: "include",
-      });
-    } catch (err) {
-      console.error("Logout error:", err);
-    } finally {
-      localStorage.removeItem("user");
-      localStorage.removeItem("rememberedUser");
-      sessionStorage.removeItem("user");
-      sessionStorage.removeItem("tempUser");
-      sessionStorage.removeItem("fr_activeModule");
-
-      setShowLogoutModal(false);
-      setIsLoggingOut(false);
-
-      window.location.replace("/admin-login");
-    }
-  };
+  onLogout?.();
+};
 
   const navigation = [
     { id: "dashboard", label: "Dashboard", icon: <Home size={20} /> },
@@ -8754,7 +8729,7 @@ function FrMenuInventoryContent({ user, brands }) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/inventory?branch=${encodeURIComponent(userBranch)}`,
       );
       const d = await res.json();
@@ -9632,7 +9607,7 @@ function FrStockInventoryContent({ user, brands }) {
     if (!userBranch) return;
     setLoading(true);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ingredients?branch=${encodeURIComponent(userBranch)}`,
       );
       const d = await res.json();
@@ -9712,7 +9687,7 @@ function FrStockInventoryContent({ user, brands }) {
     }
     let cancelled = false;
     setBatchLoading(true);
-    fetch(
+    adminModuleFetch(
       `${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${selectedId}`,
     )
       .then((r) => r.json())

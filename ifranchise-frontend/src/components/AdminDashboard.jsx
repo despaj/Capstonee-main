@@ -21,7 +21,6 @@ import logoIfranchise from "../assets/report/ifranchise-logo.png";
 import logoSync from "../assets/report/franchsync-logo.png";
 import { supabase } from "../supabaseClient";
 import { adminModuleFetch } from "../utils/adminModuleFetch";
-
 import {
   Home,
   Box,
@@ -1829,7 +1828,6 @@ export default function AdminDashboard({ user, onLogout }) {
     return () => document.body.classList.remove("fr-admin-ui");
   }, []);
 
-  const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState(() => {
     return sessionStorage.getItem("fr_activeModule") || "dashboard";
   });
@@ -1850,12 +1848,23 @@ export default function AdminDashboard({ user, onLogout }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [inventoryFocus, setInventoryFocus] = useState(null);
 
-  const fetchAppDeleteHistory = async () => {
+  const fetchAppDeleteHistory = async (signal) => {
     try {
       const res = await adminModuleFetch(
         `${ADMIN_API_BASE}/application-delete-history`,
+        { signal },
       );
+
+      if (!res.ok) {
+        throw new Error(
+          `Failed to fetch application delete history: ${res.status}`,
+        );
+      }
+
       const data = await res.json();
+
+      if (signal?.aborted) return;
+
       const mapped = Array.isArray(data)
         ? data.map((row) => ({
             id: row.id,
@@ -1863,12 +1872,14 @@ export default function AdminDashboard({ user, onLogout }) {
             deletedAt: row.deleted_at ?? row.deletedAt,
           }))
         : [];
+
       setAppDeleteHistory(mapped);
     } catch (err) {
+      if (err.name === "AbortError") return;
+
       console.error("Failed to fetch application delete history:", err);
     }
   };
-
   const fetchActivityLog = useCallback(async () => {
     try {
       const res = await adminModuleFetch(
@@ -1881,37 +1892,14 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }, []);
 
-  const confirmLogout = async () => {
-    try {
-      // Mark logout before clearing the server session.
-      // AdminLogin can use this to avoid trying /session -> /refresh-token.
-      sessionStorage.setItem("isLoggingOut", "true");
+const confirmLogout = () => {
+  if (isLoggingOut) return;
 
-      const stored =
-        localStorage.getItem("user") || sessionStorage.getItem("user");
-      const userId = stored ? JSON.parse(stored)?.id : null;
+  setIsLoggingOut(true);
+  setShowLogoutModal(false);
 
-      await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-        credentials: "include",
-      });
-    } catch (err) {
-      console.error("Logout error:", err);
-    } finally {
-      localStorage.removeItem("user");
-      localStorage.removeItem("rememberedUser");
-      sessionStorage.removeItem("user");
-      sessionStorage.removeItem("tempUser");
-      sessionStorage.removeItem("fr_activeModule");
-
-      setShowLogoutModal(false);
-      setIsLoggingOut(false);
-
-      window.location.replace("/admin-login");
-    }
-  };
+  onLogout?.();
+};
 
   useEffect(() => {
     sessionStorage.setItem("fr_activeModule", activeModule);
@@ -1933,12 +1921,6 @@ export default function AdminDashboard({ user, onLogout }) {
       if (Array.isArray(data)) setTransactions(data);
     }
   }, []);
-
-  useEffect(() => {
-    if (!user) {
-      navigate("/admin-login");
-    }
-  }, [user, navigate]);
 
   const [brands, setBrands] = useState([]);
   useAdminLiveRefresh(async () => {
@@ -4741,7 +4723,7 @@ async function requestDashboardAnalysis(apiUrl, payload, signal) {
     throw new Error(
       "The API URL is missing. Configure REACT_APP_API_URL and rebuild the frontend.",
     );
-  const response = await fetch(`${base}/ai/dashboard-analysis`, {
+  const response = await adminModuleFetch(`${base}/ai/dashboard-analysis`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -23969,9 +23951,15 @@ function ApplicationsContent({
   };
 
   useEffect(() => {
+    const controller = new AbortController();
+
     fetchApplications();
-    fetchAppDeleteHistory();
+    fetchAppDeleteHistory(controller.signal);
     fetchActivityLog();
+
+    return () => {
+      controller.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -34507,7 +34495,7 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
       // If user was not passed to this component,
       // get the authenticated user from the JWT session.
       if (!currentUser) {
-        const sessionRes = await fetch(`${apiUrl}/session`, {
+        const sessionRes = await adminModuleFetch(`${apiUrl}/session`, {
           credentials: "include",
         });
 
@@ -35443,9 +35431,12 @@ function ProfileContent({ user }) {
       }
 
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/session`, {
-          credentials: "include",
-        });
+        const res = await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/session`,
+          {
+            credentials: "include",
+          },
+        );
 
         if (!res.ok) {
           setProfileUser(null);
@@ -35548,7 +35539,7 @@ function ProfileContent({ user }) {
     try {
       setOtpError("");
       const emailToVerify = formData.personalEmail || formData.email;
-      const response = await fetch(
+      const response = await adminModuleFetch(
         `${ADMIN_API_BASE}/users/${profileUser.id}/password`,
         {
           method: "PUT",

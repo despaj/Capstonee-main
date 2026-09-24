@@ -4760,30 +4760,15 @@ export function POSContent({ user }) {
 export default function StaffDashboard({ user, onLogout }) {
   const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const confirmLogout = async () => {
-    try {
-      const stored =
-        localStorage.getItem("user") || sessionStorage.getItem("user");
-      const userId = stored ? JSON.parse(stored)?.id : null;
+  const confirmLogout = () => {
+    if (isLoggingOut) return;
 
-      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/logout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-        credentials: "include",
-      });
-    } catch (err) {
-      console.error("Logout error:", err);
-    } finally {
-      localStorage.removeItem("user");
-      localStorage.removeItem("rememberedUser");
-      sessionStorage.removeItem("user");
-      sessionStorage.removeItem("tempUser");
-      sessionStorage.removeItem("fr_activeModule");
-      setShowLogoutModal(false);
-      window.location.href = "/admin-login";
-    }
+    setIsLoggingOut(true);
+    setShowLogoutModal(false);
+
+    onLogout?.();
   };
 
   return (

@@ -871,7 +871,7 @@ function BmStatCard({ label, value, sub, icon, bg }) {
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
-export default function SalesAdmin() {
+export default function SalesAdmin({ onLogout }) {
   useEffect(() => {
     const fontId = "fr-plus-jakarta-sans";
     if (!document.getElementById(fontId)) {
@@ -936,6 +936,7 @@ export default function SalesAdmin() {
   );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [brands, setBrands] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [preset, setPreset] = useState("month");
@@ -983,25 +984,13 @@ export default function SalesAdmin() {
       .catch(() => {});
   }, []);
 
-  const confirmLogout = async () => {
-    try {
-      const stored =
-        localStorage.getItem("user") || sessionStorage.getItem("user");
-      const userId = stored ? JSON.parse(stored)?.id : null;
-      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/logout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-        credentials: "include",
-      });
-    } catch {
-    } finally {
-      localStorage.removeItem("user");
-      localStorage.removeItem("rememberedUser");
-      sessionStorage.removeItem("user");
-      sessionStorage.removeItem("sa_activeModule");
-      window.location.href = "/admin-login";
-    }
+  const confirmLogout = () => {
+    if (isLoggingOut) return;
+
+    setIsLoggingOut(true);
+    setShowLogoutModal(false);
+
+    onLogout?.();
   };
 
   const navigation = [

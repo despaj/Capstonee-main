@@ -33,6 +33,7 @@ import {
   Link2,
   PackageCheck,
 } from "lucide-react";
+import { adminModuleFetch } from "../utils/adminModuleFetch";
 
 // ─── Design tokens — copied 1:1 from Stock Inventory ──────────────────────────
 const C = {
@@ -160,20 +161,41 @@ const fmtPeso = (n) =>
 // UI shows whole numbers with full unit names (e.g. "50 Liters"),
 // while stored numeric values remain unchanged for calculations/API payloads.
 const DISPLAY_UNIT_NAMES = {
-  pcs: "Pieces", piece: "Pieces", pieces: "Pieces",
-  kg: "Kilograms", kilogram: "Kilograms", kilograms: "Kilograms",
-  g: "Grams", gram: "Grams", grams: "Grams",
-  l: "Liters", liter: "Liters", liters: "Liters",
-  ml: "Milliliters", milliliter: "Milliliters", milliliters: "Milliliters",
-  tbsp: "Tablespoons", tablespoon: "Tablespoons", tablespoons: "Tablespoons",
-  tsp: "Teaspoons", teaspoon: "Teaspoons", teaspoons: "Teaspoons",
-  cup: "Cups", cups: "Cups",
-  bottle: "Bottles", bottles: "Bottles",
-  pack: "Packs", packs: "Packs",
-  bag: "Bags", bags: "Bags",
-  box: "Boxes", boxes: "Boxes",
-  can: "Cans", cans: "Cans",
-  gallon: "Gallons", gallons: "Gallons",
+  pcs: "Pieces",
+  piece: "Pieces",
+  pieces: "Pieces",
+  kg: "Kilograms",
+  kilogram: "Kilograms",
+  kilograms: "Kilograms",
+  g: "Grams",
+  gram: "Grams",
+  grams: "Grams",
+  l: "Liters",
+  liter: "Liters",
+  liters: "Liters",
+  ml: "Milliliters",
+  milliliter: "Milliliters",
+  milliliters: "Milliliters",
+  tbsp: "Tablespoons",
+  tablespoon: "Tablespoons",
+  tablespoons: "Tablespoons",
+  tsp: "Teaspoons",
+  teaspoon: "Teaspoons",
+  teaspoons: "Teaspoons",
+  cup: "Cups",
+  cups: "Cups",
+  bottle: "Bottles",
+  bottles: "Bottles",
+  pack: "Packs",
+  packs: "Packs",
+  bag: "Bags",
+  bags: "Bags",
+  box: "Boxes",
+  boxes: "Boxes",
+  can: "Cans",
+  cans: "Cans",
+  gallon: "Gallons",
+  gallons: "Gallons",
 };
 
 const formatQuantityWithUnit = (value, unit) => {
@@ -323,38 +345,6 @@ const normalizeCatalogueStockItem = (row) => {
     category: backendCategory || getPersistedStockCategory(row?.id),
   };
 };
-
-async function adminModuleFetch(input, options = {}) {
-  let response = await fetch(input, {
-    ...options,
-    credentials: "include",
-    headers: {
-      ...(options.headers || {}),
-    },
-  });
-
-  if (response.status === 401) {
-    const refreshResponse = await fetch(
-      `${process.env.REACT_APP_API_URL}/refresh-token`,
-      {
-        method: "POST",
-        credentials: "include",
-      },
-    );
-
-    if (refreshResponse.ok) {
-      response = await fetch(input, {
-        ...options,
-        credentials: "include",
-        headers: {
-          ...(options.headers || {}),
-        },
-      });
-    }
-  }
-
-  return response;
-}
 
 const getBrowserLocation = () => {
   return new Promise((resolve) => {
@@ -2400,7 +2390,9 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
               gap: 6,
             }}
           >
-            {item.available_stock != null ? formatQuantityWithUnit(item.available_stock, item.unit) : "—"}
+            {item.available_stock != null
+              ? formatQuantityWithUnit(item.available_stock, item.unit)
+              : "—"}
             {low && (
               <span
                 style={{
@@ -3529,7 +3521,7 @@ function MenuBrandCard({
                       {item.branch}
                     </span>
                   </div>
-<div style={{ display: "flex", gap: 6, marginTop: 7 }}>
+                  <div style={{ display: "flex", gap: 6, marginTop: 7 }}>
                     {directBrand ? (
                       <span
                         style={{
