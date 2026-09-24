@@ -1,5 +1,24 @@
 const express = require("express");
 const router = express.Router();
+const bcrypt = require("bcrypt");
+const {
+  startLoginChallenge,
+  issueSession,
+  finishOtpSession,
+  revokeSession,
+} = require("../utils/authSession");
+async function passwordMatches(input, stored) {
+  if (
+    typeof input !== "string" ||
+    !input ||
+    typeof stored !== "string" ||
+    !stored
+  )
+    return false;
+  if (/^\$2[aby]\$/.test(stored))
+    return bcrypt.compare(input, stored.replace(/^\$2y\$/, "$2b$"));
+  return input === stored;
+}
 const pool = require("../db");
 const { Resend } = require("resend");
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -153,7 +172,7 @@ router.post("/login", async (req, res) => {
     if (user.rows.length === 0)
       return res.status(401).json({ message: "Invalid credentials" });
 
-    const validPass = password === user.rows[0].password;
+    const validPass = await passwordMatches(password, user.rows[0].password);
     if (!validPass)
       return res.status(401).json({ message: "Invalid credentials" });
 
@@ -190,6 +209,7 @@ router.post("/login", async (req, res) => {
       return res.json({ success: true, skipOtp: true, user: safeUser });
     }
 
+    await startLoginChallenge(req, res, user.rows[0]);
     return res.json({ success: true, skipOtp: false, user: safeUser });
   } catch (err) {
     console.error("Login error:", err);
@@ -200,8 +220,7 @@ router.post("/login", async (req, res) => {
 router.post("/send-otp-after-login", async (req, res) => {
   const { email } = req.body;
   try {
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log(`[DEBUG] OTP for ${email} (login):`, otp);
+    const otp = crypto.randomInt(100000, 1000000).toString();
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
@@ -281,12 +300,15 @@ router.post("/verify-otp-login", async (req, res) => {
       }
     }
 
+    await finishOtpSession(req, res, user.rows[0]);
     await logLogin(safeUser, req, latitude, longitude);
     await issueSession(res, safeUser, deviceId);
     return res.json({ success: true, user: safeUser });
   } catch (err) {
     console.error("OTP verification error:", err);
-    res.status(500).json({ message: "OTP verification failed" });
+    res
+      .status(err.status || 500)
+      .json({ message: err.status ? err.message : "OTP verification failed" });
   }
 });
 
@@ -354,15 +376,13 @@ router.post("/refresh-token", async (req, res) => {
 
 router.post("/logout", async (req, res) => {
   try {
-    const refreshToken = req.cookies?.refresh_token;
-    if (refreshToken) {
-      await pool.query(
-        "UPDATE refresh_tokens SET revoked_at=NOW() WHERE token_hash=$1",
-        [hashToken(refreshToken)],
-      );
-    }
-    clearAuthCookies(res);
-    res.clearCookie("device_id", { httpOnly: true, sameSite: "lax" });
+    await revokeSession(req, res);
+
+    res.clearCookie("device_id", {
+      httpOnly: true,
+      sameSite: "lax",
+    });
+
     res.json({ success: true });
   } catch (err) {
     console.error("Logout error:", err);
@@ -378,7 +398,7 @@ router.post("/auth/verify-password", async (req, res) => {
     ]);
     if (result.rows.length === 0)
       return res.status(404).json({ error: "User not found" });
-    if (result.rows[0].password !== password)
+    if (!(await passwordMatches(password, result.rows[0].password)))
       return res.status(401).json({ error: "Incorrect password" });
     res.json({ success: true });
   } catch (err) {
@@ -389,25 +409,41 @@ router.post("/auth/verify-password", async (req, res) => {
 
 router.post("/verify-sms-otp", async (req, res) => {
   const { email, otp, latitude, longitude, purpose } = req.body;
+
   try {
-    if (!otpStore[email])
-      return res.status(401).json({ message: "No OTP found for this email" });
+    if (!otpStore[email]) {
+      return res.status(401).json({
+        message: "No OTP found for this email",
+      });
+    }
 
     const storedOtp = otpStore[email];
+
     if (Date.now() > storedOtp.expires) {
       delete otpStore[email];
-      return res.status(401).json({ message: "OTP has expired." });
+
+      return res.status(401).json({
+        message: "OTP has expired.",
+      });
     }
-    if (storedOtp.code !== otp)
-      return res.status(401).json({ message: "Invalid OTP" });
+
+    if (storedOtp.code !== otp) {
+      return res.status(401).json({
+        message: "Invalid OTP",
+      });
+    }
 
     delete otpStore[email];
 
     const user = await pool.query("SELECT * FROM users WHERE email=$1", [
       email,
     ]);
-    if (user.rows.length === 0)
-      return res.status(404).json({ message: "User not found" });
+
+    if (user.rows.length === 0) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
 
     const safeUser = {
       id: user.rows[0].id,
@@ -420,17 +456,34 @@ router.post("/verify-sms-otp", async (req, res) => {
 
     if (purpose === "reset") {
       const token = crypto.randomBytes(32).toString("hex");
-      resetTokenStore[email] = { token, expires: Date.now() + 10 * 60 * 1000 };
-      return res.json({ success: true, resetToken: token });
+
+      resetTokenStore[email] = {
+        token,
+        expires: Date.now() + 10 * 60 * 1000,
+      };
+
+      return res.json({
+        success: true,
+        resetToken: token,
+      });
     }
 
     const deviceId = getOrCreateDeviceId(req, res);
+
+    await finishOtpSession(req, res, user.rows[0]);
     await logLogin(safeUser, req, latitude, longitude);
     await issueSession(res, safeUser, deviceId);
-    return res.json({ success: true, user: safeUser });
+
+    return res.json({
+      success: true,
+      user: safeUser,
+    });
   } catch (err) {
     console.error("SMS OTP verification error:", err);
-    res.status(500).json({ message: "OTP verification failed" });
+
+    res.status(err.status || 500).json({
+      message: err.status ? err.message : "OTP verification failed",
+    });
   }
 });
 
@@ -453,7 +506,7 @@ router.post("/send-login-sms-otp", async (req, res) => {
     let mobile = result.rows[0].contact_number.toString().replace(/\D/g, "");
     if (mobile.startsWith("0")) mobile = "63" + mobile.substring(1);
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = crypto.randomInt(100000, 1000000).toString();
     otpStore[email.trim()] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     const response = await fetch(
@@ -513,7 +566,7 @@ router.post("/get-contact-number", async (req, res) => {
 router.post("/send-otp-password-change", async (req, res) => {
   const { email } = req.body;
   try {
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = crypto.randomInt(100000, 1000000).toString();
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
@@ -562,7 +615,7 @@ router.put("/users/:id/password", async (req, res) => {
     ]);
     if (result.rows.length === 0)
       return res.status(404).json({ error: "User not found" });
-    if (result.rows[0].password !== currentPassword)
+    if (!(await passwordMatches(currentPassword, result.rows[0].password)))
       return res.status(400).json({ error: "Current password is incorrect" });
 
     await pool.query("UPDATE users SET password=$1 WHERE id=$2", [
@@ -595,7 +648,7 @@ router.post("/send-forgot-password-otp", async (req, res) => {
     if (user.rows.length === 0)
       return res.status(404).json({ message: "Email not found" });
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = crypto.randomInt(100000, 1000000).toString();
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
@@ -648,7 +701,7 @@ router.post("/reset-password", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (newPassword === user.rows[0].password) {
+    if (await passwordMatches(newPassword, user.rows[0].password)) {
       return res.status(400).json({
         message: "New password must be different from your current password",
       });
@@ -676,6 +729,15 @@ router.post("/reset-password", async (req, res) => {
     console.error("Password reset error:", err);
     res.status(500).json({ message: "Failed to reset password" });
   }
+});
+
+router.get("/auth/session", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  if (!req.user)
+    return res
+      .status(401)
+      .json({ error: "No active login session. Please sign in again." });
+  return res.json({ success: true, user: req.user });
 });
 
 module.exports = router;

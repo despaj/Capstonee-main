@@ -7,6 +7,40 @@ const pool = require("../db");
 const { sendPushNotification } = require("../utils/pushNotif");
 const { logActivity } = require("../utils/activityLogger");
 
+async function logAnnouncementActivity(...args) {
+  try {
+    await logActivity(...args);
+  } catch (err) {
+    console.error("Announcement activity log failed (non-fatal):", err.message);
+  }
+}
+
+function parsePhoto(value) {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string")
+    throw new Error("Photo must be an image link or image data URL.");
+  const photo = value.trim();
+  if (!photo) return null;
+  if (Buffer.byteLength(photo, "utf8") > 900000)
+    throw new Error("Photo is too large. Please choose a smaller image.");
+  if (
+    /^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/i.test(photo)
+  )
+    return photo;
+  if (/^https?:\/\//i.test(photo)) {
+    try {
+      new URL(photo);
+      return photo;
+    } catch {
+      /* rejected below */
+    }
+  }
+  if (photo.startsWith("/") && !photo.startsWith("//")) return photo;
+  throw new Error(
+    "Choose a JPG, PNG, WebP, or GIF photo, or use a valid image link.",
+  );
+}
+
 router.get(
   "/announcements/delete-history",
   authorize("Super Admin", "Franchisee Operations Admin"),
@@ -20,6 +54,7 @@ router.get(
       );
       res.json(result.rows);
     } catch (err) {
+      console.error("Fetch announcement delete history failed:", err.message);
       res.status(500).json({ error: "Failed to fetch delete history" });
     }
   },
@@ -52,31 +87,34 @@ router.get(
   ),
   async (req, res) => {
     try {
+      // a.* includes image_url so photos remain visible after refreshing/reopening.
       const result = await pool.query(
         `SELECT a.*, u.name AS author FROM announcements a LEFT JOIN users u ON a.created_by=u.id ORDER BY a.created_at DESC`,
       );
       res.json(result.rows);
     } catch (err) {
+      console.error("Fetch announcements failed:", err.message);
       res.status(500).json({ error: "Failed to fetch announcements" });
     }
   },
 );
 
-router.post(
-  "/announcements",
+router.put(
+  "/announcements/:id",
   authorize("Super Admin", "Franchisee Operations Admin"),
   async (req, res) => {
     try {
       const {
         title,
         content,
+        image_url,
         userId,
         performed_by,
         role,
         latitude,
         longitude,
         restored,
-      } = req.body;
+      } = req.body || {};
       const userResult = await pool.query(
         "SELECT role, branch FROM users WHERE id=$1",
         [userId],
@@ -90,15 +128,31 @@ router.post(
         return res
           .status(403)
           .json({ error: "Only admin can post announcements" });
+      if (
+        typeof title !== "string" ||
+        !title.trim() ||
+        typeof content !== "string" ||
+        !content.trim()
+      )
+        return res
+          .status(400)
+          .json({ error: "Please fill in the title and content fields." });
+
+      let photo;
+      try {
+        photo = parsePhoto(image_url);
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
 
       const result = await pool.query(
-        `INSERT INTO announcements (title, content, created_by) VALUES ($1,$2,$3) RETURNING *`,
-        [title, content, userId],
+        `INSERT INTO announcements (title, content, image_url, created_by) VALUES ($1,$2,$3,$4) RETURNING *`,
+        [title.trim(), content.trim(), photo, userId],
       );
 
-      await logActivity(
+      await logAnnouncementActivity(
         restored ? "restore" : "create",
-        title,
+        title.trim(),
         performed_by || "System",
         { note: restored ? "Restored from delete history" : undefined },
         req,
@@ -118,7 +172,7 @@ router.post(
               `INSERT INTO notifications (user_id, type, title, body, reference_id) VALUES ($1,'announcement',$2,$3,$4) ON CONFLICT DO NOTHING`,
               [
                 u.id,
-                title,
+                title.trim(),
                 content.length > 80 ? content.slice(0, 80) + "…" : content,
                 announcementId,
               ],
@@ -130,7 +184,11 @@ router.post(
         );
         await Promise.all(
           tokens.rows.map((r) =>
-            sendPushNotification(r.push_token, "New Announcement", title),
+            sendPushNotification(
+              r.push_token,
+              "New Announcement",
+              title.trim(),
+            ),
           ),
         );
       } catch (notifErr) {
@@ -140,8 +198,10 @@ router.post(
         );
       }
 
+      // Preserves the response shape expected by FACommunicationContent.
       res.json({ success: true, announcement: result.rows[0] });
     } catch (err) {
+      console.error("Create announcement failed:", err.message);
       res.status(500).json({ error: "Failed to create announcement" });
     }
   },
@@ -155,12 +215,13 @@ router.put(
       const {
         title,
         content,
+        image_url,
         userId,
         performed_by,
         role,
         latitude,
         longitude,
-      } = req.body;
+      } = req.body || {};
       const userResult = await pool.query(
         "SELECT role, branch FROM users WHERE id=$1",
         [userId],
@@ -172,15 +233,40 @@ router.put(
         userResult.rows[0].role !== "Franchisee Operations Admin"
       )
         return res.status(403).json({ error: "Unauthorized" });
+      if (
+        typeof title !== "string" ||
+        !title.trim() ||
+        typeof content !== "string" ||
+        !content.trim()
+      )
+        return res
+          .status(400)
+          .json({ error: "Please fill in the title and content fields." });
 
-      const result = await pool.query(
-        "UPDATE announcements SET title=$1, content=$2 WHERE id=$3 RETURNING *",
-        [title, content, req.params.id],
+      const hasPhoto = Object.prototype.hasOwnProperty.call(
+        req.body,
+        "image_url",
       );
+      let photo = null;
+      try {
+        if (hasPhoto) photo = parsePhoto(image_url);
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
 
-      await logActivity(
+      // Omitted field preserves an existing photo; explicit null/empty removes it.
+      const result = await pool.query(
+        `UPDATE announcements SET title=$1, content=$2,
+       image_url=CASE WHEN $3::boolean THEN $4::text ELSE image_url END
+       WHERE id=$5 RETURNING *`,
+        [title.trim(), content.trim(), hasPhoto, photo, req.params.id],
+      );
+      if (!result.rows.length)
+        return res.status(404).json({ error: "Announcement not found" });
+
+      await logAnnouncementActivity(
         "update",
-        title,
+        title.trim(),
         performed_by || "System",
         {},
         req,
@@ -190,9 +276,9 @@ router.put(
         longitude,
         role || "Unknown",
       );
-
       res.json(result.rows[0]);
     } catch (err) {
+      console.error("Update announcement failed:", err.message);
       res.status(500).json({ error: "Failed to update announcement" });
     }
   },
@@ -203,7 +289,8 @@ router.delete(
   authorize("Super Admin", "Franchisee Operations Admin"),
   async (req, res) => {
     try {
-      const { userId, performed_by, role, latitude, longitude } = req.body;
+      const { userId, performed_by, role, latitude, longitude } =
+        req.body || {};
       const userResult = await pool.query(
         "SELECT role, branch FROM users WHERE id=$1",
         [userId],
@@ -216,33 +303,23 @@ router.delete(
       )
         return res.status(403).json({ error: "Unauthorized" });
 
-      const ann = await pool.query("SELECT * FROM announcements WHERE id=$1", [
-        req.params.id,
-      ]);
-      if (ann.rows.length > 0) {
-        const a = ann.rows[0];
-        await pool.query(
-          `INSERT INTO announcement_delete_history (announcement_id, title, content, image_url, created_by, original_created_at, deleted_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [
-            a.id,
-            a.title,
-            a.content,
-            a.image_url || null,
-            a.created_by,
-            a.created_at,
-            userId,
-          ],
-        );
-      }
+      // Archive and delete in one atomic statement, retaining the photo for Restore.
+      const result = await pool.query(
+        `WITH removed AS (
+         DELETE FROM announcements WHERE id=$1 RETURNING *
+       )
+       INSERT INTO announcement_delete_history
+         (announcement_id, title, content, image_url, created_by, original_created_at, deleted_by)
+       SELECT id, title, content, image_url, created_by, created_at, $2 FROM removed
+       RETURNING title`,
+        [req.params.id, userId],
+      );
+      if (!result.rows.length)
+        return res.status(404).json({ error: "Announcement not found" });
 
-      await pool.query("DELETE FROM announcements WHERE id=$1", [
-        req.params.id,
-      ]);
-
-      await logActivity(
+      await logAnnouncementActivity(
         "delete",
-        ann.rows[0]?.title,
+        result.rows[0].title,
         performed_by || "System",
         {},
         req,
@@ -252,9 +329,9 @@ router.delete(
         longitude,
         role || "Unknown",
       );
-
       res.json({ success: true });
     } catch (err) {
+      console.error("Delete announcement failed:", err.message);
       res.status(500).json({ error: "Failed to delete announcement" });
     }
   },
