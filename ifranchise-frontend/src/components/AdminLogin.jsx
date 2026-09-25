@@ -4,14 +4,15 @@ import logo from "../assets/logo.png";
 import welcome from "../assets/welcomepage.png";
 import { Eye, EyeOff, CheckCircle } from "lucide-react";
 
-const TEST_ACCOUNTS = [
-  { email: "genmanager@test.com", password: "Genmanager123!" },
-  { email: "foa@test.com", password: "FOAdmin123!" },
-  { email: "salesadmin@test.com", password: "Salesadmin123!" },
-  { email: "franchisee@test.com", password: "Franchisee123!" },
-  { email: "manager@test.com", password: "Manager123!" },
-  { email: "staff@test.com", password: "Staff123!" },
-];
+const API_BASE = String(process.env.REACT_APP_API_URL || "")
+  .trim()
+  .replace(/\/+$/, "");
+
+if (!API_BASE) {
+  console.error(
+    "REACT_APP_API_URL is missing. Configure it in the production environment.",
+  );
+}
 
 const getBrowserLocation = () => {
   return new Promise((resolve) => {
@@ -221,9 +222,9 @@ function UnknownRoleScreen({ userRole, onBackToLogin }) {
 export default function AdminLogin({ onLogin }) {
   const navigate = useNavigate();
   useEffect(() => {
-  sessionStorage.removeItem("tempUser");
-  sessionStorage.removeItem("user");
-}, []);
+    sessionStorage.removeItem("tempUser");
+    sessionStorage.removeItem("user");
+  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState("");
@@ -538,7 +539,7 @@ export default function AdminLogin({ onLogin }) {
       const locationCoords = await prepareLocation();
       setCoords(locationCoords);
 
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
+      const res = await fetch(`${API_BASE}/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -570,13 +571,13 @@ export default function AdminLogin({ onLogin }) {
         localStorage.removeItem(`loginLockout_${email.toLowerCase()}`);
         setOtpEmail(email.trim());
 
-       // sessionStorage.setItem("tempUser", JSON.stringify(data.user));
+        // sessionStorage.setItem("tempUser", JSON.stringify(data.user));
 
         if (data.skipOtp) {
-  clearDashboardSessions();
-  onLogin(data.user);
-  return;
-}
+          clearDashboardSessions();
+          onLogin(data.user);
+          return;
+        }
         await sendOtpSilent(email.trim());
         setStep("otp");
       } else {
@@ -633,7 +634,7 @@ export default function AdminLogin({ onLogin }) {
       const endpoint =
         method === "sms" ? "/send-login-sms-otp" : "/send-otp-after-login";
 
-      const res = await fetch(`${process.env.REACT_APP_API_URL}${endpoint}`, {
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: e }),
@@ -713,7 +714,7 @@ export default function AdminLogin({ onLogin }) {
       setOtpLockedUntil(null);
 
       clearDashboardSessions();
-onLogin(data.user);
+      onLogin(data.user);
     } catch {
       setOtpError("OTP verification failed");
     } finally {
@@ -731,15 +732,12 @@ onLogin(data.user);
     if (email.trim()) {
       setIsFetchingPhone(true);
       try {
-        const res = await fetch(
-          `${process.env.REACT_APP_API_URL}/get-contact-number`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: email.trim() }),
-            credentials: "include",
-          },
-        );
+        const res = await fetch(`${API_BASE}/get-contact-number`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim() }),
+          credentials: "include",
+        });
         const data = await res.json();
         if (res.ok && data.contact_number) {
           const raw = data.contact_number.toString().replace(/\D/g, "");
@@ -764,15 +762,12 @@ onLogin(data.user);
 
     setLoading("choiceEmail");
     try {
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/send-forgot-password-otp`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: forgotEmail.trim() }),
-          credentials: "include",
-        },
-      );
+      const res = await fetch(`${API_BASE}/send-forgot-password-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+        credentials: "include",
+      });
       const data = await res.json();
       if (!res.ok) {
         setChoiceError(data.message || "Failed to send OTP");
@@ -801,16 +796,13 @@ onLogin(data.user);
 
     setLoading("choiceSms");
     try {
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/send-login-sms-otp`,
-        {
-          // ← change this
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: forgotEmail.trim() }),
-          credentials: "include",
-        },
-      );
+      const res = await fetch(`${API_BASE}/send-login-sms-otp`, {
+        // ← change this
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+        credentials: "include",
+      });
       const data = await res.json();
       if (!res.ok) {
         setChoiceError(data.message || "Failed to send SMS OTP");
@@ -844,19 +836,16 @@ onLogin(data.user);
 
     setLoading("forgotOtp");
     try {
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/verify-otp-login`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: forgotEmail.trim(),
-            otp: val,
-            purpose: "reset",
-          }),
-          credentials: "include",
-        },
-      );
+      const res = await fetch(`${API_BASE}/verify-otp-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: forgotEmail.trim(),
+          otp: val,
+          purpose: "reset",
+        }),
+        credentials: "include",
+      });
       const data = await res.json();
       if (!res.ok) {
         const n = forgotOtpAttempts + 1;
@@ -946,19 +935,16 @@ onLogin(data.user);
 
     setLoading("forgotOtp");
     try {
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/verify-sms-otp`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: forgotEmail.trim(),
-            otp: val,
-            purpose: "reset",
-          }),
-          credentials: "include",
-        },
-      );
+      const res = await fetch(`${API_BASE}/verify-sms-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: forgotEmail.trim(),
+          otp: val,
+          purpose: "reset",
+        }),
+        credentials: "include",
+      });
       const data = await res.json();
       if (!res.ok) {
         const n = forgotOtpAttempts + 1;
@@ -1025,19 +1011,16 @@ onLogin(data.user);
 
     setLoading("reset");
     try {
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/reset-password`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: forgotEmail.trim(),
-            newPassword,
-            resetToken,
-          }),
-          credentials: "include",
-        },
-      );
+      const res = await fetch(`${API_BASE}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: forgotEmail.trim(),
+          newPassword,
+          resetToken,
+        }),
+        credentials: "include",
+      });
       const data = await res.json();
       if (!res.ok) {
         setResetError(data.message || "Failed to reset password");
