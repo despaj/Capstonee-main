@@ -220,6 +220,10 @@ function UnknownRoleScreen({ userRole, onBackToLogin }) {
 }
 export default function AdminLogin({ onLogin }) {
   const navigate = useNavigate();
+  useEffect(() => {
+  sessionStorage.removeItem("tempUser");
+  sessionStorage.removeItem("user");
+}, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState("");
@@ -566,18 +570,13 @@ export default function AdminLogin({ onLogin }) {
         localStorage.removeItem(`loginLockout_${email.toLowerCase()}`);
         setOtpEmail(email.trim());
 
-        sessionStorage.setItem("tempUser", JSON.stringify(data.user));
+       // sessionStorage.setItem("tempUser", JSON.stringify(data.user));
 
         if (data.skipOtp) {
-          clearDashboardSessions();
-
-          sessionStorage.removeItem("tempUser");
-          sessionStorage.setItem("user", JSON.stringify(data.user));
-
-          onLogin(data.user);
-
-          return;
-        }
+  clearDashboardSessions();
+  onLogin(data.user);
+  return;
+}
         await sendOtpSilent(email.trim());
         setStep("otp");
       } else {
@@ -713,12 +712,8 @@ export default function AdminLogin({ onLogin }) {
       setOtpAttempts(0);
       setOtpLockedUntil(null);
 
-      sessionStorage.removeItem("tempUser");
-      sessionStorage.setItem("user", JSON.stringify(data.user));
-
       clearDashboardSessions();
-
-      onLogin(data.user);
+onLogin(data.user);
     } catch {
       setOtpError("OTP verification failed");
     } finally {

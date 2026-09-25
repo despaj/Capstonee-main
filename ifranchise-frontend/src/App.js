@@ -101,7 +101,7 @@ function App() {
         const data = await response.json();
 
         setUser(data);
-        sessionStorage.setItem("user", JSON.stringify(data));
+        
       } catch (error) {
         console.error("Session restore failed:", error);
         setUser(null);

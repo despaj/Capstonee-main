@@ -1828,9 +1828,11 @@ export default function AdminDashboard({ user, onLogout }) {
     return () => document.body.classList.remove("fr-admin-ui");
   }, []);
 
-  const [activeModule, setActiveModule] = useState(() => {
-    return sessionStorage.getItem("fr_activeModule") || "dashboard";
-  });
+  const [activeModule, setActiveModule] = useState("dashboard");
+
+useEffect(() => {
+  sessionStorage.removeItem("fr_activeModule");
+}, []);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showCreateAccountModal, setShowCreateAccountModal] = useState(false);
   const [showViewApplicationModal, setShowViewApplicationModal] =
