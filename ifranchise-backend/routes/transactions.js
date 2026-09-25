@@ -42,7 +42,13 @@ router.get(
 
 router.get(
   "/transactions/voided",
-  authorize("Super Admin", "Franchisee Operations Admin", "Manager"),
+  authorize(
+    "Super Admin",
+    "Franchisee Operations Admin",
+    "Franchisee",
+    "Manager",
+    "Staff",
+  ),
   enforceQueryScope({ brandField: null }),
   async (req, res) => {
     try {
@@ -64,7 +70,7 @@ router.get(
 
 router.post(
   "/transactions",
-  authorize("Super Admin", "Manager", "Staff"),
+  authorize("Super Admin", "Franchisee", "Manager", "Staff"),
   enforceInputScope({ brandField: null }),
   async (req, res) => {
     const client = await pool.connect();
