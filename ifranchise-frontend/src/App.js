@@ -83,28 +83,48 @@ function App() {
   useEffect(() => {
     const restoreSession = async () => {
       try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/me`, {
+        const API_URL = process.env.REACT_APP_API_URL;
+
+        if (!API_URL) {
+          console.error("REACT_APP_API_URL is not configured.");
+          setUser(null);
+          return;
+        }
+
+        const res = await fetch(`${API_URL}/me`, {
           method: "GET",
           credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
         });
 
-        if (response.status === 401) {
+        if (res.status === 401) {
           setUser(null);
           sessionStorage.removeItem("user");
           return;
         }
 
-        if (!response.ok) {
-          throw new Error(`Session check failed: ${response.status}`);
+        if (!res.ok) {
+          throw new Error(`Session restore failed: ${res.status}`);
         }
 
-        const data = await response.json();
+        const contentType = res.headers.get("content-type") || "";
+
+        if (!contentType.includes("application/json")) {
+          throw new Error(
+            `Expected JSON from /me but received ${contentType || "unknown content type"}`,
+          );
+        }
+
+        const data = await res.json();
 
         setUser(data);
-        
-      } catch (error) {
-        console.error("Session restore failed:", error);
+        sessionStorage.setItem("user", JSON.stringify(data));
+      } catch (err) {
+        console.error("Session restore failed:", err);
         setUser(null);
+        sessionStorage.removeItem("user");
       } finally {
         setAuthLoading(false);
       }
