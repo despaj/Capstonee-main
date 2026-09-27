@@ -331,9 +331,6 @@ router.patch(
       const current = currentRes.rows[0];
 
       if (Number(current.stock) < qty) {
-        console.log(
-          `[deduct-stock] shop_items.stock insufficient — item ${req.params.id}, have ${current.stock}, need ${qty}`,
-        );
         await client.query("ROLLBACK");
         return res.status(409).json({ error: "Insufficient stock to deduct" });
       }
@@ -381,9 +378,6 @@ router.patch(
           0,
         );
         if (totalAvailable < qty) {
-          console.log(
-            `[deduct-stock] ingredient batch stock insufficient — ingredient ${item.ingredient_id}, have ${totalAvailable}, need ${qty}`,
-          );
           await client.query("ROLLBACK");
           return res
             .status(409)

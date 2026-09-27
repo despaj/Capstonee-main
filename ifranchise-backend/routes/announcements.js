@@ -46,12 +46,13 @@ router.get(
   authorize("Super Admin", "Franchisee Operations Admin"),
   async (req, res) => {
     try {
-      await pool.query(
-        `DELETE FROM announcement_delete_history WHERE deleted_at < NOW() - INTERVAL '30 days'`,
-      );
       const result = await pool.query(
-        `SELECT * FROM announcement_delete_history WHERE deleted_at >= NOW() - INTERVAL '30 days' ORDER BY deleted_at DESC`,
+        `SELECT *
+     FROM announcement_delete_history
+     WHERE deleted_at >= NOW() - INTERVAL '30 days'
+     ORDER BY deleted_at DESC`,
       );
+
       res.json(result.rows);
     } catch (err) {
       console.error("Fetch announcement delete history failed:", err.message);

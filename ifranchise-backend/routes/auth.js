@@ -101,7 +101,6 @@ async function logLogin(user, req, latitude, longitude) {
   const ip = getClientIp(req);
   const location = await getLocation(ip, latitude, longitude);
   const device = getDeviceLabel(req);
-  console.log("[DEBUG] device label:", device);
   try {
     await pool.query(
       `INSERT INTO users_activity_log (action, item_name, branch, performed_by, role, changes, location, ip_address, device, module)
@@ -119,7 +118,6 @@ async function logLogin(user, req, latitude, longitude) {
         "User Management",
       ],
     );
-    console.log("[DEBUG] login activity insert succeeded");
   } catch (err) {
     console.error("Failed to log login activity:", err);
   }
@@ -189,9 +187,6 @@ router.post("/login", async (req, res) => {
     );
     // temp accs skip otp
     if (device.rows.length > 0 || user.rows[0].skip_otp) {
-      console.log(
-        `Trusted device or OTP-exempt account for ${email} — skipping OTP`,
-      );
       await logLogin(safeUser, req, latitude, longitude);
       await issueSession(req, res, user.rows[0]);
       return res.json({ success: true, skipOtp: true, user: safeUser });

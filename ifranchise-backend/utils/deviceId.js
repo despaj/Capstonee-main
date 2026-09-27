@@ -3,7 +3,6 @@ const crypto = require("crypto");
 function getOrCreateDeviceId(req, res) {
   const headerDeviceId = req.headers["x-device-id"];
   if (headerDeviceId) {
-    console.log("Device ID from header:", headerDeviceId);
     return headerDeviceId;
   }
 
@@ -17,9 +16,7 @@ function getOrCreateDeviceId(req, res) {
       secure: !isLocalhost,
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
-    console.log("New cookie device ID set:", deviceId);
   } else {
-    console.log("Existing cookie found:", deviceId);
   }
   return deviceId;
 }

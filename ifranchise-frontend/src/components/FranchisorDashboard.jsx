@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import logo from '../assets/logo.png';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import logo from "../assets/logo.png";
 
 export default function FranchisorDashboard() {
   const navigate = useNavigate();
-  const [activeModule, setActiveModule] = useState('dashboard');
+  const [activeModule, setActiveModule] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // GET USER DATA FROM LOCALSTORAGE
   const getUserFromStorage = () => {
-    const userString = localStorage.getItem('user');
+    const userString = localStorage.getItem("user");
     if (userString) {
       return JSON.parse(userString);
     }
-    navigate('/login');
+    navigate("/login");
     return null;
   };
 
@@ -22,34 +22,62 @@ export default function FranchisorDashboard() {
   useEffect(() => {
     const currentUser = getUserFromStorage();
     if (!currentUser) {
-      navigate('/login');
+      navigate("/login");
     } else {
       setUser(currentUser);
     }
   }, []);
 
   const handleLogout = () => {
-    if (window.confirm('Are you sure you want to logout?')) {
-      localStorage.removeItem('user');
+    if (window.confirm("Are you sure you want to logout?")) {
+      localStorage.removeItem("user");
       window.location.reload();
     }
   };
 
   // Mock branch performance data
   const [branchPerformance] = useState([
-    { id: 1, name: 'Branch A', location: 'Makati City', sales: 450000, growth: 12.5, status: 'excellent' },
-    { id: 2, name: 'Branch B', location: 'Quezon City', sales: 380000, growth: 8.3, status: 'good' },
-    { id: 3, name: 'Branch C', location: 'Pasig City', sales: 295000, growth: -2.1, status: 'needs-attention' },
-    { id: 4, name: 'Branch D', location: 'Taguig City', sales: 520000, growth: 18.7, status: 'excellent' },
+    {
+      id: 1,
+      name: "Branch A",
+      location: "Makati City",
+      sales: 450000,
+      growth: 12.5,
+      status: "excellent",
+    },
+    {
+      id: 2,
+      name: "Branch B",
+      location: "Quezon City",
+      sales: 380000,
+      growth: 8.3,
+      status: "good",
+    },
+    {
+      id: 3,
+      name: "Branch C",
+      location: "Pasig City",
+      sales: 295000,
+      growth: -2.1,
+      status: "needs-attention",
+    },
+    {
+      id: 4,
+      name: "Branch D",
+      location: "Taguig City",
+      sales: 520000,
+      growth: 18.7,
+      status: "excellent",
+    },
   ]);
 
   const navigation = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'sales',label: 'Sales Reports' },
-    { id: 'inventory',  label: 'Inventory Summary' },
-    { id: 'branches', label: 'Branch Performance' },
-    { id: 'profile', label: 'Edit Profile' },
-    { id: 'logout', label: 'Logout', action: handleLogout },
+    { id: "dashboard", label: "Dashboard" },
+    { id: "sales", label: "Sales Reports" },
+    { id: "inventory", label: "Inventory Summary" },
+    { id: "branches", label: "Branch Performance" },
+    { id: "profile", label: "Edit Profile" },
+    { id: "logout", label: "Logout", action: handleLogout },
   ];
 
   return (
@@ -98,7 +126,7 @@ export default function FranchisorDashboard() {
 
         /* Sidebar */
         .sidebar {
-          width: ${sidebarCollapsed ? '80px' : '280px'};
+          width: ${sidebarCollapsed ? "80px" : "280px"};
           background: var(--white);
           box-shadow: 2px 0 10px var(--shadow);
           position: fixed;
@@ -143,7 +171,7 @@ export default function FranchisorDashboard() {
           font-size: 1.3rem;
           font-weight: 700;
           color: var(--green-primary);
-          display: ${sidebarCollapsed ? 'none' : 'block'};
+          display: ${sidebarCollapsed ? "none" : "block"};
         }
 
         .sidebar-toggle {
@@ -194,13 +222,13 @@ export default function FranchisorDashboard() {
         }
 
         .nav-label {
-          display: ${sidebarCollapsed ? 'none' : 'block'};
+          display: ${sidebarCollapsed ? "none" : "block"};
         }
 
         /* Main Content */
         .main-content {
           flex: 1;
-          margin-left: ${sidebarCollapsed ? '80px' : '280px'};
+          margin-left: ${sidebarCollapsed ? "80px" : "280px"};
           transition: margin-left 0.3s ease;
         }
 
@@ -502,8 +530,8 @@ export default function FranchisorDashboard() {
         /* Responsive */
         @media (max-width: 768px) {
           .sidebar {
-            width: ${sidebarCollapsed ? '0' : '280px'};
-            transform: translateX(${sidebarCollapsed ? '-100%' : '0'});
+            width: ${sidebarCollapsed ? "0" : "280px"};
+            transform: translateX(${sidebarCollapsed ? "-100%" : "0"});
           }
 
           .main-content {
@@ -537,19 +565,19 @@ export default function FranchisorDashboard() {
             </div>
             <span className="sidebar-logo-text">iFranchise</span>
           </div>
-          <button 
-            className="sidebar-toggle" 
+          <button
+            className="sidebar-toggle"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           >
-            {sidebarCollapsed ? '☰' : '✕'}
+            {sidebarCollapsed ? "☰" : "✕"}
           </button>
         </div>
 
         <nav className="sidebar-nav">
-          {navigation.map(item => (
+          {navigation.map((item) => (
             <div
               key={item.id}
-              className={`nav-item ${activeModule === item.id ? 'active' : ''}`}
+              className={`nav-item ${activeModule === item.id ? "active" : ""}`}
               onClick={() => {
                 if (item.action) {
                   item.action();
@@ -570,11 +598,12 @@ export default function FranchisorDashboard() {
         {/* Top Bar */}
         <div className="top-bar">
           <h1 className="top-bar-title">
-            {navigation.find(n => n.id === activeModule)?.label || 'Dashboard'}
+            {navigation.find((n) => n.id === activeModule)?.label ||
+              "Dashboard"}
           </h1>
           <div className="user-menu">
             <div className="user-info">
-              <div className="user-name">{user?.name || 'Franchisor User'}</div>
+              <div className="user-name">{user?.name || "Franchisor User"}</div>
               <div className="user-role">Franchisor — {user?.branch}</div>
             </div>
             <div className="user-avatar">👤</div>
@@ -583,11 +612,15 @@ export default function FranchisorDashboard() {
 
         {/* Content Area */}
         <div className="content-area">
-          {activeModule === 'dashboard' && <DashboardContent />}
-          {activeModule === 'sales' && <SalesReportsContent />}
-          {activeModule === 'inventory' && <InventorySummaryContent user={user} />}
-          {activeModule === 'branches' && <BranchPerformanceContent branchPerformance={branchPerformance} />}
-          {activeModule === 'profile' && <ProfileContent user={user} />}
+          {activeModule === "dashboard" && <DashboardContent />}
+          {activeModule === "sales" && <SalesReportsContent />}
+          {activeModule === "inventory" && (
+            <InventorySummaryContent user={user} />
+          )}
+          {activeModule === "branches" && (
+            <BranchPerformanceContent branchPerformance={branchPerformance} />
+          )}
+          {activeModule === "profile" && <ProfileContent user={user} />}
         </div>
       </main>
     </div>
@@ -640,21 +673,22 @@ function DashboardContent() {
         <div className="section-header">
           <h2 className="section-title">Network Overview</h2>
         </div>
-        <div className="chart-placeholder">
-          📊 Network Performance Chart
-        </div>
+        <div className="chart-placeholder">📊 Network Performance Chart</div>
       </div>
 
       <div className="section">
         <div className="section-header">
           <h2 className="section-title">Key Insights</h2>
         </div>
-        <div style={{ padding: '1rem 0' }}>
-          <p style={{ color: 'var(--gray-600)', lineHeight: '1.8' }}>
-            • Branch D showing exceptional growth at 18.7% this month<br />
-            • Branch C requires attention with -2.1% growth<br />
-            • Overall network inventory health is good with minimal low stock alerts<br />
-            • Total network revenue on track to exceed annual targets
+        <div style={{ padding: "1rem 0" }}>
+          <p style={{ color: "var(--gray-600)", lineHeight: "1.8" }}>
+            • Branch D showing exceptional growth at 18.7% this month
+            <br />
+            • Branch C requires attention with -2.1% growth
+            <br />
+            • Overall network inventory health is good with minimal low stock
+            alerts
+            <br />• Total network revenue on track to exceed annual targets
           </p>
         </div>
       </div>
@@ -675,8 +709,10 @@ function SalesReportsContent() {
         📊 Network Sales Analytics Dashboard
       </div>
 
-      <div style={{ marginTop: '2rem' }}>
-        <h3 style={{ marginBottom: '1rem', color: 'var(--green-primary)' }}>Report History</h3>
+      <div style={{ marginTop: "2rem" }}>
+        <h3 style={{ marginBottom: "1rem", color: "var(--green-primary)" }}>
+          Report History
+        </h3>
         <table>
           <thead>
             <tr>
@@ -694,7 +730,12 @@ function SalesReportsContent() {
               <td>January 2026</td>
               <td>All Branches</td>
               <td>
-                <button className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>Download PDF</button>
+                <button
+                  className="btn btn-primary"
+                  style={{ padding: "0.5rem 1rem", fontSize: "0.85rem" }}
+                >
+                  Download PDF
+                </button>
               </td>
             </tr>
             <tr>
@@ -703,7 +744,12 @@ function SalesReportsContent() {
               <td>Q1 2026</td>
               <td>All Branches</td>
               <td>
-                <button className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>Download PDF</button>
+                <button
+                  className="btn btn-primary"
+                  style={{ padding: "0.5rem 1rem", fontSize: "0.85rem" }}
+                >
+                  Download PDF
+                </button>
               </td>
             </tr>
             <tr>
@@ -712,7 +758,12 @@ function SalesReportsContent() {
               <td>2025 Annual</td>
               <td>Network</td>
               <td>
-                <button className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>Download PDF</button>
+                <button
+                  className="btn btn-primary"
+                  style={{ padding: "0.5rem 1rem", fontSize: "0.85rem" }}
+                >
+                  Download PDF
+                </button>
               </td>
             </tr>
           </tbody>
@@ -725,27 +776,27 @@ function SalesReportsContent() {
 // Inventory Summary Content Component
 function InventorySummaryContent() {
   const [inventory, setInventory] = useState([]);
-  const [loading, setLoading]     = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch(`${process.env.REACT_APP_API_URL}/inventory`)
-      .then(r => r.json())
-      .then(data => setInventory(data))
-      .catch(err => console.error(err))
+      .then((r) => r.json())
+      .then((data) => setInventory(data))
+      .catch((err) => console.error(err))
       .finally(() => setLoading(false));
   }, []);
 
   // Group by branch
   const grouped = inventory.reduce((acc, item) => {
-    const b = item.branch || 'Unassigned';
+    const b = item.branch || "Unassigned";
     if (!acc[b]) acc[b] = { total: 0, lowStock: 0 };
     acc[b].total++;
     if (item.stock < item.min_stock) acc[b].lowStock++;
     return acc;
   }, {});
 
-  const totalItems    = inventory.length;
-  const totalLowStock = inventory.filter(i => i.stock < i.min_stock).length;
+  const totalItems = inventory.length;
+  const totalLowStock = inventory.filter((i) => i.stock < i.min_stock).length;
 
   return (
     <>
@@ -769,7 +820,9 @@ function InventorySummaryContent() {
         </div>
 
         {loading ? (
-          <p style={{ color: '#888', padding: '1rem 0' }}>Loading inventory...</p>
+          <p style={{ color: "#888", padding: "1rem 0" }}>
+            Loading inventory...
+          </p>
         ) : (
           <div className="table-container">
             <table>
@@ -784,12 +837,16 @@ function InventorySummaryContent() {
               <tbody>
                 {Object.entries(grouped).map(([branch, data]) => (
                   <tr key={branch}>
-                    <td><strong>{branch}</strong></td>
+                    <td>
+                      <strong>{branch}</strong>
+                    </td>
                     <td>{data.total}</td>
                     <td>{data.lowStock}</td>
                     <td>
-                      <span className={`status-badge ${data.lowStock > 0 ? 'status-warning' : 'status-ok'}`}>
-                        {data.lowStock > 0 ? 'NEEDS ATTENTION' : 'OK'}
+                      <span
+                        className={`status-badge ${data.lowStock > 0 ? "status-warning" : "status-ok"}`}
+                      >
+                        {data.lowStock > 0 ? "NEEDS ATTENTION" : "OK"}
                       </span>
                     </td>
                   </tr>
@@ -825,20 +882,31 @@ function BranchPerformanceContent({ branchPerformance }) {
               </tr>
             </thead>
             <tbody>
-              {branchPerformance.map(branch => (
+              {branchPerformance.map((branch) => (
                 <tr key={branch.id}>
-                  <td><strong>{branch.name}</strong></td>
+                  <td>
+                    <strong>{branch.name}</strong>
+                  </td>
                   <td>{branch.location}</td>
                   <td>₱{branch.sales.toLocaleString()}</td>
                   <td>
-                    <span style={{ color: branch.growth >= 0 ? 'var(--success)' : 'var(--red)' }}>
-                      {branch.growth >= 0 ? '↑' : '↓'} {Math.abs(branch.growth)}%
+                    <span
+                      style={{
+                        color:
+                          branch.growth >= 0 ? "var(--success)" : "var(--red)",
+                      }}
+                    >
+                      {branch.growth >= 0 ? "↑" : "↓"} {Math.abs(branch.growth)}
+                      %
                     </span>
                   </td>
                   <td>
                     <span className={`status-badge status-${branch.status}`}>
-                      {branch.status === 'excellent' ? 'EXCELLENT' : 
-                       branch.status === 'good' ? 'GOOD' : 'NEEDS ATTENTION'}
+                      {branch.status === "excellent"
+                        ? "EXCELLENT"
+                        : branch.status === "good"
+                          ? "GOOD"
+                          : "NEEDS ATTENTION"}
                     </span>
                   </td>
                 </tr>
@@ -852,9 +920,7 @@ function BranchPerformanceContent({ branchPerformance }) {
         <div className="section-header">
           <h2 className="section-title">Branch Performance Chart</h2>
         </div>
-        <div className="chart-placeholder">
-          📊 Branch Comparison Chart
-        </div>
+        <div className="chart-placeholder">📊 Branch Comparison Chart</div>
       </div>
     </>
   );
@@ -866,27 +932,27 @@ function ProfileContent({ user }) {
   const [formData, setFormData] = useState({
     name: user.name,
     email: user.email,
-    personalEmail: '',
+    personalEmail: "",
     role: user.role,
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
   });
 
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [otp, setOtp] = useState('');
+  const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  const [otpError, setOtpError] = useState('');
+  const [otpError, setOtpError] = useState("");
   const [passwordErrors, setPasswordErrors] = useState([]);
   const [showPasswordValidation, setShowPasswordValidation] = useState(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    
+    setFormData((prev) => ({ ...prev, [name]: value }));
+
     // Show validation when user starts typing new password
-    if (name === 'newPassword') {
+    if (name === "newPassword") {
       if (value) {
         setShowPasswordValidation(true);
         const validation = validatePasswordStrength(value);
@@ -904,55 +970,58 @@ function ProfileContent({ user }) {
     const hasUpperCase = /[A-Z]/.test(password);
     const hasLowerCase = /[a-z]/.test(password);
     const hasNumber = /\d/.test(password);
-    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(
+      password,
+    );
 
     const errors = [];
 
     if (password.length < minLength) {
-      errors.push('minLength');
+      errors.push("minLength");
     }
     if (!hasUpperCase) {
-      errors.push('uppercase');
+      errors.push("uppercase");
     }
     if (!hasLowerCase) {
-      errors.push('lowercase');
+      errors.push("lowercase");
     }
     if (!hasNumber) {
-      errors.push('number');
+      errors.push("number");
     }
     if (!hasSpecialChar) {
-      errors.push('specialChar');
+      errors.push("specialChar");
     }
 
     return {
       isValid: errors.length === 0,
-      errors: errors
+      errors: errors,
     };
   };
 
   const sendOtp = async () => {
     try {
       const emailToSend = formData.personalEmail || formData.email;
-      console.log('Sending OTP to email:', emailToSend);
-      
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/send-otp-password-change`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/send-otp-password-change`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: emailToSend,
+          }),
         },
-        body: JSON.stringify({
-          email: emailToSend
-        }),
-      });
+      );
 
       const data = await response.json();
-      console.log('Send OTP response:', data);
 
       if (data.success) {
         setOtpSent(true);
         alert(`OTP has been sent to ${emailToSend}`);
       } else {
-        alert(data.message || data.error || 'Failed to send OTP');
+        alert(data.message || data.error || "Failed to send OTP");
       }
     } catch (error) {
       console.error("Error sending OTP:", error);
@@ -962,43 +1031,42 @@ function ProfileContent({ user }) {
 
   const verifyOtpAndChangePassword = async () => {
     try {
-      setOtpError(''); // Clear previous errors
+      setOtpError(""); // Clear previous errors
       const emailToVerify = formData.personalEmail || formData.email;
-      console.log('Changing password with OTP for email:', emailToVerify);
-      console.log('OTP entered:', otp);
-      
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}/password`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currentPassword: formData.currentPassword,
-          newPassword: formData.newPassword,
-          email: emailToVerify,
-          otp: otp.trim()
-        }),
-      });
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/users/${user.id}/password`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            currentPassword: formData.currentPassword,
+            newPassword: formData.newPassword,
+            email: emailToVerify,
+            otp: otp.trim(),
+          }),
+        },
+      );
 
       const data = await response.json();
-      console.log('Password change response:', data);
 
       if (data.success) {
         // Close OTP modal
         setShowOtpModal(false);
-        
+
         // Show success modal
         setShowSuccessModal(true);
-        
+
         // Clear user data from localStorage
-        localStorage.removeItem('user');
-        localStorage.removeItem('tempUser');
+        localStorage.removeItem("user");
+        localStorage.removeItem("tempUser");
 
         // Redirect to login page after 3 seconds
         setTimeout(() => {
-          window.location.href = '/admin-login';
+          window.location.href = "/admin-login";
         }, 3000);
       } else {
         // Show error in OTP modal
-        setOtpError(data.error || 'Failed to change password');
+        setOtpError(data.error || "Failed to change password");
       }
     } catch (error) {
       console.error("Error changing password:", error);
@@ -1008,37 +1076,42 @@ function ProfileContent({ user }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     // Check if password change is requested
-    const isPasswordChange = formData.currentPassword || formData.newPassword || formData.confirmPassword;
-    
+    const isPasswordChange =
+      formData.currentPassword ||
+      formData.newPassword ||
+      formData.confirmPassword;
+
     if (isPasswordChange) {
       // Validate password fields
       if (!formData.currentPassword) {
-        alert('Please enter your current password');
+        alert("Please enter your current password");
         return;
       }
-      
+
       if (!formData.newPassword) {
-        alert('Please enter a new password');
+        alert("Please enter a new password");
         return;
       }
-      
+
       // Validate password strength
       const passwordValidation = validatePasswordStrength(formData.newPassword);
       if (!passwordValidation.isValid) {
-        alert('Please ensure your password meets all the requirements shown below the password field');
+        alert(
+          "Please ensure your password meets all the requirements shown below the password field",
+        );
         return;
       }
-      
+
       if (formData.newPassword !== formData.confirmPassword) {
-        alert('New passwords do not match!');
+        alert("New passwords do not match!");
         return;
       }
 
       // Check if personal email is provided for OTP
       if (!formData.personalEmail && !formData.email) {
-        alert('Please provide an email address to receive OTP');
+        alert("Please provide an email address to receive OTP");
         return;
       }
 
@@ -1053,28 +1126,35 @@ function ProfileContent({ user }) {
 
   const updateProfile = async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/users/${user.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            role: formData.role,
+            branch: user.branch,
+          }),
         },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          role: formData.role,
-          branch: user.branch
-        }),
-      });
+      );
 
       const data = await response.json();
 
       if (data.success) {
-        alert('Profile updated successfully!');
+        alert("Profile updated successfully!");
         // Update local storage with new user data
-        const updatedUser = { ...user, name: formData.name, email: formData.email };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
+        const updatedUser = {
+          ...user,
+          name: formData.name,
+          email: formData.email,
+        };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
       } else {
-        alert(data.error || 'Failed to update profile');
+        alert(data.error || "Failed to update profile");
       }
     } catch (error) {
       console.error("Error updating profile:", error);
@@ -1083,17 +1163,17 @@ function ProfileContent({ user }) {
   };
 
   const handleCancel = () => {
-    if (window.confirm('Discard changes?')) {
+    if (window.confirm("Discard changes?")) {
       setFormData({
         name: user.name,
         email: user.email,
-        personalEmail: '',
+        personalEmail: "",
         role: user.role,
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
       });
-      setOtp('');
+      setOtp("");
       setOtpSent(false);
       setShowOtpModal(false);
     }
@@ -1106,25 +1186,25 @@ function ProfileContent({ user }) {
           <h2 className="section-title">Edit Profile</h2>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ maxWidth: '600px' }}>
+        <form onSubmit={handleSubmit} style={{ maxWidth: "600px" }}>
           <div className="form-group">
             <label className="form-label">Full Name</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               name="name"
-              className="form-input" 
+              className="form-input"
               value={formData.name}
               onChange={handleInputChange}
               required
             />
           </div>
-          
+
           <div className="form-group">
             <label className="form-label">Work Email Address</label>
-            <input 
-              type="email" 
+            <input
+              type="email"
               name="email"
-              className="form-input" 
+              className="form-input"
               value={formData.email}
               onChange={handleInputChange}
               required
@@ -1132,113 +1212,171 @@ function ProfileContent({ user }) {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Personal Email Address (Optional)</label>
-            <input 
-              type="email" 
+            <label className="form-label">
+              Personal Email Address (Optional)
+            </label>
+            <input
+              type="email"
               name="personalEmail"
-              className="form-input" 
+              className="form-input"
               placeholder="your.personal@email.com"
               value={formData.personalEmail}
               onChange={handleInputChange}
             />
-            <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginTop: '0.5rem' }}>
-              💡 OTP for password changes will be sent to this email (or work email if not provided)
+            <p
+              style={{
+                fontSize: "0.85rem",
+                color: "var(--gray-500)",
+                marginTop: "0.5rem",
+              }}
+            >
+              💡 OTP for password changes will be sent to this email (or work
+              email if not provided)
             </p>
           </div>
 
           <div className="form-group">
             <label className="form-label">Role</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               name="role"
-              className="form-input" 
-              value={formData.role} 
-              disabled 
-              style={{ background: 'var(--gray-200)', cursor: 'not-allowed' }}
+              className="form-input"
+              value={formData.role}
+              disabled
+              style={{ background: "var(--gray-200)", cursor: "not-allowed" }}
             />
           </div>
 
-          <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '2px solid var(--gray-200)' }}>
-            <h3 style={{ marginBottom: '0.5rem', color: 'var(--green-primary)' }}>Change Password</h3>
-            <p style={{ fontSize: '0.9rem', color: 'var(--gray-500)', marginBottom: '1.5rem' }}>
+          <div
+            style={{
+              marginTop: "2rem",
+              paddingTop: "2rem",
+              borderTop: "2px solid var(--gray-200)",
+            }}
+          >
+            <h3
+              style={{ marginBottom: "0.5rem", color: "var(--green-primary)" }}
+            >
+              Change Password
+            </h3>
+            <p
+              style={{
+                fontSize: "0.9rem",
+                color: "var(--gray-500)",
+                marginBottom: "1.5rem",
+              }}
+            >
               🔐 An OTP will be sent to your email for verification
             </p>
-            
+
             <div className="form-group">
               <label className="form-label">Current Password</label>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 name="currentPassword"
-                className="form-input" 
+                className="form-input"
                 placeholder="Enter current password"
                 value={formData.currentPassword}
                 onChange={handleInputChange}
               />
             </div>
-            
+
             <div className="form-group">
               <label className="form-label">New Password</label>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 name="newPassword"
-                className="form-input" 
+                className="form-input"
                 placeholder="Enter new password (min. 8 characters)"
                 value={formData.newPassword}
                 onChange={handleInputChange}
               />
-              
+
               {/* Password Validation Display */}
               {showPasswordValidation && (
-                <div style={{ 
-                  marginTop: '8px', 
-                  fontSize: '12px',
-                  padding: '10px',
-                  backgroundColor: '#f8f9fa',
-                  borderRadius: '4px',
-                  border: '1px solid #dee2e6'
-                }}>
-                  <div style={{ marginBottom: '6px', fontWeight: '600', color: '#495057' }}>
+                <div
+                  style={{
+                    marginTop: "8px",
+                    fontSize: "12px",
+                    padding: "10px",
+                    backgroundColor: "#f8f9fa",
+                    borderRadius: "4px",
+                    border: "1px solid #dee2e6",
+                  }}
+                >
+                  <div
+                    style={{
+                      marginBottom: "6px",
+                      fontWeight: "600",
+                      color: "#495057",
+                    }}
+                  >
                     Password must contain:
                   </div>
-                  <div style={{ 
-                    color: passwordErrors.includes('minLength') ? '#dc3545' : '#28a745',
-                    marginBottom: '4px'
-                  }}>
-                    {passwordErrors.includes('minLength') ? '✗' : '✓'} At least 8 characters
+                  <div
+                    style={{
+                      color: passwordErrors.includes("minLength")
+                        ? "#dc3545"
+                        : "#28a745",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {passwordErrors.includes("minLength") ? "✗" : "✓"} At least
+                    8 characters
                   </div>
-                  <div style={{ 
-                    color: passwordErrors.includes('uppercase') ? '#dc3545' : '#28a745',
-                    marginBottom: '4px'
-                  }}>
-                    {passwordErrors.includes('uppercase') ? '✗' : '✓'} At least one uppercase letter (A-Z)
+                  <div
+                    style={{
+                      color: passwordErrors.includes("uppercase")
+                        ? "#dc3545"
+                        : "#28a745",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {passwordErrors.includes("uppercase") ? "✗" : "✓"} At least
+                    one uppercase letter (A-Z)
                   </div>
-                  <div style={{ 
-                    color: passwordErrors.includes('lowercase') ? '#dc3545' : '#28a745',
-                    marginBottom: '4px'
-                  }}>
-                    {passwordErrors.includes('lowercase') ? '✗' : '✓'} At least one lowercase letter (a-z)
+                  <div
+                    style={{
+                      color: passwordErrors.includes("lowercase")
+                        ? "#dc3545"
+                        : "#28a745",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {passwordErrors.includes("lowercase") ? "✗" : "✓"} At least
+                    one lowercase letter (a-z)
                   </div>
-                  <div style={{ 
-                    color: passwordErrors.includes('number') ? '#dc3545' : '#28a745',
-                    marginBottom: '4px'
-                  }}>
-                    {passwordErrors.includes('number') ? '✗' : '✓'} At least one number (0-9)
+                  <div
+                    style={{
+                      color: passwordErrors.includes("number")
+                        ? "#dc3545"
+                        : "#28a745",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {passwordErrors.includes("number") ? "✗" : "✓"} At least one
+                    number (0-9)
                   </div>
-                  <div style={{ 
-                    color: passwordErrors.includes('specialChar') ? '#dc3545' : '#28a745'
-                  }}>
-                    {passwordErrors.includes('specialChar') ? '✗' : '✓'} At least one special character (!@#$%^&*...)
+                  <div
+                    style={{
+                      color: passwordErrors.includes("specialChar")
+                        ? "#dc3545"
+                        : "#28a745",
+                    }}
+                  >
+                    {passwordErrors.includes("specialChar") ? "✗" : "✓"} At
+                    least one special character (!@#$%^&*...)
                   </div>
                 </div>
               )}
             </div>
-            
+
             <div className="form-group">
               <label className="form-label">Confirm New Password</label>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 name="confirmPassword"
-                className="form-input" 
+                className="form-input"
                 placeholder="Confirm new password"
                 value={formData.confirmPassword}
                 onChange={handleInputChange}
@@ -1246,8 +1384,12 @@ function ProfileContent({ user }) {
             </div>
           </div>
 
-          <div className="modal-actions" style={{ marginTop: '2rem' }}>
-            <button type="button" className="btn btn-secondary" onClick={handleCancel}>
+          <div className="modal-actions" style={{ marginTop: "2rem" }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleCancel}
+            >
               Cancel
             </button>
             <button type="submit" className="btn btn-primary">
@@ -1260,80 +1402,107 @@ function ProfileContent({ user }) {
       {/* OTP Verification Modal */}
       {showOtpModal && (
         <div className="modal-overlay">
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+          <div
+            className="modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "450px" }}
+          >
             <div className="modal-header">
               <h2 className="modal-title">🔐 Verify OTP</h2>
-              <p style={{ color: 'var(--gray-500)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+              <p
+                style={{
+                  color: "var(--gray-500)",
+                  fontSize: "0.9rem",
+                  marginTop: "0.5rem",
+                }}
+              >
                 We've sent a verification code to:
               </p>
-              <p style={{ color: 'var(--green-primary)', fontWeight: '600', fontSize: '0.95rem' }}>
+              <p
+                style={{
+                  color: "var(--green-primary)",
+                  fontWeight: "600",
+                  fontSize: "0.95rem",
+                }}
+              >
                 {formData.personalEmail || formData.email}
               </p>
             </div>
 
-            <div style={{ padding: '1rem 0' }}>
+            <div style={{ padding: "1rem 0" }}>
               <div className="form-group">
                 <label className="form-label">Enter 6-Digit OTP</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
+                <input
+                  type="text"
+                  className="form-input"
                   placeholder="000000"
                   value={otp}
                   onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    const value = e.target.value.replace(/\D/g, "").slice(0, 6);
                     setOtp(value);
-                    setOtpError(''); // Clear error when user types
+                    setOtpError(""); // Clear error when user types
                   }}
                   maxLength={6}
-                  style={{ 
-                    fontSize: '1.5rem', 
-                    textAlign: 'center', 
-                    letterSpacing: '0.5rem',
-                    fontFamily: 'monospace'
+                  style={{
+                    fontSize: "1.5rem",
+                    textAlign: "center",
+                    letterSpacing: "0.5rem",
+                    fontFamily: "monospace",
                   }}
                   autoFocus
                 />
-                <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginTop: '0.5rem', textAlign: 'center' }}>
+                <p
+                  style={{
+                    fontSize: "0.85rem",
+                    color: "var(--gray-500)",
+                    marginTop: "0.5rem",
+                    textAlign: "center",
+                  }}
+                >
                   Please check your email for the verification code
                 </p>
               </div>
 
               {otpSent && !otpError && (
-                <div style={{ 
-                  textAlign: 'center', 
-                  marginTop: '1rem',
-                  padding: '0.75rem',
-                  background: 'rgba(46, 125, 50, 0.1)',
-                  borderRadius: '8px',
-                  color: 'var(--green-primary)'
-                }}>
+                <div
+                  style={{
+                    textAlign: "center",
+                    marginTop: "1rem",
+                    padding: "0.75rem",
+                    background: "rgba(46, 125, 50, 0.1)",
+                    borderRadius: "8px",
+                    color: "var(--green-primary)",
+                  }}
+                >
                   ✅ OTP sent successfully
                 </div>
               )}
 
               {otpError && (
-                <div style={{ 
-                  textAlign: 'center', 
-                  marginTop: '1rem',
-                  padding: '0.75rem',
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  borderRadius: '8px',
-                  color: 'var(--red)'
-                }}>
+                <div
+                  style={{
+                    textAlign: "center",
+                    marginTop: "1rem",
+                    padding: "0.75rem",
+                    background: "rgba(239, 68, 68, 0.1)",
+                    borderRadius: "8px",
+                    color: "var(--red)",
+                  }}
+                >
                   ❌ {otpError}
                 </div>
               )}
 
-              <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-                <button 
+              <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
+                <button
                   type="button"
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--green-primary)',
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    fontSize: '0.9rem'
+                    background: "none",
+                    border: "none",
+                    color: "var(--green-primary)",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                    fontSize: "0.9rem",
                   }}
                   onClick={sendOtp}
                 >
@@ -1343,20 +1512,20 @@ function ProfileContent({ user }) {
             </div>
 
             <div className="modal-actions">
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
+              <button
+                type="button"
+                className="btn btn-secondary"
                 onClick={() => {
                   setShowOtpModal(false);
-                  setOtp('');
+                  setOtp("");
                   setOtpSent(false);
-                  setOtpError('');
+                  setOtpError("");
                 }}
               >
                 Cancel
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn btn-primary"
                 onClick={verifyOtpAndChangePassword}
                 disabled={otp.length !== 6}
@@ -1372,58 +1541,73 @@ function ProfileContent({ user }) {
       {/* Success Modal */}
       {showSuccessModal && (
         <div className="modal-overlay">
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px', textAlign: 'center' }}>
-            <div style={{ padding: '2rem 0' }}>
-              <div style={{ 
-                width: '80px', 
-                height: '80px', 
-                background: 'rgba(46, 125, 50, 0.1)', 
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 1.5rem',
-                fontSize: '3rem'
-              }}>
+          <div
+            className="modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "450px", textAlign: "center" }}
+          >
+            <div style={{ padding: "2rem 0" }}>
+              <div
+                style={{
+                  width: "80px",
+                  height: "80px",
+                  background: "rgba(46, 125, 50, 0.1)",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 1.5rem",
+                  fontSize: "3rem",
+                }}
+              >
                 ✅
               </div>
-              
-              <h2 style={{ 
-                color: 'var(--green-primary)', 
-                fontSize: '1.8rem', 
-                marginBottom: '1rem',
-                fontFamily: 'Montserrat, sans-serif',
-                fontWeight: '700'
-              }}>
+
+              <h2
+                style={{
+                  color: "var(--green-primary)",
+                  fontSize: "1.8rem",
+                  marginBottom: "1rem",
+                  fontFamily: "Montserrat, sans-serif",
+                  fontWeight: "700",
+                }}
+              >
                 Password Changed Successfully!
               </h2>
-              
-              <p style={{ 
-                color: 'var(--gray-600)', 
-                fontSize: '1rem',
-                marginBottom: '1.5rem',
-                lineHeight: '1.6'
-              }}>
-                Your password has been updated successfully.<br />
+
+              <p
+                style={{
+                  color: "var(--gray-600)",
+                  fontSize: "1rem",
+                  marginBottom: "1.5rem",
+                  lineHeight: "1.6",
+                }}
+              >
+                Your password has been updated successfully.
+                <br />
                 You will be redirected to the login page shortly.
               </p>
 
-              <p style={{ 
-                color: 'var(--gray-500)', 
-                fontSize: '0.9rem',
-                fontStyle: 'italic'
-              }}>
+              <p
+                style={{
+                  color: "var(--gray-500)",
+                  fontSize: "0.9rem",
+                  fontStyle: "italic",
+                }}
+              >
                 Redirecting in 3 seconds...
               </p>
 
-              <div style={{ 
-                marginTop: '2rem',
-                padding: '1rem',
-                background: 'var(--gray-100)',
-                borderRadius: '8px',
-                fontSize: '0.85rem',
-                color: 'var(--gray-600)'
-              }}>
+              <div
+                style={{
+                  marginTop: "2rem",
+                  padding: "1rem",
+                  background: "var(--gray-100)",
+                  borderRadius: "8px",
+                  fontSize: "0.85rem",
+                  color: "var(--gray-600)",
+                }}
+              >
                 💡 Please use your new password on the next login
               </div>
             </div>
