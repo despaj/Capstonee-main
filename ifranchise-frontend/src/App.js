@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -22,31 +22,38 @@ import SalesAdmin from "./components/SalesAdmin";
 function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const authChannelRef = useRef(null);
 
-  const handleAppLogout = () => {
-    // First unmount every protected dashboard/component.
-    setUser(null);
+  const handleAppLogout = async () => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Client": "web",
+        },
+        credentials: "include",
+      });
 
-    localStorage.removeItem("user");
-    localStorage.removeItem("rememberedUser");
-
-    sessionStorage.removeItem("user");
-    sessionStorage.removeItem("tempUser");
-
-    // Wait until React has committed the dashboard unmount.
-    setTimeout(async () => {
-      try {
-        await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        });
-      } catch (err) {
-        console.error("Logout error:", err);
+      if (!res.ok) {
+        throw new Error(`Logout failed: ${res.status}`);
       }
-    }, 100);
+
+      // Server session has been successfully destroyed.
+      setUser(null);
+
+      localStorage.removeItem("user");
+      localStorage.removeItem("rememberedUser");
+
+      sessionStorage.removeItem("user");
+      sessionStorage.removeItem("tempUser");
+
+      authChannelRef.current?.postMessage({
+        type: "LOGOUT",
+      });
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
   };
 
   const renderDashboard = () => {
@@ -80,58 +87,73 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    const restoreSession = async () => {
-      try {
-        const API_URL = process.env.REACT_APP_API_URL;
+  const restoreSession = useCallback(async () => {
+    try {
+      const API_URL = process.env.REACT_APP_API_URL;
 
-        if (!API_URL) {
-          console.error("REACT_APP_API_URL is not configured.");
-          setUser(null);
-          return;
-        }
-
-        const res = await fetch(`${API_URL}/me`, {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            Accept: "application/json",
-          },
-        });
-
-        if (res.status === 401) {
-          setUser(null);
-          sessionStorage.removeItem("user");
-          return;
-        }
-
-        if (!res.ok) {
-          throw new Error(`Session restore failed: ${res.status}`);
-        }
-
-        const contentType = res.headers.get("content-type") || "";
-
-        if (!contentType.includes("application/json")) {
-          throw new Error(
-            `Expected JSON from /me but received ${contentType || "unknown content type"}`,
-          );
-        }
-
-        const data = await res.json();
-
-        setUser(data);
-        sessionStorage.setItem("user", JSON.stringify(data));
-      } catch (err) {
-        console.error("Session restore failed:", err);
+      if (!API_URL) {
+        console.error("REACT_APP_API_URL is not configured.");
         setUser(null);
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/me`, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Session restore failed: ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      if (!data.authenticated || !data.user) {
+        setUser(null);
+        return;
+      }
+
+      setUser(data.user);
+    } catch (err) {
+      console.error("Session restore failed:", err);
+      setUser(null);
+    } finally {
+      setAuthLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
+
+  useEffect(() => {
+    if (!("BroadcastChannel" in window)) return;
+
+    const channel = new BroadcastChannel("franchisync_auth");
+
+    authChannelRef.current = channel;
+
+    channel.onmessage = async (event) => {
+      if (event.data?.type === "LOGIN") {
+        await restoreSession();
+      }
+
+      if (event.data?.type === "LOGOUT") {
+        setUser(null);
+
+        sessionStorage.removeItem("tempUser");
         sessionStorage.removeItem("user");
-      } finally {
-        setAuthLoading(false);
       }
     };
 
-    restoreSession();
-  }, []);
+    return () => {
+      channel.close();
+      authChannelRef.current = null;
+    };
+  }, [restoreSession]);
 
   if (authLoading) {
     return <div>Loading...</div>;
@@ -141,15 +163,31 @@ function App() {
     <Router>
       <div className="App">
         <Routes>
-          <Route path="/" element={<LandingPage />} />
-
+          <Route
+            path="/"
+            element={
+              user ? (
+                <Navigate to="/admin-dashboard" replace />
+              ) : (
+                <LandingPage />
+              )
+            }
+          />
           <Route
             path="/admin-login"
             element={
               user ? (
                 <Navigate to="/admin-dashboard" replace />
               ) : (
-                <AdminLogin onLogin={setUser} />
+                <AdminLogin
+                  onLogin={(loggedInUser) => {
+                    setUser(loggedInUser);
+
+                    authChannelRef.current?.postMessage({
+                      type: "LOGIN",
+                    });
+                  }}
+                />
               )
             }
           />

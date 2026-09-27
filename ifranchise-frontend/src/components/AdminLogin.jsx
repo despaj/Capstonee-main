@@ -674,24 +674,22 @@ export default function AdminLogin({ onLogin }) {
     otpInFlight.current = true;
     setLoading("otp");
     try {
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/verify-otp-login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Device-ID": getOrCreateLocalDeviceId(),
-          },
-          body: JSON.stringify({
-            email: otpEmail.trim(),
-            otp: val,
-            trustDevice: !!trustDevice,
-            latitude: coords?.latitude || null,
-            longitude: coords?.longitude || null,
-          }),
-          credentials: "include",
+      const res = await fetch(`${API_BASE}/verify-otp-login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Client": "web",
+          "X-Device-ID": getOrCreateLocalDeviceId(),
         },
-      );
+        body: JSON.stringify({
+          email: otpEmail.trim(),
+          otp: val,
+          trustDevice: !!trustDevice,
+          latitude: coords?.latitude || null,
+          longitude: coords?.longitude || null,
+        }),
+        credentials: "include",
+      });
       const data = await res.json();
 
       if (!res.ok) {

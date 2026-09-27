@@ -125,23 +125,18 @@ async function logLogin(user, req, latitude, longitude) {
   }
 }
 
-router.get("/me", authenticate, async (req, res) => {
-  try {
-    res.json({
-      id: req.user.id,
-      name: req.user.name,
-      email: req.user.email,
-      role: req.user.role,
-      branch: req.user.branch,
-      brand: req.user.brand,
-    });
-  } catch (error) {
-    console.error("GET /me error:", error);
-
-    res.status(500).json({
-      message: "Failed to load current user",
+router.get("/me", (req, res) => {
+  if (!req.user) {
+    return res.status(200).json({
+      authenticated: false,
+      user: null,
     });
   }
+
+  return res.status(200).json({
+    authenticated: true,
+    user: req.user,
+  });
 });
 
 router.post("/login", async (req, res) => {
@@ -159,6 +154,17 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
 
     const isWeb = req.headers["x-client"] === "web";
+
+    if (isWeb) {
+      res.clearCookie("access_token", {
+        path: "/",
+      });
+
+      res.clearCookie("refresh_token", {
+        path: "/",
+      });
+    }
+
     const mobileBlockedRoles = [
       "Super Admin",
       "Franchisee Operations Admin",
@@ -363,15 +369,24 @@ router.post("/logout", async (req, res) => {
   try {
     await revokeSession(req, res);
 
+    res.clearCookie("access_token", {
+      path: "/",
+    });
+
+    res.clearCookie("refresh_token", {
+      path: "/",
+    });
+
     res.clearCookie("device_id", {
       httpOnly: true,
       sameSite: "lax",
+      path: "/",
     });
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (err) {
     console.error("Logout error:", err);
-    res.status(500).json({ message: "Logout failed" });
+    return res.status(500).json({ message: "Logout failed" });
   }
 });
 
