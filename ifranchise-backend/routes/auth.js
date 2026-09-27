@@ -153,16 +153,6 @@ router.post("/login", async (req, res) => {
 
     const isWeb = req.headers["x-client"] === "web";
 
-    if (isWeb) {
-      res.clearCookie("access_token", {
-        path: "/",
-      });
-
-      res.clearCookie("refresh_token", {
-        path: "/",
-      });
-    }
-
     const mobileBlockedRoles = [
       "Super Admin",
       "Franchisee Operations Admin",
