@@ -28,13 +28,7 @@ const getBrowserLocation = () => {
           longitude: position.coords.longitude,
         });
       },
-      (error) => {
-        // Location is optional. Continue without coordinates.
-        if (error.code === error.PERMISSION_DENIED) {
-        } else if (error.code === error.TIMEOUT) {
-        } else {
-        }
-
+      () => {
         resolve(null);
       },
       {
