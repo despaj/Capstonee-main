@@ -6,7 +6,6 @@ import React, {
   useMemo,
   useRef,
 } from "react";
-import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import logo from "../assets/logo.png";
 import Receipts from "./Receipts";
@@ -719,7 +718,7 @@ const ReadOnlyBanner = ({
   </div>
 );
 
-export default function ManagerDashboard({ onLogout }) {
+export default function ManagerDashboard({ user, onLogout, onUserUpdate }) {
   useEffect(() => {
     const fontId = "fr-plus-jakarta-sans";
     if (!document.getElementById(fontId)) {
@@ -733,7 +732,6 @@ export default function ManagerDashboard({ onLogout }) {
     document.body.classList.add("fr-admin-ui");
     return () => document.body.classList.remove("fr-admin-ui");
   }, []);
-  const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState(() => {
     const savedModule = sessionStorage.getItem("fr_activeModule");
     return savedModule || "dashboard";
@@ -744,23 +742,6 @@ export default function ManagerDashboard({ onLogout }) {
   const [transactions, setTransactions] = useState([]);
   const [brands, setBrands] = useState([]);
 
-  const getUserFromStorage = () => {
-    const s =
-      localStorage.getItem("user") ||
-      sessionStorage.getItem("user") ||
-      sessionStorage.getItem("tempUser") ||
-      localStorage.getItem("rememberedUser");
-
-    if (!s) return null;
-
-    try {
-      return JSON.parse(s);
-    } catch {
-      return null;
-    }
-  };
-
-  const [user, setUser] = useState(getUserFromStorage);
   const [managerNotifications, setManagerNotifications] = useState(null);
   const [managerNotifLoading, setManagerNotifLoading] = useState(false);
   const [managerNotifError, setManagerNotifError] = useState("");
@@ -922,12 +903,6 @@ export default function ManagerDashboard({ onLogout }) {
   useEffect(() => {
     sessionStorage.setItem("fr_activeModule", activeModule);
   }, [activeModule]);
-
-  useEffect(() => {
-    const currentUser = getUserFromStorage();
-    if (!currentUser) navigate("/admin-login");
-    else setUser(currentUser);
-  }, []);
 
   useEffect(() => {
     const branch = String(user?.branch || "").trim();

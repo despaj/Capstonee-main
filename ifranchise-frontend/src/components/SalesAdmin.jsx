@@ -7,7 +7,6 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import ifranchisejpg from "../assets/ifranchisejpg.jpg";
 import franchisync from "../assets/franchisyncjpg.jpg";
@@ -870,8 +869,7 @@ function BmStatCard({ label, value, sub, icon, bg }) {
   );
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
-export default function SalesAdmin({ onLogout }) {
+export default function SalesAdmin({ user, onLogout }) {
   useEffect(() => {
     const fontId = "fr-plus-jakarta-sans";
     if (!document.getElementById(fontId)) {
@@ -885,51 +883,6 @@ export default function SalesAdmin({ onLogout }) {
     document.body.classList.add("fr-admin-ui");
     return () => document.body.classList.remove("fr-admin-ui");
   }, []);
-  const navigate = useNavigate();
-
-  const getUserFromStorage = () => {
-    const s =
-      localStorage.getItem("user") ||
-      sessionStorage.getItem("user") ||
-      sessionStorage.getItem("tempUser") ||
-      localStorage.getItem("rememberedUser");
-
-    if (!s) return null;
-
-    try {
-      return JSON.parse(s);
-    } catch {
-      return null;
-    }
-  };
-
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    const loadCurrentUser = async () => {
-      try {
-        const response = await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/me`,
-          {
-            cache: "no-store",
-          },
-        );
-
-        if (!response.ok) {
-          console.error("Failed to load current user:", response.status);
-          return;
-        }
-
-        const data = await response.json();
-
-        setUser(data.user || data);
-      } catch (error) {
-        console.error("Failed to load current user:", error);
-      }
-    };
-
-    loadCurrentUser();
-  }, []);
 
   const [activeModule, setActiveModule] = useState(
     () => sessionStorage.getItem("sa_activeModule") || "dashboard",
@@ -941,12 +894,6 @@ export default function SalesAdmin({ onLogout }) {
   const [transactions, setTransactions] = useState([]);
   const [preset, setPreset] = useState("month");
   const [stats, setStats] = useState(null);
-
-  useEffect(() => {
-    const current = getUserFromStorage();
-    if (!current) navigate("/admin-login");
-    else setUser(current);
-  }, []);
 
   useEffect(() => {
     sessionStorage.setItem("sa_activeModule", activeModule);

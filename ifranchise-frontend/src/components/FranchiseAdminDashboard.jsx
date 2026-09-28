@@ -6,7 +6,6 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -109,9 +108,14 @@ async function adminModuleFetch(input, options) {
 
 // Keep API envelopes and error objects out of transaction state.
 function parseTransactionResponse(payload) {
-  if (payload && !Array.isArray(payload) &&
-      (payload.error || payload.success === false)) {
-    throw new Error(String(payload.error || payload.message || "Failed to load transactions"));
+  if (
+    payload &&
+    !Array.isArray(payload) &&
+    (payload.error || payload.success === false)
+  ) {
+    throw new Error(
+      String(payload.error || payload.message || "Failed to load transactions"),
+    );
   }
   const rows = [
     payload,
@@ -121,8 +125,11 @@ function parseTransactionResponse(payload) {
     payload?.data?.transactions,
     payload?.data?.rows,
   ].find(Array.isArray);
-  if (!rows) throw new Error("Unexpected transactions response: expected an array");
-  return rows.filter((row) => row && typeof row === "object" && !Array.isArray(row));
+  if (!rows)
+    throw new Error("Unexpected transactions response: expected an array");
+  return rows.filter(
+    (row) => row && typeof row === "object" && !Array.isArray(row),
+  );
 }
 
 async function fetchDashboardTransactions() {
@@ -1203,7 +1210,7 @@ function AlertModal({ message, onClose, type = "info" }) {
   );
 }
 
-export default function FranchiseAdminDashboard() {
+export default function FranchiseAdminDashboard({ user, onLogout }) {
   useEffect(() => {
     // A link loads reliably even when another module inserts its own style tag.
     const fontId = "fr-plus-jakarta-sans";
@@ -1219,7 +1226,6 @@ export default function FranchiseAdminDashboard() {
     return () => document.body.classList.remove("fr-admin-ui");
   }, []);
 
-  const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState(
     () => sessionStorage.getItem("fa_activeModule") || "dashboard",
   );
@@ -1229,24 +1235,8 @@ export default function FranchiseAdminDashboard() {
   const [preset, setPreset] = useState("month");
   const [stats, setStats] = useState(null);
 
-  const getUserFromStorage = () => {
-    const s =
-      localStorage.getItem("user") ||
-      localStorage.getItem("rememberedUser") ||
-      sessionStorage.getItem("user");
-    return s ? JSON.parse(s) : null;
-  };
-
-  const [user, setUser] = useState(getUserFromStorage);
-
   const [transactions, setTransactions] = useState([]);
   const [transactionError, setTransactionError] = useState("");
-
-  useEffect(() => {
-    const u = getUserFromStorage();
-    if (!u) navigate("/admin-login");
-    else setUser(u);
-  }, []);
 
   useEffect(() => {
     fetchDashboardTransactions()
@@ -1301,7 +1291,6 @@ export default function FranchiseAdminDashboard() {
       sessionStorage.removeItem("tempUser");
       sessionStorage.removeItem("fa_activeModule");
       setShowLogoutModal(false);
-      window.location.href = "/admin-login";
     }
   };
 
@@ -1631,7 +1620,17 @@ export default function FranchiseAdminDashboard() {
 
         <div className="fa-content">
           {transactionError && (
-            <div role="alert" style={{ marginBottom: 16, padding: "12px 16px", borderRadius: 10, background: "#fef2f2", color: "#991b1b", fontSize: 13 }}>
+            <div
+              role="alert"
+              style={{
+                marginBottom: 16,
+                padding: "12px 16px",
+                borderRadius: 10,
+                background: "#fef2f2",
+                color: "#991b1b",
+                fontSize: 13,
+              }}
+            >
               Sales data could not be loaded: {transactionError}
             </div>
           )}
@@ -9031,20 +9030,22 @@ function B2BRevenueAssuranceDashboard({
       );
     });
 
-    const pos = (Array.isArray(transactions) ? transactions : []).filter((tx) => {
-      const rowBranch = b2bBranchName(tx);
+    const pos = (Array.isArray(transactions) ? transactions : []).filter(
+      (tx) => {
+        const rowBranch = b2bBranchName(tx);
 
-      // POS stores brand in shop in your transactions table.
-      const rowBrand =
-        b2bBrandName(tx) || tx?.shop || tx?.brand || tx?.brand_name || "";
+        // POS stores brand in shop in your transactions table.
+        const rowBrand =
+          b2bBrandName(tx) || tx?.shop || tx?.brand || tx?.brand_name || "";
 
-      return (
-        b2bIsCompletedTx(tx) &&
-        isOfficialBrandBranch(rowBranch, rowBrand) &&
-        brandAllows(normalizeB2BBrand(rowBrand)) &&
-        branchAllows(rowBranch)
-      );
-    });
+        return (
+          b2bIsCompletedTx(tx) &&
+          isOfficialBrandBranch(rowBranch, rowBrand) &&
+          brandAllows(normalizeB2BBrand(rowBrand)) &&
+          branchAllows(rowBranch)
+        );
+      },
+    );
 
     const inventory = (rawInventory || []).filter((row) => {
       const rowBranch = b2bBranchName(row);
@@ -17742,9 +17743,7 @@ function FAStockInventoryContent({ user, brands: propBrands = [] }) {
     setLoading(true);
     try {
       const q = branch ? `?branch=${encodeURIComponent(branch)}` : "";
-      const res = await sessionApiFetch(
-        `${ADMIN_API_BASE}/ingredients${q}`,
-      );
+      const res = await sessionApiFetch(`${ADMIN_API_BASE}/ingredients${q}`);
       const d = await res.json();
       setItems(Array.isArray(d) ? d : []);
     } catch {
@@ -21570,9 +21569,7 @@ function FAApplicationsContent({
 
   const fetchApplications = async () => {
     try {
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/applications`,
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/applications`);
       const data = await res.json();
       setApplications(Array.isArray(data) ? data.map(normalizeApp) : []);
     } catch (err) {
@@ -21976,20 +21973,17 @@ function FAApplicationsContent({
     setAlertModal({ title: "Approving application…", type: "loading" });
     try {
       const coords = await getBrowserLocation();
-      await adminModuleFetch(
-        `${ADMIN_API_BASE}/applications/${id}/status`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            status: "approved",
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        },
-      );
+      await adminModuleFetch(`${ADMIN_API_BASE}/applications/${id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "approved",
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       setApplications((prev) =>
         prev.map((a) => (a.id === id ? { ...a, status: "approved" } : a)),
       );
@@ -22048,14 +22042,11 @@ function FAApplicationsContent({
 
       const app = applications.find((a) => a.id === id);
       if (app?.email) {
-        await adminModuleFetch(
-          `${ADMIN_API_BASE}/send-rejection`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ to: app.email, name: app.name }),
-          },
-        );
+        await adminModuleFetch(`${ADMIN_API_BASE}/send-rejection`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: app.email, name: app.name }),
+        });
       }
 
       setApplications((prev) =>
@@ -22120,21 +22111,18 @@ function FAApplicationsContent({
       }
 
       if (app.email) {
-        await adminModuleFetch(
-          `${ADMIN_API_BASE}/send-schedule-options`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              to: app.email,
-              name: app.name,
-              optionADate,
-              optionBDate,
-              optionCDate,
-              token: data.appointmentToken,
-            }),
-          },
-        );
+        await adminModuleFetch(`${ADMIN_API_BASE}/send-schedule-options`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: app.email,
+            name: app.name,
+            optionADate,
+            optionBDate,
+            optionCDate,
+            token: data.appointmentToken,
+          }),
+        });
       }
 
       const normalizedApp = normalizeApp(data.application);
@@ -22260,42 +22248,39 @@ function FAApplicationsContent({
     try {
       const d = entry.data;
       const coords = await getBrowserLocation();
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/applications`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: d.name,
-            email: d.email,
-            phone: d.phone,
-            franchise: d.franchise,
-            paymentMode: d.payment_mode,
-            dob: d.dob,
-            civilStatus: d.civil_status,
-            gender: d.gender,
-            nationality: d.nationality,
-            address: d.address,
-            dependents: d.dependents,
-            spouseName: d.spouse_name,
-            spouseOccupation: d.spouse_occupation,
-            employmentType: d.employment_type,
-            yearsEmployer: d.years_employer,
-            income: d.income,
-            employerName: d.employer_name,
-            businessAddress: d.business_address,
-            position: d.position,
-            businessNature: d.business_nature,
-            signature: d.signature,
-            dateSigned: d.date_signed,
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-            restored: true,
-          }),
-        },
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/applications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: d.name,
+          email: d.email,
+          phone: d.phone,
+          franchise: d.franchise,
+          paymentMode: d.payment_mode,
+          dob: d.dob,
+          civilStatus: d.civil_status,
+          gender: d.gender,
+          nationality: d.nationality,
+          address: d.address,
+          dependents: d.dependents,
+          spouseName: d.spouse_name,
+          spouseOccupation: d.spouse_occupation,
+          employmentType: d.employment_type,
+          yearsEmployer: d.years_employer,
+          income: d.income,
+          employerName: d.employer_name,
+          businessAddress: d.business_address,
+          position: d.position,
+          businessNature: d.business_nature,
+          signature: d.signature,
+          dateSigned: d.date_signed,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+          restored: true,
+        }),
+      });
       const result = await res.json();
       if (result.success) {
         await adminModuleFetch(
@@ -24049,29 +24034,26 @@ function CreateAccountModal({
 
       // Create the account first — if the email is a duplicate, we bail
       // out before ever touching branches, so no orphan branch is created.
-      const res = await adminModuleFetch(
-        `${ADMIN_API_BASE}/users`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name,
-            firstName,
-            lastName,
-            middleInitial: middleInitial || null,
-            suffix: suffix || null,
-            email,
-            password: tempPassword,
-            role,
-            brand,
-            branch,
-            performed_by: user?.name || "System",
-            performed_by_role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        },
-      );
+      const res = await adminModuleFetch(`${ADMIN_API_BASE}/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          firstName,
+          lastName,
+          middleInitial: middleInitial || null,
+          suffix: suffix || null,
+          email,
+          password: tempPassword,
+          role,
+          brand,
+          branch,
+          performed_by: user?.name || "System",
+          performed_by_role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       if (!res.ok) {
         const err = await res.json();
 
@@ -24094,21 +24076,18 @@ function CreateAccountModal({
       // The applicant is the new franchisee — their assigned branch doesn't
       // exist yet, so create it under the selected brand now that the
       // account itself succeeded.
-      const branchRes = await adminModuleFetch(
-        `${ADMIN_API_BASE}/branches`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: branch,
-            brand_id: selectedBrandId,
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        },
-      );
+      const branchRes = await adminModuleFetch(`${ADMIN_API_BASE}/branches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: branch,
+          brand_id: selectedBrandId,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       if (!branchRes.ok) {
         const branchErr = await branchRes.json();
         onAlert(
@@ -24118,14 +24097,11 @@ function CreateAccountModal({
         return;
       }
 
-      await adminModuleFetch(
-        `${ADMIN_API_BASE}/send-credentials`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ to: email, name, password: tempPassword }),
-        },
-      );
+      await adminModuleFetch(`${ADMIN_API_BASE}/send-credentials`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: email, name, password: tempPassword }),
+      });
 
       // Isolated on purpose: the account and branch already exist at this
       // point. If marking account-created fails (network blip, stale
@@ -24443,7 +24419,6 @@ function CreateAccountModal({
   );
 }
 
-
 // Replace your existing FACommunicationContent function with this code.
 // React hooks needed: useState, useEffect, useCallback, useRef.
 // Merge the icons below into your existing lucide-react import (do not duplicate imports).
@@ -24457,7 +24432,15 @@ function CreateAccountModal({
 function FACommunicationContent({ user, brands: propBrands = [] }) {
   const C = { border: "#E1E6D8", muted: "#5C6B60", greenMid: "#c9dba0" };
   const bmLabel = { fontSize: 12, fontWeight: 700, color: "#347022" };
-  const bmInput = { width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #E1E6D8", borderRadius: 10, fontFamily: "inherit", fontSize: 13 };
+  const bmInput = {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "10px 12px",
+    border: "1px solid #E1E6D8",
+    borderRadius: 10,
+    fontFamily: "inherit",
+    fontSize: 13,
+  };
   const [saving, setSaving] = useState(false);
   const [photoName, setPhotoName] = useState("");
   const [draggingPhoto, setDraggingPhoto] = useState(false);
@@ -24470,38 +24453,96 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
   const saveLock = useRef(false);
   const photoInput = useRef(null);
   const normalizePhoto = (item) => {
-    const raw = item?.image_url || item?.imageUrl || item?.photo_url || item?.photoUrl || "";
+    const raw =
+      item?.image_url ||
+      item?.imageUrl ||
+      item?.photo_url ||
+      item?.photoUrl ||
+      "";
     if (typeof raw !== "string") return "";
     const value = raw.trim();
     if (/^data:image\/(jpeg|png|webp|gif);base64,/i.test(value)) return value;
     if (/^https?:\/\//i.test(value)) return value;
     if (value.startsWith("/") && !value.startsWith("//")) {
-      try { return new URL(value, ADMIN_API_BASE || window.location.origin).href; } catch { return ""; }
+      try {
+        return new URL(value, ADMIN_API_BASE || window.location.origin).href;
+      } catch {
+        return "";
+      }
     }
     return "";
   };
-  const normalizeAnnouncement = (item) => ({ ...item, image_url: normalizePhoto(item) });
-  const renderPhoto = (src, alt, maxHeight = 300) => !src ? null : (
-    failedImages.has(src) ? <div className="fa-photo-error" role="status">
-      <ImageOff size={22} /><span>This photo could not be loaded.</span>
-      <button type="button" onClick={(event) => { event.stopPropagation(); setFailedImages((prev) => { const next = new Set(prev); next.delete(src); return next; }); }}>Retry</button>
-    </div> : <button type="button" className="fa-photo-view" aria-label={`Enlarge ${alt}`}
-      onClick={(event) => { event.stopPropagation(); setLightbox({ src, alt }); }}>
-      <img src={src} alt={alt} style={{ width: "100%", maxHeight, objectFit: "contain", display: "block" }}
-        onError={() => setFailedImages((prev) => new Set(prev).add(src))} />
-      <span className="fa-photo-zoom"><ZoomIn size={13} /> View image</span>
-    </button>
-  );
+  const normalizeAnnouncement = (item) => ({
+    ...item,
+    image_url: normalizePhoto(item),
+  });
+  const renderPhoto = (src, alt, maxHeight = 300) =>
+    !src ? null : failedImages.has(src) ? (
+      <div className="fa-photo-error" role="status">
+        <ImageOff size={22} />
+        <span>This photo could not be loaded.</span>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setFailedImages((prev) => {
+              const next = new Set(prev);
+              next.delete(src);
+              return next;
+            });
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    ) : (
+      <button
+        type="button"
+        className="fa-photo-view"
+        aria-label={`Enlarge ${alt}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          setLightbox({ src, alt });
+        }}
+      >
+        <img
+          src={src}
+          alt={alt}
+          style={{
+            width: "100%",
+            maxHeight,
+            objectFit: "contain",
+            display: "block",
+          }}
+          onError={() => setFailedImages((prev) => new Set(prev).add(src))}
+        />
+        <span className="fa-photo-zoom">
+          <ZoomIn size={13} /> View image
+        </span>
+      </button>
+    );
   const [imageLoading, setImageLoading] = useState(false);
   const imageTask = useRef(0);
   const restoredEntries = useRef(new Set());
   const restoringEntries = useRef(new Set());
-  useEffect(() => () => { imageTask.current += 1; }, []);
+  useEffect(
+    () => () => {
+      imageTask.current += 1;
+    },
+    [],
+  );
   const adminModuleFetch = async (url, options = {}) => {
     if (options.body) {
       const coords = await getBrowserLocation();
-      options = { ...options, body: JSON.stringify({ ...JSON.parse(options.body),
-        performed_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }) };
+      options = {
+        ...options,
+        body: JSON.stringify({
+          ...JSON.parse(options.body),
+          performed_by: user?.name || "System",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      };
     }
     const response = await sessionApiFetch(url, options);
     if (!response.ok) {
@@ -24516,7 +24557,10 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     event.target.value = "";
     if (!file) return;
     const task = ++imageTask.current;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024) {
+    if (
+      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+      file.size > 10 * 1024 * 1024
+    ) {
       showAlert("Choose a JPG, PNG, or WebP photo up to 10 MB.", "error");
       return;
     }
@@ -24526,7 +24570,8 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
       const photo = await new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error("This photo could not be opened."));
+        img.onerror = () =>
+          reject(new Error("This photo could not be opened."));
         img.src = objectUrl;
       });
       const canvas = document.createElement("canvas");
@@ -24537,7 +24582,8 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
         canvas.width = Math.max(1, Math.round(photo.width * scale));
         canvas.height = Math.max(1, Math.round(photo.height * scale));
         const ctx = canvas.getContext("2d");
-        if (!ctx) throw new Error("Photo processing is unavailable in this browser.");
+        if (!ctx)
+          throw new Error("Photo processing is unavailable in this browser.");
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(photo, 0, 0, canvas.width, canvas.height);
@@ -24545,8 +24591,13 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
         if (encoded.length <= 70000) break;
         scale *= 0.75;
       }
-      if (encoded.length > 70000) throw new Error("Please choose a smaller photo.");
-      if (task === imageTask.current) { setImageUrl(encoded); setPhotoName(file.name); setImageError(false); }
+      if (encoded.length > 70000)
+        throw new Error("Please choose a smaller photo.");
+      if (task === imageTask.current) {
+        setImageUrl(encoded);
+        setPhotoName(file.name);
+        setImageError(false);
+      }
     } catch (error) {
       if (task === imageTask.current) showAlert(error.message, "error");
     } finally {
@@ -24597,13 +24648,20 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     setConfirmModal({ message, onConfirm, itemName });
   const confirmAction = async () => {
     if (actionLock.current) return;
-    actionLock.current = true; setActionBusy(true);
-    try { await confirmModal.onConfirm(); setConfirmModal(null); }
-    finally { actionLock.current = false; setActionBusy(false); }
+    actionLock.current = true;
+    setActionBusy(true);
+    try {
+      await confirmModal.onConfirm();
+      setConfirmModal(null);
+    } finally {
+      actionLock.current = false;
+      setActionBusy(false);
+    }
   };
   useEffect(() => {
     const handleKey = (event) => {
-      if (event.key !== "Escape" || saving || imageLoading || actionBusy) return;
+      if (event.key !== "Escape" || saving || imageLoading || actionBusy)
+        return;
       if (lightbox) setLightbox(null);
       else if (confirmModal) setConfirmModal(null);
       else if (modalVisible) setModalVisible(false);
@@ -24613,12 +24671,19 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     return () => window.removeEventListener("keydown", handleKey);
   }, [lightbox, confirmModal, modalVisible, saving, imageLoading, actionBusy]);
   useEffect(() => {
-    if (!viewingItem && !modalVisible && !confirmModal && !lightbox) return undefined;
+    if (!viewingItem && !modalVisible && !confirmModal && !lightbox)
+      return undefined;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = previous; };
-  }, [Boolean(viewingItem), modalVisible, Boolean(confirmModal), Boolean(lightbox)]);
-
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [
+    Boolean(viewingItem),
+    modalVisible,
+    Boolean(confirmModal),
+    Boolean(lightbox),
+  ]);
 
   // This component retains the existing FA screen access; the API enforces authorization.
   const isAdminUser = (u) => Boolean(u?.id);
@@ -24677,7 +24742,9 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
   }, []);
 
   // Announcement mutations are logged by the existing FA backend.
-  const logActivity = async () => { await fetchActivityLog(); };
+  const logActivity = async () => {
+    await fetchActivityLog();
+  };
 
   useEffect(() => {
     fetchAnnouncements();
@@ -24690,8 +24757,11 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     try {
       const res = await adminModuleFetch(`${ADMIN_API_BASE}/announcements`);
       const data = await res.json();
-      const rows = Array.isArray(data) ? data : data.announcements || data.data || [];
-      if (!Array.isArray(rows)) throw new Error("Unexpected announcement response.");
+      const rows = Array.isArray(data)
+        ? data
+        : data.announcements || data.data || [];
+      if (!Array.isArray(rows))
+        throw new Error("Unexpected announcement response.");
       const normalized = rows.map(normalizeAnnouncement);
       setAnnouncements(normalized);
       setLoadError("");
@@ -24704,7 +24774,6 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
       setFetching(false);
     }
   };
-
 
   const mergedAnnouncements = announcements.map((a) => ({
     ...a,
@@ -24784,11 +24853,16 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
       const savedRecord = data.announcement || data.data || data;
       const savedId = savedRecord?.id ?? editing?.id;
       const refreshed = await fetchAnnouncements();
-      const persisted = refreshed?.find((item) => savedId != null && String(item.id) === String(savedId));
+      const persisted = refreshed?.find(
+        (item) => savedId != null && String(item.id) === String(savedId),
+      );
       // Never claim an image is saved based only on a temporary browser preview.
       if (imageUrl && (!persisted || !persisted.image_url)) {
         if (savedId != null) setEditing({ ...savedRecord, id: savedId });
-        showAlert("The announcement was saved, but its photo could not be verified in the server response. Your selected photo is still here. The announcements API must save and return image_url.", "error");
+        showAlert(
+          "The announcement was saved, but its photo could not be verified in the server response. Your selected photo is still here. The announcements API must save and return image_url.",
+          "error",
+        );
         return;
       }
       setModalVisible(false);
@@ -24866,25 +24940,25 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     restoringEntries.current.add(entry.id);
     try {
       if (!restoredEntries.current.has(entry.id)) {
-      const res = await adminModuleFetch(`${ADMIN_API_BASE}/announcements`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          restored: true,
-          title: entry.data.title,
-          content: entry.data.content,
-          image_url: entry.data.image_url || null,
-          userId: user.id,
-          role: user.role,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showAlert(data.error || "Failed to restore.", "error");
-        return;
-      }
+        const res = await adminModuleFetch(`${ADMIN_API_BASE}/announcements`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            restored: true,
+            title: entry.data.title,
+            content: entry.data.content,
+            image_url: entry.data.image_url || null,
+            userId: user.id,
+            role: user.role,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showAlert(data.error || "Failed to restore.", "error");
+          return;
+        }
 
-      restoredEntries.current.add(entry.id);
+        restoredEntries.current.add(entry.id);
       }
       await adminModuleFetch(
         `${ADMIN_API_BASE}/announcements/delete-history/${entry.id}`,
@@ -24904,9 +24978,12 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
       showAlert(`"${entry.data.title}" has been restored!`, "success");
     } catch (err) {
       console.error(err);
-      showAlert(restoredEntries.current.has(entry.id)
-        ? "Announcement restored, but history cleanup failed. Retry Restore to finish cleanup without creating another copy."
-        : "Failed to restore announcement.", "error");
+      showAlert(
+        restoredEntries.current.has(entry.id)
+          ? "Announcement restored, but history cleanup failed. Retry Restore to finish cleanup without creating another copy."
+          : "Failed to restore announcement.",
+        "error",
+      );
     } finally {
       restoringEntries.current.delete(entry.id);
     }
@@ -25315,9 +25392,23 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
             <div style={commStyles.headerTitle}>Announcements</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button type="button" aria-label="Refresh announcements" title="Refresh announcements"
-              disabled={fetching} onClick={() => { fetchAnnouncements(); fetchDeleteHistory(); }}
-              style={{ ...commStyles.liveChip, color: "white", cursor: "pointer" }}><RefreshCw size={14} /></button>
+            <button
+              type="button"
+              aria-label="Refresh announcements"
+              title="Refresh announcements"
+              disabled={fetching}
+              onClick={() => {
+                fetchAnnouncements();
+                fetchDeleteHistory();
+              }}
+              style={{
+                ...commStyles.liveChip,
+                color: "white",
+                cursor: "pointer",
+              }}
+            >
+              <RefreshCw size={14} />
+            </button>
             <button
               onClick={() => {
                 setSearchVisible((v) => !v);
@@ -25462,8 +25553,16 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
       {/* ── LIST / DELETE HISTORY ── */}
       <div style={commStyles.listArea}>
-        {loadError && <div className="fa-error" role="alert">{loadError} <button onClick={fetchAnnouncements}>Retry</button></div>}
-        {selectedTab === "deleteHistory" && historyError && <div className="fa-error" role="alert">{historyError} <button onClick={fetchDeleteHistory}>Retry</button></div>}
+        {loadError && (
+          <div className="fa-error" role="alert">
+            {loadError} <button onClick={fetchAnnouncements}>Retry</button>
+          </div>
+        )}
+        {selectedTab === "deleteHistory" && historyError && (
+          <div className="fa-error" role="alert">
+            {historyError} <button onClick={fetchDeleteHistory}>Retry</button>
+          </div>
+        )}
         {/* ── DELETE HISTORY TAB ── */}
         {selectedTab === "deleteHistory" ? (
           <>
@@ -25488,7 +25587,9 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
             {deleteHistory.length === 0 ? (
               <div style={commStyles.emptyState}>
-                <div style={commStyles.emptyIcon}><Trash2 size={22} /></div>
+                <div style={commStyles.emptyIcon}>
+                  <Trash2 size={22} />
+                </div>
                 <div style={commStyles.emptyTitle}>
                   No deleted announcements
                 </div>
@@ -25534,8 +25635,9 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                     className="comm-del-row"
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "minmax(140px, 1fr) 140px 160px 200px",
-                    minWidth: 710,
+                      gridTemplateColumns:
+                        "minmax(140px, 1fr) 140px 160px 200px",
+                      minWidth: 710,
                       gap: 8,
                       alignItems: "center",
                       padding: "12px 16px",
@@ -25698,7 +25800,11 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                   >
                     <div style={commStyles.cardAccentBar(pinned)} />
                     <div style={commStyles.cardBody}>
-                      {renderPhoto(item.image_url, item.title || "Announcement photo", 200)}
+                      {renderPhoto(
+                        item.image_url,
+                        item.title || "Announcement photo",
+                        200,
+                      )}
                       <div style={commStyles.cardHeaderRow}>
                         <div style={commStyles.initialsChip(pinned)}>
                           {getInitials(item.title)}
@@ -25710,7 +25816,8 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                             </span>
                             {pinned && (
                               <span style={commStyles.pinnedBadge}>
-                                <Pin size={11} color="#3b791e" fill="#c9dba0" /> PINNED
+                                <Pin size={11} color="#3b791e" fill="#c9dba0" />{" "}
+                                PINNED
                               </span>
                             )}
                             {recent && !pinned && (
@@ -25748,7 +25855,11 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                               aria-pressed={pinned}
                               title={pinned ? "Unpin" : "Pin"}
                             >
-                              <Pin size={14} color="#3b791e" fill={pinned ? "#c9dba0" : "none"} />
+                              <Pin
+                                size={14}
+                                color="#3b791e"
+                                fill={pinned ? "#c9dba0" : "none"}
+                              />
                             </button>
                             <button
                               className="comm-action-btn"
@@ -25947,10 +26058,17 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
             <div style={{ padding: "22px 24px 28px" }}>
               {/* The saved photo is displayed inside the detail view, above its content. */}
-              {renderPhoto(normalizePhoto(viewingItem), viewingItem.title || "Announcement photo", 420)}
-              {!normalizePhoto(viewingItem) && <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>
-                No photo attached to this announcement.{isAdminUser(user) && " Use Edit to add a photo."}
-              </div>}
+              {renderPhoto(
+                normalizePhoto(viewingItem),
+                viewingItem.title || "Announcement photo",
+                420,
+              )}
+              {!normalizePhoto(viewingItem) && (
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>
+                  No photo attached to this announcement.
+                  {isAdminUser(user) && " Use Edit to add a photo."}
+                </div>
+              )}
               <p
                 style={{
                   fontSize: 14.5,
@@ -25992,7 +26110,12 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                       color: "#3b791e",
                     }}
                   >
-                    <Pin size={15} color="#3b791e" fill={viewingItem.pinned ? "#c9dba0" : "none"} /> {viewingItem.pinned ? "Unpin" : "Pin"}
+                    <Pin
+                      size={15}
+                      color="#3b791e"
+                      fill={viewingItem.pinned ? "#c9dba0" : "none"}
+                    />{" "}
+                    {viewingItem.pinned ? "Unpin" : "Pin"}
                   </button>
                   <button
                     onClick={() => {
@@ -26047,7 +26170,9 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
       {/* ── CREATE / EDIT MODAL ── */}
       {isAdminUser(user) && modalVisible && (
         <div
-          onClick={() => { if (!saving && !imageLoading) setModalVisible(false); }}
+          onClick={() => {
+            if (!saving && !imageLoading) setModalVisible(false);
+          }}
           style={{
             position: "fixed",
             inset: 0,
@@ -26087,7 +26212,9 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
               </span>
               <button
                 aria-label="Close announcement editor"
-                onClick={() => { if (!saving && !imageLoading) setModalVisible(false); }}
+                onClick={() => {
+                  if (!saving && !imageLoading) setModalVisible(false);
+                }}
                 style={{
                   width: 30,
                   height: 30,
@@ -26173,21 +26300,55 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                     </button>
                   )}
                 </label>
-                <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp"
-                  aria-label="Choose announcement photo" disabled={imageLoading || saving}
-                  onChange={handlePhotoPick} style={{ display: "none" }} />
-                <button type="button" className={`fa-photo-drop ${draggingPhoto ? "dragging" : ""}`}
-                  disabled={imageLoading || saving} onClick={() => photoInput.current?.click()}
-                  onDragOver={(event) => { event.preventDefault(); if (!saving && !imageLoading) setDraggingPhoto(true); }}
+                <input
+                  ref={photoInput}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  aria-label="Choose announcement photo"
+                  disabled={imageLoading || saving}
+                  onChange={handlePhotoPick}
+                  style={{ display: "none" }}
+                />
+                <button
+                  type="button"
+                  className={`fa-photo-drop ${draggingPhoto ? "dragging" : ""}`}
+                  disabled={imageLoading || saving}
+                  onClick={() => photoInput.current?.click()}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (!saving && !imageLoading) setDraggingPhoto(true);
+                  }}
                   onDragLeave={() => setDraggingPhoto(false)}
-                  onDrop={(event) => { event.preventDefault(); setDraggingPhoto(false); handlePhotoPick({ target: { files: event.dataTransfer.files, value: "" } }); }}>
-                  <span className="fa-upload-icon"><UploadCloud size={23} /></span>
-                  <strong>{imageLoading ? "Preparing your photo…" : imageUrl ? "Replace photo" : "Choose a photo"}</strong>
-                  <small>{photoName || "Click to browse or drag and drop here"}</small>
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setDraggingPhoto(false);
+                    handlePhotoPick({
+                      target: { files: event.dataTransfer.files, value: "" },
+                    });
+                  }}
+                >
+                  <span className="fa-upload-icon">
+                    <UploadCloud size={23} />
+                  </span>
+                  <strong>
+                    {imageLoading
+                      ? "Preparing your photo…"
+                      : imageUrl
+                        ? "Replace photo"
+                        : "Choose a photo"}
+                  </strong>
+                  <small>
+                    {photoName || "Click to browse or drag and drop here"}
+                  </small>
                   <small>JPG, PNG or WebP · Up to 10 MB</small>
                 </button>
-                <p aria-live="polite" style={{ fontSize: 11, color: C.muted, margin: "8px 0" }}>
-                  {imageUrl ? "Photo selected. Save the announcement to attach it." : "Your photo will appear in the announcement and its detail view."}
+                <p
+                  aria-live="polite"
+                  style={{ fontSize: 11, color: C.muted, margin: "8px 0" }}
+                >
+                  {imageUrl
+                    ? "Photo selected. Save the announcement to attach it."
+                    : "Your photo will appear in the announcement and its detail view."}
                 </p>
                 {/* Live preview */}
                 {imageUrl && !imageError && (
@@ -26255,7 +26416,9 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
               <div style={{ display: "flex", gap: 10 }}>
                 <button
                   type="button"
-                  onClick={() => { if (!saving && !imageLoading) setModalVisible(false); }}
+                  onClick={() => {
+                    if (!saving && !imageLoading) setModalVisible(false);
+                  }}
                   style={{
                     flex: 1,
                     padding: "10px 0",
@@ -26292,7 +26455,12 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                     boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
                   }}
                 >
-                  <Check size={14} /> {saving ? "Saving…" : imageLoading ? "Preparing photo…" : "Save Announcement"}
+                  <Check size={14} />{" "}
+                  {saving
+                    ? "Saving…"
+                    : imageLoading
+                      ? "Preparing photo…"
+                      : "Save Announcement"}
                 </button>
               </div>
             </form>
@@ -26300,22 +26468,68 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
         </div>
       )}
 
-      {lightbox && <div role="dialog" aria-modal="true" aria-label="Photo preview"
-        onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, zIndex: 4000, background: "rgba(12,25,14,.9)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <button type="button" aria-label="Close photo preview" onClick={() => setLightbox(null)}
-          style={{ position: "absolute", top: 20, right: 20, border: "1px solid #c9dba0", borderRadius: 12, padding: 10, color: "#fff", background: "#3b791e", cursor: "pointer" }}><X size={20} /></button>
-        <img src={lightbox.src} alt={lightbox.alt} onClick={(event) => event.stopPropagation()}
-          style={{ maxWidth: "100%", maxHeight: "90vh", objectFit: "contain", borderRadius: 12 }} />
-      </div>}
+      {lightbox && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photo preview"
+          onClick={() => setLightbox(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 4000,
+            background: "rgba(12,25,14,.9)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <button
+            type="button"
+            aria-label="Close photo preview"
+            onClick={() => setLightbox(null)}
+            style={{
+              position: "absolute",
+              top: 20,
+              right: 20,
+              border: "1px solid #c9dba0",
+              borderRadius: 12,
+              padding: 10,
+              color: "#fff",
+              background: "#3b791e",
+              cursor: "pointer",
+            }}
+          >
+            <X size={20} />
+          </button>
+          <img
+            src={lightbox.src}
+            alt={lightbox.alt}
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              maxWidth: "100%",
+              maxHeight: "90vh",
+              objectFit: "contain",
+              borderRadius: 12,
+            }}
+          />
+        </div>
+      )}
       {/* ── ALERT MODAL ── */}
       {alertModal && (
-        <Toast toast={{ type: alertModal.type, title: alertModal.message }} onClose={() => setAlertModal(null)} />
+        <Toast
+          toast={{ type: alertModal.type, title: alertModal.message }}
+          onClose={() => setAlertModal(null)}
+        />
       )}
 
       {/* ── CONFIRM / DELETE MODAL ── */}
       {confirmModal && (
         <div
-          onClick={() => { if (!actionBusy) setConfirmModal(null); }}
+          onClick={() => {
+            if (!actionBusy) setConfirmModal(null);
+          }}
           style={{
             position: "fixed",
             inset: 0,
@@ -26393,7 +26607,9 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
             <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
               <button
                 type="button"
-                onClick={() => { if (!actionBusy) setConfirmModal(null); }}
+                onClick={() => {
+                  if (!actionBusy) setConfirmModal(null);
+                }}
                 style={{
                   padding: "9px 22px",
                   borderRadius: 10,
@@ -26437,8 +26653,6 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     </div>
   );
 }
-
-
 
 function BrandFormFields({ form, setForm }) {
   const [catInput, setCatInput] = useState("");
@@ -27764,19 +27978,16 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
     showLoading("Deleting branch…");
     try {
       const coords = await getBrowserLocation();
-      const res = await sessionApiFetch(
-        `${ADMIN_API_BASE}/branches/${id}`,
-        {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            performed_by: user?.name || "System",
-            role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        },
-      );
+      const res = await sessionApiFetch(`${ADMIN_API_BASE}/branches/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       const data = await res.json();
       if (data.success) {
         await sessionApiFetch(`${ADMIN_API_BASE}/brand-delete-history`, {
@@ -28753,19 +28964,16 @@ function FAProfileContent({ user }) {
 
   const updateProfile = async () => {
     try {
-      const res = await sessionApiFetch(
-        `${ADMIN_API_BASE}/users/${user.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: formData.name,
-            email: formData.email,
-            role: formData.role,
-            branch: user.branch,
-          }),
-        },
-      );
+      const res = await sessionApiFetch(`${ADMIN_API_BASE}/users/${user.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+          branch: user.branch,
+        }),
+      });
       const data = await res.json();
       if (data.success) {
         setAlertModal({ message: "Profile updated!", type: "success" });

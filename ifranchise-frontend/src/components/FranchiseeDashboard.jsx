@@ -844,23 +844,7 @@ const ReadOnlyBanner = ({
   </div>
 );
 
-const getUserFromStorage = () => {
-  const s =
-    localStorage.getItem("user") ||
-    sessionStorage.getItem("user") ||
-    sessionStorage.getItem("tempUser") ||
-    localStorage.getItem("rememberedUser");
-
-  if (!s) return null;
-
-  try {
-    return JSON.parse(s);
-  } catch {
-    return null;
-  }
-};
-
-export default function FranchiseeDashboard({ onLogout }) {
+export default function FranchiseeDashboard({ user, onLogout, onUserUpdate }) {
   useEffect(() => {
     const fontId = "fr-plus-jakarta-sans";
     if (!document.getElementById(fontId)) {
@@ -974,8 +958,6 @@ export default function FranchiseeDashboard({ onLogout }) {
   const [transactions, setTransactions] = useState([]);
   const [brands, setBrands] = useState([]);
 
-  const [user, setUser] = useState(getUserFromStorage);
-
   useEffect(() => {
     sessionStorage.setItem("fr_activeModule", activeModule);
   }, [activeModule]);
@@ -999,14 +981,14 @@ export default function FranchiseeDashboard({ onLogout }) {
   }, []);
   const handleLogout = () => setShowLogoutModal(true);
 
-const confirmLogout = () => {
-  if (isLoggingOut) return;
+  const confirmLogout = () => {
+    if (isLoggingOut) return;
 
-  setIsLoggingOut(true);
-  setShowLogoutModal(false);
+    setIsLoggingOut(true);
+    setShowLogoutModal(false);
 
-  onLogout?.();
-};
+    onLogout?.();
+  };
 
   const navigation = [
     { id: "dashboard", label: "Dashboard", icon: <Home size={20} /> },
@@ -1322,7 +1304,7 @@ const confirmLogout = () => {
             )}
             {activeModule === "communication" && <FrCommunicationContent />}
             {activeModule === "profile" && (
-              <FrProfileContent user={user} onUserUpdate={setUser} />
+              <FrProfileContent user={user} onUserUpdate={onUserUpdate} />
             )}
           </div>
         </div>

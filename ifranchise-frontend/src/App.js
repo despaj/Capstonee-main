@@ -74,10 +74,22 @@ function App() {
         return <SalesAdmin user={user} onLogout={handleAppLogout} />;
 
       case "Franchisee":
-        return <FranchiseeDashboard user={user} onLogout={handleAppLogout} />;
+        return (
+          <FranchiseeDashboard
+            user={user}
+            onLogout={handleAppLogout}
+            onUserUpdate={setUser}
+          />
+        );
 
       case "Manager":
-        return <ManagerDashboard user={user} onLogout={handleAppLogout} />;
+        return (
+          <ManagerDashboard
+            user={user}
+            onLogout={handleAppLogout}
+            onUserUpdate={setUser}
+          />
+        );
 
       case "Staff":
         return <StaffDashboard user={user} onLogout={handleAppLogout} />;
