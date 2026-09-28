@@ -1272,10 +1272,10 @@ export default function FranchiseAdminDashboard({ user, onLogout }) {
     }
   }, []);
 
-const confirmLogout = () => {
-  setShowLogoutModal(false);
-  onLogout?.();
-};
+  const confirmLogout = () => {
+    setShowLogoutModal(false);
+    onLogout?.();
+  };
 
   // ── Fetch brands for sub-modules that need them ──
   const [brands, setBrands] = useState([]);
@@ -24514,24 +24514,25 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     },
     [],
   );
-  const adminModuleFetch = async (url, options = {}) => {
-    if (options.body) {
-      const coords = await getBrowserLocation();
-      options = {
-        ...options,
-        body: JSON.stringify({
-          ...JSON.parse(options.body),
-          performed_by: user?.name || "System",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-        }),
-      };
-    }
+  const announcementFetch = async (url, options = {}) => {
     const response = await sessionApiFetch(url, options);
+
     if (!response.ok) {
-      const detail = await response.json().catch(() => ({}));
-      throw new Error(detail.error || `Request failed (${response.status}).`);
+      const contentType = response.headers.get("content-type") || "";
+
+      let detail = {};
+
+      if (contentType.includes("application/json")) {
+        detail = await response.json().catch(() => ({}));
+      }
+
+      throw new Error(
+        detail.error ||
+          detail.message ||
+          `Request failed (${response.status}) at ${url}.`,
+      );
     }
+
     return response;
   };
   const handlePhotoPick = async (event) => {
@@ -24687,7 +24688,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
   const fetchDeleteHistory = async () => {
     try {
-      const res = await adminModuleFetch(
+      const res = await announcementFetch(
         `${ADMIN_API_BASE}/announcements/delete-history`,
       );
       const data = await res.json();
@@ -24714,7 +24715,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
   const fetchActivityLog = useCallback(async () => {
     try {
-      const res = await adminModuleFetch(
+      const res = await announcementFetch(
         `${ADMIN_API_BASE}/announcements-activity-log`,
       );
       const data = await res.json();
@@ -27611,24 +27612,6 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
     setAlertModal({ type: "success", title, message });
   const showError = (title, message) =>
     setAlertModal({ type: "error", title, message });
-
-  const getBrowserLocation = () => {
-    return new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        resolve(null);
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (position) =>
-          resolve({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          }),
-        () => resolve(null),
-        { timeout: 5000, maximumAge: 60000 },
-      );
-    });
-  };
 
   const fetchActivityLog = useCallback(async () => {
     try {

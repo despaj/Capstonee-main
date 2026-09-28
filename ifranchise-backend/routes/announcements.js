@@ -100,8 +100,8 @@ router.get(
   },
 );
 
-router.put(
-  "/announcements/:id",
+router.post(
+  "/announcements",
   authorize("Super Admin", "Franchisee Operations Admin"),
   async (req, res) => {
     try {
