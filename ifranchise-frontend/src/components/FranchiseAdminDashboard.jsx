@@ -6,12 +6,14 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
+import { createPortal as createAnnouncementToolbarPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import StockInventoryContent from "./StockInventoryContent";
 import ReceiptPrintTemplate from "./ReceiptPrintTemplate";
 import logoIfranchise from "../assets/report/ifranchise-logo.png";
+
 import logoSync from "../assets/report/franchsync-logo.png";
 import {
   Home,
@@ -24402,17 +24404,77 @@ function CreateAccountModal({
   );
 }
 
-// Replace your existing FACommunicationContent function with this code.
-// React hooks needed: useState, useEffect, useCallback, useRef.
-// Merge the icons below into your existing lucide-react import (do not duplicate imports).
-// Required lucide-react icons: Check, Clock, ImageOff, ImagePlus, Megaphone, Pencil, Pin, Plus, RefreshCw, RotateCcw, Search, Trash2, UploadCloud, X, ZoomIn.
-// Uses the existing FA dashboard Toast component.
-// Photos are compressed JPEG data URLs in image_url; the backend must accept
-// data:image/jpeg;base64 values and store image_url as TEXT. No upload endpoint is assumed.
-// ─────────────────────────────────────────────────────────────────────────────
-// ANNOUNCEMENTS — FA dashboard
-// ─────────────────────────────────────────────────────────────────────────────
+
+// Replace your existing FACommunicationContent function with the function below.
+// The toolbar is fixed outside dashboard scroll/transform containers.
 function FACommunicationContent({ user, brands: propBrands = [] }) {
+  const announcementRootRef = useRef(null);
+  const announcementToolbarSlotRef = useRef(null);
+  const announcementToolbarRef = useRef(null);
+  const [announcementToolbarDock, setAnnouncementToolbarDock] = useState(null);
+  const [announcementToolbarHeight, setAnnouncementToolbarHeight] = useState(64);
+
+  useEffect(() => {
+    const root = announcementRootRef.current;
+    const slot = announcementToolbarSlotRef.current;
+    const host = root?.parentElement;
+    if (!root || !slot || !host) return undefined;
+    let frame = 0;
+    let active = true;
+    const align = () => {
+      const hostStyle = window.getComputedStyle(host);
+      root.style.setProperty("--fa-host-left", hostStyle.paddingLeft || "0px");
+      root.style.setProperty("--fa-host-right", hostStyle.paddingRight || "0px");
+      root.style.setProperty("--fa-host-top", hostStyle.paddingTop || "0px");
+    };
+    align();
+    const initial = slot.getBoundingClientRect();
+    // Capture the header's lower edge once; vertical scrolling never changes it.
+    const fixedTop = Math.max(0, initial.top);
+    const measure = () => {
+      if (!active) return;
+      align();
+      const bounds = slot.getBoundingClientRect();
+      const left = Math.max(0, bounds.left);
+      const width = Math.max(0, Math.min(bounds.right, document.documentElement.clientWidth) - left);
+      setAnnouncementToolbarDock((previous) => {
+        if (previous && previous.left === left && previous.width === width && previous.top === fixedTop) return previous;
+        return { left, width, top: fixedTop };
+      });
+    };
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    };
+    measure();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : null;
+    observer?.observe(host);
+    observer?.observe(slot);
+    window.addEventListener("resize", schedule);
+    // Capture also detects scrolling inside any dashboard ancestor.
+    window.addEventListener("scroll", schedule, true);
+    return () => {
+      active = false;
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule, true);
+    };
+  }, []);
+
+  const announcementToolbarMounted = announcementToolbarDock !== null;
+  useEffect(() => {
+    if (!announcementToolbarMounted) return undefined;
+    const toolbar = announcementToolbarRef.current;
+    if (!toolbar) return undefined;
+    const measure = () => setAnnouncementToolbarHeight(Math.ceil(toolbar.getBoundingClientRect().height));
+    measure();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    observer?.observe(toolbar);
+    window.addEventListener("resize", measure);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
+  }, [announcementToolbarMounted]);
+
   const C = { border: "#E1E6D8", muted: "#5C6B60", greenMid: "#c9dba0" };
   const bmLabel = { fontSize: 12, fontWeight: 700, color: "#347022" };
   const bmInput = {
@@ -24425,7 +24487,6 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     fontSize: 13,
   };
   const [saving, setSaving] = useState(false);
-  const [photoName, setPhotoName] = useState("");
   const [draggingPhoto, setDraggingPhoto] = useState(false);
   const [lightbox, setLightbox] = useState(null);
   const [failedImages, setFailedImages] = useState(new Set());
@@ -24455,59 +24516,52 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     }
     return "";
   };
+  const normalizePhotos = (item) => {
+    let values = item?.image_urls ?? item?.imageUrls;
+    if (typeof values === "string") {
+      try { values = JSON.parse(values); } catch { values = null; }
+    }
+    if (!Array.isArray(values)) values = [normalizePhoto(item)];
+    return [...new Set(values.map((value) => normalizePhoto({ image_url: value })).filter(Boolean))];
+  };
   const normalizeAnnouncement = (item) => ({
     ...item,
-    image_url: normalizePhoto(item),
+    title: item?.title || "",
+    content: item?.content || "",
+    image_url: normalizePhotos(item)[0] || "",
+    image_urls: normalizePhotos(item),
   });
-  const renderPhoto = (src, alt, maxHeight = 300) =>
-    !src ? null : failedImages.has(src) ? (
-      <div className="fa-photo-error" role="status">
-        <ImageOff size={22} />
-        <span>This photo could not be loaded.</span>
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            setFailedImages((prev) => {
-              const next = new Set(prev);
-              next.delete(src);
-              return next;
-            });
-          }}
-        >
-          Retry
-        </button>
+  const openGallery = (photos, index, alt) => setLightbox({
+    photos, index, src: photos[index], alt,
+  });
+  const movePhoto = (direction) => setLightbox((current) => {
+    if (!current?.photos?.length) return current;
+    const index = (current.index + direction + current.photos.length) % current.photos.length;
+    return { ...current, index, src: current.photos[index] };
+  });
+  const renderGallery = (item) => {
+    const photos = normalizePhotos(item);
+    if (!photos.length) return null;
+    return (
+      <div className={`fa-collage fa-collage-${Math.min(photos.length, 5)}`}>
+        {photos.slice(0, 5).map((src, index) => (
+          <button type="button" key={src} className="fa-collage-tile"
+            aria-label={`View photo ${index + 1} of ${photos.length}`}
+            onClick={() => openGallery(photos, index, item.title || "Announcement photo")}>
+            {failedImages.has(src) ? <span className="fa-image-fallback"><ImageOff size={22} /> Photo unavailable</span> :
+              <img src={src} alt={`${item.title || "Announcement"} — photo ${index + 1}`} loading="lazy"
+                onError={() => setFailedImages((previous) => new Set(previous).add(src))} />}
+            {index === 4 && photos.length > 5 && <span className="fa-more-photos">+{photos.length - 5}</span>}
+          </button>
+        ))}
       </div>
-    ) : (
-      <button
-        type="button"
-        className="fa-photo-view"
-        aria-label={`Enlarge ${alt}`}
-        onClick={(event) => {
-          event.stopPropagation();
-          setLightbox({ src, alt });
-        }}
-      >
-        <img
-          src={src}
-          alt={alt}
-          style={{
-            width: "100%",
-            maxHeight,
-            objectFit: "contain",
-            display: "block",
-          }}
-          onError={() => setFailedImages((prev) => new Set(prev).add(src))}
-        />
-        <span className="fa-photo-zoom">
-          <ZoomIn size={13} /> View image
-        </span>
-      </button>
     );
+  };
   const [imageLoading, setImageLoading] = useState(false);
   const imageTask = useRef(0);
   const restoredEntries = useRef(new Set());
   const restoringEntries = useRef(new Set());
+  const unverifiedRestores = useRef(new Set());
   useEffect(
     () => () => {
       imageTask.current += 1;
@@ -24536,56 +24590,53 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     return response;
   };
   const handlePhotoPick = async (event) => {
-    if (saving || imageLoading) return;
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files || []);
     event.target.value = "";
-    if (!file) return;
-    const task = ++imageTask.current;
-    if (
-      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
-      file.size > 10 * 1024 * 1024
-    ) {
-      showAlert("Choose a JPG, PNG, or WebP photo up to 10 MB.", "error");
+    if (saving || imageLoading || !files.length) return;
+    if (imageUrls.length + files.length > 10) {
+      showAlert("You can attach up to 10 photos to one announcement.", "error");
       return;
     }
+    if (files.some((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024)) {
+      showAlert("Choose JPG, PNG, or WebP photos up to 10 MB each.", "error");
+      return;
+    }
+    const task = ++imageTask.current;
     setImageLoading(true);
-    const objectUrl = URL.createObjectURL(file);
     try {
-      const photo = await new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () =>
-          reject(new Error("This photo could not be opened."));
-        img.src = objectUrl;
-      });
-      const canvas = document.createElement("canvas");
-      let scale = Math.min(1, 1400 / Math.max(photo.width, photo.height));
-      let encoded = "";
-      // Bound the JSON payload for the existing image_url API field.
-      for (let attempt = 0; attempt < 8; attempt += 1) {
-        canvas.width = Math.max(1, Math.round(photo.width * scale));
-        canvas.height = Math.max(1, Math.round(photo.height * scale));
-        const ctx = canvas.getContext("2d");
-        if (!ctx)
-          throw new Error("Photo processing is unavailable in this browser.");
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(photo, 0, 0, canvas.width, canvas.height);
-        encoded = canvas.toDataURL("image/jpeg", 0.82);
-        if (encoded.length <= 70000) break;
-        scale *= 0.75;
+      const selected = [];
+      for (const file of files) {
+        const objectUrl = URL.createObjectURL(file);
+        try {
+          const photo = await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error(`Could not open ${file.name}.`));
+            img.src = objectUrl;
+          });
+          const canvas = document.createElement("canvas");
+          let scale = Math.min(1, 1400 / Math.max(photo.width, photo.height));
+          let encoded = "";
+          for (let attempt = 0; attempt < 8; attempt += 1) {
+            canvas.width = Math.max(1, Math.round(photo.width * scale));
+            canvas.height = Math.max(1, Math.round(photo.height * scale));
+            const ctx = canvas.getContext("2d");
+            if (!ctx) throw new Error("Photo processing is unavailable in this browser.");
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(photo, 0, 0, canvas.width, canvas.height);
+            encoded = canvas.toDataURL("image/jpeg", 0.82);
+            if (encoded.length <= 70000) break;
+            scale *= 0.75;
+          }
+          if (encoded.length > 70000) throw new Error(`Please choose a smaller photo: ${file.name}.`);
+          selected.push(encoded);
+        } finally { URL.revokeObjectURL(objectUrl); }
       }
-      if (encoded.length > 70000)
-        throw new Error("Please choose a smaller photo.");
-      if (task === imageTask.current) {
-        setImageUrl(encoded);
-        setPhotoName(file.name);
-        setImageError(false);
-      }
+      if (task === imageTask.current) setImageUrls((previous) => [...new Set([...previous, ...selected])]);
     } catch (error) {
       if (task === imageTask.current) showAlert(error.message, "error");
     } finally {
-      URL.revokeObjectURL(objectUrl);
       if (task === imageTask.current) setImageLoading(false);
     }
   };
@@ -24615,8 +24666,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
   const [selectedTab, setSelectedTab] = useState("all");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [imageError, setImageError] = useState(false);
+  const [imageUrls, setImageUrls] = useState([]);
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewingItem, setViewingItem] = useState(null);
@@ -24644,6 +24694,8 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
   };
   useEffect(() => {
     const handleKey = (event) => {
+      if (lightbox && event.key === "ArrowLeft") { event.preventDefault(); movePhoto(-1); return; }
+      if (lightbox && event.key === "ArrowRight") { event.preventDefault(); movePhoto(1); return; }
       if (event.key !== "Escape" || saving || imageLoading || actionBusy)
         return;
       if (lightbox) setLightbox(null);
@@ -24703,6 +24755,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                 title: e.title,
                 content: e.content,
                 image_url: normalizePhoto(e),
+                image_urls: normalizePhotos(e),
                 created_by: e.created_by,
               },
             }))
@@ -24824,7 +24877,8 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
         body: JSON.stringify({
           title,
           content,
-          image_url: imageUrl.trim() || null,
+          image_url: imageUrls[0] || null,
+          image_urls: imageUrls,
           userId: user.id,
           role: user.role,
         }),
@@ -24841,20 +24895,21 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
         (item) => savedId != null && String(item.id) === String(savedId),
       );
       // Never claim an image is saved based only on a temporary browser preview.
-      if (imageUrl && (!persisted || !persisted.image_url)) {
+      if (!persisted || normalizePhotos(persisted).length !== imageUrls.length) {
         if (savedId != null) setEditing({ ...savedRecord, id: savedId });
         showAlert(
-          "The announcement was saved, but its photo could not be verified in the server response. Your selected photo is still here. The announcements API must save and return image_url.",
+          "The announcement was saved, but its photos could not be verified. Your selection is still here. The announcements API must save and return every image in image_urls, including photo removals. Please do not create a duplicate post.",
           "error",
         );
         return;
       }
       setModalVisible(false);
+      setSelectedTab("all");
+      setSearchQuery("");
       setEditing(null);
       setTitle("");
       setContent("");
-      setImageUrl("");
-      setImageError(false);
+      setImageUrls([]);
       await logActivity(
         editing ? "edit" : "add",
         title,
@@ -24921,6 +24976,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
   const handleRestore = async (entry) => {
     if (restoringEntries.current.has(entry.id)) return;
+    if (unverifiedRestores.current.has(entry.id)) { showAlert("Check the restored post and API photo support before retrying. The history record has been retained.", "error"); return; }
     restoringEntries.current.add(entry.id);
     try {
       if (!restoredEntries.current.has(entry.id)) {
@@ -24932,6 +24988,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
             title: entry.data.title,
             content: entry.data.content,
             image_url: entry.data.image_url || null,
+            image_urls: normalizePhotos(entry.data),
             userId: user.id,
             role: user.role,
           }),
@@ -24942,6 +24999,16 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
           return;
         }
 
+        const restoredId = (data.announcement || data.data || data)?.id;
+        const refreshed = await fetchAnnouncements();
+        const restored = refreshed?.find((item) => restoredId != null && String(item.id) === String(restoredId));
+        if (!restored || normalizePhotos(restored).length !== normalizePhotos(entry.data).length) {
+          // Keep the history record and prevent duplicate creation in this session.
+          unverifiedRestores.current.add(entry.id);
+          restoredEntries.current.add(entry.id);
+          showAlert("The post was restored, but its photos could not be verified. Delete history was retained. Check the API before removing that history record.", "error");
+          return;
+        }
         restoredEntries.current.add(entry.id);
       }
       await adminModuleFetch(
@@ -24978,9 +25045,15 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     setEditing(item);
     setTitle(item.title);
     setContent(item.content);
-    setImageUrl(normalizePhoto(item));
-    setPhotoName("");
-    setImageError(false);
+    setImageUrls(normalizePhotos(item));
+    setModalVisible(true);
+  };
+
+  const openComposer = () => {
+    setEditing(null);
+    setTitle("");
+    setContent("");
+    setImageUrls([]);
     setModalVisible(true);
   };
 
@@ -25027,14 +25100,6 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     deleteHistory: deleteHistory.length,
   };
 
-  const getInitials = (t = "") =>
-    t
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() ?? "")
-      .join("");
-
   const isRecent = (item) =>
     new Date() - new Date(item.created_at) < 7 * 24 * 60 * 60 * 1000;
 
@@ -25050,10 +25115,17 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
   // ── Styles ──
   const commStyles = {
     root: {
+      width: "calc(100% + var(--fa-host-left, 0px) + var(--fa-host-right, 0px))",
+      marginLeft: "calc(0px - var(--fa-host-left, 0px))",
+      marginRight: "calc(0px - var(--fa-host-right, 0px))",
+      marginTop: "calc(0px - var(--fa-host-top, 0px))",
+      minWidth: 0,
+      boxSizing: "border-box",
       fontFamily: "'Plus Jakarta Sans', sans-serif",
       display: "flex",
       flexDirection: "column",
-      height: "100%",
+      height: "auto",
+      overflow: "visible",
     },
     header: {
       background: "linear-gradient(135deg,#3b791e,#3b791e)",
@@ -25150,10 +25222,10 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
       fontWeight: 800,
     },
     listArea: {
-      flex: 1,
-      overflowY: "auto",
-      padding: "20px 20px 24px",
-      background: "#f8fffe",
+      flex: "0 0 auto",
+      overflow: "visible",
+      padding: "14px 12px 18px",
+      background: "transparent",
     },
     sectionLabel: {
       display: "flex",
@@ -25330,10 +25402,69 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
         : "Check back later.";
 
   return (
-    <div className="fa-communications" style={commStyles.root}>
+    <div ref={announcementRootRef} className="fa-communications" style={commStyles.root}>
       <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
+
+          .fa-timeline, .fa-composer { width:100%; max-width:none; margin:0; box-sizing:border-box; }
+          .fa-timeline { display:flex; flex-direction:column; gap:14px; min-width:0; max-width:860px; margin:0 auto; }
+          .fa-timeline .fa-post { width:100%; min-width:0; box-sizing:border-box; border-radius:12px; }
+          .fa-post, .fa-composer { background:#fff; border:1px solid #E1E6D8; border-radius:16px; box-shadow:0 2px 10px rgba(0,140,60,0.06); }
+          .fa-composer { padding:12px; margin-bottom:14px; }
+          .fa-composer-row, .fa-editor-author { display:flex; align-items:center; gap:12px; }
+          .fa-editor-author { margin-bottom:20px; font-size:13px; color:#1A3A2A; }
+          .fa-admin-avatar { width:44px; height:44px; flex-shrink:0; border-radius:50%; object-fit:contain; background:#fff; padding:4px; box-sizing:border-box; }
+          .fa-compose-prompt { flex:1; min-width:0; text-align:left; border:0; background:#f0f5e8; color:#5C6B60; padding:13px 16px; border-radius:24px; font-size:13px; cursor:pointer; }
+          .fa-compose-photos { display:flex; justify-content:center; align-items:center; gap:8px; margin-top:14px; padding:12px 0 0; width:100%; border:0; border-top:1px solid #E1E6D8; background:none; color:#3b791e; font-size:12px; font-weight:700; cursor:pointer; }
+          .fa-post-header { display:flex; align-items:center; gap:10px; padding:12px 14px 8px; }
+          .fa-post-author { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
+          .fa-post-author strong { color:#1A3A2A; font-size:13px; }
+          .fa-post-author span { color:#5C6B60; font-size:10px; }
+          .fa-post-copy { padding:2px 14px 12px; overflow-wrap:anywhere; }
+          .fa-post-copy h3 { margin:0 0 8px; color:#1A3A2A; font-size:14px; }
+          .fa-post-copy p { margin:0; color:#1A3A2A; font-size:12px; line-height:1.65; white-space:pre-wrap; }
+          .fa-text-action { background:none; border:0; padding:6px 0; color:#3b791e; font-size:12px; font-weight:700; cursor:pointer; }
+          .fa-post-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 14px; padding:6px 0; color:#5C6B60; font-size:11px; }
+          .fa-post-menu { position:relative; align-self:flex-start; }
+          .fa-post-menu summary { list-style:none; cursor:pointer; color:#5C6B60; padding:8px; border-radius:8px; letter-spacing:2px; }
+          .fa-post-menu summary::-webkit-details-marker { display:none; }
+          .fa-post-menu-items { position:absolute; right:0; top:100%; width:140px; z-index:5; background:#fff; border:1px solid #E1E6D8; border-radius:12px; padding:5px; box-shadow:0 6px 20px rgba(0,140,60,0.12); }
+          .fa-post-menu-items button { display:flex; gap:9px; align-items:center; width:100%; padding:10px; background:none; border:0; color:#3b791e; cursor:pointer; font-size:12px; text-align:left; }
+          .fa-post-menu-items button:hover { background:#f0f5e8; border-radius:8px; }
+          .fa-collage { display:grid; gap:3px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+          .fa-collage-tile { position:relative; min-width:0; border:0; padding:0; display:block; background:#f0f5e8; aspect-ratio:1; overflow:hidden; cursor:zoom-in; }
+          .fa-collage-tile img { width:100%; height:100%; display:block; object-fit:cover; }
+          .fa-collage-1 { grid-template-columns:minmax(0,1fr); }
+          .fa-collage-1 img { object-fit:contain; }
+          .fa-collage-3 .fa-collage-tile:first-child { grid-column:span 2; aspect-ratio:2; }
+          .fa-collage-4 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+          .fa-collage-4 .fa-collage-tile:first-child { grid-column:span 3; aspect-ratio:1.8; }
+          .fa-collage-5 { grid-template-columns:repeat(6,minmax(0,1fr)); }
+          .fa-collage-5 .fa-collage-tile { grid-column:span 2; }
+          .fa-collage-5 .fa-collage-tile:nth-child(-n+2) { grid-column:span 3; }
+          .fa-more-photos { position:absolute; inset:0; display:grid; place-items:center; background:rgba(13,43,30,0.5); color:#fff; font-size:32px; font-weight:800; }
+          .fa-image-fallback { display:flex; height:100%; align-items:center; justify-content:center; flex-direction:column; gap:8px; font-size:11px; color:#5C6B60; }
+          .fa-photo-previews { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+          .fa-photo-preview { position:relative; aspect-ratio:1; overflow:hidden; border-radius:8px; background:#f0f5e8; }
+          .fa-photo-preview img { width:100%; height:100%; object-fit:cover; }
+          .fa-photo-preview button { position:absolute; right:4px; top:4px; border:0; border-radius:50%; padding:6px; background:#fff; color:#c0392b; cursor:pointer; display:flex; }
+          .fa-gallery-controls { position:absolute; bottom:20px; display:flex; align-items:center; gap:20px; color:#fff; font-size:13px; }
+          .fa-gallery-controls button { border:1px solid #c9dba0; background:#3b791e; color:#fff; border-radius:10px; min-width:44px; min-height:44px; font-size:24px; cursor:pointer; }
+          @media(max-width:600px) { .fa-post-header { padding:14px 12px 8px; gap:7px; flex-wrap:wrap; } .fa-post-author { flex-basis:calc(100% - 90px); } .fa-post-copy { padding:4px 12px 12px; } .fa-composer { padding:12px; } .fa-compose-prompt { font-size:12px; } }
+
+          .fa-communications .fa-compact-toolbar { width:100%; max-width:none; margin:0; box-sizing:border-box; padding:10px 12px; border:0; background:transparent; align-items:center; }
+          .fa-toolbar-actions { display:flex; gap:5px; margin-left:auto; }
+          .fa-toolbar-actions button, .fa-compact-search button { display:grid; place-items:center; border:1px solid #E1E6D8; border-radius:8px; padding:7px; background:#f0f5e8; color:#3b791e; cursor:pointer; }
+          .fa-compact-search { flex-basis:100%; display:flex; gap:8px; align-items:center; padding:6px 10px; border:1px solid #E1E6D8; border-radius:10px; background:#fff; color:#5C6B60; }
+          .fa-compact-search input { flex:1; min-width:0; border:0; padding:5px 0; background:transparent; font:inherit; font-size:12px; color:#1A3A2A; }
+          .fa-search-count { width:100%; margin:0 0 10px; color:#5C6B60; font-size:11px; }
+          .fa-post .fa-admin-avatar, .fa-composer .fa-admin-avatar { width:36px; height:36px; }
+          .fa-post .fa-collage { height:clamp(180px,45vw,280px); grid-template-rows:minmax(0,1fr); }
+          .fa-post .fa-collage-3, .fa-post .fa-collage-4 { grid-template-rows:minmax(0,1.7fr) minmax(0,1fr); }
+          .fa-post .fa-collage-5 { grid-template-rows:repeat(2,minmax(0,1fr)); }
+          .fa-post .fa-collage .fa-collage-tile { aspect-ratio:auto; min-height:0; height:100%; }
+          @media(max-width:600px) { .fa-post-author { flex-basis:0; } .fa-post-header { flex-wrap:nowrap; } }
           .fa-communications button { font-family: inherit; transition: transform .16s, background .16s, box-shadow .16s; }
           .fa-communications button:active:not(:disabled) { transform: scale(.97); }
           .fa-communications button:disabled { opacity: .55; cursor: wait; }
@@ -25355,130 +25486,20 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
           .comm-del-row:hover { background: #f6fef8 !important; }
         `}</style>
 
-      {/* ── HEADER ── */}
-      <div style={commStyles.header}>
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 40,
-            opacity: 0.15,
-            background:
-              "radial-gradient(ellipse at 30% 100%, #fff 0%, transparent 60%)",
-            pointerEvents: "none",
-          }}
-        />
-        <div className="fa-header-top" style={commStyles.headerTop}>
-          <div>
-            <div style={commStyles.eyebrow}>IFRANCHISE</div>
-            <div style={commStyles.headerTitle}>Announcements</div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button
-              type="button"
-              aria-label="Refresh announcements"
-              title="Refresh announcements"
-              disabled={fetching}
-              onClick={() => {
-                fetchAnnouncements();
-                fetchDeleteHistory();
-              }}
-              style={{
-                ...commStyles.liveChip,
-                color: "white",
-                cursor: "pointer",
-              }}
-            >
-              <RefreshCw size={14} />
-            </button>
-            <button
-              onClick={() => {
-                setSearchVisible((v) => !v);
-                setSearchQuery("");
-              }}
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.3)",
-                background: searchVisible
-                  ? "rgba(255,255,255,0.3)"
-                  : "rgba(255,255,255,0.18)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                fontSize: 16,
-              }}
-            >
-              {searchVisible ? "✕" : <Search size={16} color="#fff" />}
-            </button>
-            {isAdminUser(user) && (
-              <button
-                onClick={() => {
-                  setEditing(null);
-                  setPhotoName("");
-                  setTitle("");
-                  setContent("");
-                  setImageUrl("");
-                  setImageError(false);
-                  setModalVisible(true);
-                }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 7,
-                  padding: "8px 16px",
-                  borderRadius: 10,
-                  border: "1.5px solid rgba(255,255,255,0.4)",
-                  background: "rgba(255,255,255,0.18)",
-                  color: "#fff",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
-                }}
-              >
-                <Plus size={14} /> New
-              </button>
-            )}
-          </div>
-        </div>
-        {searchVisible && (
-          <div style={commStyles.searchBarWrap}>
-            <Search size={14} color="rgba(255,255,255,0.7)" />
-            <input
-              autoFocus
-              type="text"
-              placeholder="Search announcements…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={commStyles.searchInput}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "rgba(255,255,255,0.7)",
-                  fontSize: 16,
-                  lineHeight: 1,
-                }}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
       {/* ── TABS ── */}
-      <div style={commStyles.tabsRow}>
+      <div ref={announcementToolbarSlotRef} aria-hidden="true" style={{ height: announcementToolbarHeight, flexShrink: 0, width: "100%" }} />
+      {announcementToolbarDock && createAnnouncementToolbarPortal(
+        <div className="fa-communications" style={{
+          position: "fixed", top: announcementToolbarDock.top,
+          left: announcementToolbarDock.left, width: announcementToolbarDock.width,
+          zIndex: 1000, fontFamily: "'Plus Jakarta Sans', sans-serif",
+          background: "#fff", boxSizing: "border-box",
+        }}>
+<div ref={announcementToolbarRef} className="fa-compact-toolbar" style={{
+          ...commStyles.tabsRow, width: "100%", margin: 0, padding: "12px 20px",
+          background: "#fff", borderRadius: 0, boxSizing: "border-box",
+          position: "relative", top: "auto",
+        }}>
         {[
           { key: "all", label: "All" },
           { key: "recent", label: "Recent" },
@@ -25533,7 +25554,14 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
             </button>
           );
         })}
+        <div className="fa-toolbar-actions">
+          <button type="button" aria-label="Refresh announcements" disabled={fetching} onClick={() => { fetchAnnouncements(); fetchDeleteHistory(); }}><RefreshCw size={15} /></button>
+          <button type="button" aria-label="Search announcements" aria-expanded={searchVisible} onClick={() => { setSearchVisible((visible) => !visible); setSearchQuery(""); }}><Search size={15} /></button>
+        </div>
+        {searchVisible && <div className="fa-compact-search"><Search size={14} /><input autoFocus aria-label="Search announcements" placeholder="Search announcements…" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /><button type="button" aria-label="Close search" onClick={() => { setSearchVisible(false); setSearchQuery(""); }}><X size={14} /></button></div>}
       </div>
+        </div>, document.body,
+      )}
 
       {/* ── LIST / DELETE HISTORY ── */}
       <div style={commStyles.listArea}>
@@ -25735,19 +25763,16 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
           </>
         ) : (
           <>
-            {/* ── NORMAL LIST ── */}
-            <div style={commStyles.sectionLabel}>
-              <div style={commStyles.labelAccent} />
-              <span style={commStyles.labelTxt}>
-                {searchQuery
-                  ? `${filtered.length} result${filtered.length !== 1 ? "s" : ""} for "${searchQuery}"`
-                  : selectedTab === "recent"
-                    ? "Last 7 Days"
-                    : selectedTab === "pinned"
-                      ? "Pinned Announcements"
-                      : "All Announcements"}
-              </span>
-            </div>
+            {isAdminUser(user) && (
+              <div className="fa-composer">
+                <div className="fa-composer-row">
+                  <img className="fa-admin-avatar" src={logoIfranchise} alt="iFranchise logo" />
+                  <button type="button" className="fa-compose-prompt" onClick={openComposer}>Write an announcement, FranchiSync Admin…</button>
+                </div>
+                <button type="button" className="fa-compose-photos" onClick={openComposer}><ImagePlus size={19} /> Add photos</button>
+              </div>
+            )}
+            {searchQuery.trim() && <div className="fa-search-count" role="status">{filtered.length} result{filtered.length === 1 ? "" : "s"}</div>}
 
             {fetching ? (
               <div
@@ -25768,111 +25793,41 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                 <div style={commStyles.emptySub}>{emptySub}</div>
               </div>
             ) : (
-              filtered.map((item) => {
-                const pinned = !!item.pinned;
-                const recent = isRecent(item);
-                return (
-                  <div
-                    key={item.id}
-                    className="comm-card"
-                    style={commStyles.card(pinned)}
-                    onClick={() =>
-                      setViewingItem((prev) =>
-                        prev?.id === item.id ? null : item,
-                      )
-                    }
-                  >
-                    <div style={commStyles.cardAccentBar(pinned)} />
-                    <div style={commStyles.cardBody}>
-                      {renderPhoto(
-                        item.image_url,
-                        item.title || "Announcement photo",
-                        200,
+              <div className="fa-timeline" aria-label="Announcement timeline">
+                {filtered.map((item) => (
+                  <article key={item.id} className="fa-post">
+                    <header className="fa-post-header">
+                      <img className="fa-admin-avatar" src={logoIfranchise} alt="iFranchise logo" />
+                      <div className="fa-post-author">
+                        <strong>FranchiSync Admin</strong>
+                        <span>{fmt(item.created_at)}</span>
+                      </div>
+                      {item.pinned && <span style={commStyles.pinnedBadge}><Pin size={11} /> PINNED</span>}
+                      {isRecent(item) && !item.pinned && <span style={commStyles.recentBadge}>NEW</span>}
+                      {isAdminUser(user) && (
+                        <details className="fa-post-menu">
+                          <summary aria-label="Announcement actions">•••</summary>
+                          <div className="fa-post-menu-items">
+                            <button type="button" onClick={(event) => { event.currentTarget.closest("details").open = false; handlePin(item); }}><Pin size={14} /> {item.pinned ? "Unpin" : "Pin"}</button>
+                            <button type="button" onClick={(event) => { event.currentTarget.closest("details").open = false; handleEdit(item); }}><Pencil size={14} /> Edit</button>
+                            <button type="button" onClick={(event) => { event.currentTarget.closest("details").open = false; handleDelete(item); }}><Trash2 size={14} /> Delete</button>
+                          </div>
+                        </details>
                       )}
-                      <div style={commStyles.cardHeaderRow}>
-                        <div style={commStyles.initialsChip(pinned)}>
-                          {getInitials(item.title)}
-                        </div>
-                        <div style={commStyles.cardMeta}>
-                          <div style={commStyles.cardTitleRow}>
-                            <span style={commStyles.cardTitle}>
-                              {item.title}
-                            </span>
-                            {pinned && (
-                              <span style={commStyles.pinnedBadge}>
-                                <Pin size={11} color="#3b791e" fill="#c9dba0" />{" "}
-                                PINNED
-                              </span>
-                            )}
-                            {recent && !pinned && (
-                              <span style={commStyles.recentBadge}>NEW</span>
-                            )}
-                            {item.image_url && (
-                              <span
-                                style={{
-                                  background: "#f0f5e8",
-                                  color: "#2c5c16",
-                                  borderRadius: 6,
-                                  padding: "2px 6px",
-                                  fontSize: 8,
-                                  fontWeight: 800,
-                                  border: "1px solid #E1E6D8",
-                                }}
-                              >
-                                <ImagePlus size={10} /> PHOTO
-                              </span>
-                            )}
-                          </div>
-                          <div style={commStyles.cardDate}>
-                            {new Date(item.created_at).toLocaleString()}
-                          </div>
-                        </div>
-                        {isAdminUser(user) && (
-                          <div
-                            style={commStyles.cardActions}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              className="comm-action-btn"
-                              style={commStyles.actionBtn("pin")}
-                              onClick={() => handlePin(item)}
-                              aria-pressed={pinned}
-                              title={pinned ? "Unpin" : "Pin"}
-                            >
-                              <Pin
-                                size={14}
-                                color="#3b791e"
-                                fill={pinned ? "#c9dba0" : "none"}
-                              />
-                            </button>
-                            <button
-                              className="comm-action-btn"
-                              style={commStyles.actionBtn("edit")}
-                              onClick={() => handleEdit(item)}
-                              title="Edit"
-                            >
-                              <Pencil size={12} />
-                            </button>
-                            <button
-                              className="comm-action-btn"
-                              style={commStyles.actionBtn("delete")}
-                              onClick={() => handleDelete(item)}
-                              title="Delete"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div style={commStyles.cardContent}>{item.content}</div>
-                      <div style={commStyles.tapHint}>
-                        <span>Tap to read full announcement</span>
-                        <span style={{ fontSize: 10 }}>›</span>
-                      </div>
+                    </header>
+                    <div className="fa-post-copy">
+                      <h3>{item.title}</h3>
+                      <p>{item.content.length > 280 ? `${item.content.slice(0, 280)}…` : item.content}</p>
+                      {item.content.length > 280 && <button type="button" className="fa-text-action" onClick={() => setViewingItem(item)}>See more</button>}
                     </div>
-                  </div>
-                );
-              })
+                    {renderGallery(item)}
+                    <footer className="fa-post-footer">
+                      <span>{normalizePhotos(item).length ? `${normalizePhotos(item).length} photo${normalizePhotos(item).length === 1 ? "" : "s"}` : "Announcement"}</span>
+                      <button type="button" className="fa-text-action" onClick={() => setViewingItem(item)}>View announcement</button>
+                    </footer>
+                  </article>
+                ))}
+              </div>
             )}
           </>
         )}
@@ -25902,7 +25857,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
               maxWidth: 580,
               boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
               border: "1px solid rgba(0,168,76,0.15)",
-              maxHeight: "90vh",
+              maxHeight: "78vh",
               overflowY: "auto",
             }}
           >
@@ -25974,7 +25929,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                     border: "1.5px solid rgba(255,255,255,0.35)",
                   }}
                 >
-                  {getInitials(viewingItem.title)}
+                  <img className="fa-admin-avatar" src={logoIfranchise} alt="iFranchise logo" />
                 </div>
                 <div>
                   <div
@@ -26026,6 +25981,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                   >
                     {viewingItem.title}
                   </div>
+                  <div style={{ color: "#fff", fontSize: 12, marginTop: 8 }}>FranchiSync Admin</div>
                   <div
                     style={{
                       fontSize: 10,
@@ -26041,18 +25997,6 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
             </div>
 
             <div style={{ padding: "22px 24px 28px" }}>
-              {/* The saved photo is displayed inside the detail view, above its content. */}
-              {renderPhoto(
-                normalizePhoto(viewingItem),
-                viewingItem.title || "Announcement photo",
-                420,
-              )}
-              {!normalizePhoto(viewingItem) && (
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>
-                  No photo attached to this announcement.
-                  {isAdminUser(user) && " Use Edit to add a photo."}
-                </div>
-              )}
               <p
                 style={{
                   fontSize: 14.5,
@@ -26065,6 +26009,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
               >
                 {viewingItem.content}
               </p>
+              <div style={{ marginTop: 18 }}>{renderGallery(viewingItem)}</div>
 
               {isAdminUser(user) && (
                 <div
@@ -26216,6 +26161,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
               </button>
             </div>
             <form onSubmit={handleSave} style={{ padding: "22px 24px" }}>
+              <div className="fa-editor-author"><img className="fa-admin-avatar" src={logoIfranchise} alt="iFranchise logo" /><strong>FranchiSync Admin</strong></div>
               {/* Title */}
               <div style={{ marginBottom: 16 }}>
                 <label style={bmLabel}>Title</label>
@@ -26247,154 +26193,32 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                 />
               </div>
 
-              {/* Photo picker */}
               <div style={{ marginBottom: 20 }}>
-                <label
-                  style={{
-                    ...bmLabel,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <span>
-                    Photo{" "}
-                    <span style={{ color: "#9ca3af", fontWeight: 400 }}>
-                      (Optional)
-                    </span>
-                  </span>
-                  {imageUrl && (
-                    <button
-                      type="button"
-                      disabled={imageLoading || saving}
-                      onClick={() => {
-                        setImageUrl("");
-                        setImageError(false);
-                      }}
-                      style={{
-                        fontSize: 11,
-                        background: "none",
-                        border: "none",
-                        color: "#c0392b",
-                        cursor: "pointer",
-                        fontWeight: 700,
-                      }}
-                    >
-                      <X size={12} /> Remove
-                    </button>
-                  )}
-                </label>
-                <input
-                  ref={photoInput}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  aria-label="Choose announcement photo"
-                  disabled={imageLoading || saving}
-                  onChange={handlePhotoPick}
-                  style={{ display: "none" }}
-                />
-                <button
-                  type="button"
-                  className={`fa-photo-drop ${draggingPhoto ? "dragging" : ""}`}
-                  disabled={imageLoading || saving}
+                <label style={bmLabel}>Photos (Optional) · {imageUrls.length}/10</label>
+                <input ref={photoInput} type="file" multiple accept="image/jpeg,image/png,image/webp"
+                  aria-label="Choose announcement photos" disabled={imageLoading || saving}
+                  onChange={handlePhotoPick} style={{ display: "none" }} />
+                <button type="button" className={`fa-photo-drop ${draggingPhoto ? "dragging" : ""}`}
+                  disabled={imageLoading || saving || imageUrls.length >= 10}
                   onClick={() => photoInput.current?.click()}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    if (!saving && !imageLoading) setDraggingPhoto(true);
-                  }}
+                  onDragOver={(event) => { event.preventDefault(); if (!saving && !imageLoading) setDraggingPhoto(true); }}
                   onDragLeave={() => setDraggingPhoto(false)}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    setDraggingPhoto(false);
-                    handlePhotoPick({
-                      target: { files: event.dataTransfer.files, value: "" },
-                    });
-                  }}
-                >
-                  <span className="fa-upload-icon">
-                    <UploadCloud size={23} />
-                  </span>
-                  <strong>
-                    {imageLoading
-                      ? "Preparing your photo…"
-                      : imageUrl
-                        ? "Replace photo"
-                        : "Choose a photo"}
-                  </strong>
-                  <small>
-                    {photoName || "Click to browse or drag and drop here"}
-                  </small>
-                  <small>JPG, PNG or WebP · Up to 10 MB</small>
+                  onDrop={(event) => { event.preventDefault(); setDraggingPhoto(false); handlePhotoPick({ target: { files: event.dataTransfer.files, value: "" } }); }}>
+                  <span className="fa-upload-icon"><UploadCloud size={23} /></span>
+                  <strong>{imageLoading ? "Preparing photos…" : "Add photos"}</strong>
+                  <small>Select multiple photos or drag and drop here</small>
+                  <small>JPG, PNG or WebP · Up to 10 MB each · 10 photos per post</small>
                 </button>
-                <p
-                  aria-live="polite"
-                  style={{ fontSize: 11, color: C.muted, margin: "8px 0" }}
-                >
-                  {imageUrl
-                    ? "Photo selected. Save the announcement to attach it."
-                    : "Your photo will appear in the announcement and its detail view."}
-                </p>
-                {/* Live preview */}
-                {imageUrl && !imageError && (
-                  <div
-                    style={{
-                      marginTop: 10,
-                      borderRadius: 12,
-                      overflow: "hidden",
-                      border: `1px solid ${C.border}`,
-                      position: "relative",
-                    }}
-                  >
-                    <img
-                      src={imageUrl}
-                      alt="Preview"
-                      style={{
-                        width: "100%",
-                        maxHeight: 180,
-                        objectFit: "contain",
-                        display: "block",
-                      }}
-                      onError={() => setImageError(true)}
-                    />
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 6,
-                        left: 6,
-                        background: "rgba(0,0,0,0.45)",
-                        borderRadius: 6,
-                        padding: "2px 8px",
-                        fontSize: 9,
-                        fontWeight: 800,
-                        color: "#fff",
-                        letterSpacing: "0.05em",
-                      }}
-                    >
-                      PREVIEW
+                <p aria-live="polite" style={{ fontSize: 11, color: C.muted }}>{imageUrls.length} photo{imageUrls.length === 1 ? "" : "s"} selected</p>
+                <div className="fa-photo-previews">
+                  {imageUrls.map((src, index) => (
+                    <div className="fa-photo-preview" key={src}>
+                      <img src={src} alt={`Selected photo ${index + 1}`} />
+                      <button type="button" aria-label={`Remove photo ${index + 1}`} disabled={imageLoading || saving}
+                        onClick={() => setImageUrls((previous) => previous.filter((_, photoIndex) => photoIndex !== index))}><X size={15} /></button>
                     </div>
-                  </div>
-                )}
-                {imageUrl && imageError && (
-                  <div
-                    style={{
-                      marginTop: 8,
-                      padding: "9px 12px",
-                      background: "#fdf1f0",
-                      borderRadius: 10,
-                      border: "1px solid #f2c9c4",
-                      fontSize: 12,
-                      color: "#c0392b",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Could not display this photo. Choose another image.
-                  </div>
-                )}
-                {!imageUrl && (
-                  <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
-                    Your selected photo will appear here before you save.
-                  </p>
-                )}
+                  ))}
+                </div>
               </div>
 
               <div style={{ display: "flex", gap: 10 }}>
@@ -26443,7 +26267,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                   {saving
                     ? "Saving…"
                     : imageLoading
-                      ? "Preparing photo…"
+                      ? "Preparing photos…"
                       : "Save Announcement"}
                 </button>
               </div>
@@ -26463,6 +26287,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
             inset: 0,
             zIndex: 4000,
             background: "rgba(12,25,14,.9)",
+            backdropFilter: "blur(12px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -26487,13 +26312,20 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
           >
             <X size={20} />
           </button>
+          {lightbox.photos?.length > 1 && (
+            <div className="fa-gallery-controls" onClick={(event) => event.stopPropagation()}>
+              <button type="button" aria-label="Previous photo" onClick={() => movePhoto(-1)}>‹</button>
+              <span>{lightbox.index + 1} / {lightbox.photos.length}</span>
+              <button type="button" aria-label="Next photo" onClick={() => movePhoto(1)}>›</button>
+            </div>
+          )}
           <img
             src={lightbox.src}
             alt={lightbox.alt}
             onClick={(event) => event.stopPropagation()}
             style={{
               maxWidth: "100%",
-              maxHeight: "90vh",
+              maxHeight: "78vh",
               objectFit: "contain",
               borderRadius: 12,
             }}
@@ -26637,6 +26469,11 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     </div>
   );
 }
+
+
+
+
+ 
 
 function BrandFormFields({ form, setForm }) {
   const [catInput, setCatInput] = useState("");
