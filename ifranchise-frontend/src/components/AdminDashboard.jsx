@@ -1830,9 +1830,9 @@ export default function AdminDashboard({ user, onLogout }) {
 
   const [activeModule, setActiveModule] = useState("dashboard");
 
-useEffect(() => {
-  sessionStorage.removeItem("fr_activeModule");
-}, []);
+  useEffect(() => {
+    sessionStorage.removeItem("fr_activeModule");
+  }, []);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showCreateAccountModal, setShowCreateAccountModal] = useState(false);
   const [showViewApplicationModal, setShowViewApplicationModal] =
@@ -1894,14 +1894,14 @@ useEffect(() => {
     }
   }, []);
 
-const confirmLogout = () => {
-  if (isLoggingOut) return;
+  const confirmLogout = () => {
+    if (isLoggingOut) return;
 
-  setIsLoggingOut(true);
-  setShowLogoutModal(false);
+    setIsLoggingOut(true);
+    setShowLogoutModal(false);
 
-  onLogout?.();
-};
+    onLogout?.();
+  };
 
   useEffect(() => {
     sessionStorage.setItem("fr_activeModule", activeModule);
@@ -10407,7 +10407,7 @@ function B2BRevenueAssuranceDashboard({
 
   const fetchJson = useCallback(async (url) => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
+    const timer = setTimeout(() => controller.abort(), 60000);
     const path = String(url).split("?")[0];
     try {
       const res = await adminModuleFetch(url, {
@@ -10492,25 +10492,21 @@ function B2BRevenueAssuranceDashboard({
       if (risk !== "all") params.set("risk", risk);
       params.set("growthTargetPct", String(growthTargetPct));
 
-      const endpoints = [
-        `${API}/dashboard/b2b/overview?${params.toString()}`,
-        `${API}/dashboard/b2b/branches?${params.toString()}`,
-        `${API}/dashboard/b2b/brands?${params.toString()}`,
-        `${API}/dashboard/b2b/anomalies?${params.toString()}`,
-        `${API}/dashboard/b2b/products?${params.toString()}`,
-      ];
-
-      const settled = await Promise.allSettled(endpoints.map(fetchJson));
-      const catalogResults = await Promise.allSettled([
+      const [overviewResult, ...catalogResults] = await Promise.allSettled([
+        fetchJson(`${API}/dashboard/b2b/overview?${params.toString()}`),
         fetchJson(`${API}/inventory`),
         fetchJson(`${API}/ingredients`),
       ]);
+
       if (!isCurrent()) return;
-      if (catalogResults.some((result) => result.status === "fulfilled"))
+
+      if (catalogResults.some((result) => result.status === "fulfilled")) {
         setEvidenceCatalog(
           catalogResults.flatMap((result) => {
             if (result.status !== "fulfilled") return [];
+
             const value = result.value;
+
             return Array.isArray(value)
               ? value
               : Array.isArray(value?.data)
@@ -10518,9 +10514,9 @@ function B2BRevenueAssuranceDashboard({
                 : [];
           }),
         );
-      const hasCoreSummary = settled
-        .slice(0, 3)
-        .every((r) => r.status === "fulfilled");
+      }
+
+      const hasCoreSummary = overviewResult.status === "fulfilled";
 
       if (
         !hasCoreSummary &&
@@ -10532,50 +10528,22 @@ function B2BRevenueAssuranceDashboard({
         );
         return;
       }
+
       if (hasCoreSummary) {
         setSourceMode("aggregated");
-        const o = settled[0].status === "fulfilled" ? settled[0].value : null;
-        const br = settled[1].status === "fulfilled" ? settled[1].value : [];
-        const bd = settled[2].status === "fulfilled" ? settled[2].value : [];
-        const an = settled[3].status === "fulfilled" ? settled[3].value : [];
-        const pr = settled[4].status === "fulfilled" ? settled[4].value : [];
-        setOverviewApi(o?.data || o || null);
-        setBranchesApi(
-          Array.isArray(br)
-            ? br
-            : Array.isArray(br?.branches)
-              ? br.branches
-              : Array.isArray(br?.data)
-                ? br.data
-                : [],
-        );
-        setBrandsApi(
-          Array.isArray(bd)
-            ? bd
-            : Array.isArray(bd?.brands)
-              ? bd.brands
-              : Array.isArray(bd?.data)
-                ? bd.data
-                : [],
-        );
-        setAnomaliesApi(
-          Array.isArray(an)
-            ? an
-            : Array.isArray(an?.anomalies)
-              ? an.anomalies
-              : Array.isArray(an?.data)
-                ? an.data
-                : [],
-        );
-        setProductsApi(
-          Array.isArray(pr)
-            ? pr
-            : Array.isArray(pr?.products)
-              ? pr.products
-              : Array.isArray(pr?.data)
-                ? pr.data
-                : [],
-        );
+
+        const response = overviewResult.value;
+        const o = response?.data || response || {};
+
+        setOverviewApi(o);
+
+        setBranchesApi(Array.isArray(o?.branches) ? o.branches : []);
+
+        setBrandsApi(Array.isArray(o?.brands) ? o.brands : []);
+
+        setAnomaliesApi(Array.isArray(o?.anomalies) ? o.anomalies : []);
+
+        setProductsApi(Array.isArray(o?.products) ? o.products : []);
         try {
           const orders = await fetchRawOrdersFallback();
           if (!isCurrent()) return;
@@ -35387,21 +35355,20 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
 }
 
 function ProfileContent({ user }) {
-  const [profileUser, setProfileUser] = useState(user || null);
-  const [isProfileLoading, setIsProfileLoading] = useState(!user);
-
   const [isUnlocked, setIsUnlocked] = useState(false);
+
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    middleInitial: "",
-    suffix: "",
-    name: "",
-    email: "",
-    role: "",
-    branch: "",
-    password: "",
+    name: user?.name || "",
+    email: user?.email || "",
+    personalEmail: "",
+    role: user?.role || "Sales Admin",
+    branch: user?.branch || "",
+    brand: user?.brand || "",
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
   });
+
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [otp, setOtp] = useState("");
@@ -35414,6 +35381,19 @@ function ProfileContent({ user }) {
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
+  useEffect(() => {
+    if (!user) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      name: user.name || "",
+      email: user.email || "",
+      role: user.role || "Sales Admin",
+      branch: user.branch || "",
+      brand: user.brand || "",
+    }));
+  }, [user]);
+
   // ── UI modal state ──
   const [alertModal, setAlertModal] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
@@ -35423,64 +35403,8 @@ function ProfileContent({ user }) {
   const showConfirm = (message, onConfirm) =>
     setConfirmModal({ message, onConfirm });
 
-  useEffect(() => {
-    const loadProfileUser = async () => {
-      // If the dashboard already gave us the user, use it.
-      if (user) {
-        setProfileUser(user);
-        setIsProfileLoading(false);
-        return;
-      }
-
-      try {
-        const res = await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/session`,
-          {
-            credentials: "include",
-          },
-        );
-
-        if (!res.ok) {
-          setProfileUser(null);
-          return;
-        }
-
-        const data = await res.json();
-
-        if (data?.user) {
-          setProfileUser(data.user);
-        } else {
-          setProfileUser(null);
-        }
-      } catch (error) {
-        console.error("Failed to load profile user:", error);
-        setProfileUser(null);
-      } finally {
-        setIsProfileLoading(false);
-      }
-    };
-
-    loadProfileUser();
-  }, [user]);
-
+  // ── Keep formData in sync with user prop without re-rendering on every keystroke ──
   const formDataRef = React.useRef(formData);
-
-  useEffect(() => {
-    if (!profileUser) return;
-
-    setFormData((prev) => ({
-      ...prev,
-      firstName: profileUser.firstName || "",
-      lastName: profileUser.lastName || "",
-      middleInitial: profileUser.middleInitial || "",
-      suffix: profileUser.suffix || "",
-      name: profileUser.name || "",
-      email: profileUser.email || "",
-      role: profileUser.role || "",
-      branch: profileUser.branch || "",
-      personalEmail: profileUser.personalEmail || "",
-    }));
-  }, [profileUser]);
   const handleInputChange = React.useCallback((e) => {
     const { name, value } = e.target;
     formDataRef.current = { ...formDataRef.current, [name]: value };
@@ -35518,7 +35442,7 @@ function ProfileContent({ user }) {
     try {
       const emailToSend = formData.personalEmail || formData.email;
       const response = await adminModuleFetch(
-        `${ADMIN_API_BASE}/send-otp-password-change`,
+        `${process.env.REACT_APP_API_URL}/send-otp-password-change`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -35542,7 +35466,7 @@ function ProfileContent({ user }) {
       setOtpError("");
       const emailToVerify = formData.personalEmail || formData.email;
       const response = await adminModuleFetch(
-        `${ADMIN_API_BASE}/users/${profileUser.id}/password`,
+        `${process.env.REACT_APP_API_URL}/users/${user.id}/password`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -35559,13 +35483,9 @@ function ProfileContent({ user }) {
         setShowOtpModal(false);
         setShowSuccessModal(true);
         localStorage.removeItem("user");
-        localStorage.removeItem("rememberedUser");
         localStorage.removeItem("tempUser");
-        sessionStorage.removeItem("user");
-        sessionStorage.removeItem("tempUser");
-        sessionStorage.removeItem("fr_activeModule");
         setTimeout(() => {
-          window.location.href = "/";
+          window.location.href = "/admin-login";
         }, 3000);
       } else {
         setOtpError(data.error || "Failed to change password");
@@ -35617,28 +35537,16 @@ function ProfileContent({ user }) {
 
   const updateProfile = async () => {
     try {
-      const fullName = [
-        formData.firstName,
-        formData.middleInitial ? formData.middleInitial + "." : "",
-        formData.lastName,
-        formData.suffix,
-      ]
-        .filter(Boolean)
-        .join(" ");
       const response = await adminModuleFetch(
-        `${ADMIN_API_BASE}/users/${profileUser.id}`,
+        `${process.env.REACT_APP_API_URL}/users/${user.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: fullName,
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            middleInitial: formData.middleInitial || null,
-            suffix: formData.suffix || null,
+            name: formData.name,
             email: formData.email,
             role: formData.role,
-            branch: profileUser.branch,
+            branch: user.branch,
           }),
         },
       );
@@ -35647,11 +35555,7 @@ function ProfileContent({ user }) {
         showAlert("Profile updated successfully!", "success");
         const updatedUser = {
           ...user,
-          name: fullName,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          middleInitial: formData.middleInitial,
-          suffix: formData.suffix,
+          name: formData.name,
           email: formData.email,
         };
         localStorage.setItem("user", JSON.stringify(updatedUser));
@@ -35668,14 +35572,10 @@ function ProfileContent({ user }) {
   const handleCancel = () => {
     showConfirm("Discard all unsaved changes?", () => {
       setFormData({
-        firstName: profileUser.firstName || "",
-        lastName: profileUser.lastName || "",
-        middleInitial: profileUser.middleInitial || "",
-        suffix: profileUser.suffix || "",
-        name: profileUser.name,
-        email: profileUser.email,
+        name: user.name,
+        email: user.email,
         personalEmail: "",
-        role: profileUser.role,
+        role: user.role,
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
@@ -35689,14 +35589,14 @@ function ProfileContent({ user }) {
       setIsUnlocked(false);
     });
   };
-  if (isProfileLoading) {
+
+  if (!user) {
     return (
       <div
         style={{
           padding: 24,
           textAlign: "center",
-          color: "#5C6B60",
-          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          color: "#5a7a65",
         }}
       >
         Loading profile...
@@ -35704,23 +35604,8 @@ function ProfileContent({ user }) {
     );
   }
 
-  if (!profileUser) {
-    return (
-      <div
-        style={{
-          padding: 24,
-          textAlign: "center",
-          color: "#c0392b",
-          fontFamily: "'Plus Jakarta Sans', sans-serif",
-        }}
-      >
-        Unable to load profile. Please log in again.
-      </div>
-    );
-  }
-
-  const initials = profileUser.name
-    ? profileUser.name
+  const initials = user.name
+    ? user.name
         .trim()
         .split(/\s+/)
         .map((w) => w[0])
@@ -35728,14 +35613,15 @@ function ProfileContent({ user }) {
         .slice(0, 2)
         .toUpperCase()
     : "?";
+
   // ── Shared input style ──
   const inputStyle = (disabled) => ({
     ...bmInput,
     marginTop: 4,
     background: disabled ? "#f5f8f5" : "#fff",
-    color: disabled ? "#9ca3af" : "#12241B",
+    color: disabled ? "#9ca3af" : "#0d2b1e",
     cursor: disabled ? "not-allowed" : "text",
-    border: disabled ? "1.5px solid #e5e7eb" : "1.5px solid #E1E6D8",
+    border: disabled ? "1.5px solid #e5e7eb" : "1.5px solid #b2dfdb",
   });
 
   const PwChecklist = () => (
@@ -35744,16 +35630,16 @@ function ProfileContent({ user }) {
         marginTop: 8,
         fontSize: 12,
         padding: "10px 14px",
-        background: "#f0f5e8",
+        background: "#f0fdf5",
         borderRadius: 10,
-        border: "1.5px solid #E1E6D8",
+        border: "1.5px solid #b2dfdb",
       }}
     >
       <div
         style={{
           marginBottom: 6,
           fontWeight: 700,
-          color: "#12241B",
+          color: "#0d2b1e",
           fontSize: 11,
           textTransform: "uppercase",
           letterSpacing: "0.06em",
@@ -35771,7 +35657,7 @@ function ProfileContent({ user }) {
         <div
           key={key}
           style={{
-            color: passwordErrors.includes(key) ? "#c0392b" : "#059669",
+            color: passwordErrors.includes(key) ? "#dc2626" : "#059669",
             marginBottom: 3,
             fontSize: 12,
             display: "flex",
@@ -35780,7 +35666,14 @@ function ProfileContent({ user }) {
             fontWeight: 600,
           }}
         >
-          <span>{passwordErrors.includes(key) ? "✗" : "✓"}</span> {text}
+          <span style={{ display: "inline-flex", alignItems: "center" }}>
+            {passwordErrors.includes(key) ? (
+              <X size={12} />
+            ) : (
+              <Check size={12} />
+            )}
+          </span>{" "}
+          {text}
         </div>
       ))}
     </div>
@@ -35791,7 +35684,7 @@ function ProfileContent({ user }) {
       <span
         style={{
           fontSize: 11,
-          color: "#c0392b",
+          color: "#dc2626",
           marginTop: 4,
           display: "block",
           fontWeight: 600,
@@ -35814,7 +35707,7 @@ function ProfileContent({ user }) {
         background: "none",
         border: "none",
         cursor: disabled ? "not-allowed" : "pointer",
-        color: "#5C6B60",
+        color: "#5a7a65",
         display: "flex",
         alignItems: "center",
         padding: 0,
@@ -35868,7 +35761,7 @@ function ProfileContent({ user }) {
       >
         <div
           style={{
-            background: "linear-gradient(135deg,#3b791e,#3b791e)",
+            background: "linear-gradient(135deg,#2E7D32,#00897b)",
             padding: "16px 22px",
           }}
         >
@@ -35895,7 +35788,7 @@ function ProfileContent({ user }) {
               justifyContent: "center",
               fontSize: 22,
               fontWeight: 800,
-              color: "#2c5c16",
+              color: "#00695c",
               flexShrink: 0,
               letterSpacing: 1,
               border: "2.5px solid #a7f3d0",
@@ -35908,19 +35801,19 @@ function ProfileContent({ user }) {
               style={{
                 fontWeight: 800,
                 fontSize: 20,
-                color: "#12241B",
+                color: "#0d2b1e",
                 marginBottom: 4,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
               }}
             >
-              {profileUser.name}
+              {user.name}
             </div>
             <div
               style={{
                 fontSize: 13,
-                color: "#5C6B60",
+                color: "#5a7a65",
                 marginBottom: 8,
                 display: "flex",
                 alignItems: "center",
@@ -35932,7 +35825,7 @@ function ProfileContent({ user }) {
                 height={13}
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#5C6B60"
+                stroke="#5a7a65"
                 strokeWidth={2}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -35940,7 +35833,7 @@ function ProfileContent({ user }) {
                 <rect x="2" y="4" width="20" height="16" rx="2" />
                 <path d="m22 7-10 7L2 7" />
               </svg>
-              {profileUser.email}
+              {user.email}
             </div>
             <div
               style={{
@@ -35953,28 +35846,28 @@ function ProfileContent({ user }) {
               <span
                 style={{
                   background: "rgba(0,137,123,0.1)",
-                  color: "#2c5c16",
+                  color: "#00695c",
                   padding: "3px 12px",
                   borderRadius: 20,
                   fontSize: 11,
                   fontWeight: 700,
                 }}
               >
-                {profileUser.role}
+                {user.role}
               </span>
-              {profileUser.branch && (
+              {user.branch && (
                 <span
                   style={{
-                    background: "#f0f5e8",
-                    color: "#12241B",
+                    background: "#f0fdf5",
+                    color: "#0d2b1e",
                     padding: "3px 12px",
                     borderRadius: 20,
                     fontSize: 11,
                     fontWeight: 700,
-                    border: "1.5px solid #E1E6D8",
+                    border: "1.5px solid #b2dfdb",
                   }}
                 >
-                  {profileUser.branch}
+                  {user.branch}
                 </span>
               )}
             </div>
@@ -35992,8 +35885,8 @@ function ProfileContent({ user }) {
               style={{
                 padding: "8px 16px",
                 borderRadius: 12,
-                background: "#f0f5e8",
-                border: "1.5px solid #E1E6D8",
+                background: "#f0fdf5",
+                border: "1.5px solid #b2dfdb",
               }}
             >
               <div
@@ -36002,7 +35895,7 @@ function ProfileContent({ user }) {
                   fontWeight: 800,
                   textTransform: "uppercase",
                   letterSpacing: "0.07em",
-                  color: "#5C6B60",
+                  color: "#5a7a65",
                   marginBottom: 2,
                 }}
               >
@@ -36032,13 +35925,13 @@ function ProfileContent({ user }) {
                 </span>
               </div>
             </div>
-            {profileUser.branch && (
+            {user.branch && (
               <div
                 style={{
                   padding: "8px 16px",
                   borderRadius: 12,
-                  background: "#f0f5e8",
-                  border: "1.5px solid #E1E6D8",
+                  background: "#f0fdf5",
+                  border: "1.5px solid #b2dfdb",
                 }}
               >
                 <div
@@ -36047,16 +35940,16 @@ function ProfileContent({ user }) {
                     fontWeight: 800,
                     textTransform: "uppercase",
                     letterSpacing: "0.07em",
-                    color: "#5C6B60",
+                    color: "#5a7a65",
                     marginBottom: 2,
                   }}
                 >
                   Branch
                 </div>
                 <div
-                  style={{ fontWeight: 800, fontSize: 13, color: "#12241B" }}
+                  style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e" }}
                 >
-                  {profileUser.branch}
+                  {user.branch}
                 </div>
               </div>
             )}
@@ -36070,8 +35963,8 @@ function ProfileContent({ user }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: isUnlocked ? "#f0f5e8" : "#f5f8f5",
-          border: `1.5px solid ${isUnlocked ? "#E1E6D8" : "#e5e7eb"}`,
+          background: isUnlocked ? "#f0fdf5" : "#f5f8f5",
+          border: `1.5px solid ${isUnlocked ? "#b2dfdb" : "#e5e7eb"}`,
           borderRadius: 14,
           padding: "12px 20px",
           marginBottom: 20,
@@ -36081,10 +35974,10 @@ function ProfileContent({ user }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {isUnlocked ? <Unlock size={18} /> : <Lock size={18} />}
           <div>
-            <div style={{ fontWeight: 800, fontSize: 13, color: "#12241B" }}>
+            <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e" }}>
               {isUnlocked ? "Editing Enabled" : "Profile Locked"}
             </div>
-            <div style={{ fontSize: 11, color: "#5C6B60" }}>
+            <div style={{ fontSize: 11, color: "#5a7a65" }}>
               {isUnlocked
                 ? "Make your changes and save when done."
                 : "Click Unlock to edit your profile."}
@@ -36110,17 +36003,25 @@ function ProfileContent({ user }) {
             fontSize: 12,
             fontWeight: 700,
             cursor: "pointer",
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontFamily: "inherit",
             background: isUnlocked
-              ? "linear-gradient(135deg,#c0392b,#c0392b)"
-              : "linear-gradient(135deg,#3b791e,#3b791e)",
+              ? "linear-gradient(135deg,#dc2626,#ef4444)"
+              : "linear-gradient(135deg,#2E7D32,#00897b)",
             color: "#fff",
             boxShadow: isUnlocked
               ? "0 2px 8px rgba(220,38,38,0.3)"
               : "0 2px 8px rgba(0,180,90,0.3)",
           }}
         >
-          {isUnlocked ? "✕ Cancel" : " Unlock"}
+          {isUnlocked ? (
+            <>
+              <X size={13} /> Cancel
+            </>
+          ) : (
+            <>
+              <Unlock size={13} /> Unlock
+            </>
+          )}
         </button>
       </div>
 
@@ -36145,7 +36046,7 @@ function ProfileContent({ user }) {
         >
           <div
             style={{
-              background: "linear-gradient(135deg,#3b791e,#3b791e)",
+              background: "linear-gradient(135deg,#2E7D32,#00897b)",
               padding: "16px 22px",
             }}
           >
@@ -36154,55 +36055,20 @@ function ProfileContent({ user }) {
             </span>
           </div>
           <form onSubmit={handleSubmit} style={{ padding: "22px 24px" }}>
-            {/* Name */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-              <div style={{ flex: 2 }}>
-                <label style={bmLabel}>Last Name</label>
-                <input
-                  type="text"
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleInputChange}
-                  disabled={!isUnlocked}
-                  style={inputStyle(!isUnlocked)}
-                />
-              </div>
-              <div style={{ flex: 2 }}>
-                <label style={bmLabel}>First Name</label>
-                <input
-                  type="text"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleInputChange}
-                  disabled={!isUnlocked}
-                  style={inputStyle(!isUnlocked)}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={bmLabel}>M.I.</label>
-                <input
-                  type="text"
-                  name="middleInitial"
-                  maxLength={1}
-                  value={formData.middleInitial}
-                  onChange={handleInputChange}
-                  disabled={!isUnlocked}
-                  style={inputStyle(!isUnlocked)}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={bmLabel}>Suffix</label>
-                <input
-                  type="text"
-                  name="suffix"
-                  value={formData.suffix}
-                  onChange={handleInputChange}
-                  disabled={!isUnlocked}
-                  style={inputStyle(!isUnlocked)}
-                />
-              </div>
+            {/* Full Name */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Full Name</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                disabled={!isUnlocked}
+                style={inputStyle(!isUnlocked)}
+              />
+              <FieldError name="name" />
             </div>
-            <FieldError name="lastName" />
+
             {/* Work Email */}
             <div style={{ marginBottom: 14 }}>
               <label style={bmLabel}>Work Email Address</label>
@@ -36262,13 +36128,13 @@ function ProfileContent({ user }) {
                   borderRadius: 10,
                   border: "none",
                   background: isUnlocked
-                    ? "linear-gradient(135deg,#3b791e,#3b791e)"
+                    ? "linear-gradient(135deg,#2E7D32,#00897b)"
                     : "#d1d5db",
                   color: "#fff",
                   fontSize: 13,
                   fontWeight: 800,
                   cursor: isUnlocked ? "pointer" : "not-allowed",
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontFamily: "inherit",
                   boxShadow: isUnlocked
                     ? "0 2px 10px rgba(0,180,90,0.28)"
                     : "none",
@@ -36293,7 +36159,7 @@ function ProfileContent({ user }) {
         >
           <div
             style={{
-              background: "linear-gradient(135deg,#3b791e,#3b791e)",
+              background: "linear-gradient(135deg,#2E7D32,#00897b)",
               padding: "16px 22px",
             }}
           >
@@ -36304,7 +36170,7 @@ function ProfileContent({ user }) {
           <form onSubmit={handleSubmit} style={{ padding: "22px 24px" }}>
             <div
               style={{
-                background: isUnlocked ? "#f0f5e8" : "#f5f8f5",
+                background: isUnlocked ? "#f0fdf5" : "#f5f8f5",
                 borderRadius: 12,
                 padding: "12px 16px",
                 marginBottom: 20,
@@ -36397,15 +36263,21 @@ function ProfileContent({ user }) {
                     color:
                       formData.newPassword === formData.confirmPassword
                         ? "#059669"
-                        : "#c0392b",
+                        : "#dc2626",
                     display: "flex",
                     alignItems: "center",
                     gap: 4,
                   }}
                 >
-                  {formData.newPassword === formData.confirmPassword
-                    ? "✓ Passwords match"
-                    : "✗ Passwords do not match"}
+                  {formData.newPassword === formData.confirmPassword ? (
+                    <>
+                      <Check size={12} /> Passwords match
+                    </>
+                  ) : (
+                    <>
+                      <X size={12} /> Passwords do not match
+                    </>
+                  )}
                 </div>
               )}
               <FieldError name="confirmPassword" />
@@ -36420,13 +36292,13 @@ function ProfileContent({ user }) {
                 borderRadius: 10,
                 border: "none",
                 background: isUnlocked
-                  ? "linear-gradient(135deg,#3b791e,#3b791e)"
+                  ? "linear-gradient(135deg,#2E7D32,#00897b)"
                   : "#d1d5db",
                 color: "#fff",
                 fontSize: 13,
                 fontWeight: 800,
                 cursor: isUnlocked ? "pointer" : "not-allowed",
-                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontFamily: "inherit",
                 boxShadow: isUnlocked
                   ? "0 2px 10px rgba(0,180,90,0.28)"
                   : "none",
@@ -36479,14 +36351,14 @@ function ProfileContent({ user }) {
                   fontSize: "1.6rem",
                 }}
               >
-                🔑
+                <Lock size={24} />
               </div>
               <h2
                 style={{
                   fontFamily: "'Plus Jakarta Sans', sans-serif",
                   fontSize: 18,
                   fontWeight: 800,
-                  color: "#12241B",
+                  color: "#0d2b1e",
                   marginBottom: 6,
                 }}
               >
@@ -36494,7 +36366,7 @@ function ProfileContent({ user }) {
               </h2>
               <p style={{ fontSize: 13, color: C.muted }}>
                 Code sent to{" "}
-                <strong style={{ color: "#12241B" }}>
+                <strong style={{ color: "#0d2b1e" }}>
                   {formData.personalEmail || formData.email}
                 </strong>
               </p>
@@ -36543,10 +36415,10 @@ function ProfileContent({ user }) {
               <div
                 style={{
                   padding: "10px 14px",
-                  background: "#fdf1f0",
+                  background: "#fee2e2",
                   borderRadius: 10,
-                  border: "1.5px solid #f2c9c4",
-                  color: "#c0392b",
+                  border: "1.5px solid #fecaca",
+                  color: "#dc2626",
                   fontSize: 12,
                   fontWeight: 700,
                   textAlign: "center",
@@ -36563,7 +36435,7 @@ function ProfileContent({ user }) {
                 style={{
                   background: "none",
                   border: "none",
-                  color: "#3b791e",
+                  color: "#00897b",
                   cursor: "pointer",
                   fontSize: 12,
                   fontWeight: 700,
@@ -36586,13 +36458,13 @@ function ProfileContent({ user }) {
                   flex: 1,
                   padding: "10px 0",
                   borderRadius: 10,
-                  border: "1.5px solid #E1E6D8",
-                  background: "#f0f5e8",
-                  color: "#5C6B60",
+                  border: "1.5px solid #b2dfdb",
+                  background: "#f0fdf5",
+                  color: "#5a7a65",
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: "pointer",
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontFamily: "inherit",
                 }}
               >
                 Cancel
@@ -36606,12 +36478,12 @@ function ProfileContent({ user }) {
                   padding: "10px 0",
                   borderRadius: 10,
                   border: "none",
-                  background: "linear-gradient(135deg,#3b791e,#3b791e)",
+                  background: "linear-gradient(135deg,#2E7D32,#00897b)",
                   color: "#fff",
                   fontSize: 13,
                   fontWeight: 800,
                   cursor: otp.length !== 6 ? "not-allowed" : "pointer",
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontFamily: "inherit",
                   opacity: otp.length !== 6 ? 0.5 : 1,
                 }}
               >
@@ -36661,14 +36533,14 @@ function ProfileContent({ user }) {
                 fontSize: "2.2rem",
               }}
             >
-              ✅
+              <CheckCircle2 size={28} />
             </div>
             <h2
               style={{
                 fontFamily: "'Plus Jakarta Sans', sans-serif",
                 fontSize: 22,
                 fontWeight: 800,
-                color: "#12241B",
+                color: "#0d2b1e",
                 marginBottom: 10,
               }}
             >
@@ -36688,7 +36560,7 @@ function ProfileContent({ user }) {
             </p>
             <div
               style={{
-                background: "#f0f5e8",
+                background: "#f0fdf5",
                 borderRadius: 12,
                 padding: "10px 16px",
                 fontSize: 12,
@@ -36699,7 +36571,7 @@ function ProfileContent({ user }) {
                 gap: 8,
               }}
             >
-              💡 Use your new password on the next login
+              <Info size={14} /> Use your new password on the next login
             </div>
           </div>
         </div>
@@ -36740,7 +36612,7 @@ function ProfileContent({ user }) {
               maxWidth: 400,
               boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
               border: "1px solid rgba(0,168,76,0.15)",
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontFamily: "Plus Jakarta Sans, sans-serif",
               textAlign: "center",
             }}
           >
@@ -36757,13 +36629,13 @@ function ProfileContent({ user }) {
                 fontSize: 22,
               }}
             >
-              ↩
+              <RotateCcw size={22} />
             </div>
             <h2
               style={{
                 fontSize: 17,
                 fontWeight: 800,
-                color: "#12241B",
+                color: "#0d2b1e",
                 marginBottom: 8,
               }}
             >
@@ -36772,7 +36644,7 @@ function ProfileContent({ user }) {
             <p
               style={{
                 fontSize: 13,
-                color: "#5C6B60",
+                color: "#5a7a65",
                 lineHeight: 1.6,
                 marginBottom: 24,
               }}
@@ -36786,13 +36658,13 @@ function ProfileContent({ user }) {
                 style={{
                   padding: "9px 22px",
                   borderRadius: 10,
-                  border: "1px solid #E1E6D8",
-                  background: "#f0f5e8",
-                  color: "#5C6B60",
+                  border: "1px solid #b2dfdb",
+                  background: "#f0fdf5",
+                  color: "#5a7a65",
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: "pointer",
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontFamily: "inherit",
                 }}
               >
                 Keep Editing
@@ -36815,7 +36687,7 @@ function ProfileContent({ user }) {
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: "pointer",
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontFamily: "inherit",
                   boxShadow: "0 2px 10px rgba(194,65,12,0.35)",
                 }}
               >

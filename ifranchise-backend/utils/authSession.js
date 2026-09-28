@@ -5,18 +5,29 @@ const SESSION_COOKIE = "franchisync_session";
 const CHALLENGE_COOKIE = "franchisync_login";
 const SESSION_MS = 8 * 60 * 60 * 1000;
 const CHALLENGE_MS = 10 * 60 * 1000;
-const digest = value => crypto.createHash("sha256").update(String(value)).digest("hex");
+const digest = (value) =>
+  crypto.createHash("sha256").update(String(value)).digest("hex");
 const tokenFrom = (req, name) => {
   const value = req.cookies?.[name];
-  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value) ? value : null;
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value)
+    ? value
+    : null;
 };
 function cookieOptions(req) {
   const secure = process.env.NODE_ENV === "production" || req.secure === true;
-  return { httpOnly: true, secure, sameSite: secure ? "none" : "lax", path: "/" };
+  return {
+    httpOnly: true,
+    secure,
+    sameSite: secure ? "none" : "lax",
+    path: "/",
+  };
 }
 async function removeToken(req, name) {
   const token = tokenFrom(req, name);
-  if (token) await pool.query("DELETE FROM website_auth_sessions WHERE token_hash=$1", [digest(token)]);
+  if (token)
+    await pool.query("DELETE FROM website_auth_sessions WHERE token_hash=$1", [
+      digest(token),
+    ]);
 }
 async function mint(req, res, user, kind) {
   const name = kind === "login" ? CHALLENGE_COOKIE : SESSION_COOKIE;
@@ -26,7 +37,13 @@ async function mint(req, res, user, kind) {
   await pool.query(
     `INSERT INTO website_auth_sessions(token_hash,user_id,password_fingerprint,kind,expires_at)
      VALUES($1,$2,$3,$4,$5)`,
-    [digest(token), String(user.id), digest(user.password), kind, new Date(Date.now() + duration)],
+    [
+      digest(token),
+      String(user.id),
+      digest(user.password),
+      kind,
+      new Date(Date.now() + duration),
+    ],
   );
   res.cookie(name, token, { ...cookieOptions(req), maxAge: duration });
 }
@@ -42,17 +59,20 @@ async function issueSession(req, res, user) {
 }
 async function finishOtpSession(req, res, user) {
   const token = tokenFrom(req, CHALLENGE_COOKIE);
-  // Existing mobile clients without cookie support retain their existing response.
-  // They do not obtain a website session from an OTP-only request.
-  const isWeb = req.headers["x-client"] === "web" || Boolean(req.headers.origin);
+  const isWeb =
+    req.headers["x-client"] === "web" || Boolean(req.headers.origin);
   if (!token && !isWeb) return;
-  const result = token ? await pool.query(
-    `DELETE FROM website_auth_sessions WHERE token_hash=$1 AND user_id=$2
+  const result = token
+    ? await pool.query(
+        `DELETE FROM website_auth_sessions WHERE token_hash=$1 AND user_id=$2
      AND kind='login' AND expires_at>NOW() AND password_fingerprint=$3 RETURNING user_id`,
-    [digest(token), String(user.id), digest(user.password)],
-  ) : { rows: [] };
+        [digest(token), String(user.id), digest(user.password)],
+      )
+    : { rows: [] };
   if (!result.rows.length) {
-    const error = new Error("Your login verification expired. Enter your email and password again.");
+    const error = new Error(
+      "Your login verification expired. Enter your email and password again.",
+    );
     error.status = 401;
     throw error;
   }
@@ -71,7 +91,9 @@ function loadSession(allowedOrigins) {
     const origin = req.headers.origin;
     const unsafe = !["GET", "HEAD", "OPTIONS"].includes(req.method);
     if (unsafe && origin && !allowed.has(origin)) {
-      return res.status(403).json({ error: "This website is not allowed to send this request." });
+      return res
+        .status(403)
+        .json({ error: "This website is not allowed to send this request." });
     }
     const token = tokenFrom(req, SESSION_COOKIE);
     if (!token) return next();
@@ -94,8 +116,18 @@ function loadSession(allowedOrigins) {
       return next();
     } catch (err) {
       console.error("Session lookup failed:", err.message);
-      return res.status(503).json({ error: "Unable to verify your session. Please try again shortly." });
+      return res
+        .status(503)
+        .json({
+          error: "Unable to verify your session. Please try again shortly.",
+        });
     }
   };
 }
-module.exports = { startLoginChallenge, issueSession, finishOtpSession, revokeSession, loadSession };
+module.exports = {
+  startLoginChallenge,
+  issueSession,
+  finishOtpSession,
+  revokeSession,
+  loadSession,
+};

@@ -686,7 +686,6 @@ function IdScannerModal({ open, onComplete, onClose }) {
         throw new Error(`Face match server error ${faceRes.status}`);
 
       const faceResult = await faceRes.json();
-      console.log("Face match:", faceResult);
 
       if (!faceResult.success || !faceResult.matched) {
         setOcrResult({
@@ -2451,7 +2450,6 @@ export default function IPharmaForm() {
         },
       );
       const data = await res.json();
-      console.log("Duplicate check response:", data);
       return data.exists;
     } catch (err) {
       console.error("Duplicate check error:", err);

@@ -22,12 +22,17 @@ async function reverseGeocode(lat, lon) {
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
-      { headers: { "User-Agent": "iFranchise/1.0 (contact@franchisync.business)" } }
+      {
+        headers: {
+          "User-Agent": "iFranchise/1.0 (contact@franchisync.business)",
+        },
+      },
     );
     const data = await res.json();
     if (data?.address) {
       const a = data.address;
-      const city = a.city || a.town || a.municipality || a.village || "Unknown city";
+      const city =
+        a.city || a.town || a.municipality || a.village || "Unknown city";
       const province = a.state || a.region || "";
       return province ? `${city}, ${province}` : city;
     }
@@ -40,14 +45,11 @@ async function reverseGeocode(lat, lon) {
 async function getLocation(ip, latitude, longitude) {
   if (latitude && longitude) {
     const precise = await reverseGeocode(latitude, longitude);
-    console.log("reverseGeocode result:", precise);
     if (precise) return precise;
   }
   const cleanIp = ip?.replace("::ffff:", "");
-  console.log("cleanIp:", cleanIp);
   if (!cleanIp) return "Unknown";
   const geo = geoip.lookup(cleanIp);
-  console.log("geoip.lookup result:", geo);
   if (geo) return `${geo.city || "Unknown city"}, ${geo.country}`;
   try {
     const res = await fetch(`https://ipwho.is/${cleanIp}`);
@@ -93,7 +95,9 @@ async function logActivity({
   role = null,
 } = {}) {
   try {
-    let ip = null, device = null, location = null;
+    let ip = null,
+      device = null,
+      location = null;
     if (req) {
       ip = getClientIp(req);
       device = getDeviceLabel(req);
@@ -103,7 +107,18 @@ async function logActivity({
     await pool.query(
       `INSERT INTO users_activity_log (action, item_name, branch, performed_by, role, changes, location, ip_address, device, module, created_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())`,
-      [action, itemName, branch, performedBy, role, JSON.stringify(details), location, ip, device, module]
+      [
+        action,
+        itemName,
+        branch,
+        performedBy,
+        role,
+        JSON.stringify(details),
+        location,
+        ip,
+        device,
+        module,
+      ],
     );
   } catch (err) {
     console.error("Failed to write activity log:", err);
