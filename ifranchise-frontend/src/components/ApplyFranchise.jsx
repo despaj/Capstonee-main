@@ -68,7 +68,7 @@ const auditLog = (() => {
           sessionStorage.getItem("session_id") ||
           (() => {
             const id = `SES-${Date.now()}`;
-            sessionStorage.setItem("session_id", id);
+           // sessionStorage.setItem("session_id", id);
             return id;
           })(),
       };
