@@ -1272,27 +1272,10 @@ export default function FranchiseAdminDashboard({ user, onLogout }) {
     }
   }, []);
 
-  const confirmLogout = async () => {
-    try {
-      const stored =
-        localStorage.getItem("user") || sessionStorage.getItem("user");
-      const userId = stored ? JSON.parse(stored)?.id : null;
-      await sessionApiFetch(`${ADMIN_API_BASE}/logout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-        credentials: "include",
-      });
-    } catch {
-    } finally {
-      localStorage.removeItem("user");
-      localStorage.removeItem("rememberedUser");
-      sessionStorage.removeItem("user");
-      sessionStorage.removeItem("tempUser");
-      sessionStorage.removeItem("fa_activeModule");
-      setShowLogoutModal(false);
-    }
-  };
+const confirmLogout = () => {
+  setShowLogoutModal(false);
+  onLogout?.();
+};
 
   // ── Fetch brands for sub-modules that need them ──
   const [brands, setBrands] = useState([]);

@@ -932,11 +932,7 @@ export default function SalesAdmin({ user, onLogout }) {
   }, []);
 
   const confirmLogout = () => {
-    if (isLoggingOut) return;
-
-    setIsLoggingOut(true);
     setShowLogoutModal(false);
-
     onLogout?.();
   };
 

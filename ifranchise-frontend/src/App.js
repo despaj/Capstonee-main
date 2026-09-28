@@ -25,6 +25,19 @@ function App() {
   const authChannelRef = useRef(null);
 
   const handleAppLogout = async () => {
+    // Update the UI immediately
+    setUser(null);
+
+    localStorage.removeItem("user");
+    localStorage.removeItem("rememberedUser");
+    sessionStorage.removeItem("user");
+    sessionStorage.removeItem("tempUser");
+
+    authChannelRef.current?.postMessage({
+      type: "LOGOUT",
+    });
+
+    // Then destroy the server session
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
         method: "POST",
@@ -36,23 +49,10 @@ function App() {
       });
 
       if (!res.ok) {
-        throw new Error(`Logout failed: ${res.status}`);
+        console.error(`Logout failed: ${res.status}`);
       }
-
-      // Server session has been successfully destroyed.
-      setUser(null);
-
-      localStorage.removeItem("user");
-      localStorage.removeItem("rememberedUser");
-
-      sessionStorage.removeItem("user");
-      sessionStorage.removeItem("tempUser");
-
-      authChannelRef.current?.postMessage({
-        type: "LOGOUT",
-      });
     } catch (err) {
-      console.error("Logout error:", err);
+      console.error("Logout request failed:", err);
     }
   };
 
