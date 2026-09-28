@@ -20,6 +20,7 @@ const getBrowserLocation = () => {
       resolve(null);
       return;
     }
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         resolve({
@@ -27,11 +28,22 @@ const getBrowserLocation = () => {
           longitude: position.coords.longitude,
         });
       },
-      (err) => {
-        console.warn("Geolocation denied or failed:", err.message);
+      (error) => {
+        // Location is optional. Continue without coordinates.
+        if (error.code === error.PERMISSION_DENIED) {
+          console.log("Location permission was not granted.");
+        } else if (error.code === error.TIMEOUT) {
+          console.log("Location request timed out.");
+        } else {
+          console.log("Location could not be determined.");
+        }
+
         resolve(null);
       },
-      { timeout: 5000, maximumAge: 60000 },
+      {
+        timeout: 5000,
+        maximumAge: 60000,
+      },
     );
   });
 };
