@@ -31,11 +31,8 @@ const getBrowserLocation = () => {
       (error) => {
         // Location is optional. Continue without coordinates.
         if (error.code === error.PERMISSION_DENIED) {
-          console.log("Location permission was not granted.");
         } else if (error.code === error.TIMEOUT) {
-          console.log("Location request timed out.");
         } else {
-          console.log("Location could not be determined.");
         }
 
         resolve(null);
