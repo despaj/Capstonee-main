@@ -929,10 +929,28 @@ const getUserFromStorage = () => {
   }
 };
 
-/* ─────────────────────────────────────────────────────────────────────────
-   INTEGRATED STOCK INVENTORY + SUPPLY ORDERING
-   Uses the original StockInventoryContent implementation and callbacks.
-───────────────────────────────────────────────────────────────────────── */
+const C = {
+  green: "#3b791e",
+  greenDk: "#2c5c16",
+  greenLt: "#f0f5e8",
+  greenMid: "#c9dba0",
+  teal: "#509820",
+  lime: "#bdd43c",
+  limeInk: "#24310C",
+  ink: "#12241B",
+  muted: "#5C6B60",
+  border: "#E1E6D8",
+  bg: "#F6F7F1",
+  white: "#ffffff",
+  warn: "#b45309",
+  warnBg: "#fff7ed",
+  ok: "#2c5c16",
+  okBg: "#f0f5e8",
+  red: "#c0392b",
+  redBg: "#fdf1f0",
+  amberBg: "#fffbeb",
+  amberBorder: "#fde68a",
+};
 
 const SI_C = {
   green: "#3b791e",
@@ -10654,2440 +10672,4168 @@ function ManagerFrStockInventoryContent({
   );
 }
 
-function ManagerStockInventoryContent({
-  user,
-  brands: propBrands = [],
-  initialFocus = null,
-}) {
-  const normalizedRole = String(user?.role || "")
-    .trim()
-    .toLowerCase();
-  const isSuperAdmin = normalizedRole === "super admin";
-  const isSalesAdmin = normalizedRole === "sales admin";
-  const isOperationsAdmin =
-    normalizedRole === "franchisee operations admin" ||
-    normalizedRole === "franchise operations admin" ||
-    normalizedRole === "franchisor operations admin";
-  const isFranchisee = normalizedRole === "franchisee";
-  const isManager = normalizedRole === "manager";
-  const canViewAllInventory = isSuperAdmin || isSalesAdmin || isOperationsAdmin;
-  const isAdmin = canViewAllInventory;
-  const canEditInventory = isSuperAdmin || isSalesAdmin || isManager;
-  const isReadOnly = isOperationsAdmin || isFranchisee;
-  const userBranch = String(user?.branch || "").trim();
-  const userBrand = String(
-    user?.brand || user?.brand_name || user?.brandName || "",
-  ).trim();
-  const userName = user?.name || "Unknown";
-  const [savingItem, setSavingItem] = useState(false);
-  const [deletingItem, setDeletingItem] = useState(false);
-  const [restoringId, setRestoringId] = useState(null);
-  const [toast, setToast] = useState(null);
-  const brandList = propBrands.length > 0 ? propBrands : [];
-  const connectedBrandDefs = useMemo(
-    () =>
-      BRAND_DEFS.filter((bd) =>
-        brandList.some((b) => bd.match((b.name || "").toLowerCase())),
-      ).sort((a, b) => a.label.localeCompare(b.label)),
-    [brandList],
-  );
-  const defaultBulkQtyForUnit = (unit) =>
-    ["g", "ml"].includes(unit)
-      ? 1000
-      : unit === "liters"
-        ? 200
-        : unit === "kg"
-          ? 50
-          : ["pcs", "bottles"].includes(unit)
-            ? 50
-            : 1;
-  const computeDisplayPrice = (cost, unit, bulkQtyOverride) => {
-    const bulkQty =
-      Number(bulkQtyOverride) > 0
-        ? Number(bulkQtyOverride)
-        : ["g", "ml"].includes(unit)
-          ? 1000
-          : unit === "liters"
-            ? 200
-            : unit === "kg"
-              ? 50
-              : ["pcs", "bottles"].includes(unit)
-                ? 50
-                : 1;
-    return Math.round(Number(cost || 0) * bulkQty * 1.15 * 100) / 100;
-  };
-  const PACK_NAME_FOR_UNIT = {
-    g: "kg",
-    ml: "liters",
-    liters: "drums",
-    kg: "cylinders",
-    pcs: "packs",
-    bottles: "cases",
-  };
-  const bulkLabelFor = (unit, bulkQtyOverride) => {
-    if (!unit) return "";
-    const qty =
-      Number(bulkQtyOverride) > 0
-        ? Number(bulkQtyOverride)
-        : ["g", "ml"].includes(unit)
-          ? 1000
-          : unit === "liters"
-            ? 200
-            : unit === "kg"
-              ? 50
-              : ["pcs", "bottles"].includes(unit)
-                ? 50
-                : 1;
-    const packName = PACK_NAME_FOR_UNIT[unit] || `${unit} packs`;
-    return `${packName} (${qty}${unit})`;
-  };
-  const markupLabelFor = () => "+ 15%";
-  const ownBrandDef = useMemo(() => {
-    if (isAdmin) return null;
-    // Manager account brand is authoritative.
-    let ownBrandObj = null;
-    if (userBrand) {
-      ownBrandObj = brandList.find(
-        (brandObj) =>
-          String(brandObj?.name || "")
-            .trim()
-            .toLowerCase() === userBrand.toLowerCase(),
-      );
-    }
-    // Only use branch as fallback for older
-    // accounts without a stored brand.
-    if (!ownBrandObj && userBranch) {
-      const matchingBrands = brandList.filter((brandObj) =>
-        (brandObj.branches || []).some((branchObj) => {
-          const branchName =
-            typeof branchObj === "string" ? branchObj : branchObj?.name;
-          return (
-            String(branchName || "")
-              .trim()
-              .toLowerCase() === userBranch.toLowerCase()
-          );
-        }),
-      );
-      // Only infer when the branch belongs
-      // to exactly one brand.
-      if (matchingBrands.length === 1) {
-        ownBrandObj = matchingBrands[0];
-      }
-    }
-    if (!ownBrandObj) return null;
-    return (
-      connectedBrandDefs.find((brandDef) =>
-        brandDef.match(String(ownBrandObj.name || "").toLowerCase()),
-      ) || null
-    );
-  }, [isAdmin, userBrand, userBranch, brandList, connectedBrandDefs]);
-  const visibleBrandDefs = isAdmin
-    ? connectedBrandDefs
-    : ownBrandDef
-      ? [ownBrandDef]
-      : [];
-  const allBranches = useMemo(() => {
-    const out = [];
-    brandList.forEach((b) =>
-      (b.branches || []).forEach((br) => {
-        const name = typeof br === "string" ? br : br.name;
-        if (!out.find((x) => x.branch === name))
-          out.push({ brand: b.name, branch: name });
-      }),
-    );
-    return out;
-  }, [brandList]);
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState("");
-  const [brand, setBrand] = useState(null);
-  const [branch, setBranch] = useState(null);
-  const [unitFilter, setUnitFilter] = useState("");
-  const [statusFilt, setStatusFilt] = useState("");
-  const [page, setPage] = useState(0);
-  const [sort, setSort] = useState({ col: "name", asc: true });
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(null);
-  // navigation: null = landing grid; active cards come only from live Brand & Branch records
-  const [activeBrandKey, setActiveBrandKey] = useState(null);
-  const activeBrandDef =
-    connectedBrandDefs.find((b) => b.key === activeBrandKey) || null;
-  const currentBrandName = activeBrandDef
-    ? brandList.find((b) => activeBrandDef.match((b.name || "").toLowerCase()))
-        ?.name || ""
-    : "";
-  const [uiModal, setUiModal] = useState(null);
-  const showUiModal = useCallback((opts) => setUiModal(opts), []);
-  const closeUiModal = useCallback(() => setUiModal(null), []);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [importLoading, setImportLoading] = useState(false);
-  const [importProgress, setImportProgress] = useState({
-    percent: 0,
-    label: "Preparing…",
-    current: 0,
-    total: 0,
-  });
-  const [deleteHistory, setDeleteHistory] = useState([]);
-  const [showDeleteHistory, setShowDeleteHistory] = useState(false);
-  const [deleteHistoryBrandKey, setDeleteHistoryBrandKey] = useState(null);
-  const [activityLog, setActivityLog] = useState([]);
-  const [showActivityLog, setShowActivityLog] = useState(false);
-  const [activeBatchIngredient, setActiveBatchIngredient] = useState(null);
-  const [batches, setBatches] = useState([]);
-  const [batchLoading, setBatchLoading] = useState(false);
-  const [showValue, setShowValue] = useState(true);
-  const [receiveTarget, setReceiveTarget] = useState(null);
-  const [focusMutation, setFocusMutation] = useState(null);
-  const [stockRefreshToken, setStockRefreshToken] = useState(0);
-  const excelRef = useRef(null);
-  const emptyForm = useCallback(
-    () => ({
-      name: "",
-      branch: isAdmin ? "" : userBranch,
-      branches: isAdmin ? [] : [userBranch],
-      brand: "",
-      category: "",
-      unit: "pcs",
-      min_stock: 0,
-      cost_per_unit: "",
-      perishable: false,
-      listInShop: false,
-      shopCategory: "",
-      sku: "",
-      bulkQty: "",
-      pcsPerStrip: "",
-      stripsPerBox: "",
-    }),
-    [isAdmin, userBranch],
-  );
-  const [form, setForm] = useState(emptyForm);
-  const fetchItems = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (!isAdmin) {
-        if (userBranch) {
-          params.set("branch", userBranch);
-        }
-        if (userBrand) {
-          params.set("brand", userBrand);
-        }
-      }
-      const query = params.toString() ? `?${params.toString()}` : "";
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/ingredients${query}`,
-      );
-      const d = await res.json();
-      const rows = Array.isArray(d)
-        ? d.map(normalizeStockItem).filter((item) => {
-            if (isAdmin) {
-              return true;
-            }
-            const sameBranch =
-              !userBranch ||
-              String(item.branch || "")
-                .trim()
-                .toLowerCase() === userBranch.toLowerCase();
-            const sameBrand =
-              !userBrand ||
-              String(item.brand || "")
-                .trim()
-                .toLowerCase() === userBrand.toLowerCase();
-            return sameBranch && sameBrand;
-          })
-        : [];
-      setItems(rows);
-      return rows;
-    } catch (err) {
-      console.error("Failed to fetch manager stock inventory:", err);
-      setItems([]);
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  }, [isAdmin, userBranch, userBrand]);
-  const fetchDeleteHistory = useCallback(async () => {
-    try {
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/ingredient-delete-history`,
-      );
-      const data = await res.json();
-      setDeleteHistory(
-        Array.isArray(data)
-          ? data.map((row) => ({
-              id: row.id,
-              data: normalizeStockItem(row.ingredient_data ?? row.data ?? {}),
-              deletedAt: row.deleted_at ?? row.deletedAt,
-              deletedBy: row.deleted_by ?? row.deletedBy,
-            }))
-          : [],
-      );
-    } catch (err) {
-      console.error(err);
-    }
-  }, []);
-  const fetchActivityLog = useCallback(async () => {
-    try {
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/ingredient-activity-log`,
-      );
-      const data = await res.json();
-      setActivityLog(
-        Array.isArray(data)
-          ? data.map((row) => ({
-              id: row.id,
-              action: row.action,
-              ingredientName: row.ingredient_name ?? row.ingredientName,
-              branch: row.branch,
-              performedBy: row.performed_by ?? row.performedBy,
-              role: row.role,
-              changes: row.changes,
-              timestamp: row.created_at ?? row.timestamp,
-            }))
-          : [],
-      );
-    } catch (err) {
-      console.error(err);
-    }
-  }, []);
-  useEffect(() => {
-    if (
-      activeBrandKey &&
-      !visibleBrandDefs.some((bd) => bd.key === activeBrandKey)
-    ) {
-      setActiveBrandKey(null);
-    }
-  }, [activeBrandKey, visibleBrandDefs]);
-  useEffect(() => {
-    if (!isAdmin && ownBrandDef && activeBrandKey !== ownBrandDef.key) {
-      setActiveBrandKey(ownBrandDef.key);
-    }
-  }, [isAdmin, ownBrandDef, activeBrandKey]);
-  useEffect(() => {
-    if (!initialFocus?.brand) return;
-    const matchedDef = BRAND_DEFS.find((bd) =>
-      bd.match(initialFocus.brand.toLowerCase()),
-    );
-    if (matchedDef) setActiveBrandKey(matchedDef.key);
-  }, [initialFocus]);
-  useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
-  useEffect(() => {
-    fetchDeleteHistory();
-    fetchActivityLog();
-  }, [fetchDeleteHistory, fetchActivityLog]);
-  useEffect(() => {
-    setPage(0);
-  }, [search, brand, branch, unitFilter, statusFilt]);
-  useEffect(() => {
-    if (!activeBatchIngredient) return;
-    setBatchLoading(true);
-    fetch(
-      `${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${activeBatchIngredient.id}`,
-    )
-      .then((r) => r.json())
-      .then((d) => {
-        setBatches(Array.isArray(d) ? d : []);
-        setBatchLoading(false);
-      });
-  }, [activeBatchIngredient]);
-  const importExcel = (e) => {
-    if (!canEditInventory) {
-      e.target.value = "";
-      showUiModal({
-        type: "error",
-        title: "Read Only Access",
-        message: "Your account cannot import inventory records.",
-      });
-      return;
-    }
-    const file = e.target.files[0];
-    if (!file) return;
-    setImportLoading(true);
-    setImportProgress({
-      percent: 5,
-      label: "Reading file…",
-      current: 0,
-      total: 0,
-    });
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      try {
-        const coords = await getBrowserLocation();
-        setImportProgress({
-          percent: 15,
-          label: "Parsing spreadsheet…",
-          current: 0,
-          total: 0,
-        });
-        const wb = XLSX.read(ev.target.result, { type: "array" });
-        const rows_to_save = [];
-        wb.SheetNames.forEach((sheetName) => {
-          const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {
-            defval: "",
-          });
-          rows.forEach((row) => {
-            const name = capitalizeName(
-              String(
-                row.name || row.Name || row["INGREDIENT NAME"] || "",
-              ).trim(),
-            );
-            if (!name) return;
-            const rowBranch =
-              String(row.branch || row.Branch || "").trim() || "Unknown";
-            const alreadyExists = items.some(
-              (i) =>
-                normalizeName(i.name) === normalizeName(name) &&
-                i.branch.trim().toLowerCase() === rowBranch.toLowerCase(),
-            );
-            if (alreadyExists) return;
-            const rawListInShop = row.list_in_shop ?? row["List In Shop"] ?? "";
-            const listInShop =
-              rawListInShop === 1 ||
-              rawListInShop === true ||
-              String(rawListInShop).trim().toLowerCase() === "1" ||
-              String(rawListInShop).trim().toLowerCase() === "yes" ||
-              String(rawListInShop).trim().toLowerCase() === "true";
-            const rowBrand = String(row.brand || row.Brand || "").trim();
-            const rowCategory = String(
-              row.category || row.Category || "",
-            ).trim();
-            rows_to_save.push({
-              name,
-              branch: rowBranch,
-              brand: rowBrand,
-              category: rowCategory,
-              unit: String(row.unit || row.Unit || "pcs").trim(),
-              stock: parseFloat(row.stock || row.Stock || 0) || 0,
-              min_stock:
-                parseFloat(row.min_stock || row["Min Stock"] || 0) || 0,
-              cost_per_unit:
-                parseFloat(row.cost_per_unit || row["Cost/Unit"] || 0) || 0,
-              listInShop,
-              shopPrice:
-                parseFloat(row.shop_price || row["Shop Price"] || 0) || 0,
-              shopUnit: String(row.shop_unit || row["Shop Unit"] || "").trim(),
-              shopCategory: String(
-                row.shop_category || row["Shop Category"] || "Coffee Spot",
-              ).trim(),
-            });
-          });
-        });
-        setImportProgress({
-          percent: 25,
-          label: `Found ${rows_to_save.length} rows. Importing…`,
-          current: 0,
-          total: rows_to_save.length,
-        });
-        let saved = 0,
-          shopSaved = 0,
-          skipped = 0;
-        const skippedNames = [];
-        for (let idx = 0; idx < rows_to_save.length; idx++) {
-          const item = rows_to_save[idx];
-          setImportProgress({
-            percent: 25 + Math.round(((idx + 1) / rows_to_save.length) * 65),
-            label: `Saving "${item.name}"…`,
-            current: idx + 1,
-            total: rows_to_save.length,
-          });
-          try {
-            const res = await fetch(
-              `${process.env.REACT_APP_API_URL}/ingredients`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  ...item,
-                  performed_by: userName,
-                  latitude: coords?.latitude,
-                  longitude: coords?.longitude,
-                  imported: true,
-                }),
-              },
-            );
-            const d = await res.json();
-            if (d.success) {
-              saved++;
-              if (item.listInShop && item.shopPrice > 0) {
-                try {
-                  const checkRes = await fetch(
-                    `${process.env.REACT_APP_API_URL}/shop-items`,
-                  );
-                  const checkData = await checkRes.json();
-                  if (
-                    !checkData.some(
-                      (s) =>
-                        s.name.trim().toLowerCase() ===
-                          item.name.toLowerCase() &&
-                        s.shop.trim().toLowerCase() ===
-                          item.shopCategory.toLowerCase(),
-                    )
-                  ) {
-                    const shopRes = await fetch(
-                      `${process.env.REACT_APP_API_URL}/shop-items`,
-                      {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          name: item.name,
-                          price: item.shopPrice,
-                          unit: item.shopUnit,
-                          stock: item.stock,
-                          shop: item.shopCategory,
-                          brand: item.brand || "",
-                          image_url: "...",
-                          is_visible: true,
-                          performed_by_role: user?.role || "Unknown",
-                          latitude: coords?.latitude,
-                          longitude: coords?.longitude,
-                        }),
-                      },
-                    );
-                    if ((await shopRes.json()).success) shopSaved++;
-                  }
-                } catch {}
-              }
-            } else {
-              skipped++;
-              skippedNames.push(item.name);
-            }
-          } catch {
-            skipped++;
-            skippedNames.push(item.name);
-          }
-        }
-        setImportProgress({
-          percent: 100,
-          label: "Complete!",
-          current: rows_to_save.length,
-          total: rows_to_save.length,
-        });
-        await fetchItems();
-        await fetchActivityLog();
-        const summaryLines = [
-          { text: `${rows_to_save.length} row(s) parsed from file` },
-          { text: `${saved} ingredient(s) saved successfully` },
-          ...(shopSaved > 0
-            ? [{ text: `${shopSaved} item(s) also added to Mobile Shop` }]
-            : []),
-          ...(skipped > 0
-            ? [
-                { text: `${skipped} item(s) failed or skipped`, warn: true },
-                ...skippedNames.map((n) => ({ text: n, warn: true })),
-              ]
-            : []),
-        ];
-        setTimeout(() => {
-          setImportLoading(false);
-          e.target.value = "";
-          showUiModal({
-            type: skipped > 0 ? "info" : "success",
-            title: "Import Complete",
-            message:
-              skipped > 0
-                ? `${saved} ingredient(s) saved. ${skipped} item(s) were skipped.`
-                : `Successfully imported ${saved} ingredient(s).`,
-            lines: summaryLines,
-          });
-        }, 400);
-      } catch {
-        setImportLoading(false);
-        e.target.value = "";
-        showUiModal({
-          type: "error",
-          title: "Import Failed",
-          message: "An error occurred while processing the Excel file.",
-        });
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const warnDate = new Date(now);
-    warnDate.setDate(now.getDate() + SI_EXPIRY_WARN_DAYS);
-    return [...items]
-      .filter((i) => {
-        if (
-          q &&
-          !i.name.toLowerCase().includes(q) &&
-          !(i.branch || "").toLowerCase().includes(q)
-        )
-          return false;
-        if (branch && i.branch !== branch) return false;
-        else if (brand && !branch) {
-          const b = brandList.find((x) => x.id === brand);
-          if (b) {
-            const names = (b.branches || []).map((br) =>
-              typeof br === "string" ? br : br.name,
-            );
-            if (!names.includes(i.branch)) return false;
-          }
-        }
-        if (unitFilter && i.unit !== unitFilter) return false;
-        if (statusFilt === "low" && Number(i.stock) >= Number(i.min_stock))
-          return false;
-        if (statusFilt === "ok" && Number(i.stock) < Number(i.min_stock))
-          return false;
-        return true;
+const FR_EXPIRY_STYLE = {
+  expired: {
+    border: "#fecaca",
+    badgeText: "#991b1b",
+    label: "EXPIRED",
+    dot: "#dc2626",
+  },
+  critical: {
+    border: "#fed7aa",
+    badgeText: "#9a3412",
+    label: "CRITICAL",
+    dot: "#ea580c",
+  },
+  warning: {
+    border: "#fef08a",
+    badgeText: "#854d0e",
+    label: "EXPIRING",
+    dot: "#ca8a04",
+  },
+  ok: { border: C.greenMid, badgeText: null, label: null, dot: C.green },
+};
+
+function fmtFrDate(d) {
+  return d
+    ? new Date(d).toLocaleDateString("en-PH", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "Asia/Manila",
       })
-      .sort((a, b) => {
-        let va = a[sort.col] ?? "",
-          vb = b[sort.col] ?? "";
-        if (typeof va === "string") va = va.toLowerCase();
-        if (typeof vb === "string") vb = vb.toLowerCase();
-        return sort.asc
-          ? va < vb
-            ? -1
-            : va > vb
-              ? 1
-              : 0
-          : va > vb
-            ? -1
-            : va < vb
-              ? 1
-              : 0;
-      });
-  }, [items, search, brand, branch, unitFilter, statusFilt, sort, brandList]);
-  const lowCount = items.filter(
-    (i) => Number(i.stock) < Number(i.min_stock),
-  ).length;
-  const totalValue = items.reduce(
-    (s, i) => s + (i.cost_per_unit || 0) * (i.stock || 0),
-    0,
+    : "—";
+}
+function fmtFrTs(d) {
+  return new Date(d).toLocaleString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Manila",
+  });
+}
+
+function FrMiniBar({ pct, color, track = "#eef6f1", height = 6 }) {
+  const w = Math.max(0, Math.min(100, pct ?? 0));
+  return (
+    <div
+      style={{
+        background: track,
+        borderRadius: 20,
+        height,
+        overflow: "hidden",
+        width: "100%",
+      }}
+    >
+      <div
+        style={{
+          width: `${w}%`,
+          height: "100%",
+          background: color,
+          borderRadius: 20,
+          transition: "width .3s ease",
+        }}
+      />
+    </div>
   );
-  const pageItems = filtered.slice(
-    page * SI_PAGE_SIZE,
-    (page + 1) * SI_PAGE_SIZE,
+}
+
+function FrFifoQueue({ product, batches, loading, lowStock = false }) {
+  if (!product) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+          minHeight: 300,
+          color: C.muted,
+          fontSize: 12.5,
+          textAlign: "center",
+          padding: 20,
+        }}
+      >
+        <div>
+          Select a product on the left
+          <br />
+          to view its consumption queue.
+        </div>
+      </div>
+    );
+  }
+
+  const fifo = getFifoMethod(product.brand, product.perishable);
+  const sorted = sortBatchesByMethod(
+    batches,
+    product.brand,
+    product.perishable,
   );
-  const saveItem = async (e) => {
-    if (!canEditInventory) {
-      showUiModal({
-        type: "error",
-        title: "Read Only Access",
-        message: "Your account can view Stock Inventory but cannot modify it.",
-      });
-      return;
-    }
-    e.preventDefault();
-    const errors = [];
-    if (!form.name || !form.name.trim())
-      errors.push("Ingredient name is required.");
-    if (!form.brand) errors.push("Brand is required.");
-    if (isAdmin) {
-      if (editing) {
-        if (!form.branch) errors.push("Branch is required.");
-      } else {
-        if (form.branches.length === 0)
-          errors.push("Select at least one branch.");
-      }
-    }
-    if (isPharmaBrand(form.brand || currentBrandName)) {
-      if (form.unit !== "pcs") {
-        errors.push(
-          "iPharma medicines must use pcs as the base inventory unit.",
-        );
-      }
-      if (form.pcsPerStrip && Number(form.pcsPerStrip) < 1) {
-        errors.push("Pieces per strip must be at least 1.");
-      }
-      if (form.stripsPerBox && !form.pcsPerStrip) {
-        errors.push("Enter Pieces per Strip before setting Strips per Box.");
-      }
-      if (form.stripsPerBox && Number(form.stripsPerBox) < 1) {
-        errors.push("Strips per box must be at least 1.");
-      }
-    }
-    {
-      const selectedBrandObj = brandList.find(
-        (b) =>
-          (b.name || "").toLowerCase() === (form.brand || "").toLowerCase(),
-      );
-      const allowedCategories = getBrandCategories(selectedBrandObj);
-      if (allowedCategories.length > 0) {
-        if (!form.category) {
-          errors.push(`Category is required for ${form.brand} products.`);
-        } else if (
-          !allowedCategories.some(
-            (cat) => cat.toLowerCase() === String(form.category).toLowerCase(),
-          )
-        ) {
-          errors.push(
-            `"${form.category}" is no longer an active ${form.brand} category. Select a category from Brand & Branch Management.`,
-          );
-        }
-      }
-    }
-    if (!form.unit) errors.push("Unit is required.");
-    if (!isPositiveOrZeroNumber(form.min_stock))
-      errors.push("Minimum stock must be a valid number of 0 or more.");
-    if (
-      editing &&
-      form.stock !== undefined &&
-      form.stock !== "" &&
-      !isPositiveOrZeroNumber(form.stock)
-    ) {
-      errors.push("Stock must be a valid number of 0 or more.");
-    }
-    if (errors.length > 0) {
-      showUiModal({
-        type: "error",
-        title: "Please fix the following",
-        lines: errors.map((t) => ({ text: t, warn: true })),
-      });
-      return;
-    }
-    setSavingItem(true);
-    const coords = await getBrowserLocation();
-    /* ── EDIT: update the original branch's record, and optionally create the
-       same ingredient in newly-selected additional branches ── */
-    if (editing) {
-      if (
-        form.branches.length === 0 ||
-        !form.branches.includes(editing.branch)
-      ) {
-        setSavingItem(false);
-        showUiModal({
-          type: "error",
-          title: "Please fix the following",
-          lines: [{ text: "The current branch can't be removed.", warn: true }],
-        });
-        return;
-      }
-      const payload = {
-        ...form,
-        cost_per_unit: form.cost_per_unit,
-        stock: form.stock ?? 0,
-        branch: editing.branch,
-        name: capitalizeName(form.name.trim()),
-        performed_by: userName,
-        performed_by_role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-        bulk_qty: form.bulkQty || null,
-        extra_fields: {
-          pcs_per_strip: form.pcsPerStrip || null,
-          strips_per_box: form.stripsPerBox || null,
-        },
-        ...(!isAdmin ? { cost_per_unit: editing.cost_per_unit } : {}),
-      };
-      let editSucceeded = false;
-      let updatedItem = null;
+  const totalStock = sorted.reduce((s, b) => s + Number(b.stock || 0), 0);
+
+  return (
+    <div
+      className="fr-inventory-detail-content"
+      style={{ display: "flex", flexDirection: "column", height: "100%" }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          marginBottom: 10,
+          gap: 8,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 800,
+              color: C.ink,
+              fontFamily: "monospace",
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              overflow: "hidden",
+            }}
+          >
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {product.sku || "—"}
+            </span>
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: C.muted,
+              marginTop: 2,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: C.ink }}>
+              {product.name}
+            </span>
+            <span style={{ opacity: 0.45 }}>•</span>
+            <span>
+              {frStockQuantity(totalStock, product.unit)} · {sorted.length}{" "}
+              active batch{sorted.length === 1 ? "" : "es"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "6px 10px",
+          borderRadius: 8,
+          background: fifo.method === "FEFO" ? C.amberBg : C.greenLt,
+          border: `1px solid ${fifo.method === "FEFO" ? C.amberBorder : C.greenMid}`,
+          fontSize: 10.5,
+          color: fifo.method === "FEFO" ? "#9a3412" : C.greenDk,
+          fontWeight: 700,
+          marginBottom: 10,
+        }}
+      >
+        <span>{fifo.method} QUEUE</span>
+        <span style={{ fontWeight: 500, opacity: 0.85 }}>
+          — {fifo.queueLabel}
+        </span>
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          paddingRight: 2,
+          minHeight: 0,
+        }}
+      >
+        {loading ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "30px 0",
+              color: C.muted,
+              fontSize: 12,
+            }}
+          >
+            Loading queue…
+          </div>
+        ) : sorted.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "30px 0",
+              color: C.muted,
+              fontSize: 12,
+              fontStyle: "italic",
+            }}
+          >
+            No batches yet for this product.
+          </div>
+        ) : (
+          sorted.map((b, idx) => {
+            const status = computeExpiryStatus(b.exp_date, product.brand);
+            const ss = FR_EXPIRY_STYLE[status] || FR_EXPIRY_STYLE.ok;
+            const isFirst = idx === 0;
+            const isLast = idx === sorted.length - 1;
+            const supplyStr = b.supply_date ? fmtFrTs(b.supply_date) : "—";
+            const expStr = fmtFrDate(b.exp_date);
+            const dRem = daysRemaining(b.exp_date);
+            const stockPct =
+              totalStock > 0
+                ? Math.round((Number(b.stock || 0) / totalStock) * 100)
+                : 0;
+
+            return (
+              <div
+                key={b.id}
+                style={{
+                  background: C.white,
+                  borderBottom: isLast
+                    ? "none"
+                    : `1px solid ${isFirst ? C.greenMid : C.border}`,
+                  padding: "7px 4px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 6,
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 19,
+                        height: 19,
+                        borderRadius: "50%",
+                        background: isFirst ? C.green : "#b9c9bf",
+                        color: "#fff",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {idx + 1}
+                    </span>
+                    <span
+                      style={{ fontSize: 12, fontWeight: 800, color: C.ink }}
+                    >
+                      Batch {b.batch_number || "—"}
+                    </span>
+                    {isFirst && (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 800,
+                          color: C.greenDk,
+                          border: `1px solid ${C.greenMid}`,
+                          padding: "2px 8px",
+                          borderRadius: 20,
+                        }}
+                      >
+                        {fifo.topLabel}
+                      </span>
+                    )}
+                  </span>
+                  {ss.label && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 800,
+                        color: ss.badgeText,
+                        border: `1px solid ${ss.border}`,
+                        padding: "2px 7px",
+                        borderRadius: 20,
+                      }}
+                    >
+                      {ss.label}
+                    </span>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    fontSize: 11,
+                    color: C.muted,
+                    marginBottom: 8,
+                  }}
+                >
+                  {b.supplier && (
+                    <span>
+                      Supplier:{" "}
+                      <strong style={{ color: C.ink }}>{b.supplier}</strong>
+                    </span>
+                  )}
+                  <span>
+                    Arrived:{" "}
+                    <strong style={{ color: C.ink }}>{supplyStr}</strong>
+                  </span>
+                  <span>
+                    Expires:{" "}
+                    <strong style={{ color: ss.dot }}>
+                      {expStr}
+                      {dRem != null
+                        ? ` (${dRem < 0 ? "expired" : dRem + "d left"})`
+                        : ""}
+                    </strong>
+                  </span>
+                  {b.cost_per_unit ? (
+                    <span>
+                      Cost/Unit:{" "}
+                      <strong style={{ color: C.ink }}>
+                        {fmtPeso(b.cost_per_unit)}
+                      </strong>
+                    </span>
+                  ) : null}
+                  {b.storage_location && (
+                    <span>
+                      Location:{" "}
+                      <strong style={{ color: C.ink }}>
+                        {b.storage_location}
+                      </strong>
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: 9.5,
+                      color: C.muted,
+                      fontWeight: 700,
+                      marginBottom: 2,
+                    }}
+                  >
+                    <span>STOCK</span>
+                    <span>
+                      {frStockQuantity(b.stock, product.unit)} /{" "}
+                      {frStockQuantity(totalStock, product.unit)}
+                    </span>
+                  </div>
+                  <FrMiniBar
+                    pct={stockPct}
+                    color={lowStock ? C.red : C.green}
+                    track={lowStock ? "#fbe5e3" : "#eef6f1"}
+                  />
+                </div>
+
+                {isPharmaBrand(product.brand) &&
+                  (b.lot_number ||
+                    b.ndc_code ||
+                    b.dosage_form ||
+                    b.storage_requirement ||
+                    b.controlled_substance) && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        paddingTop: 8,
+                        borderTop: `1px dashed ${C.border}`,
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 10,
+                        fontSize: 10.5,
+                        color: C.muted,
+                      }}
+                    >
+                      {b.lot_number && (
+                        <span>
+                          LOT:{" "}
+                          <strong style={{ color: C.ink }}>
+                            {b.lot_number}
+                          </strong>
+                        </span>
+                      )}
+                      {b.ndc_code && (
+                        <span>
+                          NDC:{" "}
+                          <strong style={{ color: C.ink }}>{b.ndc_code}</strong>
+                        </span>
+                      )}
+                      {b.dosage_form && (
+                        <span>
+                          {b.dosage_form}
+                          {b.strength ? ` · ${b.strength}` : ""}
+                        </span>
+                      )}
+                      {b.storage_requirement && (
+                        <span>
+                          Storage:{" "}
+                          <strong style={{ color: C.ink }}>
+                            {b.storage_requirement}
+                          </strong>
+                        </span>
+                      )}
+                      {b.controlled_substance && (
+                        <span style={{ color: "#991b1b", fontWeight: 800 }}>
+                          CONTROLLED SUBSTANCE
+                        </span>
+                      )}
+                    </div>
+                  )}
+                {isFuelBrand(product.brand) &&
+                  (b.tank_id || b.grade || b.octane_rating || b.truck_id) && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        paddingTop: 8,
+                        borderTop: `1px dashed ${C.border}`,
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 10,
+                        fontSize: 10.5,
+                        color: C.muted,
+                      }}
+                    >
+                      {b.tank_id && (
+                        <span>
+                          Tank:{" "}
+                          <strong style={{ color: C.ink }}>{b.tank_id}</strong>
+                        </span>
+                      )}
+                      {b.grade && (
+                        <span>
+                          Grade:{" "}
+                          <strong style={{ color: C.ink }}>{b.grade}</strong>
+                        </span>
+                      )}
+                      {b.octane_rating && (
+                        <span>
+                          Octane:{" "}
+                          <strong style={{ color: C.ink }}>
+                            {b.octane_rating}
+                          </strong>
+                        </span>
+                      )}
+                      {b.delivery_temp && (
+                        <span>
+                          Delivery Temp:{" "}
+                          <strong style={{ color: C.ink }}>
+                            {b.delivery_temp}°F
+                          </strong>
+                        </span>
+                      )}
+                      {b.truck_id && (
+                        <span>
+                          Truck:{" "}
+                          <strong style={{ color: C.ink }}>{b.truck_id}</strong>
+                        </span>
+                      )}
+                      {b.volume_correction && (
+                        <span>
+                          Corrected Vol (60°F):{" "}
+                          <strong style={{ color: C.ink }}>
+                            {frStockQuantity(b.volume_correction, product.unit)}
+                          </strong>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                {b.notes && (
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      color: C.muted,
+                      marginTop: 6,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {b.notes}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WebGCashPaymentModal({ visible, amount, onConfirm, onCancel }) {
+  const [step, setStep] = useState("loading");
+  const [checkoutUrl, setCheckoutUrl] = useState("");
+  const [linkId, setLinkId] = useState("");
+  const [reference, setReference] = useState("");
+  const [seconds, setSeconds] = useState(180);
+  const [error, setError] = useState("");
+  const pollRef = useRef(null);
+  const timerRef = useRef(null);
+  const confirmedRef = useRef(false);
+  const referenceRef = useRef("");
+
+  useEffect(() => {
+    if (!visible) return undefined;
+    let active = true;
+    confirmedRef.current = false;
+    setStep("loading");
+    setCheckoutUrl("");
+    setReference("");
+    setSeconds(180);
+    setError("");
+
+    const clearTimers = () => {
+      clearInterval(pollRef.current);
+      clearInterval(timerRef.current);
+    };
+    const createLink = async () => {
+      clearTimers();
       try {
-        const res = await fetch(
-          `${process.env.REACT_APP_API_URL}/ingredients/${editing.id}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          },
-        );
-        const d = await res.json();
-        if (d.success) {
-          editSucceeded = true;
-          if (isDirectProductBrand(payload.brand) && editing.id != null) {
-            persistStockCategory(editing.id, payload.category);
-          }
-          if (form.listInShop && form.cost_per_unit) {
-            const computedShopPrice = isDirectProductBrand(form.brand)
-              ? computeDirectSellingPrice(form.cost_per_unit)
-              : Math.round(parseFloat(form.cost_per_unit) * 1.1 * 100) / 100;
-            try {
-              const ingredientId = editing.id;
-              const shopRes = await fetch(
-                `${process.env.REACT_APP_API_URL}/shop-items`,
-              );
-              const shopData = await shopRes.json();
-              const existingShopItem = Array.isArray(shopData)
-                ? shopData.find((s) => s.ingredient_id === ingredientId)
-                : null;
-              const shopBody = {
-                name: payload.name,
-                price: computedShopPrice,
-                unit: form.unit || "",
-                shop: form.shopCategory,
-                brand: payload.brand || "",
-                performed_by: userName,
-                latitude: payload.latitude,
-                longitude: payload.longitude,
-              };
-              if (existingShopItem) {
-                await fetch(
-                  `${process.env.REACT_APP_API_URL}/shop-items/${existingShopItem.id}`,
-                  {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ ...existingShopItem, ...shopBody }),
-                  },
-                );
-              } else {
-                await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    ...shopBody,
-                    stock: 0,
-                    image_url:
-                      "https://placehold.co/150x150/e8f5e9/2e7d32?text=" +
-                      encodeURIComponent(payload.name.slice(0, 8)),
-                    is_visible: true,
-                    branches: [],
-                    ingredient_id: ingredientId,
-                  }),
-                });
-              }
-            } catch {}
-          }
-          updatedItem = normalizeStockItem({
-            ...(editing || {}),
-            ...payload,
-            ...(d.item || {}),
-            id: d.item?.id ?? editing?.id,
-            category:
-              d.item?.category ?? payload.category ?? editing?.category ?? "",
-            brand: d.item?.brand ?? payload.brand ?? editing?.brand ?? "",
-          });
-        }
-      } catch {
-        // handled below via editSucceeded flag
-      }
-      if (!editSucceeded) {
-        setSavingItem(false);
-        setToast({
-          type: "error",
-          title: "Failed to Save",
-          message:
-            "Failed to update the ingredient. Please check your connection.",
-        });
-        return;
-      }
-      /* Fan out to any newly-checked additional branches */
-      const extraBranches = form.branches.filter((b) => b !== editing.branch);
-      const results = [];
-      for (const branchName of extraBranches) {
-        const extraPayload = {
-          ...form,
-          cost_per_unit: 0,
-          stock: 0,
-          branch: branchName,
-          name: capitalizeName(form.name.trim()),
-          performed_by: userName,
-          performed_by_role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-          bulk_qty: form.bulkQty || null,
-          extra_fields: {
-            pcs_per_strip: form.pcsPerStrip || null,
-            strips_per_box: form.stripsPerBox || null,
-          },
-        };
-        const duplicate = items.find(
-          (i) =>
-            normalizeName(i.name) === normalizeName(extraPayload.name) &&
-            i.branch.trim().toLowerCase() === branchName.trim().toLowerCase(),
-        );
-        if (duplicate) {
-          results.push({
-            ok: false,
-            branch: branchName,
-            reason: "already exists in this branch",
-          });
-          continue;
-        }
-        try {
-          const res = await fetch(
-            `${process.env.REACT_APP_API_URL}/ingredients`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(extraPayload),
-            },
-          );
-          const d = await res.json();
-          if (d.success) {
-            if (
-              isDirectProductBrand(extraPayload.brand) &&
-              d.item?.id != null
-            ) {
-              persistStockCategory(d.item.id, extraPayload.category);
-            }
-            results.push({ ok: true, branch: branchName });
-          } else {
-            results.push({
-              ok: false,
-              branch: branchName,
-              reason: d.error || "failed to save",
-            });
-          }
-        } catch {
-          results.push({
-            ok: false,
-            branch: branchName,
-            reason: "connection error",
-          });
-        }
-      }
-      const freshRows = await fetchItems();
-      await fetchActivityLog();
-      const freshItem =
-        freshRows.find((row) => String(row.id) === String(updatedItem.id)) ||
-        updatedItem;
-      setFocusMutation({ item: freshItem, stamp: Date.now(), reason: "edit" });
-      setStockRefreshToken((v) => v + 1);
-      window.dispatchEvent(
-        new CustomEvent("stock-inventory-updated", {
-          detail: { ingredientId: freshItem.id, brand: freshItem.brand },
-        }),
-      );
-      setSavingItem(false);
-      closeModal();
-      const succeeded = results.filter((r) => r.ok);
-      const failed = results.filter((r) => !r.ok);
-      if (extraBranches.length === 0) {
-        setToast({
-          type: "success",
-          title: "Ingredient Updated",
-          message: `"${payload.name}" has been updated.`,
-        });
-      } else if (failed.length === 0) {
-        setToast({
-          type: "success",
-          title: "Ingredient Updated",
-          message: `"${payload.name}" updated, and added to ${succeeded.length} more branch${succeeded.length === 1 ? "" : "es"}.`,
-        });
-      } else {
-        showUiModal({
-          type: "info",
-          title: "Updated With Some Skips",
-          message: `"${payload.name}" was updated. ${succeeded.length} additional branch${succeeded.length === 1 ? "" : "es"} were added, ${failed.length} were skipped.`,
-          lines: failed.map((f) => ({
-            text: `${f.branch}: ${f.reason}`,
-            warn: true,
-          })),
-        });
-      }
-      return;
-    }
-    const targetBranches = isAdmin ? form.branches : [userBranch];
-    const results = [];
-    let lastCreatedItem = null;
-    for (const branchName of targetBranches) {
-      const payload = {
-        ...form,
-        cost_per_unit: 0,
-        stock: 0,
-        branch: branchName,
-        name: capitalizeName(form.name.trim()),
-        performed_by: userName,
-        performed_by_role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-        bulk_qty: form.bulkQty || null,
-        extra_fields: {
-          pcs_per_strip: form.pcsPerStrip || null,
-          strips_per_box: form.stripsPerBox || null,
-        },
-      };
-      const duplicate = items.find(
-        (i) =>
-          normalizeName(i.name) === normalizeName(payload.name) &&
-          i.branch.trim().toLowerCase() === branchName.trim().toLowerCase(),
-      );
-      if (duplicate) {
-        results.push({
-          ok: false,
-          branch: branchName,
-          reason: "already exists in this branch",
-        });
-        continue;
-      }
-      try {
-        const res = await fetch(
-          `${process.env.REACT_APP_API_URL}/ingredients`,
+        const response = await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/paymongo/create-gcash`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          },
-        );
-        const d = await res.json();
-        if (d.success) {
-          if (isDirectProductBrand(payload.brand) && d.item?.id != null) {
-            persistStockCategory(d.item.id, payload.category);
-          }
-          lastCreatedItem = normalizeStockItem({
-            ...payload,
-            ...(d.item || {}),
-          });
-          results.push({ ok: true, branch: branchName });
-        } else {
-          results.push({
-            ok: false,
-            branch: branchName,
-            reason: d.error || "failed to save",
-          });
-        }
-      } catch {
-        results.push({
-          ok: false,
-          branch: branchName,
-          reason: "connection error",
-        });
-      }
-    }
-    const succeeded = results.filter((r) => r.ok);
-    const failed = results.filter((r) => !r.ok);
-    const freshRows = await fetchItems();
-    await fetchActivityLog();
-    if (lastCreatedItem) {
-      const freshItem =
-        freshRows.find(
-          (row) =>
-            normalizeName(row.name) === normalizeName(lastCreatedItem.name) &&
-            String(row.branch || "").toLowerCase() ===
-              String(lastCreatedItem.branch || "").toLowerCase(),
-        ) || lastCreatedItem;
-      setFocusMutation({ item: freshItem, stamp: Date.now(), reason: "add" });
-      setStockRefreshToken((v) => v + 1);
-      window.dispatchEvent(
-        new CustomEvent("stock-inventory-updated", {
-          detail: { ingredientId: freshItem.id, brand: freshItem.brand },
-        }),
-      );
-    }
-    setSavingItem(false);
-    if (succeeded.length > 0 && failed.length === 0) {
-      closeModal();
-      setToast({
-        type: "success",
-        title: "Ingredient Added",
-        message:
-          succeeded.length === 1
-            ? `"${form.name.trim()}" has been added to ${succeeded[0].branch}.`
-            : `"${form.name.trim()}" has been added to ${succeeded.length} branches.`,
-      });
-    } else if (succeeded.length > 0 && failed.length > 0) {
-      closeModal();
-      showUiModal({
-        type: "info",
-        title: "Added With Some Skips",
-        message: `"${form.name.trim()}" was added to ${succeeded.length} branch${succeeded.length === 1 ? "" : "es"}. ${failed.length} branch${failed.length === 1 ? "" : "es"} were skipped.`,
-        lines: failed.map((f) => ({
-          text: `${f.branch}: ${f.reason}`,
-          warn: true,
-        })),
-      });
-    } else {
-      showUiModal({
-        type: "error",
-        title: "Failed to Add Ingredient",
-        message: `Could not add "${form.name.trim()}" to any of the selected branches.`,
-        lines: failed.map((f) => ({
-          text: `${f.branch}: ${f.reason}`,
-          warn: true,
-        })),
-      });
-    }
-  };
-  const handleDeleteItem = (item) => setDeleteTarget(item);
-  const confirmDelete = async () => {
-    if (!canEditInventory) {
-      showUiModal({
-        type: "error",
-        title: "Read Only Access",
-        message: "Your account cannot delete inventory records.",
-      });
-      return;
-    }
-    if (!deleteTarget) return;
-    const item = deleteTarget;
-    setDeletingItem(true);
-    try {
-      const coords = await getBrowserLocation();
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/ingredients/${item.id}`,
-        {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            deleted_by: userName,
-            performed_by_role: user?.role || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        },
-      );
-      const d = await res.json();
-      if (d.success) {
-        await fetch(
-          `${process.env.REACT_APP_API_URL}/ingredient-delete-history`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            credentials: "include",
             body: JSON.stringify({
-              ingredient_data: item,
-              deleted_by: userName,
+              amount,
+              description: "iFranchise Supply Order",
+              orderId: Date.now(),
             }),
           },
         );
-        await fetchItems();
-        await fetchDeleteHistory();
-        await fetchActivityLog();
-        setStockRefreshToken((v) => v + 1);
-        window.dispatchEvent(
-          new CustomEvent("stock-inventory-updated", {
-            detail: { ingredientId: item.id, brand: item.brand, deleted: true },
-          }),
-        );
-        setToast({
-          type: "success",
-          title: "Ingredient Deleted",
-          message: `"${item.name}" moved to Delete History.`,
-        });
-      } else {
-        setToast({
-          type: "error",
-          title: "Failed to Delete",
-          message: d.error || "An unexpected error occurred.",
-        });
-      }
-    } catch {
-      setToast({
-        type: "error",
-        title: "Connection Error",
-        message: "Failed to delete.",
-      });
-    } finally {
-      setDeletingItem(false);
-      setDeleteTarget(null);
-    }
-  };
-  const handleRestore = async (entry) => {
-    setRestoringId(entry.id);
-    try {
-      const d = entry.data;
-      const coords = await getBrowserLocation();
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: d.name,
-          branch: d.branch,
-          brand: d.brand,
-          category: d.category || "",
-          unit: d.unit,
-          stock: d.stock,
-          min_stock: d.min_stock,
-          cost_per_unit: d.cost_per_unit,
-          performed_by: userName,
-          performed_by_role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-          restored: true,
-        }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        if (result.item?.id != null && d.category) {
-          persistStockCategory(result.item.id, d.category);
+        const data = await response.json();
+        if (
+          !response.ok ||
+          !data.success ||
+          !data.checkoutUrl ||
+          !data.linkId
+        ) {
+          throw new Error(data.error || "Failed to create payment link.");
         }
-        await fetch(
-          `${process.env.REACT_APP_API_URL}/ingredient-delete-history/${entry.id}`,
-          { method: "DELETE" },
-        );
-        const freshRows = await fetchItems();
-        await fetchDeleteHistory();
-        await fetchActivityLog();
-        const restoredItem =
-          freshRows.find(
-            (row) =>
-              normalizeName(row.name) === normalizeName(d.name) &&
-              String(row.branch || "").toLowerCase() ===
-                String(d.branch || "").toLowerCase(),
-          ) || normalizeStockItem(d);
-        setFocusMutation({
-          item: restoredItem,
-          stamp: Date.now(),
-          reason: "restore",
-        });
-        setStockRefreshToken((v) => v + 1);
-        window.dispatchEvent(
-          new CustomEvent("stock-inventory-updated", {
-            detail: {
-              ingredientId: restoredItem.id,
-              brand: restoredItem.brand,
-              restored: true,
-            },
-          }),
-        );
-        setToast({
-          type: "success",
-          title: "Ingredient Restored",
-          message: `"${d.name}" has been restored.`,
-        });
-      } else {
-        setToast({
-          type: "error",
-          title: "Restore Failed",
-          message: result.error || "Failed to restore.",
-        });
+        if (!active) return;
+        setCheckoutUrl(data.checkoutUrl);
+        setLinkId(data.linkId);
+        referenceRef.current = data.referenceNo || "";
+        setReference(referenceRef.current);
+        setStep("ready");
+        timerRef.current = setInterval(() => {
+          setSeconds((value) => {
+            if (value <= 1) {
+              clearTimers();
+              setError("Payment window expired. Please try again.");
+              setStep("error");
+              return 0;
+            }
+            return value - 1;
+          });
+        }, 1000);
+        pollRef.current = setInterval(async () => {
+          try {
+            const statusResponse = await adminModuleFetch(
+              `${process.env.REACT_APP_API_URL}/paymongo/link-status/${encodeURIComponent(data.linkId)}`,
+              { credentials: "include", cache: "no-store" },
+            );
+            if (!statusResponse.ok) return;
+            const status = await statusResponse.json();
+            if (active && status.status === "paid" && !confirmedRef.current) {
+              confirmedRef.current = true;
+              clearTimers();
+              const paidReference = status.gcashRef || referenceRef.current;
+              setReference(paidReference);
+              setStep("paid");
+              onConfirm(paidReference);
+            }
+          } catch (pollError) {
+            // A temporary network error should not mark an unpaid link as paid.
+          }
+        }, 3000);
+      } catch (requestError) {
+        if (!active) return;
+        setError(requestError.message || "Could not reach the payment server.");
+        setStep("error");
       }
-    } catch {
-      setToast({
-        type: "error",
-        title: "Connection Error",
-        message: "Failed to restore.",
-      });
-    } finally {
-      setRestoringId(null);
-    }
-  };
-  const openEdit = async (item) => {
-    setEditing(item);
-    let shopMatch = null;
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        shopMatch = data.find((s) => s.ingredient_id === item.id) || null;
-      }
-    } catch {}
-    setForm({
-      name: item.name,
-      brand: item.brand || "",
-      branch: item.branch || "",
-      branches: [item.branch || ""],
-      category: item.category || "",
-      unit: item.unit || "pcs",
-      stock: item.stock,
-      min_stock: item.min_stock,
-      cost_per_unit: item.cost_per_unit || "",
-      perishable: !!item.perishable,
-      listInShop: !!shopMatch,
-      shopCategory: shopMatch
-        ? shopMatch.shop || item.brand || "Coffee Spot"
-        : item.brand || "Coffee Spot",
-      sku: item.sku || "",
-      bulkQty: item.bulk_qty || "",
-      pcsPerStrip: item.extra_fields?.pcs_per_strip || "",
-      stripsPerBox: item.extra_fields?.strips_per_box || "",
-    });
-    setShowModal(true);
-  };
-  const closeModal = () => {
-    setShowModal(false);
-    setEditing(null);
-    setForm(emptyForm());
-  };
-  const SortTh = ({ col, label, minW, align = "left" }) => {
-    const active = sort.col === col;
-    return (
-      <th
-        onClick={() => {
-          setSort((s) => ({ col, asc: s.col === col ? !s.asc : true }));
-          setPage(0);
-        }}
-        style={{
-          padding: "11px 16px",
-          textAlign: align,
-          fontWeight: 600,
-          fontSize: 12,
-          color: active ? SI_C.green : SI_C.muted,
-          letterSpacing: "0.02em",
-          borderBottom: `1.5px solid ${SI_C.border}`,
-          cursor: "pointer",
-          userSelect: "none",
-          whiteSpace: "nowrap",
-          background: "#fbfcf8",
-          minWidth: minW,
-        }}
-      >
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-          {label}
-          {active ? (
-            sort.asc ? (
-              <SI_SortAscIcon />
-            ) : (
-              <SI_SortDescIcon />
-            )
-          ) : (
-            <span style={{ opacity: 0.22 }}>
-              <SI_SortDescIcon />
-            </span>
-          )}
-        </span>
-      </th>
-    );
-  };
-  const brandItemsFor = (brandDef) => {
-    const brandObj = brandList.find((b) =>
-      brandDef.match((b.name || "").toLowerCase()),
-    );
-    return items
-      .filter((i) => itemBelongsToBrand(i, brandDef, brandObj))
-      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
-  };
-  const deleteHistoryForBrand = (brandDef) => {
-    if (!brandDef) return [];
-    const brandObj = brandList.find((b) =>
-      brandDef.match((b.name || "").toLowerCase()),
-    );
-    return deleteHistory
-      .filter((entry) =>
-        itemBelongsToBrand(entry?.data || {}, brandDef, brandObj),
-      )
-      .sort((a, b) => {
-        const byProduct = String(a?.data?.name || "").localeCompare(
-          String(b?.data?.name || ""),
-        );
-        if (byProduct !== 0) return byProduct;
-        return new Date(b?.deletedAt || 0) - new Date(a?.deletedAt || 0);
-      });
-  };
-  const previewShopPrice = isDirectProductBrand(form.brand || currentBrandName)
-    ? computeDirectSellingPrice(form.cost_per_unit)
-    : computeDisplayPrice(form.cost_per_unit, form.unit, form.bulkQty);
-  const pharmaPcPrice = computeDirectSellingPrice(form.cost_per_unit);
-  const pharmaStripPrice =
-    Number(form.pcsPerStrip) > 0
-      ? computeDirectSellingPrice(
-          Number(form.cost_per_unit) * Number(form.pcsPerStrip),
-        )
-      : 0;
-  const pharmaBoxPcs =
-    Number(form.pcsPerStrip || 0) * Number(form.stripsPerBox || 0);
-  const pharmaBoxPrice =
-    pharmaBoxPcs > 0
-      ? computeDirectSellingPrice(Number(form.cost_per_unit) * pharmaBoxPcs)
-      : 0;
-  const effectiveFormBranch = editing
-    ? editing.branch
-    : !isAdmin
-      ? userBranch
-      : form.branches.length === 1
-        ? form.branches[0]
-        : "";
-  const canListInShop = isHeadOfficeBranch(effectiveFormBranch);
-  useEffect(() => {
-    if (!canListInShop && form.listInShop) {
-      setForm((f) => ({ ...f, listInShop: false }));
-    }
-  }, [canListInShop]); // eslint-disable-line react-hooks/exhaustive-deps
+    };
+    createLink();
+    return () => {
+      active = false;
+      clearTimers();
+    };
+  }, [visible, amount, onConfirm]);
+
+  if (!visible) return null;
+  const qrUrl = checkoutUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(checkoutUrl)}`
+    : "";
   return (
     <div
-      style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: SI_C.ink }}
+      className="v-modal-overlay gcash-overlay"
+      onMouseDown={(event) => event.stopPropagation()}
     >
-      <ManagerFrStockInventoryContent
-        user={user}
-        brands={brandList}
-        initialFocus={initialFocus}
-        onEdit={openEdit}
-        onDelete={handleDeleteItem}
-      />
+      <div
+        className="v-modal gcash-payment-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="GCash payment"
+      >
+        <div className="gcash-payment-head">
+          <div>
+            <small>SECURE PAYMENT</small>
+            <h2>Pay with GCash</h2>
+          </div>
+          {step !== "paid" && (
+            <button type="button" onClick={onCancel} aria-label="Close payment">
+              ×
+            </button>
+          )}
+        </div>
+        <div className="gcash-payment-body">
+          {step === "loading" && (
+            <div className="gcash-payment-state">Creating payment link…</div>
+          )}
+          {step === "ready" && (
+            <>
+              <div className="gcash-payment-amount">{fmtPeso(amount)}</div>
+              <p>Scan the QR code or open the secure checkout link to pay.</p>
+              <img
+                className="gcash-payment-qr"
+                src={qrUrl}
+                alt="QR code for GCash checkout"
+              />
+              {reference && (
+                <div className="gcash-payment-reference">
+                  Reference: {reference}
+                </div>
+              )}
+              <div className="gcash-payment-timer">
+                Time remaining: {Math.floor(seconds / 60)}:
+                {String(seconds % 60).padStart(2, "0")}
+              </div>
+              <a
+                className="gcash-payment-primary"
+                href={checkoutUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open in GCash
+              </a>
+              <a
+                className="gcash-payment-secondary"
+                href={qrUrl}
+                download="gcash-qr.png"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Save QR
+              </a>
+              <p className="gcash-payment-wait">
+                Waiting for payment confirmation…
+              </p>
+              <button
+                type="button"
+                className="gcash-payment-cancel"
+                onClick={onCancel}
+              >
+                Cancel payment
+              </button>
+            </>
+          )}
+          {step === "paid" && (
+            <div className="gcash-payment-state">
+              <strong>Payment Received!</strong>
+              <br />
+              {fmtPeso(amount)} via GCash
+              <br />
+              {reference && `Reference: ${reference}`}
+              <br />
+              Processing your order…
+            </div>
+          )}
+          {step === "error" && (
+            <div className="gcash-payment-state">
+              <strong>Payment unavailable</strong>
+              <p>{error}</p>
+              <button type="button" onClick={onCancel}>
+                Close and try again
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-      {/* ADD / EDIT MODAL */}
-      {showModal && (
+function ManagerStockInventoryContent({ user, brands }) {
+  const isLowStock = (item) =>
+    Number(item.stock || 0) <= Number(item.min_stock || 0);
+  const userBranch = String(user?.branch || "").trim();
+  const userBrand = String(user?.brand || user?.brand_name || "").trim();
+  const CART_KEY = "@franchisee_supply_cart";
+
+  const [items, setItems] = useState([]);
+  const [shopItems, setShopItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [shopLoading, setShopLoading] = useState(false);
+  const [inventoryError, setInventoryError] = useState("");
+  const [shopError, setShopError] = useState("");
+  const [search, setSearch] = useState("");
+  const [categoryF, setCategoryF] = useState("");
+  const [unitF, setUnitF] = useState("");
+  const [statusF, setStatusF] = useState("");
+  const [selectedId, setSelectedId] = useState(null);
+  const [batches, setBatches] = useState([]);
+  const [batchLoading, setBatchLoading] = useState(false);
+
+  const [cart, setCart] = useState([]);
+  const [selectedCartIds, setSelectedCartIds] = useState([]);
+  const [showCart, setShowCart] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [checkoutItems, setCheckoutItems] = useState([]);
+  const [address, setAddress] = useState(String(user?.address || "").trim());
+  const [mapCenter, setMapCenter] = useState(() => ({
+    latitude: Number(user?.latitude) || 14.5995,
+    longitude: Number(user?.longitude) || 120.9842,
+  }));
+  const [pinCoords, setPinCoords] = useState(null);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [locationError, setLocationError] = useState("");
+  const mapRequestRef = useRef(0);
+  const reverseTimerRef = useRef(null);
+  const lastLookupRef = useRef(0);
+  useEffect(
+    () => () => {
+      clearTimeout(reverseTimerRef.current);
+      mapRequestRef.current += 1;
+    },
+    [],
+  );
+  const [showAddressPrompt, setShowAddressPrompt] = useState(false);
+  const addressInputRef = useRef(null);
+  const [paymentMethod, setPaymentMethod] = useState("cod");
+  const [showGCash, setShowGCash] = useState(false);
+  const [gcashAmount, setGcashAmount] = useState(0);
+  const paidRef = useRef(null);
+  const handleGCashConfirmed = useCallback((reference) => {
+    paidRef.current?.(reference);
+  }, []);
+  const [placingOrder, setPlacingOrder] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(null);
+  const [showOrders, setShowOrders] = useState(false);
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState("");
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
+
+  const extraFields = useMemo(() => getExtraFields(userBrand), [userBrand]);
+  const hasExpiry = extraFields.some((f) => f.key === "exp_date");
+
+  const normalize = useCallback(
+    (value) =>
+      String(value || "")
+        .trim()
+        .toLowerCase(),
+    [],
+  );
+
+  const branchAllowed = useCallback(
+    (shopItem) => {
+      const raw = shopItem?.branches;
+      if (!Array.isArray(raw) || raw.length === 0) return true;
+      return raw.some((branch) => {
+        const name =
+          typeof branch === "string"
+            ? branch
+            : branch?.name || branch?.branch || branch?.branch_name;
+        return normalize(name) === normalize(userBranch);
+      });
+    },
+    [normalize, userBranch],
+  );
+
+  const inventoryRequest = useRef(0);
+  const fetchItems = useCallback(async () => {
+    const request = ++inventoryRequest.current;
+
+    if (!userBranch) {
+      setItems([]);
+      setInventoryError("Your account does not have an assigned branch.");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setInventoryError("");
+
+    try {
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/ingredients?branch=${encodeURIComponent(
+          userBranch,
+        )}`,
+        {
+          credentials: "include",
+          cache: "no-store",
+        },
+      );
+
+      if (!res.ok) {
+        throw new Error(`Unable to load Stock Inventory (${res.status}).`);
+      }
+
+      const data = await res.json();
+      if (request !== inventoryRequest.current) return;
+
+      setItems(normalizeListResponse(data));
+    } catch (error) {
+      if (request === inventoryRequest.current) {
+        console.error("FrStockInventoryContent fetch error:", error);
+        setItems([]);
+        setInventoryError(error.message || "Unable to load Stock Inventory.");
+      }
+    } finally {
+      if (request === inventoryRequest.current) setLoading(false);
+    }
+  }, [userBranch]);
+
+  const fetchShopItems = useCallback(async () => {
+    if (!userBranch || !userBrand) {
+      setShopItems([]);
+      setShopError("Supply ordering requires an assigned brand and branch.");
+      return;
+    }
+
+    setShopLoading(true);
+    setShopError("");
+    try {
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/shop-items`,
+        {
+          credentials: "include",
+          cache: "no-store",
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(
+          data?.error || `Unable to load supply items (${res.status}).`,
+        );
+      }
+
+      const rows = Array.isArray(data) ? data : [];
+      setShopItems(
+        rows
+          .filter((item) => item?.is_visible !== false)
+          .filter((item) => normalize(item?.brand) === normalize(userBrand))
+          .filter(branchAllowed)
+          .map((item) => ({
+            ...item,
+            id: item?.id,
+            price: Number(item?.price ?? 0),
+            stock: Number(item?.stock ?? 0),
+          }))
+          .filter((item) => item.id != null),
+      );
+    } catch (error) {
+      console.error("FrStockInventoryContent shop items fetch error:", error);
+      setShopItems([]);
+      setShopError(error.message || "Unable to load supply ordering details.");
+    } finally {
+      setShopLoading(false);
+    }
+  }, [branchAllowed, normalize, userBranch, userBrand]);
+
+  const fetchOrders = useCallback(async () => {
+    if (!userBranch && !user?.id) {
+      setOrders([]);
+      setOrdersError(
+        "Your account information is not available for loading orders.",
+      );
+      return;
+    }
+
+    setOrdersLoading(true);
+    setOrdersError("");
+    try {
+      const params = new URLSearchParams();
+      if (user?.id != null) params.set("user_id", String(user.id));
+      if (userBranch) params.set("branch", userBranch);
+      if (userBrand) params.set("brand", userBrand);
+
+      const query = params.toString();
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/orders${query ? `?${query}` : ""}`,
+        { credentials: "include", cache: "no-store" },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(
+          data?.error || `Unable to load orders (${res.status}).`,
+        );
+      }
+
+      const raw = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.orders)
+          ? data.orders
+          : Array.isArray(data?.data)
+            ? data.data
+            : [];
+
+      // Keep the view scoped to the signed-in franchisee when the API returns
+      // user/brand/branch fields. Unknown fields are tolerated for compatibility.
+      const scoped = raw
+        .filter((order) => {
+          const sameUser =
+            user?.id == null ||
+            order?.user_id == null ||
+            String(order.user_id) === String(user.id);
+          const sameBranch =
+            !userBranch ||
+            !order?.branch ||
+            normalize(order.branch) === normalize(userBranch);
+          const sameBrand =
+            !userBrand ||
+            !order?.brand ||
+            normalize(order.brand) === normalize(userBrand);
+          return sameUser && sameBranch && sameBrand;
+        })
+        .sort((a, b) => {
+          const da = new Date(
+            a?.created_at || a?.createdAt || a?.date || 0,
+          ).getTime();
+          const db = new Date(
+            b?.created_at || b?.createdAt || b?.date || 0,
+          ).getTime();
+          return db - da;
+        });
+
+      setOrders(scoped);
+    } catch (error) {
+      console.error("Supply order history fetch error:", error);
+      setOrders([]);
+      setOrdersError(error.message || "Unable to load your supply orders.");
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [normalize, user?.id, userBranch, userBrand]);
+
+  useEffect(() => {
+    if (userBranch) fetchItems();
+    return () => {
+      inventoryRequest.current += 1;
+    };
+  }, [fetchItems, userBranch]);
+
+  useEffect(() => {
+    fetchShopItems();
+  }, [fetchShopItems]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CART_KEY);
+      const parsed = saved ? JSON.parse(saved) : [];
+      setCart(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setCart([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user?.address) return;
+    setAddress((prev) => prev || String(user.address).trim());
+  }, [user?.address]);
+
+  const saveCart = useCallback((next) => {
+    setCart(next);
+    try {
+      localStorage.setItem(CART_KEY, JSON.stringify(next));
+    } catch (error) {
+      console.warn("Failed to save franchisee supply cart:", error);
+    }
+  }, []);
+
+  const categoryOptions = useMemo(
+    () =>
+      [
+        ...new Set(
+          items.map((i) => String(i.category || "").trim()).filter(Boolean),
+        ),
+      ].sort(),
+    [items],
+  );
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return items
+      .filter((i) => {
+        if (
+          q &&
+          !String(i.name || "")
+            .toLowerCase()
+            .includes(q) &&
+          !String(i.category || "")
+            .toLowerCase()
+            .includes(q) &&
+          !String(i.sku || "")
+            .toLowerCase()
+            .includes(q)
+        )
+          return false;
+        if (categoryF && String(i.category || "") !== categoryF) return false;
+        if (unitF && String(i.unit || "") !== unitF) return false;
+        const low = isLowStock(i);
+        if (statusF === "low" && !low) return false;
+        if (statusF === "ok" && low) return false;
+        if (statusF === "expiring" || statusF === "expired") {
+          const expRaw = i.extra_fields?.exp_date;
+          if (!expRaw) return false;
+          const exp = new Date(expRaw);
+          exp.setHours(0, 0, 0, 0);
+          const now = new Date();
+          now.setHours(0, 0, 0, 0);
+          const warn = new Date(now);
+          warn.setDate(warn.getDate() + EXPIRY_WARN_DAYS);
+          if (statusF === "expired" && !(exp < now)) return false;
+          if (statusF === "expiring" && !(exp >= now && exp <= warn))
+            return false;
+        }
+        return true;
+      })
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  }, [items, search, categoryF, unitF, statusF]);
+
+  useEffect(() => {
+    if (selectedId && !filtered.some((i) => i.id === selectedId))
+      setSelectedId(null);
+  }, [filtered, selectedId]);
+
+  const selected = filtered.find((i) => i.id === selectedId) || null;
+
+  // Use the highest current inventory stock as the visual 100% reference so
+  // each row reflects its actual relative stock level: low stock = short bar,
+  // mid-range stock = mid-length bar, highest stock = full bar.
+  const maxBarStock = useMemo(() => {
+    const values = items
+      .map((item) => Number(item?.stock ?? 0))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    return Math.max(1, ...values);
+  }, [items]);
+
+  const getShopListingFor = useCallback(
+    (inventoryItem) => {
+      if (!inventoryItem) return null;
+      return (
+        shopItems.find(
+          (shopItem) =>
+            shopItem?.ingredient_id != null &&
+            String(shopItem.ingredient_id) === String(inventoryItem.id),
+        ) ||
+        shopItems.find(
+          (shopItem) =>
+            normalize(shopItem?.brand) ===
+              normalize(inventoryItem?.brand || userBrand) &&
+            normalize(shopItem?.name) === normalize(inventoryItem?.name),
+        ) ||
+        null
+      );
+    },
+    [normalize, shopItems, userBrand],
+  );
+
+  const selectedShopItem = getShopListingFor(selected);
+  const selectedSupplyAvailable = Number(selectedShopItem?.stock || 0);
+  const selectedCurrentStock = Number(selected?.stock || 0);
+  const selectedPrice = selectedShopItem
+    ? Number(selectedShopItem.price || 0)
+    : 0;
+  const selectedUnit = selectedShopItem?.unit || selected?.unit || "unit";
+  const selectedCartQty = selectedShopItem
+    ? Number(
+        cart.find((entry) => entry.id === selectedShopItem.id)?.quantity || 0,
+      )
+    : 0;
+  const cartItemCount = cart.reduce(
+    (sum, entry) => sum + Number(entry.quantity || 0),
+    0,
+  );
+  const cartTotal = cart.reduce(
+    (sum, entry) =>
+      sum + Number(entry.price || 0) * Number(entry.quantity || 0),
+    0,
+  );
+  const selectedCart = cart.filter((entry) =>
+    selectedCartIds.includes(entry.id),
+  );
+  const selectedCartTotal = selectedCart.reduce(
+    (sum, entry) =>
+      sum + Number(entry.price || 0) * Number(entry.quantity || 0),
+    0,
+  );
+  const toggleCartItem = (id) =>
+    setSelectedCartIds((current) =>
+      current.includes(id)
+        ? current.filter((value) => value !== id)
+        : [...current, id],
+    );
+  const toggleAllCartItems = () =>
+    setSelectedCartIds(
+      cart.length && cart.every((entry) => selectedCartIds.includes(entry.id))
+        ? []
+        : cart.map((entry) => entry.id),
+    );
+
+  const createCartEntry = (shopItem, inventoryItem, quantity) => ({
+    id: shopItem.id,
+    ingredient_id: inventoryItem?.id ?? shopItem.ingredient_id ?? null,
+    name: shopItem.name || inventoryItem?.name || "Supply Item",
+    brand: shopItem.brand || inventoryItem?.brand || userBrand,
+    unit: shopItem.unit || inventoryItem?.unit || "unit",
+    price: Number(shopItem.price || 0),
+    image_url: shopItem.image_url || null,
+    quantity,
+  });
+
+  const addToCart = useCallback(
+    (shopItem, inventoryItem, quantity = 1) => {
+      const available = Number(shopItem?.stock || 0);
+      if (!shopItem?.id || available <= 0) {
+        window.alert("This supply item is currently out of stock.");
+        return false;
+      }
+
+      setCart((current) => {
+        const existing = current.find((entry) => entry.id === shopItem.id);
+        const currentQty = Number(existing?.quantity || 0);
+        if (currentQty + quantity > available) {
+          window.alert(
+            `Only ${available} ${shopItem.unit || inventoryItem?.unit || "unit(s)"} available for ${shopItem.name}.`,
+          );
+          return current;
+        }
+
+        const next = existing
+          ? current.map((entry) =>
+              entry.id === shopItem.id
+                ? {
+                    ...entry,
+                    quantity: currentQty + quantity,
+                    price: Number(shopItem.price || 0),
+                    unit: shopItem.unit || inventoryItem?.unit || entry.unit,
+                  }
+                : entry,
+            )
+          : [...current, createCartEntry(shopItem, inventoryItem, quantity)];
+
+        try {
+          localStorage.setItem(CART_KEY, JSON.stringify(next));
+        } catch (error) {
+          console.warn("Failed to save franchisee supply cart:", error);
+        }
+        return next;
+      });
+      return true;
+    },
+    [userBrand],
+  );
+
+  const updateCartQuantity = (id, delta) => {
+    const liveItem = shopItems.find((item) => item.id === id);
+    const next = cart
+      .map((entry) => {
+        if (entry.id !== id) return entry;
+        const max = liveItem
+          ? Number(liveItem.stock || 0)
+          : Number(entry.quantity || 0);
+        return {
+          ...entry,
+          quantity: Math.min(
+            max,
+            Math.max(0, Number(entry.quantity || 0) + delta),
+          ),
+          price: liveItem
+            ? Number(liveItem.price || 0)
+            : Number(entry.price || 0),
+        };
+      })
+      .filter((entry) => entry.quantity > 0);
+    saveCart(next);
+  };
+
+  const setCartQuantity = (id, value) => {
+    const liveItem = shopItems.find((item) => item.id === id);
+    if (!liveItem) return;
+
+    const max = Math.max(0, Number(liveItem.stock || 0));
+
+    let quantity = parseInt(value, 10);
+
+    if (Number.isNaN(quantity)) {
+      quantity = 1;
+    }
+
+    quantity = Math.min(max, Math.max(1, quantity));
+
+    const next = cart.map((entry) =>
+      entry.id === id
+        ? {
+            ...entry,
+            quantity,
+            price: Number(liveItem.price || 0),
+            unit: liveItem.unit || entry.unit,
+          }
+        : entry,
+    );
+
+    saveCart(next);
+  };
+
+  const removeFromCart = (id) =>
+    saveCart(cart.filter((entry) => entry.id !== id));
+
+  const prepareCheckout = (requestedItems, closeCart = true) => {
+    if (!requestedItems.length) {
+      window.alert("Your cart is empty.");
+      return false;
+    }
+
+    const liveItems = [];
+    const problems = [];
+
+    requestedItems.forEach((entry) => {
+      const live = shopItems.find((item) => item.id === entry.id);
+      if (!live) {
+        problems.push(`${entry.name}: no longer available`);
+        return;
+      }
+      const requestedQty = Number(entry.quantity || 0);
+      const available = Number(live.stock || 0);
+      if (available <= 0) {
+        problems.push(`${entry.name}: out of stock`);
+        return;
+      }
+      if (requestedQty > available) {
+        problems.push(
+          `${entry.name}: only ${available} ${live.unit || "unit(s)"} available`,
+        );
+        return;
+      }
+      liveItems.push({
+        ...entry,
+        id: live.id,
+        name: live.name || entry.name,
+        brand: live.brand || entry.brand,
+        unit: live.unit || entry.unit,
+        price: Number(live.price || 0),
+        image_url: live.image_url || entry.image_url || null,
+        quantity: requestedQty,
+      });
+    });
+
+    if (problems.length) {
+      window.alert(`Please review your cart:\n\n${problems.join("\n")}`);
+      return false;
+    }
+
+    saveCart(
+      cart.map((entry) => {
+        const live = shopItems.find((item) => item.id === entry.id);
+        return live
+          ? {
+              ...entry,
+              price: Number(live.price || 0),
+              unit: live.unit || entry.unit,
+            }
+          : entry;
+      }),
+    );
+    setCheckoutItems(liveItems);
+    setOrderSuccess(null);
+    if (closeCart) setShowCart(false);
+    setShowCheckout(true);
+    return true;
+  };
+
+  const buyNow = () => {
+    if (!selected || !selectedShopItem) {
+      window.alert("This item is not currently available for supply ordering.");
+      return;
+    }
+
+    if (selectedSupplyAvailable <= 0) {
+      window.alert("This supply item is currently out of stock.");
+      return;
+    }
+
+    const quantity = selectedCartQty > 0 ? selectedCartQty : 1;
+
+    prepareCheckout(
+      [createCartEntry(selectedShopItem, selected, quantity)],
+      true,
+    );
+  };
+
+  const checkoutTotal = checkoutItems.reduce(
+    (sum, entry) =>
+      sum + Number(entry.price || 0) * Number(entry.quantity || 0),
+    0,
+  );
+
+  const mapBounds = {
+    west: mapCenter.longitude - 0.013,
+    east: mapCenter.longitude + 0.013,
+    south: mapCenter.latitude - 0.008,
+    north: mapCenter.latitude + 0.008,
+  };
+  const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(`${mapBounds.west},${mapBounds.south},${mapBounds.east},${mapBounds.north}`)}&layer=mapnik`;
+
+  const selectMapPoint = ({ latitude, longitude }) => {
+    const request = ++mapRequestRef.current;
+    clearTimeout(reverseTimerRef.current);
+    setPinCoords({ latitude, longitude });
+    setMapCenter({ latitude, longitude });
+    setLocationError("");
+    setLocationBusy(true);
+    reverseTimerRef.current = setTimeout(
+      async () => {
+        lastLookupRef.current = Date.now();
+        try {
+          const response = await adminModuleFetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`,
+            { headers: { Accept: "application/json" } },
+          );
+          if (!response.ok) throw new Error("Address lookup is unavailable.");
+          const result = await response.json();
+          if (request !== mapRequestRef.current) return;
+          if (!result.display_name)
+            throw new Error("No address was found for this pin.");
+          setAddress(result.display_name);
+          if (user?.id) {
+            adminModuleFetch(
+              `${process.env.REACT_APP_API_URL}/users/${user.id}/saved-address`,
+              {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ savedAddress: result.display_name }),
+              },
+            ).catch(() => {});
+          }
+        } catch (error) {
+          if (request === mapRequestRef.current) {
+            setLocationError(
+              "Could not find an address for this pin. Please type the address below.",
+            );
+          }
+        } finally {
+          if (request === mapRequestRef.current) setLocationBusy(false);
+        }
+      },
+      Math.max(300, 1000 - (Date.now() - lastLookupRef.current)),
+    );
+  };
+
+  const handleMapPointerUp = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = Math.max(
+      0,
+      Math.min(1, (event.clientX - bounds.left) / bounds.width),
+    );
+    const y = Math.max(
+      0,
+      Math.min(1, (event.clientY - bounds.top) / bounds.height),
+    );
+    selectMapPoint({
+      latitude: mapBounds.north - y * (mapBounds.north - mapBounds.south),
+      longitude: mapBounds.west + x * (mapBounds.east - mapBounds.west),
+    });
+  };
+
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError(
+        "Location is unavailable in this browser. Please type your address.",
+      );
+      return;
+    }
+    setLocationBusy(true);
+    setLocationError("");
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) =>
+        selectMapPoint({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        }),
+      () => {
+        setLocationBusy(false);
+        setLocationError(
+          "Location access was unavailable. You can pin the map or type your address.",
+        );
+      },
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  };
+
+  const renderLocationMap = (fullScreen = false) => (
+    <div className={`checkout-map-preview${fullScreen ? " full-screen" : ""}`}>
+      <iframe title="Delivery location map" loading="lazy" src={mapUrl} />
+      <div
+        className="checkout-map-touch"
+        role="button"
+        tabIndex={0}
+        aria-label="Tap or drag to pin delivery location"
+        onPointerDown={(event) =>
+          event.currentTarget.setPointerCapture(event.pointerId)
+        }
+        onPointerUp={handleMapPointerUp}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            selectMapPoint(mapCenter);
+          }
+        }}
+      />
+      {pinCoords && (
+        <span className="checkout-map-pin" aria-hidden="true">
+          ●
+        </span>
+      )}
+      <span className="checkout-map-attribution">
+        © OpenStreetMap contributors
+      </span>
+      {!fullScreen && (
+        <button
+          type="button"
+          className="checkout-map-open"
+          onClick={() => setShowMapPicker(true)}
+        >
+          Tap to pin location
+        </button>
+      )}
+      <button
+        type="button"
+        className="checkout-map-current"
+        onClick={handleUseMyLocation}
+        disabled={locationBusy}
+      >
+        {locationBusy ? "Finding location…" : "Use my location"}
+      </button>
+    </div>
+  );
+
+  const submitOrder = async (confirmedGCashRef = null) => {
+    if (!address.trim()) {
+      setShowAddressPrompt(true);
+      return;
+    }
+    if (!checkoutItems.length) {
+      window.alert("There are no items to checkout.");
+      return;
+    }
+    if (paymentMethod === "gcash" && !confirmedGCashRef) return;
+
+    setPlacingOrder(true);
+    try {
+      // Re-check the live shop catalog immediately before creating the order.
+      const latestResponse = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/shop-items`,
+        { credentials: "include", cache: "no-store" },
+      );
+      const latestData = await latestResponse.json();
+      if (!latestResponse.ok) {
+        throw new Error(
+          latestData?.error || "Unable to verify supply availability.",
+        );
+      }
+
+      const latestEligible = (Array.isArray(latestData) ? latestData : [])
+        .filter((item) => item?.is_visible !== false)
+        .filter((item) => normalize(item?.brand) === normalize(userBrand))
+        .filter(branchAllowed)
+        .map((item) => ({
+          ...item,
+          price: Number(item?.price ?? 0),
+          stock: Number(item?.stock ?? 0),
+        }));
+
+      const validatedItems = checkoutItems.map((entry) => {
+        const live = latestEligible.find((item) => item.id === entry.id);
+        if (!live)
+          throw new Error(`${entry.name} is no longer available for ordering.`);
+        if (Number(entry.quantity) > Number(live.stock)) {
+          throw new Error(
+            `${entry.name} now has only ${Number(live.stock)} ${live.unit || entry.unit || "unit(s)"} available.`,
+          );
+        }
+        return {
+          ...entry,
+          price: Number(live.price || 0),
+          unit: live.unit || entry.unit,
+        };
+      });
+
+      const validatedTotal = validatedItems.reduce(
+        (sum, entry) =>
+          sum + Number(entry.price || 0) * Number(entry.quantity || 0),
+        0,
+      );
+
+      const payload = {
+        user_id: user?.id ?? null,
+        user_name: user?.name ?? null,
+        phone: user?.phone ?? null,
+        brand: user?.brand ?? user?.brand_name ?? null,
+        branch: user?.branch ?? null,
+        address: address.trim(),
+        latitude: pinCoords?.latitude ?? null,
+        longitude: pinCoords?.longitude ?? null,
+        total_amount: validatedTotal,
+        payment_method: paymentMethod,
+        order_source: "Web",
+        items: validatedItems.map((entry) => ({
+          shop_item_id: entry.id,
+          quantity: Number(entry.quantity),
+          price: Number(entry.price),
+        })),
+        gcash_ref: paymentMethod === "gcash" ? confirmedGCashRef : null,
+      };
+
+      const response = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/orders`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        },
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to place the supply order.");
+      }
+
+      const checkedOutIds = new Set(validatedItems.map((entry) => entry.id));
+      saveCart(cart.filter((entry) => !checkedOutIds.has(entry.id)));
+      setCheckoutItems([]);
+      setOrderSuccess({
+        id: data?.order?.id ?? data?.id ?? "—",
+        total: validatedTotal,
+      });
+      await Promise.all([fetchItems(), fetchShopItems()]);
+    } catch (error) {
+      console.error("Supply order error:", error);
+      window.alert(
+        error.message || "Something went wrong while placing the order.",
+      );
+    } finally {
+      setPlacingOrder(false);
+    }
+  };
+
+  paidRef.current = (reference) => {
+    setShowGCash(false);
+    submitOrder(reference);
+  };
+
+  const handleCheckoutAction = async () => {
+    if (paymentMethod === "cod") {
+      submitOrder();
+      return;
+    }
+    if (!address.trim()) {
+      setShowAddressPrompt(true);
+      return;
+    }
+    if (!checkoutItems.length) {
+      window.alert("There are no items to checkout.");
+      return;
+    }
+    setPlacingOrder(true);
+    try {
+      const response = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/shop-items`,
+        { credentials: "include", cache: "no-store" },
+      );
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data?.error || "Unable to verify supply availability.");
+      const eligible = (Array.isArray(data) ? data : [])
+        .filter((item) => item?.is_visible !== false)
+        .filter((item) => normalize(item?.brand) === normalize(userBrand))
+        .filter(branchAllowed);
+      const amount = checkoutItems.reduce((sum, entry) => {
+        const live = eligible.find((item) => item.id === entry.id);
+        if (!live)
+          throw new Error(`${entry.name} is no longer available for ordering.`);
+        if (Number(entry.quantity) > Number(live.stock || 0)) {
+          throw new Error(
+            `${entry.name} now has only ${Number(live.stock || 0)} ${live.unit || entry.unit || "unit(s)"} available.`,
+          );
+        }
+        return sum + Number(live.price || 0) * Number(entry.quantity);
+      }, 0);
+      if (amount <= 0)
+        throw new Error("The order total must be greater than zero.");
+      setGcashAmount(amount);
+      setShowGCash(true);
+    } catch (error) {
+      window.alert(error.message || "Unable to start GCash payment.");
+    } finally {
+      setPlacingOrder(false);
+    }
+  };
+
+  const selectItem = (item) => {
+    setSelectedId(item.id);
+    if (window.matchMedia("(max-width:900px)").matches) {
+      requestAnimationFrame(() => {
+        document
+          .getElementById("fr-stock-order-detail")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedId) {
+      setBatches([]);
+      return;
+    }
+    let cancelled = false;
+    setBatchLoading(true);
+    adminModuleFetch(
+      `${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${selectedId}`,
+      {
+        credentials: "include",
+        cache: "no-store",
+      },
+    )
+      .then((r) => {
+        if (!r.ok) throw new Error(`Unable to load batches (${r.status}).`);
+        return r.json();
+      })
+      .then((d) => {
+        if (!cancelled) {
+          setBatches(normalizeListResponse(d));
+          setBatchLoading(false);
+        }
+      })
+      .catch((error) => {
+        console.error("FrStockInventoryContent batch fetch error:", error);
+        if (!cancelled) {
+          setBatches([]);
+          setBatchLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
+
+  const lowCount = items.filter((i) => isLowStock(i)).length;
+
+  const cartLineItems = cart.map((entry) => {
+    const live = shopItems.find((item) => item.id === entry.id);
+    return {
+      ...entry,
+      price: live ? Number(live.price || 0) : Number(entry.price || 0),
+      unit: live?.unit || entry.unit,
+      stock: live ? Number(live.stock || 0) : 0,
+    };
+  });
+
+  const cartHasStockIssues = cartLineItems.some(
+    (entry) =>
+      entry.stock <= 0 ||
+      Number(entry.quantity || 0) > Number(entry.stock || 0),
+  );
+
+  const formatOrderDate = (value) => {
+    if (!value) return "Date not available";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  const orderStatusMeta = (status) => {
+    const raw = String(status || "pending")
+      .trim()
+      .toLowerCase();
+    if (
+      ["completed", "complete", "delivered", "fulfilled", "approved"].includes(
+        raw,
+      )
+    ) {
+      return { label: status || "Completed", cls: "completed" };
+    }
+    if (["cancelled", "canceled", "rejected", "failed"].includes(raw)) {
+      return { label: status || "Cancelled", cls: "cancelled" };
+    }
+    if (
+      [
+        "processing",
+        "preparing",
+        "packed",
+        "shipped",
+        "out_for_delivery",
+      ].includes(raw)
+    ) {
+      return { label: status || "Processing", cls: "processing" };
+    }
+    return { label: status || "Pending", cls: "pending" };
+  };
+
+  const orderItemList = (order) => {
+    const source = Array.isArray(order?.items)
+      ? order.items
+      : Array.isArray(order?.order_items)
+        ? order.order_items
+        : [];
+    return source.map((item, index) => ({
+      ...item,
+      _key:
+        item?.id ?? item?.shop_item_id ?? `${order?.id || "order"}-${index}`,
+      _name:
+        item?.name ||
+        item?.item_name ||
+        item?.product_name ||
+        item?.shop_item?.name ||
+        "Supply Item",
+      _quantity: Number(item?.quantity ?? item?.qty ?? 0),
+      _price: Number(item?.price ?? item?.unit_price ?? 0),
+      _unit: item?.unit || item?.shop_item?.unit || "unit",
+    }));
+  };
+
+  const orderCounts = useMemo(() => {
+    const counts = {
+      total: orders.length,
+      totalAmount: 0,
+      pending: 0,
+      processing: 0,
+      completed: 0,
+    };
+
+    orders.forEach((order) => {
+      counts.totalAmount += Number(order?.total_amount || 0);
+
+      const meta = orderStatusMeta(order?.status);
+
+      if (meta.cls === "completed") {
+        counts.completed += 1;
+      } else if (meta.cls === "processing") {
+        counts.processing += 1;
+      } else {
+        counts.pending += 1;
+      }
+    });
+
+    return counts;
+  }, [orders]);
+
+  return (
+    <div className="fr-stock-order-shell">
+      <style>{`
+        .fr-stock-order-shell { position:relative; padding-bottom:48px; }
+        .fr-stock-order-shell .stock-surface { overflow:hidden; }
+        .fr-stock-order-shell .stock-order-header { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+        .fr-stock-order-shell .stock-order-cart-btn { position:relative; min-width:124px; border-radius:8px !important; min-height:32px !important; padding:6px 11px !important; font-size:11px !important; }
+        .fr-stock-order-shell .stock-cart-count { min-width:20px; height:20px; padding:0 6px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#b3a941; color:#12241B; font-size:10px; font-weight:900; }
+        .fr-stock-order-shell .stock-order-layout { display:grid; grid-template-columns:minmax(360px,.95fr) minmax(430px,1.05fr); min-height:520px; max-height:760px; }
+        .fr-stock-order-shell .stock-order-list { min-width:0; border-right:1px solid ${C.border}; overflow-y:auto; max-height:760px; }
+        .fr-stock-order-shell .stock-order-detail { min-width:0; overflow-y:auto; max-height:760px; padding:12px; scroll-margin-top:88px; }
+        .fr-stock-order-shell .stock-order-list { background:${C.white}; }
+        .fr-stock-order-shell .stock-order-row { position:relative; display:block; width:100%; min-height:82px; height:82px; border:0; border-left:3px solid transparent; border-radius:0 !important; background:${C.white}; color:${C.ink}; padding:10px 14px 28px 11px; text-align:left; cursor:pointer; border-bottom:1px solid #F1F3ED; transition:background-color .16s ease,border-color .16s ease; box-sizing:border-box; }
+        .fr-stock-order-shell .stock-order-row:hover { background:#FBFCF8; }
+        .fr-stock-order-shell .stock-order-row:focus-visible { outline:2px solid ${C.green}; outline-offset:-2px; border-radius:0 !important; }
+        .fr-stock-order-shell .stock-order-row.active { background:#FCFDF9; border-left-color:#B4B33F; }
+        .fr-stock-order-shell .stock-order-row-top { display:block; min-width:0; overflow:hidden; }
+        .fr-stock-order-shell .stock-order-row-name { display:block; max-width:100%; font-size:12px; line-height:1.15; font-weight:850; color:${C.greenDk}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .fr-stock-order-shell .stock-order-row-meta { margin-top:5px; color:#737B74; font-size:9.5px; line-height:1.15; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .fr-stock-order-shell .stock-order-row-submeta { margin-top:3px; color:#737B74; font-size:9.5px; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .fr-stock-order-shell .stock-order-stock-line { position:absolute; left:14px; right:14px; bottom:11px; margin:0; width:auto; height:4px; border-radius:2px; background:#E9EEE5; overflow:hidden; transition:background-color .18s ease; }
+        .fr-stock-order-shell .stock-order-stock-line.low-track { background:#fbe5e3; }
+        .fr-stock-order-shell .stock-order-stock-line-fill { display:block; height:100%; width:0; border-radius:2px; background:${C.green}; transition:background-color .18s ease, width .22s ease; }
+        .fr-stock-order-shell .stock-order-stock-line-fill.low { background:${C.red}; }
+        .fr-stock-order-shell .stock-order-price { color:${C.greenDk}; font-weight:900; white-space:nowrap; }
+        .fr-stock-order-shell .stock-order-detail-card { border:1px solid ${C.border}; border-radius:13px; background:${C.white}; box-shadow:0 2px 10px rgba(18,36,27,.035); }
+        .fr-stock-order-shell .stock-order-hero { padding:14px; background:linear-gradient(135deg,#fbfcf8,#f3f7eb); border-bottom:1px solid ${C.border}; }
+        .fr-stock-order-shell .stock-order-facts { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; padding:11px 14px 0; }
+        .fr-stock-order-shell .stock-order-fact { min-width:0; padding:9px; border:1px solid ${C.border}; border-radius:12px; background:#fbfcf8; }
+        .fr-stock-order-shell .stock-order-fact-label { font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:${C.muted}; }
+        .fr-stock-order-shell .stock-order-fact-value { margin-top:4px; font-size:12px; font-weight:900; color:${C.ink}; overflow-wrap:anywhere; }
+        .fr-stock-order-shell .stock-order-purchase { margin:11px 14px 13px; padding:12px; border:1px solid rgba(59,121,30,.18); border-radius:15px; background:#f8fbf3; }
+        .fr-stock-order-shell .stock-order-purchase-top { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+        .fr-stock-order-shell .stock-order-price-big { font-size:21px; line-height:1; font-weight:900; color:${C.greenDk}; }
+        .fr-stock-order-shell .stock-order-price-unit { margin-top:5px; color:${C.muted}; font-size:10.5px; }
+        .fr-stock-order-shell .stock-order-availability { padding:7px 10px; border-radius:999px; background:${C.white}; border:1px solid ${C.border}; font-size:10px; font-weight:800; color:${C.greenDk}; white-space:nowrap; }
+        .fr-stock-order-shell .stock-order-availability.out { color:${C.red}; background:${C.redBg}; border-color:#f2c9c4; }
+        .fr-stock-order-shell .stock-order-stepper { display:flex; align-items:center; gap:7px; margin-top:13px; }
+        .fr-stock-order-shell .stock-order-stepper button { width:32px; height:32px; min-width:32px; padding:0; border:1px solid ${C.border}; border-radius:10px; background:${C.white}; color:${C.greenDk}; font-size:18px; font-weight:800; cursor:pointer; }
+.fr-stock-order-shell .stock-order-stepper-input {
+  width:60px;
+  height:32px;
+  padding:0 5px;
+  border:1px solid ${C.border};
+  border-radius:8px;
+  background:#fff;
+  color:${C.ink};
+  text-align:center;
+  font-size:14px;
+  font-weight:800;
+  outline:none;
+  box-sizing:border-box;
+}
+
+.fr-stock-order-shell .stock-order-stepper-input:focus {
+  border-color:${C.green};
+}
+
+/* Remove Chrome, Edge, Safari number arrows */
+.fr-stock-order-shell
+  .stock-order-stepper-input::-webkit-inner-spin-button,
+.fr-stock-order-shell
+  .stock-order-stepper-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Remove Firefox number arrows */
+.fr-stock-order-shell .stock-order-stepper-input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+        .fr-stock-order-shell .stock-order-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:10px; }
+        .stock-order-actions .v-btn { min-height:32px !important; padding:6px 11px !important; font-size:11px !important; border-radius:8px !important; }
+        .fr-stock-order-shell .stock-order-unavailable { margin-top:12px; padding:10px 12px; border-radius:10px; background:${C.bg}; color:${C.muted}; font-size:11px; line-height:1.45; }
+        .fr-stock-order-shell .stock-order-section { padding:0 14px 14px; }
+        .fr-stock-order-shell .stock-order-section-title { display:flex; align-items:center; gap:7px; margin:0 0 8px; font-size:11px; font-weight:900; color:${C.greenDk}; }
+        .fr-stock-order-shell .stock-order-queue-panel { margin-bottom:10px; border:1px solid ${C.border}; border-radius:13px; background:${C.white}; overflow:auto; max-height:245px; padding:10px 12px; }
+        .fr-stock-order-shell .stock-order-queue-panel .fr-inventory-detail-content { animation:none; }
+        .fr-stock-order-shell .stock-order-detail-panel { border:1px solid ${C.border}; border-radius:13px; background:${C.white}; overflow:hidden; }
+        .fr-stock-order-shell .stock-order-detail-panel .stock-order-hero { border-bottom:1px solid ${C.border}; }
+        .fr-stock-order-shell .stock-order-header-actions { display:flex; align-items:center; gap:7px; flex-wrap:wrap; justify-content:flex-end; }
+        .fr-stock-order-shell .stock-order-cart-modal { width:min(100%,820px); padding:0 !important; overflow:hidden !important; }
+        .fr-stock-order-shell .stock-order-orders-modal { width:min(100%,900px); padding:0 !important; overflow:hidden !important; }
+       .fr-stock-order-shell .stock-order-checkout-modal {
+          width:min(94vw,1100px);
+          padding:0 !important;
+          overflow:hidden !important;
+          max-height:min(90vh,760px);
+          display:flex;
+          flex-direction:column;
+          background:#fff;
+        }
+        .fr-stock-order-shell .checkout-mobile-head { padding:18px 20px; background:linear-gradient(135deg,#2c5c16,#d4a63c); color:#fff; display:flex; align-items:center; justify-content:space-between; gap:14px; }
+        .fr-stock-order-shell .checkout-mobile-head-left { display:flex; align-items:center; gap:12px; min-width:0; }
+        .fr-stock-order-shell .checkout-mobile-back { width:36px; height:36px; border-radius:11px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.18); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+        .fr-stock-order-shell .checkout-mobile-eyebrow { font-size:9px; color:rgba(255,255,255,.7); letter-spacing:2.2px; font-weight:900; }
+        .fr-stock-order-shell .checkout-mobile-title { font-size:20px; line-height:1.15; font-weight:900; margin-top:3px; }
+        .fr-stock-order-shell .checkout-mobile-count { flex-shrink:0; padding:6px 11px; border-radius:20px; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.18); color:#fbf3df; font-size:9px; letter-spacing:1px; font-weight:900; }
+.fr-stock-order-shell .checkout-mobile-scroll {
+  padding:20px;
+  overflow:auto;
+}
+        .fr-stock-order-shell .checkout-mobile-section { margin-top:22px; }
+        .fr-stock-order-shell .checkout-mobile-section:first-child { margin-top:0; }
+        .fr-stock-order-shell .checkout-mobile-section-title { display:flex; align-items:center; gap:8px; margin-bottom:14px; font-size:11px; color:#2c5c16; letter-spacing:.6px; text-transform:uppercase; font-weight:900; }
+        .fr-stock-order-shell .checkout-mobile-section-bar { width:4px; height:14px; border-radius:2px; background:linear-gradient(180deg,#2c5c16,#d4a63c); }
+        .fr-stock-order-shell .checkout-mobile-card { background:#fff; border:1px solid rgba(44,92,22,.14); border-radius:16px; box-shadow:0 3px 7px rgba(44,92,22,.06); overflow:hidden; }
+        .fr-stock-order-shell .checkout-user-card { display:flex; align-items:center; gap:12px; padding:14px; }
+        .fr-stock-order-shell .checkout-user-thumb { width:52px; height:52px; border-radius:14px; background:#f1f8e8; border:1px solid #dcefc9; color:#2c5c16; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+        .fr-stock-order-shell .checkout-user-name { font-size:14px; color:#2c5c16; font-weight:900; }
+        .fr-stock-order-shell .checkout-user-meta { margin-top:2px; font-size:10px; color:rgba(44,92,22,.45); }
+        .fr-stock-order-shell .checkout-order-row { display:flex; align-items:center; gap:12px; padding:14px; border-bottom:1px solid rgba(44,92,22,.14); }
+        .fr-stock-order-shell .checkout-order-row:last-child { border-bottom:0; }
+        .fr-stock-order-shell .checkout-order-thumb { width:36px; height:36px; border-radius:10px; background:#f1f8e8; border:1px solid #dcefc9; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; color:#2c5c16; }
+        .fr-stock-order-shell .checkout-order-thumb img { width:100%; height:100%; object-fit:contain; }
+        .fr-stock-order-shell .checkout-order-main { flex:1; min-width:0; }
+        .fr-stock-order-shell .checkout-order-name { font-size:13px; color:#2c5c16; font-weight:900; overflow-wrap:anywhere; }
+        .fr-stock-order-shell .checkout-order-qty { margin-top:2px; font-size:10px; color:rgba(44,92,22,.45); }
+        .fr-stock-order-shell .checkout-order-price { font-size:14px; color:#2c5c16; font-weight:900; white-space:nowrap; }
+        .fr-stock-order-shell .checkout-address-card { display:flex; align-items:flex-start; gap:10px; padding:14px; border:2px solid #d4a63c; border-radius:16px; background:#fff; box-shadow:0 3px 7px rgba(44,92,22,.06); }
+        .fr-stock-order-shell .checkout-address-card textarea { flex:1; min-height:58px; resize:vertical; border:0; outline:0; padding:0; background:transparent; color:#2c5c16; font:inherit; font-size:13px; line-height:1.45; }
+        .fr-stock-order-shell .checkout-address-prompt { width:min(92vw,390px); padding:26px; border-radius:18px; text-align:center; background:#fff; box-shadow:0 18px 50px rgba(20,50,15,.18); }
+        .fr-stock-order-shell .checkout-address-prompt-icon { width:54px; height:54px; margin:0 auto 14px; display:flex; align-items:center; justify-content:center; border-radius:16px; background:#f1f8e8; color:#2c5c16; }
+        .fr-stock-order-shell .checkout-address-prompt h2 { margin:0 0 7px; color:#2c5c16; font-size:18px; }
+        .fr-stock-order-shell .checkout-address-prompt p { margin:0 0 20px; color:#63725c; font-size:13px; line-height:1.5; }
+        .fr-stock-order-shell .checkout-address-prompt button { width:100%; min-height:44px; border:0; border-radius:12px; background:linear-gradient(90deg,#2c5c16,#d4a63c); color:#fff; font-size:13px; font-weight:900; cursor:pointer; }
+        .fr-stock-order-shell .checkout-pay-card { width:100%; display:flex; align-items:center; gap:12px; padding:14px; margin-bottom:12px; border:1px solid rgba(44,92,22,.14); border-radius:16px; background:#fff; box-shadow:0 3px 7px rgba(44,92,22,.06); cursor:pointer; text-align:left; color:#2c5c16; }
+        .fr-stock-order-shell .checkout-pay-card.selected { border:2px solid #d4a63c; padding:13px; }
+        .fr-stock-order-shell .checkout-pay-thumb { width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid #dcefc9; background:#f1f8e8; }
+        .fr-stock-order-shell .checkout-pay-thumb.gcash { color:#1565C0; background:#E3F2FD; border-color:#BFDBFE; font-size:16px; font-weight:900; }
+        .fr-stock-order-shell .checkout-pay-main { flex:1; min-width:0; }
+        .fr-stock-order-shell .checkout-pay-label { font-size:14px; font-weight:900; color:#2c5c16; }
+        .fr-stock-order-shell .checkout-pay-desc { margin-top:2px; font-size:11px; color:rgba(44,92,22,.45); }
+        .fr-stock-order-shell .checkout-radio { width:22px; height:22px; border-radius:50%; border:2px solid rgba(44,92,22,.14); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+        .fr-stock-order-shell .checkout-pay-card.selected .checkout-radio { border-color:#2c5c16; }
+        .fr-stock-order-shell .checkout-radio-dot { width:11px; height:11px; border-radius:50%; background:#2c5c16; }
+        .fr-stock-order-shell .checkout-gcash-ref { margin-top:-2px; margin-bottom:12px; padding:12px 14px; border-radius:14px; background:#E3F2FD; border:1px solid #BFDBFE; }
+        .fr-stock-order-shell .checkout-gcash-ref label { display:block; margin-bottom:7px; color:#1565C0; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.05em; }
+        .fr-stock-order-shell .checkout-gcash-ref input { width:100%; box-sizing:border-box; border:1px solid #BFDBFE; border-radius:10px; background:#fff; padding:10px 11px; outline:0; color:#2c5c16; font:inherit; font-size:12px; }
+        .fr-stock-order-shell .gcash-overlay { z-index:10001; }
+        .fr-stock-order-shell .gcash-payment-modal { width:min(92vw,420px); padding:0; overflow:hidden; background:#fff; border-radius:20px; }
+        .fr-stock-order-shell .gcash-payment-head { display:flex; align-items:center; justify-content:space-between; padding:19px 22px; background:linear-gradient(135deg,#1565C0,#0D47A1); color:#fff; }
+        .fr-stock-order-shell .gcash-payment-head small { font-size:9px; font-weight:800; letter-spacing:1.6px; opacity:.8; }
+        .fr-stock-order-shell .gcash-payment-head h2 { margin:3px 0 0; font-size:19px; }
+        .fr-stock-order-shell .gcash-payment-head button { border:0; background:rgba(255,255,255,.18); color:#fff; border-radius:9px; width:32px; height:32px; font-size:23px; cursor:pointer; }
+        .fr-stock-order-shell .gcash-payment-body { padding:24px; text-align:center; color:#25435f; }
+        .fr-stock-order-shell .gcash-payment-body p { font-size:12px; line-height:1.5; }
+        .fr-stock-order-shell .gcash-payment-amount { font-size:28px; font-weight:900; color:#1565C0; }
+        .fr-stock-order-shell .gcash-payment-qr { display:block; width:220px; height:220px; max-width:100%; margin:18px auto; border:1px solid #d5e6f8; border-radius:12px; }
+        .fr-stock-order-shell .gcash-payment-reference, .fr-stock-order-shell .gcash-payment-timer { margin:9px 0; font-size:12px; font-weight:800; }
+        .fr-stock-order-shell .gcash-payment-primary, .fr-stock-order-shell .gcash-payment-secondary { display:block; padding:12px; margin-top:10px; border-radius:11px; text-decoration:none; font-size:13px; font-weight:900; }
+        .fr-stock-order-shell .gcash-payment-primary { background:#1565C0; color:#fff; }
+        .fr-stock-order-shell .gcash-payment-secondary { border:1px solid #bfdbfe; color:#1565C0; }
+        .fr-stock-order-shell .gcash-payment-cancel, .fr-stock-order-shell .gcash-payment-state button { border:0; background:transparent; color:#1565C0; font-weight:800; cursor:pointer; }
+        .fr-stock-order-shell .gcash-payment-wait { color:#627f9b; }
+        .fr-stock-order-shell .gcash-payment-state { padding:30px 5px; font-size:14px; line-height:1.8; }
+        .fr-stock-order-shell .checkout-mobile-bottom { padding:4px 22px 22px; background:#fff; border-top:1px solid rgba(44,92,22,.10); box-shadow:0 -3px 12px rgba(44,92,22,.08); }
+        .fr-stock-order-shell .checkout-mobile-accent { height:3px; border-radius:2px; margin-bottom:18px; background:linear-gradient(90deg,#2c5c16,#d4a63c); }
+        .fr-stock-order-shell .checkout-total-row { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:12px; }
+        .fr-stock-order-shell .checkout-total-label { font-size:12px; color:rgba(44,92,22,.62); text-transform:uppercase; letter-spacing:.6px; }
+        .fr-stock-order-shell .checkout-total-amount { font-size:26px; color:#2c5c16; font-weight:900; letter-spacing:-.5px; }
+        .fr-stock-order-shell .checkout-payment-chip { width:max-content; max-width:100%; display:flex; align-items:center; gap:6px; padding:7px 12px; margin-bottom:14px; border:1px solid rgba(44,92,22,.14); border-radius:10px; background:#f1f8e8; color:#2c5c16; font-size:12px; font-weight:900; }
+        .fr-stock-order-shell .checkout-place-btn { width:100%; min-height:50px; border:0; border-radius:15px; background:linear-gradient(90deg,#2c5c16,#d4a63c); color:#fff; display:flex; align-items:center; justify-content:center; gap:8px; font-size:14px; font-weight:900; cursor:pointer; }
+        .fr-stock-order-shell .checkout-place-btn:disabled { opacity:.7; cursor:not-allowed; }
+        .fr-stock-order-shell .checkout-success-mobile { padding:48px 24px; text-align:center; }
+        @media(max-width:620px){.fr-stock-order-shell .stock-order-checkout-modal {
+  width:min(94vw,1100px);
+  padding:0 !important;
+  overflow:hidden !important;
+  max-height:min(90vh,760px);
+  display:flex;
+  flex-direction:column;
+  background:#fff;
+}.fr-stock-order-shell .checkout-mobile-scroll { padding:16px; } .fr-stock-order-shell .checkout-mobile-bottom { padding-left:18px; padding-right:18px; padding-bottom:18px; } }
+        .fr-stock-order-shell .stock-order-cart-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:15px; align-items:center; padding:15px 18px; border-bottom:1px solid #EEF1EA; background:#fff; }
+        .fr-stock-order-shell .stock-order-cart-row:hover { background:#FBFCF8; }
+        .fr-stock-order-shell .stock-cart-modal-head, .fr-stock-order-shell .stock-orders-modal-head { padding:18px 20px; background:linear-gradient(135deg,#fbfcf8,#f4f8ec); border-bottom:1px solid ${C.border}; }
+        .fr-stock-order-shell .stock-modal-eyebrow { font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:.09em; color:${C.green}; }
+        .fr-stock-order-shell .stock-modal-title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+        .fr-stock-order-shell .stock-modal-title { margin-top:3px; font-size:19px; font-weight:900; color:${C.ink}; }
+        .fr-stock-order-shell .stock-modal-subtitle { margin-top:4px; color:${C.muted}; font-size:10.5px; line-height:1.45; }
+        .fr-stock-order-shell .stock-modal-scroll { max-height:min(58vh,520px); overflow:auto; }
+        .fr-stock-order-shell .stock-modal-footer { padding:13px 20px 17px; border-top:1px solid ${C.border}; background:#fff; position:sticky; bottom:0; z-index:3; }
+        .fr-stock-order-shell .stock-cart-item-main { min-width:0; }
+        .fr-stock-order-shell .stock-cart-item-title { font-size:13px; font-weight:900; color:${C.ink}; overflow-wrap:anywhere; }
+        .fr-stock-order-shell .stock-cart-item-meta { margin-top:4px; font-size:10.5px; color:${C.muted}; }
+        .fr-stock-order-shell .stock-cart-stock-note { margin-top:5px; font-size:9.5px; color:${C.greenDk}; font-weight:800; }
+        .fr-stock-order-shell .stock-cart-stock-note.low { color:${C.red}; }
+        .fr-stock-order-shell .stock-cart-qty { display:flex; align-items:center; gap:6px; padding:4px; border:1px solid ${C.border}; border-radius:10px; background:#FBFCF8; }
+        .fr-stock-order-shell .stock-cart-qty button { width:28px; height:28px; border:1px solid ${C.border}; border-radius:7px; background:#fff; color:${C.greenDk}; font-weight:900; cursor:pointer; }
+        .fr-stock-order-shell .stock-cart-qty button:disabled { opacity:.4; cursor:not-allowed; }
+        .fr-stock-order-shell .stock-cart-qty-input {
+          width:52px;
+          height:28px;
+          border:1px solid ${C.border};
+          border-radius:7px;
+          background:#fff;
+          text-align:center;
+          font-size:12px;
+          font-weight:800;
+          color:${C.ink};
+          outline:none;
+          box-sizing:border-box;
+        }
+
+        .fr-stock-order-shell .stock-cart-qty-input:focus {
+          border-color:${C.green};
+        }
+
+        .fr-stock-order-shell .stock-cart-qty-input::-webkit-inner-spin-button,
+        .fr-stock-order-shell .stock-cart-qty-input::-webkit-outer-spin-button {
+          margin:0;
+        }
+        .fr-stock-order-shell .stock-cart-line-total { min-width:86px; text-align:right; }
+        .fr-stock-order-shell .stock-cart-remove { margin-top:5px; border:0; background:transparent; color:#9B2C2C; font-size:9.5px; font-weight:800; cursor:pointer; padding:0; }
+        .fr-stock-order-shell .stock-order-count-badge { min-width:21px; height:21px; padding:0 6px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#EEF4E7; color:${C.greenDk}; font-size:9.5px; font-weight:900; }
+        .fr-stock-order-shell .stock-orders-summary { display:flex; gap:7px; flex-wrap:wrap; padding:12px 20px 0; }
+        .fr-stock-order-shell .stock-orders-stat { display:inline-flex; align-items:center; gap:6px; padding:6px 9px; border:1px solid ${C.border}; border-radius:9px; background:#FBFCF8; color:${C.muted}; font-size:9.5px; font-weight:800; }
+        .fr-stock-order-shell .stock-orders-stat strong { color:${C.ink}; font-size:11px; }
+        .fr-stock-order-shell .stock-order-history-card { margin:10px 20px; border:1px solid ${C.border}; border-radius:12px; overflow:hidden; background:#fff; }
+        .fr-stock-order-shell .stock-order-history-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; cursor:pointer; }
+        .fr-stock-order-shell .stock-order-history-head:hover { background:#FBFCF8; }
+        .fr-stock-order-shell .stock-order-history-id { font-size:12.5px; font-weight:900; color:${C.ink}; }
+        .fr-stock-order-shell .stock-order-history-date { margin-top:3px; font-size:9.5px; color:${C.muted}; }
+        .fr-stock-order-shell .stock-order-status { display:inline-flex; align-items:center; gap:5px; padding:5px 8px; border-radius:999px; font-size:9px; font-weight:900; white-space:nowrap; border:1px solid transparent; }
+        .fr-stock-order-shell .stock-order-status::before { content:""; width:5px; height:5px; border-radius:50%; background:currentColor; }
+        .fr-stock-order-shell .stock-order-status.pending { color:#8A6400; background:#FFF8D8; border-color:#F0DEA0; }
+        .fr-stock-order-shell .stock-order-status.processing { color:#285C85; background:#EEF6FC; border-color:#C8DFEF; }
+        .fr-stock-order-shell .stock-order-status.completed { color:#2C6B17; background:#EEF8E8; border-color:#CDE4BF; }
+        .fr-stock-order-shell .stock-order-status.cancelled { color:#A3342A; background:#FFF1EF; border-color:#F0C9C3; }
+        .fr-stock-order-shell .stock-order-history-meta { display:flex; gap:12px; flex-wrap:wrap; padding:0 14px 11px; font-size:9.5px; color:${C.muted}; }
+        .fr-stock-order-shell .stock-order-history-total { color:${C.greenDk}; font-weight:900; }
+        .fr-stock-order-shell .stock-order-history-details { padding:11px 14px 13px; background:#FBFCF8; border-top:1px solid #EEF1EA; }
+        .fr-stock-order-shell .stock-order-history-item { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px dashed #E4E9DE; }
+        .fr-stock-order-shell .stock-order-history-item:last-child { border-bottom:0; }
+        .fr-stock-order-shell .stock-order-history-item-name { font-size:10.5px; font-weight:800; color:${C.ink}; }
+        .fr-stock-order-shell .stock-order-history-item-meta { margin-top:2px; font-size:9px; color:${C.muted}; }
+        .fr-stock-order-shell .stock-order-history-address { margin-top:9px; padding-top:9px; border-top:1px solid ${C.border}; font-size:9.5px; color:${C.muted}; line-height:1.45; }
+        .fr-stock-order-shell .stock-order-history-address strong { color:${C.ink}; }
+        .fr-stock-order-shell .stock-order-empty { padding:56px 24px 62px; text-align:center; color:${C.muted}; }
+        .fr-stock-order-shell .stock-order-summary-row { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:10px 0; }
+        .fr-stock-order-shell .stock-order-summary-total { padding-top:14px; margin-top:5px; border-top:1px solid ${C.border}; }
+        .fr-stock-order-shell .stock-order-muted { color:${C.muted}; font-size:11px; }
+        .fr-stock-order-shell .stock-order-success { text-align:center; padding:40px 20px 24px; }
+        @media(max-width:980px){
+          .fr-stock-order-shell .stock-order-layout { grid-template-columns:1fr; max-height:none; }
+          .fr-stock-order-shell .stock-order-list { border-right:0; border-bottom:1px solid ${C.border}; max-height:340px; }
+          .fr-stock-order-shell .stock-order-detail { max-height:none; padding:10px; }
+        }
+        @media(max-width:620px){
+          .fr-stock-order-shell .stock-order-facts { grid-template-columns:1fr 1fr; }
+          .fr-stock-order-shell .stock-order-actions { grid-template-columns:1fr; }
+          .fr-stock-order-shell .stock-order-header-actions { width:100%; justify-content:stretch; }
+          .fr-stock-order-shell .stock-order-header-actions .v-btn { flex:1 1 0; }
+          .fr-stock-order-shell .stock-order-cart-row { grid-template-columns:1fr auto; gap:9px; padding:12px 14px; }
+          .fr-stock-order-shell .stock-cart-line-total { grid-column:2; }
+          .fr-stock-order-shell .stock-order-cart-row > :last-child { grid-column:2; }
+          .fr-stock-order-shell .stock-modal-title { font-size:17px; }
+          .fr-stock-order-shell .stock-orders-modal-head .stock-modal-title-row { flex-direction:column; }
+          .fr-stock-order-shell .stock-orders-modal-head .stock-modal-title-row > div:last-child { width:100%; }
+          .fr-stock-order-shell .stock-orders-modal-head .stock-modal-title-row > div:last-child .v-btn { flex:1; }
+        }
+        /* Cart and checkout match the mobile screens: white chrome, soft green canvas, and rounded cards. */
+.fr-stock-order-shell .stock-order-cart-modal {
+  width:min(100% - 24px,620px);
+  max-height:94vh;
+  display:flex;
+  flex-direction:column;
+  border-radius:24px;
+  background:#f8fbf4;
+}
+
+.fr-stock-order-shell .stock-order-checkout-modal {
+  width:min(94vw,1100px);
+  height:min(88vh,720px);
+  max-height:720px;
+  display:flex;
+  flex-direction:column;
+  padding:0 !important;
+  overflow:hidden !important;
+  border-radius:24px;
+  background:#f8fbf4;
+}
+        .fr-stock-order-shell .stock-cart-modal-head, .fr-stock-order-shell .checkout-mobile-head { flex-shrink:0; padding:22px 26px; background:#fff; border-bottom:1px solid #e4eadc; color:#151c13; box-shadow:none; }
+        .fr-stock-order-shell .stock-modal-title, .fr-stock-order-shell .checkout-mobile-title { margin:0; font-size:23px; line-height:1.2; font-weight:900; color:#151c13; }
+        .fr-stock-order-shell .stock-modal-subtitle, .fr-stock-order-shell .checkout-mobile-subtitle { display:block; margin-top:5px; font-size:12px; color:#8a9485; }
+        .fr-stock-order-shell .checkout-mobile-head-left { gap:16px; }
+        .fr-stock-order-shell .checkout-mobile-back { width:42px; height:42px; border:1px solid #d6dfcf; background:#fff; color:#162014; box-shadow:none; }
+.fr-stock-order-shell .stock-order-cart-modal .stock-modal-scroll {
+  flex:1;
+  max-height:none;
+  padding:24px 26px 32px;
+  overflow:auto;
+  background-color:#f8fbf4;
+  background-image:radial-gradient(#e7eedf 1px,transparent 1px);
+  background-size:18px 18px;
+}
+
+.fr-stock-order-shell .stock-order-checkout-modal .checkout-mobile-scroll {
+  flex:1;
+  min-height:0;
+  max-height:none;
+  padding:20px 26px;
+  overflow-y:auto;
+  overflow-x:hidden;
+  background-color:#f8fbf4;
+  background-image:radial-gradient(#e7eedf 1px,transparent 1px);
+  background-size:18px 18px;
+
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
+  gap:20px 26px;
+  align-content:start;
+}
+        .fr-stock-order-shell .cart-pick-note { padding:18px 20px; border:1px solid #e0e8d9; border-left:5px solid #4a8e25; border-radius:17px; background:#fff; color:#1d291a; }
+        .fr-stock-order-shell .cart-pick-note strong { font-size:16px; }
+        .fr-stock-order-shell .cart-pick-note p { margin:8px 0 0; color:#838d7e; font-size:12px; line-height:1.5; }
+        .fr-stock-order-shell .cart-section-head { display:flex; align-items:center; justify-content:space-between; gap:15px; margin:28px 0 16px; padding-left:16px; border-left:5px solid #4a8e25; }
+        .fr-stock-order-shell .cart-section-head strong { display:block; font-size:19px; color:#1c261a; }
+        .fr-stock-order-shell .cart-section-head small { display:block; margin-top:4px; color:#889383; }
+        .fr-stock-order-shell .cart-select-all { display:flex; align-items:center; gap:8px; padding:9px 12px; border:1px solid #d8e0d0; border-radius:13px; background:#fff; color:#1c261a; font-weight:800; cursor:pointer; white-space:nowrap; }
+        .fr-stock-order-shell .cart-checkbox { width:21px; height:21px; flex:0 0 21px; border:2px solid #cbd6c6; border-radius:7px; background:#fff; cursor:pointer; }
+        .fr-stock-order-shell .cart-checkbox.checked { background:#4a8e25; border-color:#4a8e25; }
+        .fr-stock-order-shell .cart-checkbox.checked::after { content:"✓"; color:#fff; font-size:15px; line-height:17px; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-order-cart-row { position:relative; display:grid; grid-template-columns:21px 58px minmax(0,1fr) auto; gap:14px; align-items:center; margin-bottom:14px; padding:18px; border:1px solid #e0e7d9; border-radius:18px; background:#fff; box-shadow:0 2px 8px rgba(32,64,20,.04); }
+        .fr-stock-order-shell .cart-product-thumb { width:58px; height:58px; display:flex; align-items:center; justify-content:center; border:1px solid #dfeccf; border-radius:15px; background:#f3f9e9; color:#4b8f29; overflow:hidden; }
+        .fr-stock-order-shell .cart-product-thumb img { width:100%; height:100%; object-fit:contain; }
+        .fr-stock-order-shell .stock-cart-item-title { font-size:15px; color:#192319; }
+        .fr-stock-order-shell .stock-cart-item-meta { color:#899286; }
+        .fr-stock-order-shell .stock-cart-item-price { margin-top:8px; color:#202920; font-size:15px; font-weight:900; }
+        .fr-stock-order-shell .stock-cart-item-price small { display:block; margin-top:2px; color:#8d9788; font-size:10px; font-weight:500; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-qty { grid-column:4; grid-row:1; align-self:end; margin-top:45px; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-line-total { position:absolute; right:18px; top:16px; min-width:0; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-line-total strong { display:none; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-remove { margin:0; padding:7px; border:1px solid #f2d3d4; border-radius:9px; background:#fff6f6; color:#ce5459; font-size:0; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-remove svg { width:15px; height:15px; margin:0 !important; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-modal-footer, .fr-stock-order-shell .checkout-mobile-bottom { flex-shrink:0; padding:20px 26px 24px; border-top:1px solid #e5eadf; background:#fff; box-shadow:0 -4px 14px rgba(30,60,20,.05); }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-modal-footer .v-btn-primary, .fr-stock-order-shell .checkout-place-btn { min-height:52px !important; border-radius:14px !important; background:#4a8e25; color:#fff; font-size:15px; font-weight:900; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-modal-footer .v-btn-primary:disabled { background:#b8d1a6; color:#fff; }
+        .fr-stock-order-shell .checkout-mobile-section { margin-top:26px; }
+        .fr-stock-order-shell .checkout-mobile-section-title { gap:11px; color:#1c261a; font-size:17px; letter-spacing:0; text-transform:none; }
+        .fr-stock-order-shell .checkout-mobile-section-bar { width:5px; height:26px; background:#4a8e25; }
+        .fr-stock-order-shell .checkout-mobile-card, .fr-stock-order-shell .checkout-address-card, .fr-stock-order-shell .checkout-pay-card { border:1px solid #e0e7d9; border-radius:18px; box-shadow:0 2px 8px rgba(32,64,20,.04); }
+        .fr-stock-order-shell .checkout-user-card, .fr-stock-order-shell .checkout-order-row { padding:17px; }
+        .fr-stock-order-shell .checkout-user-thumb { width:58px; height:58px; border:0; border-radius:17px; background:#11250d; color:#bed66a; font-size:24px; font-weight:900; }
+        .fr-stock-order-shell .checkout-user-name, .fr-stock-order-shell .checkout-order-name { color:#1d251b; font-size:15px; }
+        .fr-stock-order-shell .checkout-branch-pill { display:inline-flex; align-items:center; gap:5px; margin-top:7px; padding:4px 8px; border:1px solid #dceacb; border-radius:9px; background:#f3f9e9; color:#427c20; font-size:11px; font-weight:800; }
+        .fr-stock-order-shell .checkout-order-thumb { width:48px; height:48px; border-radius:13px; }
+        .fr-stock-order-shell .checkout-order-qty { color:#899286; }
+        .fr-stock-order-shell .checkout-order-price { color:#1d251b; }
+        .fr-stock-order-shell .checkout-map-preview { position:relative; height:235px; overflow:hidden; border:1px solid #e0e7d9; border-radius:17px; background:#e8eddd; }
+        .fr-stock-order-shell .checkout-map-preview iframe { width:100%; height:100%; border:0; pointer-events:none; }
+        .fr-stock-order-shell .checkout-map-touch { position:absolute; inset:0; z-index:1; cursor:crosshair; touch-action:none; }
+        .fr-stock-order-shell .checkout-map-pin { position:absolute; z-index:2; left:50%; top:50%; transform:translate(-50%,-100%); color:#4a8e25; font-size:38px; line-height:1; text-shadow:0 2px 3px #fff; pointer-events:none; }
+        .fr-stock-order-shell .checkout-map-attribution { position:absolute; z-index:2; left:7px; bottom:5px; padding:2px 4px; background:rgba(255,255,255,.85); color:#4e5b4a; font-size:9px; pointer-events:none; }
+        .fr-stock-order-shell .checkout-map-open, .fr-stock-order-shell .checkout-map-current { position:absolute; z-index:3; border:1px solid #d7dfcd; border-radius:11px; background:#fff; color:#172216; font-size:12px; font-weight:800; cursor:pointer; box-shadow:0 2px 8px rgba(20,40,15,.12); }
+        .fr-stock-order-shell .checkout-map-open { top:14px; left:14px; padding:9px 12px; }
+        .fr-stock-order-shell .checkout-map-current { right:14px; bottom:14px; padding:10px 13px; background:#4a8e25; color:#fff; border-color:#4a8e25; }
+        .fr-stock-order-shell .checkout-map-current:disabled { opacity:.65; cursor:wait; }
+        .fr-stock-order-shell .checkout-map-caption { position:absolute; top:14px; left:14px; padding:8px 12px; border:1px solid #d7dfcd; border-radius:11px; background:#fff; color:#172216; font-size:12px; font-weight:800; }
+        .fr-stock-order-shell .checkout-map-hint { margin:10px 0 14px; color:#899286; font-size:11px; }
+        .fr-stock-order-shell .checkout-map-error { margin:8px 0; color:#a3342a; font-size:11px; }
+        .fr-stock-order-shell .checkout-map-picker-overlay { z-index:10003; }
+        .fr-stock-order-shell .checkout-map-picker { width:min(92vw,680px); height:min(88vh,720px); padding:0; display:flex; flex-direction:column; overflow:hidden; border-radius:18px; background:#fff; }
+        .fr-stock-order-shell .checkout-map-picker-head { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px 18px; color:#1c261a; }
+        .fr-stock-order-shell .checkout-map-picker-head button { border:1px solid #d7dfcd; border-radius:10px; background:#fff; color:#2c5c16; font-size:14px; font-weight:800; padding:7px 12px; cursor:pointer; }
+        .fr-stock-order-shell .checkout-map-preview.full-screen { flex:1; height:auto; min-height:250px; border-radius:0; }
+        .fr-stock-order-shell .checkout-map-picker > .checkout-map-hint, .fr-stock-order-shell .checkout-map-picker > .checkout-map-error { margin:10px 16px; }
+        .fr-stock-order-shell .checkout-address-card { border:2px solid #a7cf83; }
+        .fr-stock-order-shell .checkout-mobile-accent { display:none; }
+        .fr-stock-order-shell .checkout-total-label { color:#202820; text-transform:none; font-size:14px; font-weight:800; }
+        .fr-stock-order-shell .checkout-total-amount { color:#172216; font-size:27px; }
+        .fr-stock-order-shell .checkout-address-prompt { border:1px solid #e0e7d9; background:#fff; }
+        .fr-stock-order-shell .checkout-address-prompt button { background:#4a8e25; }
+        @media(max-width:620px){
+          .fr-stock-order-shell .stock-cart-modal-head, .fr-stock-order-shell .checkout-mobile-head { padding:18px; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-modal-scroll, .fr-stock-order-shell .checkout-mobile-scroll { padding:20px 15px; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-order-cart-row { grid-template-columns:21px 50px minmax(0,1fr); gap:10px; padding:15px; min-height:125px; }
+          .fr-stock-order-shell .cart-product-thumb { width:50px; height:50px; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-cart-qty { grid-column:3; grid-row:2; justify-self:end; margin:0; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-cart-line-total { grid-column:auto; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-modal-footer, .fr-stock-order-shell .checkout-mobile-bottom { padding:17px; }
+        }
+
+        /* =========================================================
+   DESKTOP CHECKOUT — COMPACT WEBSITE LANDSCAPE
+   ========================================================= */
+
+@media (min-width: 900px) {
+
+.fr-stock-order-shell .stock-order-checkout-modal {
+width: min(90vw, 950px) !important;
+max-width: 950px !important;
+  height: auto !important;
+  max-height: 88vh !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+
+    padding: 0 !important;
+    overflow: hidden !important;
+
+    border-radius: 22px !important;
+    background: #f8fbf4 !important;
+  }
+
+
+  /* ================= HEADER ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-head {
+    flex: 0 0 auto !important;
+    padding: 18px 26px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-title {
+    font-size: 21px !important;
+  }
+
+
+  /* ================= BODY ================= */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-scroll {
+  flex: 0 1 auto !important;
+  min-height: 0 !important;
+  max-height: 62vh !important;
+
+  padding: 20px 26px 22px !important;
+
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(0, 1.15fr)
+    minmax(320px, 0.85fr) !important;
+
+  grid-template-areas:
+    "franchisee payment"
+    "summary    payment"
+    "location   payment" !important;
+
+  grid-template-rows:
+    auto
+    auto
+    auto !important;
+
+  column-gap: 28px !important;
+  row-gap: 16px !important;
+
+  align-items: start !important;
+  align-content: start !important;
+}
+
+
+/* RESET ALL SECTION SPACING */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section {
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  align-self: start !important;
+}
+
+
+/* 1 — FRANCHISEE */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section:nth-child(1) {
+  grid-area: franchisee !important;
+}
+
+
+/* 2 — ORDER SUMMARY */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section:nth-child(2) {
+  grid-area: summary !important;
+}
+
+
+/* 3 — DELIVERY LOCATION */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section:nth-child(3) {
+  grid-area: location !important;
+}
+
+
+/* 4 — PAYMENT METHOD */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section:nth-child(4) {
+  grid-area: payment !important;
+}
+
+  /* ================= SECTION TITLES ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-section-title {
+    margin: 0 0 10px !important;
+
+    gap: 8px !important;
+
+    font-size: 15px !important;
+    line-height: 1.2 !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-section-bar {
+    width: 4px !important;
+    height: 22px !important;
+  }
+
+
+  /* ================= CARDS ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-card,
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-address-card,
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-card {
+    width: 100% !important;
+    max-width: none !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* ================= FRANCHISEE ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-user-card {
+    min-height: 88px !important;
+    padding: 14px 16px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-user-thumb {
+    width: 52px !important;
+    height: 52px !important;
+    border-radius: 15px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-user-name {
+    font-size: 14px !important;
+  }
+
+
+  /* ================= ORDER SUMMARY ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-row {
+    display: grid !important;
+
+    grid-template-columns:
+      46px
+      minmax(0, 1fr)
+      auto !important;
+
+    gap: 12px !important;
+
+    align-items: center !important;
+
+    padding: 14px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-thumb {
+    width: 46px !important;
+    height: 46px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-main {
+    min-width: 0 !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-name {
+    font-size: 13px !important;
+
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+
+    line-height: 1.3 !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-price {
+    font-size: 13px !important;
+    white-space: nowrap !important;
+  }
+
+
+  /* ================= DELIVERY ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-map-preview {
+    height: 150px !important;
+    border-radius: 15px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-map-hint {
+    margin: 8px 0 10px !important;
+    font-size: 10px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-address-card {
+    min-height: 76px !important;
+    padding: 12px 14px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-address-card textarea {
+    min-height: 48px !important;
+    font-size: 12px !important;
+  }
+
+
+  /* ================= PAYMENT ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-card {
+    min-height: 64px !important;
+
+    margin-bottom: 9px !important;
+    padding: 11px 13px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-thumb {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-label {
+    font-size: 13px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-desc {
+    font-size: 10px !important;
+  }
+
+
+  /* ================= BOTTOM ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-bottom {
+    flex: 0 0 auto !important;
+
+    padding: 14px 26px 18px !important;
+
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      300px !important;
+
+    column-gap: 28px !important;
+
+    align-items: center !important;
+
+    background: #fff !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-total-row {
+    grid-column: 1 !important;
+
+    margin: 0 0 7px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-total-label {
+    font-size: 12px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-total-amount {
+    font-size: 24px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-payment-chip {
+    grid-column: 1 !important;
+
+    margin: 0 !important;
+
+    padding: 6px 10px !important;
+
+    font-size: 10px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-place-btn {
+    grid-column: 2 !important;
+    grid-row: 1 / span 2 !important;
+
+    width: 100% !important;
+    min-height: 50px !important;
+
+    margin: 0 !important;
+
+    font-size: 13px !important;
+  }
+}
+      `}</style>
+
+      <div
+        className="stock-surface"
+        style={{
+          background: C.white,
+          border: `1px solid ${C.border}`,
+          borderRadius: 18,
+          overflow: "hidden",
+          boxShadow: "0 2px 10px rgba(50,109,32,.05)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         <div
+          className="stock-order-header"
           style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.3)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) closeModal();
+            padding: "14px 18px 14px 22px",
+            background: "#fbfcf8",
+            borderBottom: `1px solid ${C.border}`,
+            color: C.ink,
           }}
         >
           <div
             style={{
-              background: SI_C.white,
-              borderRadius: 18,
-              padding: "26px 26px 20px",
-              width: 540,
-              maxWidth: "95vw",
-              maxHeight: "93vh",
-              overflowY: "auto",
-              boxShadow: "0 12px 48px rgba(0,0,0,0.16)",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              minWidth: 0,
             }}
           >
             <div
               style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: C.greenLt,
                 display: "flex",
-                justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: 20,
+                justifyContent: "center",
+                flexShrink: 0,
               }}
             >
-              <h2
-                style={{
-                  margin: 0,
-                  fontSize: 16,
-                  fontWeight: 800,
-                  color: SI_C.ink,
-                }}
-              >
-                {editing ? "Edit Stock" : "Add Stock"}
-              </h2>
-              <button
-                onClick={closeModal}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: SI_C.muted,
-                  padding: 4,
-                }}
-              >
-                <SI_XIcon size={18} />
-              </button>
+              <Layers size={16} color={C.green} />
             </div>
-            <form
-              noValidate
-              onSubmit={saveItem}
-              style={{ display: "grid", gap: 14 }}
-            >
-              <div>
-                <label style={invLabelSt}>Ingredient Name *</label>
-                <input
-                  style={SI_invInputSt}
-                  value={form.name}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      name: e.target.value.replace(/\b\w/g, (c) =>
-                        c.toUpperCase(),
-                      ),
-                    }))
-                  }
-                  required
-                  placeholder="e.g. Coffee Beans"
-                />
-              </div>
-
-              {editing && form.sku && (
-                <div>
-                  <label style={invLabelSt}>SKU</label>
-                  <div
-                    style={{
-                      ...SI_invInputSt,
-                      height: "auto",
-                      padding: "9px 12px",
-                      background: "#f5f5f5",
-                      color: SI_C.muted,
-                      fontWeight: 700,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {form.sku}
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: SI_C.muted,
-                        fontWeight: 400,
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      (auto-generated)
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label style={invLabelSt}>Brand</label>
-                <div
-                  style={{
-                    ...SI_invInputSt,
-                    height: "auto",
-                    padding: "9px 12px",
-                    background: "#f5f5f5",
-                    color: SI_C.muted,
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                >
-                  {form.brand || currentBrandName || "—"}
-                </div>
-              </div>
-
-              {(() => {
-                const selectedBrandObj = brandList.find(
-                  (b) =>
-                    (b.name || "").toLowerCase() ===
-                    String(form.brand || currentBrandName).toLowerCase(),
-                );
-                const categoryOptions = getBrandCategories(selectedBrandObj);
-                if (categoryOptions.length === 0) return null;
-                return (
-                  <div>
-                    <label style={invLabelSt}>Category *</label>
-                    <select
-                      style={SI_invInputSt}
-                      value={form.category || ""}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, category: e.target.value }))
-                      }
-                      required
-                    >
-                      <option value="">Select category…</option>
-                      {categoryOptions.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </select>
-                    <div
-                      style={{
-                        fontSize: 10.5,
-                        color: SI_C.muted,
-                        marginTop: 5,
-                        lineHeight: 1.45,
-                      }}
-                    >
-                      Categories are synced from{" "}
-                      <strong>Brand &amp; Branch Management</strong>. Add,
-                      rename, or remove categories there.
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {isAdmin ? (
-                <div>
-                  <label style={invLabelSt}>
-                    Branches *{" "}
-                    <span style={{ fontWeight: 400, color: SI_C.muted }}>
-                      (select one or more)
-                    </span>
-                  </label>
-                  {(() => {
-                    const selectedBrandObj = brandList.find(
-                      (b) => b.name === form.brand,
-                    );
-                    const filteredBranches = selectedBrandObj
-                      ? (selectedBrandObj.branches || []).map((br) =>
-                          typeof br === "string" ? br : br.name,
-                        )
-                      : [];
-                    if (!form.brand) {
-                      return (
-                        <div
-                          style={{
-                            ...SI_invInputSt,
-                            height: "auto",
-                            padding: "9px 12px",
-                            background: "#f5f5f5",
-                            color: SI_C.muted,
-                            display: "flex",
-                            alignItems: "center",
-                          }}
-                        >
-                          Select a brand first…
-                        </div>
-                      );
-                    }
-                    if (filteredBranches.length === 0) {
-                      return (
-                        <div
-                          style={{
-                            ...SI_invInputSt,
-                            height: "auto",
-                            padding: "9px 12px",
-                            background: "#f5f5f5",
-                            color: SI_C.muted,
-                            display: "flex",
-                            alignItems: "center",
-                          }}
-                        >
-                          No branches found for this brand.
-                        </div>
-                      );
-                    }
-                    const lockedBranch = editing ? editing.branch : null;
-                    const allSelected = filteredBranches.every((br) =>
-                      form.branches.includes(br),
-                    );
-                    return (
-                      <div
-                        style={{
-                          border: `1.5px solid ${SI_C.border}`,
-                          borderRadius: 11,
-                          padding: "8px 4px",
-                          maxHeight: 180,
-                          overflowY: "auto",
-                        }}
-                      >
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            padding: "6px 10px",
-                            cursor: "pointer",
-                            fontSize: 12.5,
-                            fontWeight: 700,
-                            color: SI_C.greenDk,
-                            borderBottom: `1px solid ${SI_C.border}`,
-                            marginBottom: 4,
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={allSelected}
-                            onChange={(e) =>
-                              setForm((f) => ({
-                                ...f,
-                                branches: e.target.checked
-                                  ? filteredBranches
-                                  : lockedBranch
-                                    ? [lockedBranch]
-                                    : [],
-                              }))
-                            }
-                          />
-                          Select all branches
-                        </label>
-                        {filteredBranches.map((br) => {
-                          const locked = br === lockedBranch;
-                          return (
-                            <label
-                              key={br}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                padding: "6px 10px",
-                                cursor: locked ? "default" : "pointer",
-                                fontSize: 13,
-                                color: SI_C.ink,
-                                opacity: locked ? 0.75 : 1,
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={form.branches.includes(br)}
-                                disabled={locked}
-                                onChange={(e) =>
-                                  setForm((f) => ({
-                                    ...f,
-                                    branches: e.target.checked
-                                      ? [...f.branches, br]
-                                      : f.branches.filter((x) => x !== br),
-                                  }))
-                                }
-                              />
-                              {br}
-                              {locked && (
-                                <span
-                                  style={{
-                                    fontSize: 10.5,
-                                    fontWeight: 700,
-                                    color: SI_C.greenDk,
-                                  }}
-                                >
-                                  (current — can't remove)
-                                </span>
-                              )}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-                  {form.branches.length > 0 && (
-                    <div
-                      style={{ fontSize: 11, color: SI_C.muted, marginTop: 5 }}
-                    >
-                      {editing
-                        ? form.branches.length === 1
-                          ? "Only updating the current branch."
-                          : `Updating "${editing.branch}" and adding this ingredient to ${form.branches.length - 1} more branch${form.branches.length - 1 === 1 ? "" : "es"}: ${form.branches.filter((b) => b !== editing.branch).join(", ")}`
-                        : `Will add this ingredient to ${form.branches.length} branch${form.branches.length === 1 ? "" : "es"}: ${form.branches.join(", ")}`}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <label style={invLabelSt}>Branch</label>
-                  <div
-                    style={{
-                      ...SI_invInputSt,
-                      height: "auto",
-                      padding: "9px 12px",
-                      background: "#f5f5f5",
-                      color: SI_C.muted,
-                      fontWeight: 700,
-                      display: "flex",
-                      alignItems: "center",
-                    }}
-                  >
-                    {userBranch || "—"}
-                  </div>
-                </div>
-              )}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 12,
-                }}
-              >
-                <div>
-                  <label style={invLabelSt}>
-                    {isPharmaBrand(form.brand || currentBrandName)
-                      ? "Base Inventory Unit *"
-                      : "Unit *"}
-                  </label>
-
-                  {isPharmaBrand(form.brand || currentBrandName) ? (
-                    <>
-                      <input
-                        style={{
-                          ...SI_invInputSt,
-                          background: SI_C.bg,
-                          cursor: "not-allowed",
-                        }}
-                        value="pcs"
-                        readOnly
-                      />
-
-                      <div
-                        style={{
-                          fontSize: 10,
-                          color: SI_C.muted,
-                          marginTop: 4,
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        iPharma stock is tracked in individual pieces. Strip and
-                        Box are derived from the packaging setup below.
-                      </div>
-                    </>
-                  ) : (
-                    <select
-                      style={SI_invInputSt}
-                      value={form.unit}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          unit: e.target.value,
-                        }))
-                      }
-                      required
-                    >
-                      {SI_UNITS.map((u) => (
-                        <option key={u} value={u}>
-                          {u}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-                <div>
-                  <label style={invLabelSt}>Cost per Unit (₱)</label>
-                  <div
-                    style={{
-                      ...SI_invInputSt,
-                      height: "auto",
-                      padding: "9px 12px",
-                      background: "#f5f5f5",
-                      color: SI_C.muted,
-                      fontWeight: 700,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    ₱
-                    {Number(form.cost_per_unit || 0).toLocaleString("en-PH", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: SI_C.muted,
-                        fontWeight: 400,
-                        marginLeft: 4,
-                      }}
-                    >
-                      {editing
-                        ? "(from next-out batch)"
-                        : "(set when you receive stock)"}
-                    </span>
-                  </div>
-                  {!editing && (
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "#1e40af",
-                        marginTop: 5,
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: 5,
-                      }}
-                    >
-                      <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                      <span>
-                        Cost starts at ₱0.00. Use <strong>Receive Stock</strong>{" "}
-                        after saving this item to log a batch.
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {isDirectProductBrand(form.brand || currentBrandName) && (
-                <div
-                  style={{
-                    padding: "12px 14px",
-                    borderRadius: 11,
-                    background: SI_C.greenLt,
-                    border: `1px solid ${SI_C.greenMid}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 12,
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 800,
-                          color: SI_C.greenDk,
-                          textTransform: "uppercase",
-                          letterSpacing: ".05em",
-                        }}
-                      >
-                        Auto Selling Price
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 10.5,
-                          color: SI_C.muted,
-                          marginTop: 3,
-                        }}
-                      >
-                        Cost ÷ 0.35 — 35% product, 45% ops, 20% profit
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 20,
-                        fontWeight: 900,
-                        color: SI_C.greenDk,
-                      }}
-                    >
-                      ₱
-                      {computeDirectSellingPrice(
-                        form.cost_per_unit,
-                      ).toLocaleString("en-PH", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-
+            <div style={{ minWidth: 0 }}>
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 10,
-                  padding: "10px 12px",
-                  borderRadius: 9,
-                  background: form.perishable ? SI_C.greenLt : "#f7f7f7",
-                  border: `1px solid ${form.perishable ? SI_C.greenMid : SI_C.border}`,
+                  gap: 8,
+                  flexWrap: "wrap",
                 }}
               >
-                <div
-                  onClick={() =>
-                    setForm((f) => ({ ...f, perishable: !f.perishable }))
-                  }
+                <span style={{ fontWeight: 900, fontSize: 15 }}>
+                  {userBrand || "Stock Inventory"}
+                </span>
+                <span
                   style={{
-                    width: 40,
-                    height: 22,
-                    borderRadius: 11,
-                    cursor: "pointer",
-                    position: "relative",
-                    background: form.perishable
-                      ? `linear-gradient(135deg,${SI_C.teal},${SI_C.green})`
-                      : "#e0e0e0",
-                    transition: "background .2s",
-                    flexShrink: 0,
+                    padding: "4px 8px",
+                    borderRadius: 999,
+                    background: C.white,
+                    border: `1px solid ${C.border}`,
+                    color: C.muted,
+                    fontSize: 10,
+                    fontWeight: 800,
                   }}
                 >
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 3,
-                      left: form.perishable ? 21 : 3,
-                      width: 16,
-                      height: 16,
-                      borderRadius: "50%",
-                      background: "#fff",
-                      boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
-                      transition: "left .2s",
-                    }}
+                  {userBranch || "No branch assigned"}
+                </span>
+              </div>
+              <div style={{ marginTop: 4, fontSize: 11, color: C.muted }}>
+                Monitor branch stock and order approved supplies without leaving
+                this screen.
+              </div>
+            </div>
+          </div>
+          <div className="stock-order-header-actions">
+            <button
+              type="button"
+              className="v-btn v-btn-secondary stock-order-orders-btn"
+              onClick={() => {
+                setShowOrders(true);
+                fetchOrders();
+              }}
+            >
+              <History size={14} />
+              View Orders
+              <span className="stock-order-count-badge">
+                {orderCounts.total}
+              </span>
+            </button>
+            <button
+              type="button"
+              className="v-btn v-btn-primary stock-order-cart-btn"
+              onClick={() => setShowCart(true)}
+            >
+              <ShoppingCart size={15} />
+              Cart
+              <span className="stock-cart-count">{cartItemCount}</span>
+              <span style={{ opacity: 0.92 }}>{fmtPeso(cartTotal)}</span>
+            </button>
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: "12px 18px",
+            borderBottom: `1px solid ${C.border}`,
+            display: "flex",
+            gap: 6,
+            flexWrap: "wrap",
+            background: "#fbfcf8",
+          }}
+        >
+          <div
+            style={{ position: "relative", flex: "1 1 190px", minWidth: 130 }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                left: 8,
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: C.muted,
+              }}
+            >
+              <SearchIcon size={11} />
+            </div>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search item, category, SKU…"
+              style={{
+                ...invInputSt,
+                height: 32,
+                fontSize: 12,
+                paddingLeft: 25,
+              }}
+            />
+          </div>
+          <div
+            style={{
+              ...invInputSt,
+              height: 32,
+              minWidth: 150,
+              fontSize: 11,
+              padding: "6px 10px",
+              background: C.bg,
+              color: C.ink,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <StoreIcon size={12} color={C.green} />{" "}
+            {userBranch || "Assigned Branch"}
+          </div>
+          {categoryOptions.length > 0 && (
+            <select
+              value={categoryF}
+              onChange={(e) => setCategoryF(e.target.value)}
+              style={{ ...invInputSt, height: 32, fontSize: 11, width: 150 }}
+            >
+              <option value="">All Categories</option>
+              {categoryOptions.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          )}
+          <select
+            value={unitF}
+            onChange={(e) => setUnitF(e.target.value)}
+            style={{ ...invInputSt, height: 32, fontSize: 11, width: 100 }}
+          >
+            <option value="">All Units</option>
+            {UNITS.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+          <select
+            value={statusF}
+            onChange={(e) => setStatusF(e.target.value)}
+            style={{ ...invInputSt, height: 32, fontSize: 11, width: 118 }}
+          >
+            <option value="">All Status</option>
+            <option value="low">Low Stock</option>
+            <option value="ok">In Stock</option>
+            {hasExpiry && <option value="expiring">Expiring Soon (30d)</option>}
+            {hasExpiry && <option value="expired">Expired</option>}
+          </select>
+          {(search || categoryF || unitF || statusF) && (
+            <button
+              type="button"
+              className="v-btn v-btn-secondary"
+              style={{ minHeight: 32, padding: "6px 11px", fontSize: 11 }}
+              onClick={() => {
+                setSearch("");
+                setCategoryF("");
+                setUnitF("");
+                setStatusF("");
+              }}
+            >
+              Clear
+            </button>
+          )}
+          <button
+            type="button"
+            className="v-btn v-btn-secondary"
+            style={{ minHeight: 32, padding: "6px 11px", fontSize: 11 }}
+            onClick={() => {
+              fetchItems();
+              fetchShopItems();
+            }}
+            disabled={loading || shopLoading}
+          >
+            <RefreshCw
+              size={13}
+              className={loading || shopLoading ? "fr-spin" : ""}
+            />
+            Refresh
+          </button>
+        </div>
+
+        {(inventoryError || shopError) && (
+          <div
+            role="alert"
+            style={{
+              margin: "12px 18px 0",
+              padding: "10px 12px",
+              border: "1px solid #f2c9c4",
+              borderRadius: 10,
+              background: C.redBg,
+              color: C.red,
+              fontSize: 11,
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+            }}
+          >
+            <AlertTriangle size={14} />
+            {inventoryError || shopError}
+          </div>
+        )}
+
+        <div className="stock-order-layout" aria-busy={loading || shopLoading}>
+          <div className="stock-order-list" aria-label="Branch inventory items">
+            {loading ? (
+              <div
+                style={{
+                  padding: "50px 20px",
+                  textAlign: "center",
+                  color: C.muted,
+                }}
+              >
+                <RefreshCw size={20} className="fr-spin" />
+                <div style={{ marginTop: 10, fontSize: 12 }}>
+                  Loading inventory…
+                </div>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div
+                style={{
+                  padding: "44px 20px",
+                  textAlign: "center",
+                  color: C.muted,
+                }}
+              >
+                <Package size={26} />
+                <div style={{ marginTop: 10, fontSize: 12, fontWeight: 800 }}>
+                  {items.length
+                    ? "No items match your filters."
+                    : "No items found for your assigned brand and branch."}
+                </div>
+              </div>
+            ) : (
+              filtered.map((item) => {
+                const active = item.id === selectedId;
+                const stockValue = Math.max(0, Number(item.stock ?? 0));
+                const low = isLowStock(item);
+                const stockPercent =
+                  maxBarStock > 0
+                    ? Math.min(
+                        100,
+                        Math.max(
+                          0,
+                          Math.round((stockValue / maxBarStock) * 100),
+                        ),
+                      )
+                    : 0;
+                const stockBarLabel = low
+                  ? `Low stock: ${frStockQuantity(item.stock, item.unit)} (${stockPercent}% of highest stock)`
+                  : `Stock okay: ${frStockQuantity(item.stock, item.unit)} (${stockPercent}% of highest stock)`;
+                return (
+                  <button
+                    type="button"
+                    key={item.id}
+                    className={`stock-order-row${active ? " active" : ""}`}
+                    aria-pressed={active}
+                    onClick={() => selectItem(item)}
+                  >
+                    <span className="stock-order-row-top">
+                      <span className="stock-order-row-name">{item.name}</span>
+                      <span className="stock-order-row-meta">
+                        {[item.sku || "No SKU", item.branch || userBranch]
+                          .filter(Boolean)
+                          .join("  •  ")}
+                      </span>
+                      <span className="stock-order-row-submeta">
+                        {[item.name, item.branch || userBranch]
+                          .filter(Boolean)
+                          .join("  •  ")}
+                      </span>
+                    </span>
+                    <span
+                      className={`stock-order-stock-line${low ? " low-track" : ""}`}
+                      role="progressbar"
+                      aria-valuenow={Math.max(0, stockValue)}
+                      aria-valuemin={0}
+                      aria-valuemax={maxBarStock}
+                      aria-label={stockBarLabel}
+                      title={stockBarLabel}
+                    >
+                      <span
+                        className={`stock-order-stock-line-fill${low ? " low" : ""}`}
+                        style={{ width: `${stockPercent}%` }}
+                      />
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          <section
+            id="fr-stock-order-detail"
+            className="stock-order-detail"
+            aria-label="Stock details and supply ordering"
+          >
+            {selected ? (
+              <div>
+                <div className="stock-order-queue-panel">
+                  <div className="stock-order-section-title">
+                    <Layers size={13} /> Stock Rotation / Batches
+                  </div>
+                  <FrFifoQueue
+                    key={selected.id || "empty"}
+                    product={selected}
+                    batches={batches}
+                    loading={batchLoading}
+                    lowStock={isLowStock(selected)}
                   />
                 </div>
-                <label
-                  style={{
-                    ...invLabelSt,
-                    marginBottom: 0,
-                    cursor: "pointer",
-                    flex: 1,
-                  }}
-                  onClick={() =>
-                    setForm((f) => ({ ...f, perishable: !f.perishable }))
-                  }
-                >
-                  {isPharmaBrand(form.brand || currentBrandName)
-                    ? "Medicine (perishable)"
-                    : "Perishable (e.g. dairy, fresh items)"}
-                  <span
-                    style={{
-                      fontWeight: 400,
-                      color: SI_C.muted,
-                      display: "block",
-                      fontSize: 10.5,
-                      marginTop: 2,
-                    }}
-                  >
-                    {isPharmaBrand(form.brand || currentBrandName)
-                      ? form.perishable
-                        ? "Uses FEFO queuing and shows pharmacy fields (LOT, NDC, dosage, controlled substance) when receiving stock."
-                        : "Off = medical supply (e.g. bandages, gauze) — uses FIFO queuing, no dosage/LOT fields shown."
-                      : "Uses FEFO (earliest expiry first) instead of FIFO for its batch queue."}
-                  </span>
-                </label>
-              </div>
 
-              {/* Minimum stock remains stored for compatibility but is not shown in the UI. */}
-
-              {isPharmaBrand(form.brand || currentBrandName) && (
-                <div
-                  style={{
-                    padding: 16,
-                    border: `1px solid ${SI_C.border}`,
-                    borderRadius: 14,
-                    background: SI_C.bg,
-                    marginTop: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 800,
-                      color: SI_C.greenDk,
-                      marginBottom: 4,
-                    }}
-                  >
-                    Medicine Packaging
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: SI_C.muted,
-                      marginBottom: 14,
-                    }}
-                  >
-                    Configure how individual pieces are grouped into strips and
-                    boxes. Stock will remain recorded in pieces.
-                  </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: 12,
-                    }}
-                  >
-                    <div>
-                      <label style={invLabelSt}>Pieces per Strip</label>
-
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        style={SI_invInputSt}
-                        value={form.pcsPerStrip}
-                        placeholder="e.g. 10"
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            pcsPerStrip: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-
-                    <div>
-                      <label style={invLabelSt}>Strips per Box</label>
-
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        style={SI_invInputSt}
-                        value={form.stripsPerBox}
-                        placeholder="e.g. 10"
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            stripsPerBox: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {isPharmaBrand(form.brand || currentBrandName) &&
-                Number(form.cost_per_unit) > 0 && (
-                  <div
-                    style={{
-                      marginTop: 12,
-                      border: `1px solid ${SI_C.border}`,
-                      borderRadius: 12,
-                      overflow: "hidden",
-                    }}
-                  >
+                <div className="stock-order-detail-panel">
+                  <div className="stock-order-hero">
                     <div
                       style={{
-                        padding: "9px 12px",
-                        background: SI_C.bg,
-                        fontSize: 11,
-                        fontWeight: 800,
-                        color: SI_C.greenDk,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        alignItems: "flex-start",
                       }}
                     >
-                      POS Selling Prices
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 9.5,
+                            fontWeight: 800,
+                            letterSpacing: ".08em",
+                            textTransform: "uppercase",
+                            color: C.muted,
+                          }}
+                        >
+                          Supply Details
+                        </div>
+                        <h2
+                          style={{
+                            margin: "4px 0 0",
+                            fontSize: 18,
+                            lineHeight: 1.2,
+                            color: C.ink,
+                            overflowWrap: "anywhere",
+                          }}
+                        >
+                          {selected.name}
+                        </h2>
+                        <div
+                          style={{
+                            marginTop: 5,
+                            color: C.muted,
+                            fontSize: 10.5,
+                          }}
+                        >
+                          {[
+                            selected.brand || userBrand,
+                            selected.branch || userBranch,
+                            selected.sku,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                      </div>
+                      {isLowStock(selected) && (
+                        <span
+                          className="v-badge v-badge-red"
+                          style={{ fontSize: 9.5, padding: "3px 9px" }}
+                        >
+                          Low Stock
+                        </span>
+                      )}
                     </div>
+                  </div>
 
-                    <div
-                      style={{
-                        padding: 12,
-                        display: "grid",
-                        gridTemplateColumns: "repeat(3, 1fr)",
-                        gap: 10,
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontSize: 10, color: SI_C.muted }}>
-                          Pc
-                        </div>
-                        <strong>₱{pharmaPcPrice.toFixed(2)}</strong>
+                  <div className="stock-order-facts">
+                    <div className="stock-order-fact">
+                      <div className="stock-order-fact-label">Your Stock</div>
+                      <div className="stock-order-fact-value">
+                        {frStockQuantity(selectedCurrentStock, selected.unit)}
                       </div>
-
-                      <div>
-                        <div style={{ fontSize: 10, color: SI_C.muted }}>
-                          Strip
-                        </div>
-                        <strong>
-                          {form.pcsPerStrip
-                            ? `₱${pharmaStripPrice.toFixed(2)}`
-                            : "—"}
-                        </strong>
+                    </div>
+                    <div className="stock-order-fact">
+                      <div className="stock-order-fact-label">Category</div>
+                      <div className="stock-order-fact-value">
+                        {selected.category || "—"}
                       </div>
-
-                      <div>
-                        <div style={{ fontSize: 10, color: SI_C.muted }}>
-                          Box
-                        </div>
-                        <strong>
-                          {pharmaBoxPcs ? `₱${pharmaBoxPrice.toFixed(2)}` : "—"}
-                        </strong>
+                    </div>
+                    <div className="stock-order-fact">
+                      <div className="stock-order-fact-label">
+                        Supply Available
+                      </div>
+                      <div className="stock-order-fact-value">
+                        {selectedShopItem
+                          ? `${selectedSupplyAvailable} ${selectedUnit}`
+                          : "—"}
+                      </div>
+                    </div>
+                    <div className="stock-order-fact">
+                      <div className="stock-order-fact-label">Unit Price</div>
+                      <div className="stock-order-fact-value">
+                        {selectedShopItem ? fmtPeso(selectedPrice) : "—"}
                       </div>
                     </div>
                   </div>
-                )}
 
-              {isPharmaBrand(form.brand || currentBrandName) &&
-                Number(form.pcsPerStrip) > 0 && (
-                  <div
-                    style={{
-                      marginTop: 12,
-                      padding: "10px 12px",
-                      borderRadius: 10,
-                      background: SI_C.greenLt,
-                      border: `1px solid ${SI_C.greenMid}`,
-                      fontSize: 11,
-                      color: SI_C.greenDk,
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    <strong>Packaging breakdown</strong>
-                    <div>1 Pc = 1 piece</div>
-
-                    <div>1 Strip = {Number(form.pcsPerStrip)} pieces</div>
-
-                    {Number(form.stripsPerBox) > 0 && (
+                  <div className="stock-order-purchase">
+                    <div className="stock-order-purchase-top">
                       <div>
-                        1 Box ={" "}
-                        {Number(form.pcsPerStrip) * Number(form.stripsPerBox)}{" "}
-                        pieces
+                        <div className="stock-order-price-big">
+                          {selectedShopItem
+                            ? fmtPeso(selectedPrice)
+                            : "Not Listed"}
+                        </div>
+                        <div className="stock-order-price-unit">
+                          {selectedShopItem
+                            ? `per ${selectedUnit}`
+                            : "This item is not currently configured for ordering"}
+                        </div>
+                      </div>
+                      <span
+                        className={`stock-order-availability${!selectedShopItem || selectedSupplyAvailable <= 0 ? " out" : ""}`}
+                      >
+                        {shopLoading
+                          ? "Checking…"
+                          : selectedShopItem
+                            ? selectedSupplyAvailable > 0
+                              ? `${selectedSupplyAvailable} available`
+                              : "Out of stock"
+                            : "Not orderable"}
+                      </span>
+                    </div>
+
+                    {selectedShopItem && selectedSupplyAvailable > 0 ? (
+                      <>
+                        <div className="stock-order-stepper">
+                          <button
+                            type="button"
+                            aria-label="Decrease quantity"
+                            onClick={() =>
+                              updateCartQuantity(selectedShopItem.id, -1)
+                            }
+                            disabled={selectedCartQty <= 0}
+                          >
+                            −
+                          </button>
+
+                          <input
+                            type="number"
+                            min="1"
+                            max={selectedSupplyAvailable}
+                            value={selectedCartQty || 1}
+                            onChange={(e) => {
+                              const value = e.target.value;
+
+                              if (value === "") return;
+
+                              const quantity = Math.max(
+                                1,
+                                Math.min(
+                                  Number(value),
+                                  selectedSupplyAvailable,
+                                ),
+                              );
+
+                              const existing = cart.find(
+                                (entry) => entry.id === selectedShopItem.id,
+                              );
+
+                              let next;
+
+                              if (existing) {
+                                next = cart.map((entry) =>
+                                  entry.id === selectedShopItem.id
+                                    ? { ...entry, quantity }
+                                    : entry,
+                                );
+                              } else {
+                                next = [
+                                  ...cart,
+                                  createCartEntry(
+                                    selectedShopItem,
+                                    selected,
+                                    quantity,
+                                  ),
+                                ];
+                              }
+
+                              saveCart(next);
+                            }}
+                            className="stock-order-stepper-input"
+                            aria-label="Cart quantity"
+                          />
+
+                          <button
+                            type="button"
+                            aria-label="Increase quantity"
+                            onClick={() =>
+                              addToCart(selectedShopItem, selected, 1)
+                            }
+                            disabled={
+                              selectedCartQty >= selectedSupplyAvailable
+                            }
+                          >
+                            +
+                          </button>
+
+                          <span
+                            style={{
+                              marginLeft: 2,
+                              color: C.muted,
+                              fontSize: 9.5,
+                            }}
+                          >
+                            in cart
+                          </span>
+                        </div>
+                        <div className="stock-order-actions">
+                          <button
+                            type="button"
+                            className="v-btn v-btn-secondary"
+                            onClick={() =>
+                              addToCart(selectedShopItem, selected, 1)
+                            }
+                            disabled={
+                              selectedCartQty >= selectedSupplyAvailable
+                            }
+                          >
+                            <ShoppingCart size={13} /> Add to Cart
+                          </button>
+                          <button
+                            type="button"
+                            className="v-btn v-btn-primary"
+                            onClick={buyNow}
+                            disabled={
+                              !selectedShopItem || selectedSupplyAvailable <= 0
+                            }
+                          >
+                            Buy Now
+                          </button>
+                        </div>
+                        {selectedCartQty > 0 && (
+                          <div
+                            style={{
+                              marginTop: 8,
+                              padding: "7px 9px",
+                              borderRadius: 8,
+                              background: C.white,
+                              border: `1px solid ${C.border}`,
+                              fontSize: 10,
+                              color: C.muted,
+                            }}
+                          >
+                            {selectedCartQty} {selectedUnit} in cart ·{" "}
+                            {fmtPeso(selectedCartQty * selectedPrice)}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="stock-order-unavailable">
+                        {selectedShopItem
+                          ? "This supply has a listing, but there is currently no supply stock available."
+                          : "This inventory item does not have an active supply-store listing for your assigned brand and branch."}
                       </div>
                     )}
                   </div>
-                )}
-
-              {!editing && (
-                <div
-                  style={{
-                    background: "#eff6ff",
-                    border: "1px solid #bfdbfe",
-                    borderRadius: 9,
-                    padding: "10px 14px",
-                    fontSize: 12,
-                    color: "#1e40af",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 8,
-                  }}
-                >
-                  <span>
-                    Stock starts at <strong>0</strong> and is automatically
-                    calculated from batches. Use <strong>Receive Stock</strong>{" "}
-                    on the ingredient row to add stock.
-                  </span>
                 </div>
-              )}
-              {canListInShop && (
+              </div>
+            ) : (
+              <div
+                className="stock-order-detail-card"
+                style={{
+                  minHeight: 430,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
                 <div
-                  style={{
-                    borderTop: `1px solid ${SI_C.border}`,
-                    paddingTop: 14,
-                  }}
+                  style={{ textAlign: "center", padding: 30, color: C.muted }}
                 >
                   <div
                     style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 13,
+                      background: C.greenLt,
+                      margin: "0 auto 12px",
                       display: "flex",
                       alignItems: "center",
-                      gap: 10,
-                      marginBottom: form.listInShop ? 14 : 0,
+                      justifyContent: "center",
                     }}
                   >
-                    <div
-                      onClick={() =>
-                        setForm((f) => ({ ...f, listInShop: !f.listInShop }))
-                      }
-                      style={{
-                        width: 40,
-                        height: 22,
-                        borderRadius: 11,
-                        cursor: "pointer",
-                        position: "relative",
-                        background: form.listInShop
-                          ? `linear-gradient(135deg,${SI_C.teal},${SI_C.green})`
-                          : "#e0e0e0",
-                        transition: "background .2s",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: 3,
-                          left: form.listInShop ? 21 : 3,
-                          width: 16,
-                          height: 16,
-                          borderRadius: "50%",
-                          background: "#fff",
-                          boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
-                          transition: "left .2s",
-                        }}
-                      />
-                    </div>
-
-                    <label
-                      style={{
-                        ...invLabelSt,
-                        marginBottom: 0,
-                        cursor: "pointer",
-                      }}
-                      onClick={() =>
-                        setForm((f) => ({ ...f, listInShop: !f.listInShop }))
-                      }
-                    >
-                      Also list in Mobile Shop Supplies
-                    </label>
+                    <Layers size={22} color={C.green} />
                   </div>
-                  {form.listInShop && (
-                    <div
-                      style={{
-                        display: "grid",
-                        gap: 12,
-                        marginTop: 14,
-                        padding: "14px",
-                        background: SI_C.bg,
-                        borderRadius: 10,
-                        border: `1px solid ${SI_C.border}`,
-                      }}
-                    >
-                      <p style={{ fontSize: 11, color: SI_C.muted, margin: 0 }}>
-                        Shop price and unit are synced automatically from this
-                        ingredient's cost and unit.
-                      </p>
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "1fr 1fr 1fr",
-                          gap: 12,
-                        }}
-                      >
-                        <div>
-                          <label style={invLabelSt}>
-                            Bulk Qty per Shop Item
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            style={SI_invInputSt}
-                            value={form.bulkQty}
-                            placeholder={String(
-                              defaultBulkQtyForUnit(form.unit),
-                            )}
-                            onChange={(e) =>
-                              setForm((f) => ({
-                                ...f,
-                                bulkQty: e.target.value,
-                              }))
-                            }
-                          />
-                          <div
-                            style={{
-                              fontSize: 10,
-                              color: SI_C.muted,
-                              marginTop: 4,
-                            }}
-                          >
-                            How many {form.unit} go into one shop item (e.g.
-                            1000g per shop-size bag). Leave blank to use the
-                            default for this unit.
-                          </div>
-                        </div>
-                        <div>
-                          <label style={invLabelSt}>Shop Price (₱)</label>
-                          <div
-                            style={{
-                              ...SI_invInputSt,
-                              height: "auto",
-                              padding: "9px 12px",
-                              background: "#f5f5f5",
-                              color: SI_C.muted,
-                              fontWeight: 700,
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                            }}
-                          >
-                            {form.cost_per_unit
-                              ? `₱${previewShopPrice.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                              : "—"}
-                            <span
-                              style={{
-                                fontSize: 10,
-                                color: SI_C.muted,
-                                fontWeight: 400,
-                              }}
-                            >
-                              (cost × bulk qty + 15%)
-                            </span>
-                          </div>
-                        </div>
-                        <div>
-                          <label style={invLabelSt}>Shop Unit</label>
-                          <div
-                            style={{
-                              ...SI_invInputSt,
-                              height: "auto",
-                              padding: "9px 12px",
-                              background: "#f5f5f5",
-                              color: SI_C.muted,
-                              fontWeight: 700,
-                              display: "flex",
-                              alignItems: "center",
-                            }}
-                          >
-                            {form.unit || "—"}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label style={invLabelSt}>Shop Category</label>
-                        <select
-                          style={SI_invInputSt}
-                          value={form.shopCategory}
-                          onChange={(e) =>
-                            setForm((f) => ({
-                              ...f,
-                              shopCategory: e.target.value,
-                            }))
-                          }
-                        >
-                          <option value="">Select category…</option>
-                          {brandList.map((b) => (
-                            <option key={b.id} value={b.name}>
-                              {b.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  )}
+                  <div style={{ fontSize: 14, fontWeight: 900, color: C.ink }}>
+                    Select an inventory item
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 5,
+                      maxWidth: 290,
+                      fontSize: 10.5,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    View the stock rotation queue first, then review supply
+                    details and order quantity.
+                  </div>
                 </div>
-              )}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: 8,
-                  paddingTop: 14,
-                  borderTop: `1px solid ${SI_C.border}`,
-                }}
-              >
-                <button type="button" onClick={closeModal} style={SI_btnSt}>
-                  Cancel
-                </button>
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+
+      {showCart && (
+        <div className="v-modal-overlay" onMouseDown={() => setShowCart(false)}>
+          <div
+            className="v-modal stock-order-cart-modal"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="stock-cart-modal-head">
+              <div className="stock-modal-title-row">
+                <div style={{ minWidth: 0 }}>
+                  <div className="stock-modal-title">My Cart</div>
+                  <div className="stock-modal-subtitle">
+                    {cart.length} {cart.length === 1 ? "item" : "items"} in your
+                    basket
+                  </div>
+                </div>
                 <button
-                  type="submit"
-                  disabled={savingItem}
-                  style={{
-                    ...btnPrimarySt,
-                    opacity: savingItem ? 0.6 : 1,
-                    cursor: savingItem ? "not-allowed" : "pointer",
-                  }}
+                  type="button"
+                  className="v-btn v-btn-secondary"
+                  onClick={() => setShowCart(false)}
+                  style={{ minHeight: 34, padding: "7px 11px", fontSize: 10.5 }}
                 >
-                  {savingItem ? "Saving…" : "Save"}
+                  <X size={13} /> Close
                 </button>
               </div>
-            </form>
+            </div>
+
+            {cartLineItems.length ? (
+              <>
+                <div className="stock-modal-scroll">
+                  <div className="cart-pick-note">
+                    <strong>Pick what to check out</strong>
+                    <p>
+                      Tick the items you want to order now. Anything unticked
+                      stays in your basket.
+                    </p>
+                  </div>
+                  <div className="cart-section-head">
+                    <div>
+                      <strong>Order basket</strong>
+                      <small>
+                        {selectedCart.length
+                          ? `${selectedCart.length} selected`
+                          : "Nothing selected yet"}
+                      </small>
+                    </div>
+                    <button
+                      type="button"
+                      className="cart-select-all"
+                      onClick={toggleAllCartItems}
+                      aria-pressed={
+                        cart.length > 0 && selectedCart.length === cart.length
+                      }
+                    >
+                      <span
+                        className={`cart-checkbox${cart.length > 0 && selectedCart.length === cart.length ? " checked" : ""}`}
+                      />{" "}
+                      Select all
+                    </button>
+                  </div>
+                  {cartLineItems.map((entry) => {
+                    const hasIssue =
+                      entry.stock <= 0 ||
+                      Number(entry.quantity || 0) > Number(entry.stock || 0);
+                    return (
+                      <div key={entry.id} className="stock-order-cart-row">
+                        <button
+                          type="button"
+                          className={`cart-checkbox${selectedCartIds.includes(entry.id) ? " checked" : ""}`}
+                          onClick={() => toggleCartItem(entry.id)}
+                          aria-label={`Select ${entry.name}`}
+                          aria-pressed={selectedCartIds.includes(entry.id)}
+                        />
+                        <div className="cart-product-thumb">
+                          {entry.image_url ? (
+                            <img src={entry.image_url} alt="" />
+                          ) : (
+                            <Package size={24} />
+                          )}
+                        </div>
+                        <div className="stock-cart-item-main">
+                          <div className="stock-cart-item-title">
+                            {entry.name}
+                          </div>
+                          <div className="stock-cart-item-meta">
+                            Unit: {entry.unit || "unit"}
+                          </div>
+                          <div className="stock-cart-item-price">
+                            {fmtPeso(entry.price)}{" "}
+                            <small>
+                              Line: {fmtPeso(entry.price * entry.quantity)}
+                            </small>
+                          </div>
+                          <div
+                            className={`stock-cart-stock-note${hasIssue ? " low" : ""}`}
+                          >
+                            {entry.stock <= 0
+                              ? "No longer available"
+                              : `${entry.stock} ${entry.unit || "unit(s)"} available`}
+                          </div>
+                        </div>
+
+                        <div className="stock-cart-qty">
+                          <button
+                            type="button"
+                            onClick={() => updateCartQuantity(entry.id, -1)}
+                          >
+                            −
+                          </button>
+
+                          <input
+                            type="number"
+                            value={entry.quantity}
+                            min="1"
+                            max={entry.stock}
+                            onChange={(e) => {
+                              const value = e.target.value;
+
+                              if (value === "") {
+                                const next = cart.map((item) =>
+                                  item.id === entry.id
+                                    ? { ...item, quantity: "" }
+                                    : item,
+                                );
+                                setCart(next);
+                                return;
+                              }
+
+                              const quantity = Number(value);
+
+                              if (
+                                quantity >= 1 &&
+                                quantity <= Number(entry.stock)
+                              ) {
+                                const next = cart.map((item) =>
+                                  item.id === entry.id
+                                    ? { ...item, quantity }
+                                    : item,
+                                );
+                                saveCart(next);
+                              }
+                            }}
+                            onBlur={(e) => {
+                              if (
+                                e.target.value === "" ||
+                                Number(e.target.value) < 1
+                              ) {
+                                setCartQuantity(entry.id, 1);
+                              } else if (
+                                Number(e.target.value) > Number(entry.stock)
+                              ) {
+                                setCartQuantity(entry.id, entry.stock);
+                              }
+                            }}
+                            className="stock-cart-qty-input"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => updateCartQuantity(entry.id, 1)}
+                            disabled={
+                              Number(entry.quantity) >= Number(entry.stock)
+                            }
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        <div className="stock-cart-line-total">
+                          <strong
+                            style={{
+                              color: hasIssue ? C.red : C.greenDk,
+                              fontSize: 13,
+                            }}
+                          >
+                            {fmtPeso(entry.price * entry.quantity)}
+                          </strong>
+                          <button
+                            type="button"
+                            className="stock-cart-remove"
+                            onClick={() => removeFromCart(entry.id)}
+                          >
+                            <Trash2
+                              size={10}
+                              style={{ verticalAlign: "-2px", marginRight: 3 }}
+                            />
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="stock-modal-footer">
+                  {cartLineItems.some(
+                    (entry) =>
+                      selectedCartIds.includes(entry.id) &&
+                      (entry.stock <= 0 ||
+                        Number(entry.quantity || 0) > Number(entry.stock || 0)),
+                  ) && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 7,
+                        padding: "8px 10px",
+                        marginBottom: 9,
+                        border: "1px solid #F0C9C3",
+                        borderRadius: 9,
+                        background: C.redBg,
+                        color: C.red,
+                        fontSize: 9.5,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      <AlertTriangle size={13} />
+                      Some cart items are unavailable or exceed the latest
+                      supply stock. Update the quantities before checkout.
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      alignItems: "flex-end",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 9.5,
+                          color: C.muted,
+                          fontWeight: 800,
+                          textTransform: "uppercase",
+                          letterSpacing: ".06em",
+                        }}
+                      >
+                        {selectedCart.length
+                          ? `${selectedCart.length} selected`
+                          : "No items selected"}
+                      </div>
+                      <div
+                        style={{ marginTop: 2, fontSize: 11, color: C.muted }}
+                      >
+                        Total
+                      </div>
+                    </div>
+                    <strong
+                      style={{ fontSize: 22, lineHeight: 1, color: C.greenDk }}
+                    >
+                      {fmtPeso(selectedCartTotal)}
+                    </strong>
+                  </div>
+                  <button
+                    type="button"
+                    className="v-btn v-btn-primary"
+                    style={{
+                      width: "100%",
+                      minHeight: 43,
+                      marginTop: 12,
+                      borderRadius: 9,
+                    }}
+                    onClick={() =>
+                      prepareCheckout(
+                        cartLineItems.filter((entry) =>
+                          selectedCartIds.includes(entry.id),
+                        ),
+                      )
+                    }
+                    disabled={
+                      !selectedCart.length ||
+                      cartLineItems.some(
+                        (entry) =>
+                          selectedCartIds.includes(entry.id) &&
+                          (entry.stock <= 0 ||
+                            Number(entry.quantity || 0) >
+                              Number(entry.stock || 0)),
+                      )
+                    }
+                  >
+                    <CheckCircle size={16} /> Check Out
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="stock-order-empty">
+                <div
+                  style={{
+                    width: 54,
+                    height: 54,
+                    borderRadius: 15,
+                    background: C.greenLt,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    margin: "0 auto 13px",
+                    color: C.green,
+                  }}
+                >
+                  <ShoppingCart size={24} />
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 900, color: C.ink }}>
+                  Your cart is empty
+                </div>
+                <div style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.5 }}>
+                  Select an inventory item and add an approved supply to begin
+                  your order.
+                </div>
+                <button
+                  type="button"
+                  className="v-btn v-btn-secondary"
+                  style={{
+                    marginTop: 14,
+                    minHeight: 34,
+                    padding: "7px 12px",
+                    fontSize: 10.5,
+                  }}
+                  onClick={() => setShowCart(false)}
+                >
+                  Continue Browsing
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* ── RECEIVE STOCK MODAL ── */}
-      {receiveTarget && canEditInventory && (
-        <ReceiveStockModal
-          brandDef={receiveTarget.brandDef}
-          brandItems={brandItemsFor(receiveTarget.brandDef)}
-          initialProduct={receiveTarget.product}
-          apiUrl={process.env.REACT_APP_API_URL}
-          userName={userName}
-          userRole={user?.role}
-          onClose={() => setReceiveTarget(null)}
-          onDone={async (receivedProduct) => {
-            const freshRows = await fetchItems();
-            await fetchActivityLog();
-            const freshItem =
-              freshRows.find(
-                (row) => String(row.id) === String(receivedProduct?.id),
-              ) || receivedProduct;
-            if (freshItem)
-              setFocusMutation({
-                item: freshItem,
-                stamp: Date.now(),
-                reason: "receive",
-              });
-            setStockRefreshToken((v) => v + 1);
-            setReceiveTarget(null);
-          }}
-          showUiModal={showUiModal}
-          setToast={setToast}
-        />
+      {showOrders && (
+        <div
+          className="v-modal-overlay"
+          onMouseDown={() => setShowOrders(false)}
+        >
+          <div
+            className="v-modal stock-order-orders-modal"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="stock-orders-modal-head">
+              <div className="stock-modal-title-row">
+                <div style={{ minWidth: 0 }}>
+                  <div className="stock-modal-eyebrow">Order History</div>
+                  <div className="stock-modal-title">My Supply Orders</div>
+                  <div className="stock-modal-subtitle">
+                    Orders placed for {userBrand || "your assigned brand"} ·{" "}
+                    {userBranch || "your assigned branch"}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    className="v-btn v-btn-secondary"
+                    onClick={fetchOrders}
+                    disabled={ordersLoading}
+                    style={{
+                      minHeight: 34,
+                      padding: "7px 10px",
+                      fontSize: 10.5,
+                    }}
+                  >
+                    <RefreshCw
+                      size={12}
+                      className={ordersLoading ? "fr-spin" : ""}
+                    />{" "}
+                    Refresh
+                  </button>
+                  <button
+                    type="button"
+                    className="v-btn v-btn-secondary"
+                    onClick={() => setShowOrders(false)}
+                    style={{
+                      minHeight: 34,
+                      padding: "7px 10px",
+                      fontSize: 10.5,
+                    }}
+                  >
+                    <X size={13} /> Close
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="stock-orders-summary">
+              <div className="stock-orders-stat">
+                <strong>{orderCounts.total}</strong> Total
+              </div>
+              <div className="stock-orders-stat">
+                <strong>{orderCounts.pending}</strong> Pending
+              </div>
+              <div className="stock-orders-stat">
+                <strong>{orderCounts.processing}</strong> Processing
+              </div>
+              <div className="stock-orders-stat">
+                <strong>{orderCounts.completed}</strong> Completed
+              </div>
+            </div>
+
+            {ordersError && (
+              <div
+                role="alert"
+                style={{
+                  margin: "12px 20px 0",
+                  padding: "9px 11px",
+                  border: "1px solid #f0c9c3",
+                  borderRadius: 9,
+                  background: C.redBg,
+                  color: C.red,
+                  fontSize: 10.5,
+                  display: "flex",
+                  gap: 7,
+                  alignItems: "center",
+                }}
+              >
+                <AlertTriangle size={13} />
+                {ordersError}
+              </div>
+            )}
+
+            <div
+              className="stock-modal-scroll"
+              style={{ maxHeight: "min(62vh,560px)", padding: "2px 0 10px" }}
+            >
+              {ordersLoading && !orders.length ? (
+                <div className="stock-order-empty">
+                  <RefreshCw size={24} className="fr-spin" color={C.green} />
+                  <div
+                    style={{
+                      marginTop: 10,
+                      fontSize: 12,
+                      fontWeight: 900,
+                      color: C.ink,
+                    }}
+                  >
+                    Loading your orders…
+                  </div>
+                </div>
+              ) : orders.length ? (
+                orders.map((order) => {
+                  const orderId =
+                    order?.id ?? order?.order_id ?? order?.reference ?? "—";
+                  const status = orderStatusMeta(order?.status);
+                  const items = orderItemList(order);
+                  const total = Number(
+                    order?.total_amount ?? order?.total ?? 0,
+                  );
+                  const created =
+                    order?.created_at ||
+                    order?.createdAt ||
+                    order?.date ||
+                    order?.ordered_at;
+                  const expanded = String(expandedOrderId) === String(orderId);
+                  return (
+                    <div
+                      key={String(orderId)}
+                      className="stock-order-history-card"
+                    >
+                      <button
+                        type="button"
+                        className="stock-order-history-head"
+                        style={{
+                          width: "100%",
+                          border: 0,
+                          background: "transparent",
+                          textAlign: "left",
+                        }}
+                        onClick={() =>
+                          setExpandedOrderId(expanded ? null : orderId)
+                        }
+                        aria-expanded={expanded}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div className="stock-order-history-id">
+                            Order #{orderId}
+                          </div>
+                          <div className="stock-order-history-date">
+                            {formatOrderDate(created)}
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            flexShrink: 0,
+                          }}
+                        >
+                          <span className={`stock-order-status ${status.cls}`}>
+                            {status.label}
+                          </span>
+                          <ChevronDown
+                            size={14}
+                            color={C.muted}
+                            style={{
+                              transform: expanded ? "rotate(180deg)" : "none",
+                              transition: "transform .15s ease",
+                            }}
+                          />
+                        </div>
+                      </button>
+                      <div className="stock-order-history-meta">
+                        <span>
+                          {items.reduce(
+                            (sum, item) => sum + Number(item._quantity || 0),
+                            0,
+                          )}{" "}
+                          item
+                          {items.reduce(
+                            (sum, item) => sum + Number(item._quantity || 0),
+                            0,
+                          ) === 1
+                            ? ""
+                            : "s"}
+                        </span>
+                        <span>
+                          {String(
+                            order?.payment_method || order?.payment || "COD",
+                          ).toUpperCase()}
+                        </span>
+                        <span className="stock-order-history-total">
+                          {fmtPeso(total)}
+                        </span>
+                      </div>
+
+                      {expanded && (
+                        <div className="stock-order-history-details">
+                          {items.length ? (
+                            items.map((item) => (
+                              <div
+                                key={String(item._key)}
+                                className="stock-order-history-item"
+                              >
+                                <div style={{ minWidth: 0 }}>
+                                  <div className="stock-order-history-item-name">
+                                    {item._name}
+                                  </div>
+                                  <div className="stock-order-history-item-meta">
+                                    {item._quantity} × {fmtPeso(item._price)} ·{" "}
+                                    {item._unit}
+                                  </div>
+                                </div>
+                                <strong
+                                  style={{
+                                    color: C.greenDk,
+                                    fontSize: 10.5,
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {fmtPeso(item._quantity * item._price)}
+                                </strong>
+                              </div>
+                            ))
+                          ) : (
+                            <div style={{ fontSize: 9.5, color: C.muted }}>
+                              Item details are not included in the order
+                              response.
+                            </div>
+                          )}
+                          {(order?.address || order?.delivery_address) && (
+                            <div className="stock-order-history-address">
+                              <strong>Delivery:</strong>{" "}
+                              {order.address || order.delivery_address}
+                            </div>
+                          )}
+                          {order?.gcash_ref && (
+                            <div className="stock-order-history-address">
+                              <strong>GCash reference:</strong>{" "}
+                              {order.gcash_ref}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="stock-order-empty">
+                  <div
+                    style={{
+                      width: 54,
+                      height: 54,
+                      borderRadius: 15,
+                      background: C.greenLt,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      margin: "0 auto 13px",
+                      color: C.green,
+                    }}
+                  >
+                    <History size={24} />
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: C.ink }}>
+                    No supply orders yet
+                  </div>
+                  <div
+                    style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.5 }}
+                  >
+                    Orders you place from Stock Inventory will appear here.
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* ── MANAGE BATCHES MODAL (edit expiry / delete queuing entries) ── */}
-      {activeBatchIngredient && (
-        <BatchesModal
-          ingredient={activeBatchIngredient}
-          batches={batches}
-          loading={batchLoading}
-          apiUrl={process.env.REACT_APP_API_URL}
-          userName={userName}
-          userRole={user?.role}
-          showUiModal={showUiModal}
-          setToast={setToast}
-          readOnly={isReadOnly}
-          onRefresh={() => {
-            setBatchLoading(true);
-            fetch(
-              `${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${activeBatchIngredient.id}`,
-            )
-              .then((r) => r.json())
-              .then((d) => {
-                setBatches(Array.isArray(d) ? d : []);
-                setBatchLoading(false);
-              });
-            fetchItems();
-          }}
-          onClose={() => setActiveBatchIngredient(null)}
-        />
+      {showCheckout && (
+        <div
+          className="v-modal-overlay"
+          onMouseDown={() => !placingOrder && setShowCheckout(false)}
+        >
+          <div
+            className="v-modal stock-order-checkout-modal"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="checkout-mobile-head">
+              <div className="checkout-mobile-head-left">
+                <button
+                  type="button"
+                  className="checkout-mobile-back"
+                  onClick={() => setShowCheckout(false)}
+                  disabled={placingOrder}
+                  aria-label="Back"
+                >
+                  <span style={{ fontSize: 20, lineHeight: 1 }}>‹</span>
+                </button>
+                <div>
+                  <div className="checkout-mobile-title">Check Out</div>
+                  <div className="checkout-mobile-subtitle">
+                    {checkoutItems.length}{" "}
+                    {checkoutItems.length === 1 ? "item" : "items"} to order
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {orderSuccess ? (
+              <div className="checkout-success-mobile">
+                <CheckCircle size={54} color={C.green} />
+                <div
+                  style={{
+                    marginTop: 14,
+                    fontSize: 20,
+                    fontWeight: 900,
+                    color: C.ink,
+                  }}
+                >
+                  Order Placed
+                </div>
+                <div className="stock-order-muted" style={{ marginTop: 7 }}>
+                  Order #{orderSuccess.id} · {fmtPeso(orderSuccess.total)}
+                </div>
+                <div style={{ marginTop: 12, fontSize: 11.5, color: C.muted }}>
+                  Your supply order has been submitted for processing.
+                </div>
+                <button
+                  type="button"
+                  className="checkout-place-btn"
+                  style={{ maxWidth: 220, margin: "22px auto 0" }}
+                  onClick={() => {
+                    setShowCheckout(false);
+                    setOrderSuccess(null);
+                  }}
+                >
+                  <CheckCircle size={18} /> Done
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="checkout-mobile-scroll">
+                  <section className="checkout-mobile-section">
+                    <div className="checkout-mobile-section-title">
+                      <span className="checkout-mobile-section-bar" />
+                      Franchisee
+                    </div>
+                    <div className="checkout-mobile-card checkout-user-card">
+                      <div className="checkout-user-thumb">
+                        {String(user?.name || "F")
+                          .trim()
+                          .charAt(0)
+                          .toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="checkout-user-name">
+                          {user?.name || "Franchisee"}
+                        </div>
+                        <div className="checkout-user-meta">
+                          {user?.role || "Franchisee"}
+                        </div>
+                        {userBranch && (
+                          <div className="checkout-branch-pill">
+                            <StoreIcon size={13} /> {userBranch}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="checkout-mobile-section">
+                    <div className="checkout-mobile-section-title">
+                      <span className="checkout-mobile-section-bar" />
+                      Order Summary
+                    </div>
+                    <div className="checkout-mobile-card">
+                      {checkoutItems.map((entry) => (
+                        <div className="checkout-order-row" key={entry.id}>
+                          <div className="checkout-order-thumb">
+                            {entry.image_url ? (
+                              <img src={entry.image_url} alt="" />
+                            ) : (
+                              <Package size={16} />
+                            )}
+                          </div>
+                          <div className="checkout-order-main">
+                            <div className="checkout-order-name">
+                              {entry.name}
+                            </div>
+                            <div className="checkout-order-qty">
+                              ×{entry.quantity} · {fmtPeso(entry.price)} each
+                            </div>
+                          </div>
+                          <div className="checkout-order-price">
+                            {fmtPeso(
+                              Number(entry.price) * Number(entry.quantity),
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="checkout-mobile-section">
+                    <div className="checkout-mobile-section-title">
+                      <span className="checkout-mobile-section-bar" />
+                      Delivery Location
+                    </div>
+                    {renderLocationMap()}
+                    <p className="checkout-map-hint">
+                      Tap the map or drag the pin to set your exact delivery
+                      location.
+                    </p>
+                    {locationError && (
+                      <p className="checkout-map-error" role="alert">
+                        {locationError}
+                      </p>
+                    )}
+                    <div className="checkout-address-card">
+                      <StoreIcon
+                        size={20}
+                        color="#2c5c16"
+                        style={{ marginTop: 2, flexShrink: 0 }}
+                      />
+                      <textarea
+                        ref={addressInputRef}
+                        value={address}
+                        onChange={(e) => {
+                          mapRequestRef.current += 1;
+                          clearTimeout(reverseTimerRef.current);
+                          setLocationBusy(false);
+                          setAddress(e.target.value);
+                          setPinCoords(null);
+                        }}
+                        placeholder="Address auto-fills from pin, or type manually"
+                        rows={3}
+                      />
+                    </div>
+                  </section>
+
+                  <section className="checkout-mobile-section">
+                    <div className="checkout-mobile-section-title">
+                      <span className="checkout-mobile-section-bar" />
+                      Payment Method
+                    </div>
+
+                    <button
+                      type="button"
+                      className={`checkout-pay-card${paymentMethod === "gcash" ? " selected" : ""}`}
+                      onClick={() => setPaymentMethod("gcash")}
+                    >
+                      <div className="checkout-pay-thumb gcash">G</div>
+                      <div className="checkout-pay-main">
+                        <div className="checkout-pay-label">GCash</div>
+                        <div className="checkout-pay-desc">
+                          Pay via GCash for your supply order
+                        </div>
+                      </div>
+                      <span className="checkout-radio">
+                        {paymentMethod === "gcash" && (
+                          <span className="checkout-radio-dot" />
+                        )}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`checkout-pay-card${paymentMethod === "cod" ? " selected" : ""}`}
+                      onClick={() => setPaymentMethod("cod")}
+                    >
+                      <div className="checkout-pay-thumb">
+                        <CreditCard size={20} color="#2c5c16" />
+                      </div>
+                      <div className="checkout-pay-main">
+                        <div className="checkout-pay-label">
+                          Cash on Delivery
+                        </div>
+                        <div className="checkout-pay-desc">
+                          Pay when your order arrives
+                        </div>
+                      </div>
+                      <span className="checkout-radio">
+                        {paymentMethod === "cod" && (
+                          <span className="checkout-radio-dot" />
+                        )}
+                      </span>
+                    </button>
+                  </section>
+                </div>
+
+                <div className="checkout-mobile-bottom">
+                  <div className="checkout-mobile-accent" />
+                  <div
+                    className="checkout-mobile-section-title"
+                    style={{ marginBottom: 16 }}
+                  >
+                    <span className="checkout-mobile-section-bar" />
+                    Order Total
+                  </div>
+                  <div className="checkout-total-row">
+                    <div className="checkout-total-label">Total Amount</div>
+                    <div className="checkout-total-amount">
+                      {fmtPeso(checkoutTotal)}
+                    </div>
+                  </div>
+                  <div
+                    className="checkout-payment-chip"
+                    style={
+                      paymentMethod === "gcash"
+                        ? { color: "#1565C0" }
+                        : undefined
+                    }
+                  >
+                    {paymentMethod === "gcash" ? (
+                      <>
+                        <strong>G</strong>
+                        <span>GCash payment</span>
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard size={14} />
+                        <span>Cash on Delivery</span>
+                      </>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="checkout-place-btn"
+                    onClick={handleCheckoutAction}
+                    disabled={placingOrder}
+                  >
+                    {placingOrder ? (
+                      "Placing Order…"
+                    ) : paymentMethod === "gcash" ? (
+                      <>
+                        <CreditCard size={18} /> Pay with GCash
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={18} /> Place Order (COD)
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
-
-      <SI_Toast toast={toast} onClose={() => setToast(null)} />
-
-      {/* ── DELETE CONFIRM MODAL ── */}
-      <DeleteConfirmModal
-        item={deleteTarget}
-        deleting={deletingItem}
-        onConfirm={confirmDelete}
-        onCancel={() => {
-          if (!deletingItem) setDeleteTarget(null);
-        }}
+      <WebGCashPaymentModal
+        visible={showGCash}
+        amount={gcashAmount}
+        onConfirm={handleGCashConfirmed}
+        onCancel={() => setShowGCash(false)}
       />
-
-      {/* ── IMPORT LOADING MODAL ── */}
-      <ImportLoadingModal visible={importLoading} progress={importProgress} />
-      <UIModal
-        modal={uiModal}
-        onClose={closeUiModal}
-        onConfirm={() => {
-          if (uiModal?.onConfirm) uiModal.onConfirm();
-          closeUiModal();
-        }}
-      />
-      {showDeleteHistory && (
-        <DeleteHistoryPanel
-          history={deleteHistoryForBrand(
-            BRAND_DEFS.find((bd) => bd.key === deleteHistoryBrandKey) ||
-              activeBrandDef,
-          )}
-          restoringId={restoringId}
-          onRestore={handleRestore}
-          onClose={() => {
-            setShowDeleteHistory(false);
-            setDeleteHistoryBrandKey(null);
-          }}
-        />
+      {showMapPicker && (
+        <div
+          className="v-modal-overlay checkout-map-picker-overlay"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div
+            className="v-modal checkout-map-picker"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Pin your delivery location"
+          >
+            <div className="checkout-map-picker-head">
+              <button
+                type="button"
+                onClick={() => setShowMapPicker(false)}
+                aria-label="Back to checkout"
+              >
+                ‹
+              </button>
+              <strong>Pin Your Location</strong>
+              <button type="button" onClick={() => setShowMapPicker(false)}>
+                Done
+              </button>
+            </div>
+            {renderLocationMap(true)}
+            {locationError && (
+              <p className="checkout-map-error" role="alert">
+                {locationError}
+              </p>
+            )}
+            <p className="checkout-map-hint">
+              Tap the map or drag the pin to set your exact delivery location.
+            </p>
+          </div>
+        </div>
       )}
-      {showActivityLog && (
-        <ActivityLogPanel
-          log={activityLog}
-          onClose={() => setShowActivityLog(false)}
-          title="Stock Activity Log"
-        />
+      {showAddressPrompt && (
+        <div
+          className="v-modal-overlay"
+          style={{ zIndex: 10002 }}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div
+            className="v-modal checkout-address-prompt"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="checkout-address-prompt-title"
+            aria-describedby="checkout-address-prompt-message"
+          >
+            <div className="checkout-address-prompt-icon">
+              <StoreIcon size={25} />
+            </div>
+            <h2 id="checkout-address-prompt-title">Delivery address needed</h2>
+            <p id="checkout-address-prompt-message">
+              Please enter your delivery address before placing your order.
+            </p>
+            <button
+              type="button"
+              autoFocus
+              onClick={() => {
+                setShowAddressPrompt(false);
+                requestAnimationFrame(() => {
+                  addressInputRef.current?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                  });
+                  addressInputRef.current?.focus();
+                });
+              }}
+            >
+              Enter Address
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -19688,28 +21434,6 @@ function FrDashboardContent({ transactions, brands, user }) {
   );
 }
 
-const C = {
-  green: "#3b791e",
-  greenDk: "#2c5c16",
-  greenLt: "#f0f5e8",
-  greenMid: "#c9dba0",
-  teal: "#509820",
-  lime: "#bdd43c",
-  limeInk: "#24310C",
-  ink: "#12241B",
-  muted: "#5C6B60",
-  border: "#E1E6D8",
-  bg: "#F6F7F1",
-  white: "#ffffff",
-  warn: "#b45309",
-  warnBg: "#fff7ed",
-  ok: "#2c5c16",
-  okBg: "#f0f5e8",
-  red: "#c0392b",
-  redBg: "#fdf1f0",
-  amberBg: "#fffbeb",
-  amberBorder: "#fde68a",
-};
 const invInputSt = {
   height: 38,
   padding: "0 13px",

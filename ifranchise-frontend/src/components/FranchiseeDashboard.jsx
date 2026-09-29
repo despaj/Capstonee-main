@@ -9916,14 +9916,25 @@ function FrStockInventoryContent({ user, brands }) {
         .fr-stock-order-shell .stock-order-header-actions { display:flex; align-items:center; gap:7px; flex-wrap:wrap; justify-content:flex-end; }
         .fr-stock-order-shell .stock-order-cart-modal { width:min(100%,820px); padding:0 !important; overflow:hidden !important; }
         .fr-stock-order-shell .stock-order-orders-modal { width:min(100%,900px); padding:0 !important; overflow:hidden !important; }
-        .fr-stock-order-shell .stock-order-checkout-modal { width:min(100%,760px); padding:0 !important; overflow:hidden !important; max-height:min(92vh,900px); display:flex; flex-direction:column; background:#fff; }
+       .fr-stock-order-shell .stock-order-checkout-modal {
+          width:min(94vw,1100px);
+          padding:0 !important;
+          overflow:hidden !important;
+          max-height:min(90vh,760px);
+          display:flex;
+          flex-direction:column;
+          background:#fff;
+        }
         .fr-stock-order-shell .checkout-mobile-head { padding:18px 20px; background:linear-gradient(135deg,#2c5c16,#d4a63c); color:#fff; display:flex; align-items:center; justify-content:space-between; gap:14px; }
         .fr-stock-order-shell .checkout-mobile-head-left { display:flex; align-items:center; gap:12px; min-width:0; }
         .fr-stock-order-shell .checkout-mobile-back { width:36px; height:36px; border-radius:11px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.18); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; }
         .fr-stock-order-shell .checkout-mobile-eyebrow { font-size:9px; color:rgba(255,255,255,.7); letter-spacing:2.2px; font-weight:900; }
         .fr-stock-order-shell .checkout-mobile-title { font-size:20px; line-height:1.15; font-weight:900; margin-top:3px; }
         .fr-stock-order-shell .checkout-mobile-count { flex-shrink:0; padding:6px 11px; border-radius:20px; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.18); color:#fbf3df; font-size:9px; letter-spacing:1px; font-weight:900; }
-        .fr-stock-order-shell .checkout-mobile-scroll { padding:20px; overflow:auto; }
+.fr-stock-order-shell .checkout-mobile-scroll {
+  padding:20px;
+  overflow:auto;
+}
         .fr-stock-order-shell .checkout-mobile-section { margin-top:22px; }
         .fr-stock-order-shell .checkout-mobile-section:first-child { margin-top:0; }
         .fr-stock-order-shell .checkout-mobile-section-title { display:flex; align-items:center; gap:8px; margin-bottom:14px; font-size:11px; color:#2c5c16; letter-spacing:.6px; text-transform:uppercase; font-weight:900; }
@@ -9987,7 +9998,15 @@ function FrStockInventoryContent({ user, brands }) {
         .fr-stock-order-shell .checkout-place-btn { width:100%; min-height:50px; border:0; border-radius:15px; background:linear-gradient(90deg,#2c5c16,#d4a63c); color:#fff; display:flex; align-items:center; justify-content:center; gap:8px; font-size:14px; font-weight:900; cursor:pointer; }
         .fr-stock-order-shell .checkout-place-btn:disabled { opacity:.7; cursor:not-allowed; }
         .fr-stock-order-shell .checkout-success-mobile { padding:48px 24px; text-align:center; }
-        @media(max-width:620px){ .fr-stock-order-shell .stock-order-checkout-modal { width:calc(100% - 18px); max-height:94vh; } .fr-stock-order-shell .checkout-mobile-scroll { padding:16px; } .fr-stock-order-shell .checkout-mobile-bottom { padding-left:18px; padding-right:18px; padding-bottom:18px; } }
+        @media(max-width:620px){.fr-stock-order-shell .stock-order-checkout-modal {
+  width:min(94vw,1100px);
+  padding:0 !important;
+  overflow:hidden !important;
+  max-height:min(90vh,760px);
+  display:flex;
+  flex-direction:column;
+  background:#fff;
+}.fr-stock-order-shell .checkout-mobile-scroll { padding:16px; } .fr-stock-order-shell .checkout-mobile-bottom { padding-left:18px; padding-right:18px; padding-bottom:18px; } }
         .fr-stock-order-shell .stock-order-cart-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:15px; align-items:center; padding:15px 18px; border-bottom:1px solid #EEF1EA; background:#fff; }
         .fr-stock-order-shell .stock-order-cart-row:hover { background:#FBFCF8; }
         .fr-stock-order-shell .stock-cart-modal-head, .fr-stock-order-shell .stock-orders-modal-head { padding:18px 20px; background:linear-gradient(135deg,#fbfcf8,#f4f8ec); border-bottom:1px solid ${C.border}; }
@@ -10077,13 +10096,57 @@ function FrStockInventoryContent({ user, brands }) {
           .fr-stock-order-shell .stock-orders-modal-head .stock-modal-title-row > div:last-child .v-btn { flex:1; }
         }
         /* Cart and checkout match the mobile screens: white chrome, soft green canvas, and rounded cards. */
-        .fr-stock-order-shell .stock-order-cart-modal, .fr-stock-order-shell .stock-order-checkout-modal { width:min(100% - 24px,620px); max-height:94vh; display:flex; flex-direction:column; border-radius:24px; background:#f8fbf4; }
+.fr-stock-order-shell .stock-order-cart-modal {
+  width:min(100% - 24px,620px);
+  max-height:94vh;
+  display:flex;
+  flex-direction:column;
+  border-radius:24px;
+  background:#f8fbf4;
+}
+
+.fr-stock-order-shell .stock-order-checkout-modal {
+  width:min(94vw,1100px);
+  height:min(88vh,720px);
+  max-height:720px;
+  display:flex;
+  flex-direction:column;
+  padding:0 !important;
+  overflow:hidden !important;
+  border-radius:24px;
+  background:#f8fbf4;
+}
         .fr-stock-order-shell .stock-cart-modal-head, .fr-stock-order-shell .checkout-mobile-head { flex-shrink:0; padding:22px 26px; background:#fff; border-bottom:1px solid #e4eadc; color:#151c13; box-shadow:none; }
         .fr-stock-order-shell .stock-modal-title, .fr-stock-order-shell .checkout-mobile-title { margin:0; font-size:23px; line-height:1.2; font-weight:900; color:#151c13; }
         .fr-stock-order-shell .stock-modal-subtitle, .fr-stock-order-shell .checkout-mobile-subtitle { display:block; margin-top:5px; font-size:12px; color:#8a9485; }
         .fr-stock-order-shell .checkout-mobile-head-left { gap:16px; }
         .fr-stock-order-shell .checkout-mobile-back { width:42px; height:42px; border:1px solid #d6dfcf; background:#fff; color:#162014; box-shadow:none; }
-        .fr-stock-order-shell .stock-order-cart-modal .stock-modal-scroll, .fr-stock-order-shell .checkout-mobile-scroll { flex:1; max-height:none; padding:24px 26px 32px; overflow:auto; background-color:#f8fbf4; background-image:radial-gradient(#e7eedf 1px,transparent 1px); background-size:18px 18px; }
+.fr-stock-order-shell .stock-order-cart-modal .stock-modal-scroll {
+  flex:1;
+  max-height:none;
+  padding:24px 26px 32px;
+  overflow:auto;
+  background-color:#f8fbf4;
+  background-image:radial-gradient(#e7eedf 1px,transparent 1px);
+  background-size:18px 18px;
+}
+
+.fr-stock-order-shell .stock-order-checkout-modal .checkout-mobile-scroll {
+  flex:1;
+  min-height:0;
+  max-height:none;
+  padding:20px 26px;
+  overflow-y:auto;
+  overflow-x:hidden;
+  background-color:#f8fbf4;
+  background-image:radial-gradient(#e7eedf 1px,transparent 1px);
+  background-size:18px 18px;
+
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
+  gap:20px 26px;
+  align-content:start;
+}
         .fr-stock-order-shell .cart-pick-note { padding:18px 20px; border:1px solid #e0e8d9; border-left:5px solid #4a8e25; border-radius:17px; background:#fff; color:#1d291a; }
         .fr-stock-order-shell .cart-pick-note strong { font-size:16px; }
         .fr-stock-order-shell .cart-pick-note p { margin:8px 0 0; color:#838d7e; font-size:12px; line-height:1.5; }
@@ -10153,6 +10216,378 @@ function FrStockInventoryContent({ user, brands }) {
           .fr-stock-order-shell .stock-order-cart-modal .stock-cart-line-total { grid-column:auto; }
           .fr-stock-order-shell .stock-order-cart-modal .stock-modal-footer, .fr-stock-order-shell .checkout-mobile-bottom { padding:17px; }
         }
+
+        /* =========================================================
+   DESKTOP CHECKOUT — COMPACT WEBSITE LANDSCAPE
+   ========================================================= */
+
+@media (min-width: 900px) {
+
+.fr-stock-order-shell .stock-order-checkout-modal {
+width: min(90vw, 950px) !important;
+max-width: 950px !important;
+  height: auto !important;
+  max-height: 88vh !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+
+    padding: 0 !important;
+    overflow: hidden !important;
+
+    border-radius: 22px !important;
+    background: #f8fbf4 !important;
+  }
+
+
+  /* ================= HEADER ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-head {
+    flex: 0 0 auto !important;
+    padding: 18px 26px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-title {
+    font-size: 21px !important;
+  }
+
+
+  /* ================= BODY ================= */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-scroll {
+  flex: 0 1 auto !important;
+  min-height: 0 !important;
+  max-height: 62vh !important;
+
+  padding: 20px 26px 22px !important;
+
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(0, 1.15fr)
+    minmax(320px, 0.85fr) !important;
+
+  grid-template-areas:
+    "franchisee payment"
+    "summary    payment"
+    "location   payment" !important;
+
+  grid-template-rows:
+    auto
+    auto
+    auto !important;
+
+  column-gap: 28px !important;
+  row-gap: 16px !important;
+
+  align-items: start !important;
+  align-content: start !important;
+}
+
+
+/* RESET ALL SECTION SPACING */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section {
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  align-self: start !important;
+}
+
+
+/* 1 — FRANCHISEE */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section:nth-child(1) {
+  grid-area: franchisee !important;
+}
+
+
+/* 2 — ORDER SUMMARY */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section:nth-child(2) {
+  grid-area: summary !important;
+}
+
+
+/* 3 — DELIVERY LOCATION */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section:nth-child(3) {
+  grid-area: location !important;
+}
+
+
+/* 4 — PAYMENT METHOD */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section:nth-child(4) {
+  grid-area: payment !important;
+}
+
+  /* ================= SECTION TITLES ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-section-title {
+    margin: 0 0 10px !important;
+
+    gap: 8px !important;
+
+    font-size: 15px !important;
+    line-height: 1.2 !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-section-bar {
+    width: 4px !important;
+    height: 22px !important;
+  }
+
+
+  /* ================= CARDS ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-card,
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-address-card,
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-card {
+    width: 100% !important;
+    max-width: none !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* ================= FRANCHISEE ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-user-card {
+    min-height: 88px !important;
+    padding: 14px 16px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-user-thumb {
+    width: 52px !important;
+    height: 52px !important;
+    border-radius: 15px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-user-name {
+    font-size: 14px !important;
+  }
+
+
+  /* ================= ORDER SUMMARY ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-row {
+    display: grid !important;
+
+    grid-template-columns:
+      46px
+      minmax(0, 1fr)
+      auto !important;
+
+    gap: 12px !important;
+
+    align-items: center !important;
+
+    padding: 14px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-thumb {
+    width: 46px !important;
+    height: 46px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-main {
+    min-width: 0 !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-name {
+    font-size: 13px !important;
+
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+
+    line-height: 1.3 !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-price {
+    font-size: 13px !important;
+    white-space: nowrap !important;
+  }
+
+
+  /* ================= DELIVERY ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-map-preview {
+    height: 150px !important;
+    border-radius: 15px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-map-hint {
+    margin: 8px 0 10px !important;
+    font-size: 10px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-address-card {
+    min-height: 76px !important;
+    padding: 12px 14px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-address-card textarea {
+    min-height: 48px !important;
+    font-size: 12px !important;
+  }
+
+
+  /* ================= PAYMENT ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-card {
+    min-height: 64px !important;
+
+    margin-bottom: 9px !important;
+    padding: 11px 13px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-thumb {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-label {
+    font-size: 13px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-desc {
+    font-size: 10px !important;
+  }
+
+
+  /* ================= BOTTOM ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-bottom {
+    flex: 0 0 auto !important;
+
+    padding: 14px 26px 18px !important;
+
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      300px !important;
+
+    column-gap: 28px !important;
+
+    align-items: center !important;
+
+    background: #fff !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-total-row {
+    grid-column: 1 !important;
+
+    margin: 0 0 7px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-total-label {
+    font-size: 12px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-total-amount {
+    font-size: 24px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-payment-chip {
+    grid-column: 1 !important;
+
+    margin: 0 !important;
+
+    padding: 6px 10px !important;
+
+    font-size: 10px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-place-btn {
+    grid-column: 2 !important;
+    grid-row: 1 / span 2 !important;
+
+    width: 100% !important;
+    min-height: 50px !important;
+
+    margin: 0 !important;
+
+    font-size: 13px !important;
+  }
+}
       `}</style>
 
       <div
