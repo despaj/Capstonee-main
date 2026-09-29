@@ -8075,8 +8075,6 @@ function fmtFrTs(d) {
   });
 }
 
-/* small reusable bar for stock level */
-
 function FrMiniBar({ pct, color, track = "#eef6f1", height = 6 }) {
   const w = Math.max(0, Math.min(100, pct ?? 0));
   return (
@@ -8102,7 +8100,6 @@ function FrMiniBar({ pct, color, track = "#eef6f1", height = 6 }) {
   );
 }
 
-/* ── READ-ONLY FIFO / FEFO QUEUE PANEL (right column) ── */
 function FrFifoQueue({ product, batches, loading, lowStock = false }) {
   if (!product) {
     return (
@@ -8547,6 +8544,210 @@ function FrFifoQueue({ product, batches, loading, lowStock = false }) {
   );
 }
 
+function WebGCashPaymentModal({ visible, amount, onConfirm, onCancel }) {
+  const [step, setStep] = useState("loading");
+  const [checkoutUrl, setCheckoutUrl] = useState("");
+  const [linkId, setLinkId] = useState("");
+  const [reference, setReference] = useState("");
+  const [seconds, setSeconds] = useState(180);
+  const [error, setError] = useState("");
+  const pollRef = useRef(null);
+  const timerRef = useRef(null);
+  const confirmedRef = useRef(false);
+  const referenceRef = useRef("");
+
+  useEffect(() => {
+    if (!visible) return undefined;
+    let active = true;
+    confirmedRef.current = false;
+    setStep("loading");
+    setCheckoutUrl("");
+    setReference("");
+    setSeconds(180);
+    setError("");
+
+    const clearTimers = () => {
+      clearInterval(pollRef.current);
+      clearInterval(timerRef.current);
+    };
+    const createLink = async () => {
+      clearTimers();
+      try {
+        const response = await adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/paymongo/create-gcash`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              amount,
+              description: "iFranchise Supply Order",
+              orderId: Date.now(),
+            }),
+          },
+        );
+        const data = await response.json();
+        if (
+          !response.ok ||
+          !data.success ||
+          !data.checkoutUrl ||
+          !data.linkId
+        ) {
+          throw new Error(data.error || "Failed to create payment link.");
+        }
+        if (!active) return;
+        setCheckoutUrl(data.checkoutUrl);
+        setLinkId(data.linkId);
+        referenceRef.current = data.referenceNo || "";
+        setReference(referenceRef.current);
+        setStep("ready");
+        timerRef.current = setInterval(() => {
+          setSeconds((value) => {
+            if (value <= 1) {
+              clearTimers();
+              setError("Payment window expired. Please try again.");
+              setStep("error");
+              return 0;
+            }
+            return value - 1;
+          });
+        }, 1000);
+        pollRef.current = setInterval(async () => {
+          try {
+            const statusResponse = await adminModuleFetch(
+              `${process.env.REACT_APP_API_URL}/paymongo/link-status/${encodeURIComponent(data.linkId)}`,
+              { credentials: "include", cache: "no-store" },
+            );
+            if (!statusResponse.ok) return;
+            const status = await statusResponse.json();
+            if (active && status.status === "paid" && !confirmedRef.current) {
+              confirmedRef.current = true;
+              clearTimers();
+              const paidReference = status.gcashRef || referenceRef.current;
+              setReference(paidReference);
+              setStep("paid");
+              onConfirm(paidReference);
+            }
+          } catch (pollError) {
+            // A temporary network error should not mark an unpaid link as paid.
+          }
+        }, 3000);
+      } catch (requestError) {
+        if (!active) return;
+        setError(requestError.message || "Could not reach the payment server.");
+        setStep("error");
+      }
+    };
+    createLink();
+    return () => {
+      active = false;
+      clearTimers();
+    };
+  }, [visible, amount, onConfirm]);
+
+  if (!visible) return null;
+  const qrUrl = checkoutUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(checkoutUrl)}`
+    : "";
+  return (
+    <div
+      className="v-modal-overlay gcash-overlay"
+      onMouseDown={(event) => event.stopPropagation()}
+    >
+      <div
+        className="v-modal gcash-payment-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="GCash payment"
+      >
+        <div className="gcash-payment-head">
+          <div>
+            <small>SECURE PAYMENT</small>
+            <h2>Pay with GCash</h2>
+          </div>
+          {step !== "paid" && (
+            <button type="button" onClick={onCancel} aria-label="Close payment">
+              ×
+            </button>
+          )}
+        </div>
+        <div className="gcash-payment-body">
+          {step === "loading" && (
+            <div className="gcash-payment-state">Creating payment link…</div>
+          )}
+          {step === "ready" && (
+            <>
+              <div className="gcash-payment-amount">{fmtPeso(amount)}</div>
+              <p>Scan the QR code or open the secure checkout link to pay.</p>
+              <img
+                className="gcash-payment-qr"
+                src={qrUrl}
+                alt="QR code for GCash checkout"
+              />
+              {reference && (
+                <div className="gcash-payment-reference">
+                  Reference: {reference}
+                </div>
+              )}
+              <div className="gcash-payment-timer">
+                Time remaining: {Math.floor(seconds / 60)}:
+                {String(seconds % 60).padStart(2, "0")}
+              </div>
+              <a
+                className="gcash-payment-primary"
+                href={checkoutUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open in GCash
+              </a>
+              <a
+                className="gcash-payment-secondary"
+                href={qrUrl}
+                download="gcash-qr.png"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Save QR
+              </a>
+              <p className="gcash-payment-wait">
+                Waiting for payment confirmation…
+              </p>
+              <button
+                type="button"
+                className="gcash-payment-cancel"
+                onClick={onCancel}
+              >
+                Cancel payment
+              </button>
+            </>
+          )}
+          {step === "paid" && (
+            <div className="gcash-payment-state">
+              <strong>Payment Received!</strong>
+              <br />
+              {fmtPeso(amount)} via GCash
+              <br />
+              {reference && `Reference: ${reference}`}
+              <br />
+              Processing your order…
+            </div>
+          )}
+          {step === "error" && (
+            <div className="gcash-payment-state">
+              <strong>Payment unavailable</strong>
+              <p>{error}</p>
+              <button type="button" onClick={onCancel}>
+                Close and try again
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FrStockInventoryContent({ user, brands }) {
   const isLowStock = (item) =>
     Number(item.stock || 0) <= Number(item.min_stock || 0);
@@ -8569,12 +8770,38 @@ function FrStockInventoryContent({ user, brands }) {
   const [batchLoading, setBatchLoading] = useState(false);
 
   const [cart, setCart] = useState([]);
+  const [selectedCartIds, setSelectedCartIds] = useState([]);
   const [showCart, setShowCart] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutItems, setCheckoutItems] = useState([]);
   const [address, setAddress] = useState(String(user?.address || "").trim());
+  const [mapCenter, setMapCenter] = useState(() => ({
+    latitude: Number(user?.latitude) || 14.5995,
+    longitude: Number(user?.longitude) || 120.9842,
+  }));
+  const [pinCoords, setPinCoords] = useState(null);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [locationError, setLocationError] = useState("");
+  const mapRequestRef = useRef(0);
+  const reverseTimerRef = useRef(null);
+  const lastLookupRef = useRef(0);
+  useEffect(
+    () => () => {
+      clearTimeout(reverseTimerRef.current);
+      mapRequestRef.current += 1;
+    },
+    [],
+  );
+  const [showAddressPrompt, setShowAddressPrompt] = useState(false);
+  const addressInputRef = useRef(null);
   const [paymentMethod, setPaymentMethod] = useState("cod");
-  const [gcashRef, setGcashRef] = useState("");
+  const [showGCash, setShowGCash] = useState(false);
+  const [gcashAmount, setGcashAmount] = useState(0);
+  const paidRef = useRef(null);
+  const handleGCashConfirmed = useCallback((reference) => {
+    paidRef.current?.(reference);
+  }, []);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
   const [showOrders, setShowOrders] = useState(false);
@@ -8919,6 +9146,26 @@ function FrStockInventoryContent({ user, brands }) {
       sum + Number(entry.price || 0) * Number(entry.quantity || 0),
     0,
   );
+  const selectedCart = cart.filter((entry) =>
+    selectedCartIds.includes(entry.id),
+  );
+  const selectedCartTotal = selectedCart.reduce(
+    (sum, entry) =>
+      sum + Number(entry.price || 0) * Number(entry.quantity || 0),
+    0,
+  );
+  const toggleCartItem = (id) =>
+    setSelectedCartIds((current) =>
+      current.includes(id)
+        ? current.filter((value) => value !== id)
+        : [...current, id],
+    );
+  const toggleAllCartItems = () =>
+    setSelectedCartIds(
+      cart.length && cart.every((entry) => selectedCartIds.includes(entry.id))
+        ? []
+        : cart.map((entry) => entry.id),
+    );
 
   const createCartEntry = (shopItem, inventoryItem, quantity) => ({
     id: shopItem.id,
@@ -9116,19 +9363,158 @@ function FrStockInventoryContent({ user, brands }) {
     0,
   );
 
-  const submitOrder = async () => {
+  const mapBounds = {
+    west: mapCenter.longitude - 0.013,
+    east: mapCenter.longitude + 0.013,
+    south: mapCenter.latitude - 0.008,
+    north: mapCenter.latitude + 0.008,
+  };
+  const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(`${mapBounds.west},${mapBounds.south},${mapBounds.east},${mapBounds.north}`)}&layer=mapnik`;
+
+  const selectMapPoint = ({ latitude, longitude }) => {
+    const request = ++mapRequestRef.current;
+    clearTimeout(reverseTimerRef.current);
+    setPinCoords({ latitude, longitude });
+    setMapCenter({ latitude, longitude });
+    setLocationError("");
+    setLocationBusy(true);
+    reverseTimerRef.current = setTimeout(
+      async () => {
+        lastLookupRef.current = Date.now();
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`,
+            { headers: { Accept: "application/json" } },
+          );
+          if (!response.ok) throw new Error("Address lookup is unavailable.");
+          const result = await response.json();
+          if (request !== mapRequestRef.current) return;
+          if (!result.display_name)
+            throw new Error("No address was found for this pin.");
+          setAddress(result.display_name);
+          if (user?.id) {
+            adminModuleFetch(
+              `${process.env.REACT_APP_API_URL}/users/${user.id}/saved-address`,
+              {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ savedAddress: result.display_name }),
+              },
+            ).catch(() => {});
+          }
+        } catch (error) {
+          if (request === mapRequestRef.current) {
+            setLocationError(
+              "Could not find an address for this pin. Please type the address below.",
+            );
+          }
+        } finally {
+          if (request === mapRequestRef.current) setLocationBusy(false);
+        }
+      },
+      Math.max(300, 1000 - (Date.now() - lastLookupRef.current)),
+    );
+  };
+
+  const handleMapPointerUp = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = Math.max(
+      0,
+      Math.min(1, (event.clientX - bounds.left) / bounds.width),
+    );
+    const y = Math.max(
+      0,
+      Math.min(1, (event.clientY - bounds.top) / bounds.height),
+    );
+    selectMapPoint({
+      latitude: mapBounds.north - y * (mapBounds.north - mapBounds.south),
+      longitude: mapBounds.west + x * (mapBounds.east - mapBounds.west),
+    });
+  };
+
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError(
+        "Location is unavailable in this browser. Please type your address.",
+      );
+      return;
+    }
+    setLocationBusy(true);
+    setLocationError("");
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) =>
+        selectMapPoint({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        }),
+      () => {
+        setLocationBusy(false);
+        setLocationError(
+          "Location access was unavailable. You can pin the map or type your address.",
+        );
+      },
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  };
+
+  const renderLocationMap = (fullScreen = false) => (
+    <div className={`checkout-map-preview${fullScreen ? " full-screen" : ""}`}>
+      <iframe title="Delivery location map" loading="lazy" src={mapUrl} />
+      <div
+        className="checkout-map-touch"
+        role="button"
+        tabIndex={0}
+        aria-label="Tap or drag to pin delivery location"
+        onPointerDown={(event) =>
+          event.currentTarget.setPointerCapture(event.pointerId)
+        }
+        onPointerUp={handleMapPointerUp}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            selectMapPoint(mapCenter);
+          }
+        }}
+      />
+      {pinCoords && (
+        <span className="checkout-map-pin" aria-hidden="true">
+          ●
+        </span>
+      )}
+      <span className="checkout-map-attribution">
+        © OpenStreetMap contributors
+      </span>
+      {!fullScreen && (
+        <button
+          type="button"
+          className="checkout-map-open"
+          onClick={() => setShowMapPicker(true)}
+        >
+          Tap to pin location
+        </button>
+      )}
+      <button
+        type="button"
+        className="checkout-map-current"
+        onClick={handleUseMyLocation}
+        disabled={locationBusy}
+      >
+        {locationBusy ? "Finding location…" : "Use my location"}
+      </button>
+    </div>
+  );
+
+  const submitOrder = async (confirmedGCashRef = null) => {
     if (!address.trim()) {
-      window.alert("Please enter your delivery address.");
+      setShowAddressPrompt(true);
       return;
     }
     if (!checkoutItems.length) {
       window.alert("There are no items to checkout.");
       return;
     }
-    if (paymentMethod === "gcash" && !gcashRef.trim()) {
-      window.alert("Please enter the GCash reference number.");
-      return;
-    }
+    if (paymentMethod === "gcash" && !confirmedGCashRef) return;
 
     setPlacingOrder(true);
     try {
@@ -9183,8 +9569,8 @@ function FrStockInventoryContent({ user, brands }) {
         brand: user?.brand ?? user?.brand_name ?? null,
         branch: user?.branch ?? null,
         address: address.trim(),
-        latitude: null,
-        longitude: null,
+        latitude: pinCoords?.latitude ?? null,
+        longitude: pinCoords?.longitude ?? null,
         total_amount: validatedTotal,
         payment_method: paymentMethod,
         order_source: "Web",
@@ -9193,7 +9579,7 @@ function FrStockInventoryContent({ user, brands }) {
           quantity: Number(entry.quantity),
           price: Number(entry.price),
         })),
-        gcash_ref: paymentMethod === "gcash" ? gcashRef.trim() : null,
+        gcash_ref: paymentMethod === "gcash" ? confirmedGCashRef : null,
       };
 
       const response = await adminModuleFetch(
@@ -9214,7 +9600,6 @@ function FrStockInventoryContent({ user, brands }) {
       const checkedOutIds = new Set(validatedItems.map((entry) => entry.id));
       saveCart(cart.filter((entry) => !checkedOutIds.has(entry.id)));
       setCheckoutItems([]);
-      setGcashRef("");
       setOrderSuccess({
         id: data?.order?.id ?? data?.id ?? "—",
         total: validatedTotal,
@@ -9225,6 +9610,59 @@ function FrStockInventoryContent({ user, brands }) {
       window.alert(
         error.message || "Something went wrong while placing the order.",
       );
+    } finally {
+      setPlacingOrder(false);
+    }
+  };
+
+  paidRef.current = (reference) => {
+    setShowGCash(false);
+    submitOrder(reference);
+  };
+
+  const handleCheckoutAction = async () => {
+    if (paymentMethod === "cod") {
+      submitOrder();
+      return;
+    }
+    if (!address.trim()) {
+      setShowAddressPrompt(true);
+      return;
+    }
+    if (!checkoutItems.length) {
+      window.alert("There are no items to checkout.");
+      return;
+    }
+    setPlacingOrder(true);
+    try {
+      const response = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/shop-items`,
+        { credentials: "include", cache: "no-store" },
+      );
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data?.error || "Unable to verify supply availability.");
+      const eligible = (Array.isArray(data) ? data : [])
+        .filter((item) => item?.is_visible !== false)
+        .filter((item) => normalize(item?.brand) === normalize(userBrand))
+        .filter(branchAllowed);
+      const amount = checkoutItems.reduce((sum, entry) => {
+        const live = eligible.find((item) => item.id === entry.id);
+        if (!live)
+          throw new Error(`${entry.name} is no longer available for ordering.`);
+        if (Number(entry.quantity) > Number(live.stock || 0)) {
+          throw new Error(
+            `${entry.name} now has only ${Number(live.stock || 0)} ${live.unit || entry.unit || "unit(s)"} available.`,
+          );
+        }
+        return sum + Number(live.price || 0) * Number(entry.quantity);
+      }, 0);
+      if (amount <= 0)
+        throw new Error("The order total must be greater than zero.");
+      setGcashAmount(amount);
+      setShowGCash(true);
+    } catch (error) {
+      window.alert(error.message || "Unable to start GCash payment.");
     } finally {
       setPlacingOrder(false);
     }
@@ -9468,7 +9906,78 @@ function FrStockInventoryContent({ user, brands }) {
         .fr-stock-order-shell .stock-order-header-actions { display:flex; align-items:center; gap:7px; flex-wrap:wrap; justify-content:flex-end; }
         .fr-stock-order-shell .stock-order-cart-modal { width:min(100%,820px); padding:0 !important; overflow:hidden !important; }
         .fr-stock-order-shell .stock-order-orders-modal { width:min(100%,900px); padding:0 !important; overflow:hidden !important; }
-        .fr-stock-order-shell .stock-order-checkout-modal { width:min(100%,760px); }
+        .fr-stock-order-shell .stock-order-checkout-modal { width:min(100%,760px); padding:0 !important; overflow:hidden !important; max-height:min(92vh,900px); display:flex; flex-direction:column; background:#fff; }
+        .fr-stock-order-shell .checkout-mobile-head { padding:18px 20px; background:linear-gradient(135deg,#2c5c16,#d4a63c); color:#fff; display:flex; align-items:center; justify-content:space-between; gap:14px; }
+        .fr-stock-order-shell .checkout-mobile-head-left { display:flex; align-items:center; gap:12px; min-width:0; }
+        .fr-stock-order-shell .checkout-mobile-back { width:36px; height:36px; border-radius:11px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.18); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+        .fr-stock-order-shell .checkout-mobile-eyebrow { font-size:9px; color:rgba(255,255,255,.7); letter-spacing:2.2px; font-weight:900; }
+        .fr-stock-order-shell .checkout-mobile-title { font-size:20px; line-height:1.15; font-weight:900; margin-top:3px; }
+        .fr-stock-order-shell .checkout-mobile-count { flex-shrink:0; padding:6px 11px; border-radius:20px; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.18); color:#fbf3df; font-size:9px; letter-spacing:1px; font-weight:900; }
+        .fr-stock-order-shell .checkout-mobile-scroll { padding:20px; overflow:auto; }
+        .fr-stock-order-shell .checkout-mobile-section { margin-top:22px; }
+        .fr-stock-order-shell .checkout-mobile-section:first-child { margin-top:0; }
+        .fr-stock-order-shell .checkout-mobile-section-title { display:flex; align-items:center; gap:8px; margin-bottom:14px; font-size:11px; color:#2c5c16; letter-spacing:.6px; text-transform:uppercase; font-weight:900; }
+        .fr-stock-order-shell .checkout-mobile-section-bar { width:4px; height:14px; border-radius:2px; background:linear-gradient(180deg,#2c5c16,#d4a63c); }
+        .fr-stock-order-shell .checkout-mobile-card { background:#fff; border:1px solid rgba(44,92,22,.14); border-radius:16px; box-shadow:0 3px 7px rgba(44,92,22,.06); overflow:hidden; }
+        .fr-stock-order-shell .checkout-user-card { display:flex; align-items:center; gap:12px; padding:14px; }
+        .fr-stock-order-shell .checkout-user-thumb { width:52px; height:52px; border-radius:14px; background:#f1f8e8; border:1px solid #dcefc9; color:#2c5c16; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+        .fr-stock-order-shell .checkout-user-name { font-size:14px; color:#2c5c16; font-weight:900; }
+        .fr-stock-order-shell .checkout-user-meta { margin-top:2px; font-size:10px; color:rgba(44,92,22,.45); }
+        .fr-stock-order-shell .checkout-order-row { display:flex; align-items:center; gap:12px; padding:14px; border-bottom:1px solid rgba(44,92,22,.14); }
+        .fr-stock-order-shell .checkout-order-row:last-child { border-bottom:0; }
+        .fr-stock-order-shell .checkout-order-thumb { width:36px; height:36px; border-radius:10px; background:#f1f8e8; border:1px solid #dcefc9; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; color:#2c5c16; }
+        .fr-stock-order-shell .checkout-order-thumb img { width:100%; height:100%; object-fit:contain; }
+        .fr-stock-order-shell .checkout-order-main { flex:1; min-width:0; }
+        .fr-stock-order-shell .checkout-order-name { font-size:13px; color:#2c5c16; font-weight:900; overflow-wrap:anywhere; }
+        .fr-stock-order-shell .checkout-order-qty { margin-top:2px; font-size:10px; color:rgba(44,92,22,.45); }
+        .fr-stock-order-shell .checkout-order-price { font-size:14px; color:#2c5c16; font-weight:900; white-space:nowrap; }
+        .fr-stock-order-shell .checkout-address-card { display:flex; align-items:flex-start; gap:10px; padding:14px; border:2px solid #d4a63c; border-radius:16px; background:#fff; box-shadow:0 3px 7px rgba(44,92,22,.06); }
+        .fr-stock-order-shell .checkout-address-card textarea { flex:1; min-height:58px; resize:vertical; border:0; outline:0; padding:0; background:transparent; color:#2c5c16; font:inherit; font-size:13px; line-height:1.45; }
+        .fr-stock-order-shell .checkout-address-prompt { width:min(92vw,390px); padding:26px; border-radius:18px; text-align:center; background:#fff; box-shadow:0 18px 50px rgba(20,50,15,.18); }
+        .fr-stock-order-shell .checkout-address-prompt-icon { width:54px; height:54px; margin:0 auto 14px; display:flex; align-items:center; justify-content:center; border-radius:16px; background:#f1f8e8; color:#2c5c16; }
+        .fr-stock-order-shell .checkout-address-prompt h2 { margin:0 0 7px; color:#2c5c16; font-size:18px; }
+        .fr-stock-order-shell .checkout-address-prompt p { margin:0 0 20px; color:#63725c; font-size:13px; line-height:1.5; }
+        .fr-stock-order-shell .checkout-address-prompt button { width:100%; min-height:44px; border:0; border-radius:12px; background:linear-gradient(90deg,#2c5c16,#d4a63c); color:#fff; font-size:13px; font-weight:900; cursor:pointer; }
+        .fr-stock-order-shell .checkout-pay-card { width:100%; display:flex; align-items:center; gap:12px; padding:14px; margin-bottom:12px; border:1px solid rgba(44,92,22,.14); border-radius:16px; background:#fff; box-shadow:0 3px 7px rgba(44,92,22,.06); cursor:pointer; text-align:left; color:#2c5c16; }
+        .fr-stock-order-shell .checkout-pay-card.selected { border:2px solid #d4a63c; padding:13px; }
+        .fr-stock-order-shell .checkout-pay-thumb { width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid #dcefc9; background:#f1f8e8; }
+        .fr-stock-order-shell .checkout-pay-thumb.gcash { color:#1565C0; background:#E3F2FD; border-color:#BFDBFE; font-size:16px; font-weight:900; }
+        .fr-stock-order-shell .checkout-pay-main { flex:1; min-width:0; }
+        .fr-stock-order-shell .checkout-pay-label { font-size:14px; font-weight:900; color:#2c5c16; }
+        .fr-stock-order-shell .checkout-pay-desc { margin-top:2px; font-size:11px; color:rgba(44,92,22,.45); }
+        .fr-stock-order-shell .checkout-radio { width:22px; height:22px; border-radius:50%; border:2px solid rgba(44,92,22,.14); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+        .fr-stock-order-shell .checkout-pay-card.selected .checkout-radio { border-color:#2c5c16; }
+        .fr-stock-order-shell .checkout-radio-dot { width:11px; height:11px; border-radius:50%; background:#2c5c16; }
+        .fr-stock-order-shell .checkout-gcash-ref { margin-top:-2px; margin-bottom:12px; padding:12px 14px; border-radius:14px; background:#E3F2FD; border:1px solid #BFDBFE; }
+        .fr-stock-order-shell .checkout-gcash-ref label { display:block; margin-bottom:7px; color:#1565C0; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.05em; }
+        .fr-stock-order-shell .checkout-gcash-ref input { width:100%; box-sizing:border-box; border:1px solid #BFDBFE; border-radius:10px; background:#fff; padding:10px 11px; outline:0; color:#2c5c16; font:inherit; font-size:12px; }
+        .fr-stock-order-shell .gcash-overlay { z-index:10001; }
+        .fr-stock-order-shell .gcash-payment-modal { width:min(92vw,420px); padding:0; overflow:hidden; background:#fff; border-radius:20px; }
+        .fr-stock-order-shell .gcash-payment-head { display:flex; align-items:center; justify-content:space-between; padding:19px 22px; background:linear-gradient(135deg,#1565C0,#0D47A1); color:#fff; }
+        .fr-stock-order-shell .gcash-payment-head small { font-size:9px; font-weight:800; letter-spacing:1.6px; opacity:.8; }
+        .fr-stock-order-shell .gcash-payment-head h2 { margin:3px 0 0; font-size:19px; }
+        .fr-stock-order-shell .gcash-payment-head button { border:0; background:rgba(255,255,255,.18); color:#fff; border-radius:9px; width:32px; height:32px; font-size:23px; cursor:pointer; }
+        .fr-stock-order-shell .gcash-payment-body { padding:24px; text-align:center; color:#25435f; }
+        .fr-stock-order-shell .gcash-payment-body p { font-size:12px; line-height:1.5; }
+        .fr-stock-order-shell .gcash-payment-amount { font-size:28px; font-weight:900; color:#1565C0; }
+        .fr-stock-order-shell .gcash-payment-qr { display:block; width:220px; height:220px; max-width:100%; margin:18px auto; border:1px solid #d5e6f8; border-radius:12px; }
+        .fr-stock-order-shell .gcash-payment-reference, .fr-stock-order-shell .gcash-payment-timer { margin:9px 0; font-size:12px; font-weight:800; }
+        .fr-stock-order-shell .gcash-payment-primary, .fr-stock-order-shell .gcash-payment-secondary { display:block; padding:12px; margin-top:10px; border-radius:11px; text-decoration:none; font-size:13px; font-weight:900; }
+        .fr-stock-order-shell .gcash-payment-primary { background:#1565C0; color:#fff; }
+        .fr-stock-order-shell .gcash-payment-secondary { border:1px solid #bfdbfe; color:#1565C0; }
+        .fr-stock-order-shell .gcash-payment-cancel, .fr-stock-order-shell .gcash-payment-state button { border:0; background:transparent; color:#1565C0; font-weight:800; cursor:pointer; }
+        .fr-stock-order-shell .gcash-payment-wait { color:#627f9b; }
+        .fr-stock-order-shell .gcash-payment-state { padding:30px 5px; font-size:14px; line-height:1.8; }
+        .fr-stock-order-shell .checkout-mobile-bottom { padding:4px 22px 22px; background:#fff; border-top:1px solid rgba(44,92,22,.10); box-shadow:0 -3px 12px rgba(44,92,22,.08); }
+        .fr-stock-order-shell .checkout-mobile-accent { height:3px; border-radius:2px; margin-bottom:18px; background:linear-gradient(90deg,#2c5c16,#d4a63c); }
+        .fr-stock-order-shell .checkout-total-row { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:12px; }
+        .fr-stock-order-shell .checkout-total-label { font-size:12px; color:rgba(44,92,22,.62); text-transform:uppercase; letter-spacing:.6px; }
+        .fr-stock-order-shell .checkout-total-amount { font-size:26px; color:#2c5c16; font-weight:900; letter-spacing:-.5px; }
+        .fr-stock-order-shell .checkout-payment-chip { width:max-content; max-width:100%; display:flex; align-items:center; gap:6px; padding:7px 12px; margin-bottom:14px; border:1px solid rgba(44,92,22,.14); border-radius:10px; background:#f1f8e8; color:#2c5c16; font-size:12px; font-weight:900; }
+        .fr-stock-order-shell .checkout-place-btn { width:100%; min-height:50px; border:0; border-radius:15px; background:linear-gradient(90deg,#2c5c16,#d4a63c); color:#fff; display:flex; align-items:center; justify-content:center; gap:8px; font-size:14px; font-weight:900; cursor:pointer; }
+        .fr-stock-order-shell .checkout-place-btn:disabled { opacity:.7; cursor:not-allowed; }
+        .fr-stock-order-shell .checkout-success-mobile { padding:48px 24px; text-align:center; }
+        @media(max-width:620px){ .fr-stock-order-shell .stock-order-checkout-modal { width:calc(100% - 18px); max-height:94vh; } .fr-stock-order-shell .checkout-mobile-scroll { padding:16px; } .fr-stock-order-shell .checkout-mobile-bottom { padding-left:18px; padding-right:18px; padding-bottom:18px; } }
         .fr-stock-order-shell .stock-order-cart-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:15px; align-items:center; padding:15px 18px; border-bottom:1px solid #EEF1EA; background:#fff; }
         .fr-stock-order-shell .stock-order-cart-row:hover { background:#FBFCF8; }
         .fr-stock-order-shell .stock-cart-modal-head, .fr-stock-order-shell .stock-orders-modal-head { padding:18px 20px; background:linear-gradient(135deg,#fbfcf8,#f4f8ec); border-bottom:1px solid ${C.border}; }
@@ -9556,6 +10065,83 @@ function FrStockInventoryContent({ user, brands }) {
           .fr-stock-order-shell .stock-orders-modal-head .stock-modal-title-row { flex-direction:column; }
           .fr-stock-order-shell .stock-orders-modal-head .stock-modal-title-row > div:last-child { width:100%; }
           .fr-stock-order-shell .stock-orders-modal-head .stock-modal-title-row > div:last-child .v-btn { flex:1; }
+        }
+        /* Cart and checkout match the mobile screens: white chrome, soft green canvas, and rounded cards. */
+        .fr-stock-order-shell .stock-order-cart-modal, .fr-stock-order-shell .stock-order-checkout-modal { width:min(100% - 24px,620px); max-height:94vh; display:flex; flex-direction:column; border-radius:24px; background:#f8fbf4; }
+        .fr-stock-order-shell .stock-cart-modal-head, .fr-stock-order-shell .checkout-mobile-head { flex-shrink:0; padding:22px 26px; background:#fff; border-bottom:1px solid #e4eadc; color:#151c13; box-shadow:none; }
+        .fr-stock-order-shell .stock-modal-title, .fr-stock-order-shell .checkout-mobile-title { margin:0; font-size:23px; line-height:1.2; font-weight:900; color:#151c13; }
+        .fr-stock-order-shell .stock-modal-subtitle, .fr-stock-order-shell .checkout-mobile-subtitle { display:block; margin-top:5px; font-size:12px; color:#8a9485; }
+        .fr-stock-order-shell .checkout-mobile-head-left { gap:16px; }
+        .fr-stock-order-shell .checkout-mobile-back { width:42px; height:42px; border:1px solid #d6dfcf; background:#fff; color:#162014; box-shadow:none; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-modal-scroll, .fr-stock-order-shell .checkout-mobile-scroll { flex:1; max-height:none; padding:24px 26px 32px; overflow:auto; background-color:#f8fbf4; background-image:radial-gradient(#e7eedf 1px,transparent 1px); background-size:18px 18px; }
+        .fr-stock-order-shell .cart-pick-note { padding:18px 20px; border:1px solid #e0e8d9; border-left:5px solid #4a8e25; border-radius:17px; background:#fff; color:#1d291a; }
+        .fr-stock-order-shell .cart-pick-note strong { font-size:16px; }
+        .fr-stock-order-shell .cart-pick-note p { margin:8px 0 0; color:#838d7e; font-size:12px; line-height:1.5; }
+        .fr-stock-order-shell .cart-section-head { display:flex; align-items:center; justify-content:space-between; gap:15px; margin:28px 0 16px; padding-left:16px; border-left:5px solid #4a8e25; }
+        .fr-stock-order-shell .cart-section-head strong { display:block; font-size:19px; color:#1c261a; }
+        .fr-stock-order-shell .cart-section-head small { display:block; margin-top:4px; color:#889383; }
+        .fr-stock-order-shell .cart-select-all { display:flex; align-items:center; gap:8px; padding:9px 12px; border:1px solid #d8e0d0; border-radius:13px; background:#fff; color:#1c261a; font-weight:800; cursor:pointer; white-space:nowrap; }
+        .fr-stock-order-shell .cart-checkbox { width:21px; height:21px; flex:0 0 21px; border:2px solid #cbd6c6; border-radius:7px; background:#fff; cursor:pointer; }
+        .fr-stock-order-shell .cart-checkbox.checked { background:#4a8e25; border-color:#4a8e25; }
+        .fr-stock-order-shell .cart-checkbox.checked::after { content:"✓"; color:#fff; font-size:15px; line-height:17px; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-order-cart-row { position:relative; display:grid; grid-template-columns:21px 58px minmax(0,1fr) auto; gap:14px; align-items:center; margin-bottom:14px; padding:18px; border:1px solid #e0e7d9; border-radius:18px; background:#fff; box-shadow:0 2px 8px rgba(32,64,20,.04); }
+        .fr-stock-order-shell .cart-product-thumb { width:58px; height:58px; display:flex; align-items:center; justify-content:center; border:1px solid #dfeccf; border-radius:15px; background:#f3f9e9; color:#4b8f29; overflow:hidden; }
+        .fr-stock-order-shell .cart-product-thumb img { width:100%; height:100%; object-fit:contain; }
+        .fr-stock-order-shell .stock-cart-item-title { font-size:15px; color:#192319; }
+        .fr-stock-order-shell .stock-cart-item-meta { color:#899286; }
+        .fr-stock-order-shell .stock-cart-item-price { margin-top:8px; color:#202920; font-size:15px; font-weight:900; }
+        .fr-stock-order-shell .stock-cart-item-price small { display:block; margin-top:2px; color:#8d9788; font-size:10px; font-weight:500; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-qty { grid-column:4; grid-row:1; align-self:end; margin-top:45px; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-line-total { position:absolute; right:18px; top:16px; min-width:0; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-line-total strong { display:none; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-remove { margin:0; padding:7px; border:1px solid #f2d3d4; border-radius:9px; background:#fff6f6; color:#ce5459; font-size:0; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-remove svg { width:15px; height:15px; margin:0 !important; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-modal-footer, .fr-stock-order-shell .checkout-mobile-bottom { flex-shrink:0; padding:20px 26px 24px; border-top:1px solid #e5eadf; background:#fff; box-shadow:0 -4px 14px rgba(30,60,20,.05); }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-modal-footer .v-btn-primary, .fr-stock-order-shell .checkout-place-btn { min-height:52px !important; border-radius:14px !important; background:#4a8e25; color:#fff; font-size:15px; font-weight:900; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-modal-footer .v-btn-primary:disabled { background:#b8d1a6; color:#fff; }
+        .fr-stock-order-shell .checkout-mobile-section { margin-top:26px; }
+        .fr-stock-order-shell .checkout-mobile-section-title { gap:11px; color:#1c261a; font-size:17px; letter-spacing:0; text-transform:none; }
+        .fr-stock-order-shell .checkout-mobile-section-bar { width:5px; height:26px; background:#4a8e25; }
+        .fr-stock-order-shell .checkout-mobile-card, .fr-stock-order-shell .checkout-address-card, .fr-stock-order-shell .checkout-pay-card { border:1px solid #e0e7d9; border-radius:18px; box-shadow:0 2px 8px rgba(32,64,20,.04); }
+        .fr-stock-order-shell .checkout-user-card, .fr-stock-order-shell .checkout-order-row { padding:17px; }
+        .fr-stock-order-shell .checkout-user-thumb { width:58px; height:58px; border:0; border-radius:17px; background:#11250d; color:#bed66a; font-size:24px; font-weight:900; }
+        .fr-stock-order-shell .checkout-user-name, .fr-stock-order-shell .checkout-order-name { color:#1d251b; font-size:15px; }
+        .fr-stock-order-shell .checkout-branch-pill { display:inline-flex; align-items:center; gap:5px; margin-top:7px; padding:4px 8px; border:1px solid #dceacb; border-radius:9px; background:#f3f9e9; color:#427c20; font-size:11px; font-weight:800; }
+        .fr-stock-order-shell .checkout-order-thumb { width:48px; height:48px; border-radius:13px; }
+        .fr-stock-order-shell .checkout-order-qty { color:#899286; }
+        .fr-stock-order-shell .checkout-order-price { color:#1d251b; }
+        .fr-stock-order-shell .checkout-map-preview { position:relative; height:235px; overflow:hidden; border:1px solid #e0e7d9; border-radius:17px; background:#e8eddd; }
+        .fr-stock-order-shell .checkout-map-preview iframe { width:100%; height:100%; border:0; pointer-events:none; }
+        .fr-stock-order-shell .checkout-map-touch { position:absolute; inset:0; z-index:1; cursor:crosshair; touch-action:none; }
+        .fr-stock-order-shell .checkout-map-pin { position:absolute; z-index:2; left:50%; top:50%; transform:translate(-50%,-100%); color:#4a8e25; font-size:38px; line-height:1; text-shadow:0 2px 3px #fff; pointer-events:none; }
+        .fr-stock-order-shell .checkout-map-attribution { position:absolute; z-index:2; left:7px; bottom:5px; padding:2px 4px; background:rgba(255,255,255,.85); color:#4e5b4a; font-size:9px; pointer-events:none; }
+        .fr-stock-order-shell .checkout-map-open, .fr-stock-order-shell .checkout-map-current { position:absolute; z-index:3; border:1px solid #d7dfcd; border-radius:11px; background:#fff; color:#172216; font-size:12px; font-weight:800; cursor:pointer; box-shadow:0 2px 8px rgba(20,40,15,.12); }
+        .fr-stock-order-shell .checkout-map-open { top:14px; left:14px; padding:9px 12px; }
+        .fr-stock-order-shell .checkout-map-current { right:14px; bottom:14px; padding:10px 13px; background:#4a8e25; color:#fff; border-color:#4a8e25; }
+        .fr-stock-order-shell .checkout-map-current:disabled { opacity:.65; cursor:wait; }
+        .fr-stock-order-shell .checkout-map-caption { position:absolute; top:14px; left:14px; padding:8px 12px; border:1px solid #d7dfcd; border-radius:11px; background:#fff; color:#172216; font-size:12px; font-weight:800; }
+        .fr-stock-order-shell .checkout-map-hint { margin:10px 0 14px; color:#899286; font-size:11px; }
+        .fr-stock-order-shell .checkout-map-error { margin:8px 0; color:#a3342a; font-size:11px; }
+        .fr-stock-order-shell .checkout-map-picker-overlay { z-index:10003; }
+        .fr-stock-order-shell .checkout-map-picker { width:min(92vw,680px); height:min(88vh,720px); padding:0; display:flex; flex-direction:column; overflow:hidden; border-radius:18px; background:#fff; }
+        .fr-stock-order-shell .checkout-map-picker-head { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px 18px; color:#1c261a; }
+        .fr-stock-order-shell .checkout-map-picker-head button { border:1px solid #d7dfcd; border-radius:10px; background:#fff; color:#2c5c16; font-size:14px; font-weight:800; padding:7px 12px; cursor:pointer; }
+        .fr-stock-order-shell .checkout-map-preview.full-screen { flex:1; height:auto; min-height:250px; border-radius:0; }
+        .fr-stock-order-shell .checkout-map-picker > .checkout-map-hint, .fr-stock-order-shell .checkout-map-picker > .checkout-map-error { margin:10px 16px; }
+        .fr-stock-order-shell .checkout-address-card { border:2px solid #a7cf83; }
+        .fr-stock-order-shell .checkout-mobile-accent { display:none; }
+        .fr-stock-order-shell .checkout-total-label { color:#202820; text-transform:none; font-size:14px; font-weight:800; }
+        .fr-stock-order-shell .checkout-total-amount { color:#172216; font-size:27px; }
+        .fr-stock-order-shell .checkout-address-prompt { border:1px solid #e0e7d9; background:#fff; }
+        .fr-stock-order-shell .checkout-address-prompt button { background:#4a8e25; }
+        @media(max-width:620px){
+          .fr-stock-order-shell .stock-cart-modal-head, .fr-stock-order-shell .checkout-mobile-head { padding:18px; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-modal-scroll, .fr-stock-order-shell .checkout-mobile-scroll { padding:20px 15px; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-order-cart-row { grid-template-columns:21px 50px minmax(0,1fr); gap:10px; padding:15px; min-height:125px; }
+          .fr-stock-order-shell .cart-product-thumb { width:50px; height:50px; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-cart-qty { grid-column:3; grid-row:2; justify-self:end; margin:0; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-cart-line-total { grid-column:auto; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-modal-footer, .fr-stock-order-shell .checkout-mobile-bottom { padding:17px; }
         }
       `}</style>
 
@@ -10226,11 +10812,10 @@ function FrStockInventoryContent({ user, brands }) {
             <div className="stock-cart-modal-head">
               <div className="stock-modal-title-row">
                 <div style={{ minWidth: 0 }}>
-                  <div className="stock-modal-eyebrow">Supply Ordering</div>
-                  <div className="stock-modal-title">Your Supply Cart</div>
+                  <div className="stock-modal-title">My Cart</div>
                   <div className="stock-modal-subtitle">
-                    {userBrand || "Assigned Brand"} ·{" "}
-                    {userBranch || "Assigned Branch"}
+                    {cart.length} {cart.length === 1 ? "item" : "items"} in your
+                    basket
                   </div>
                 </div>
                 <button
@@ -10247,18 +10832,68 @@ function FrStockInventoryContent({ user, brands }) {
             {cartLineItems.length ? (
               <>
                 <div className="stock-modal-scroll">
+                  <div className="cart-pick-note">
+                    <strong>Pick what to check out</strong>
+                    <p>
+                      Tick the items you want to order now. Anything unticked
+                      stays in your basket.
+                    </p>
+                  </div>
+                  <div className="cart-section-head">
+                    <div>
+                      <strong>Order basket</strong>
+                      <small>
+                        {selectedCart.length
+                          ? `${selectedCart.length} selected`
+                          : "Nothing selected yet"}
+                      </small>
+                    </div>
+                    <button
+                      type="button"
+                      className="cart-select-all"
+                      onClick={toggleAllCartItems}
+                      aria-pressed={
+                        cart.length > 0 && selectedCart.length === cart.length
+                      }
+                    >
+                      <span
+                        className={`cart-checkbox${cart.length > 0 && selectedCart.length === cart.length ? " checked" : ""}`}
+                      />{" "}
+                      Select all
+                    </button>
+                  </div>
                   {cartLineItems.map((entry) => {
                     const hasIssue =
                       entry.stock <= 0 ||
                       Number(entry.quantity || 0) > Number(entry.stock || 0);
                     return (
                       <div key={entry.id} className="stock-order-cart-row">
+                        <button
+                          type="button"
+                          className={`cart-checkbox${selectedCartIds.includes(entry.id) ? " checked" : ""}`}
+                          onClick={() => toggleCartItem(entry.id)}
+                          aria-label={`Select ${entry.name}`}
+                          aria-pressed={selectedCartIds.includes(entry.id)}
+                        />
+                        <div className="cart-product-thumb">
+                          {entry.image_url ? (
+                            <img src={entry.image_url} alt="" />
+                          ) : (
+                            <Package size={24} />
+                          )}
+                        </div>
                         <div className="stock-cart-item-main">
                           <div className="stock-cart-item-title">
                             {entry.name}
                           </div>
                           <div className="stock-cart-item-meta">
-                            {entry.unit || "unit"} · {fmtPeso(entry.price)} each
+                            Unit: {entry.unit || "unit"}
+                          </div>
+                          <div className="stock-cart-item-price">
+                            {fmtPeso(entry.price)}{" "}
+                            <small>
+                              Line: {fmtPeso(entry.price * entry.quantity)}
+                            </small>
                           </div>
                           <div
                             className={`stock-cart-stock-note${hasIssue ? " low" : ""}`}
@@ -10362,7 +10997,12 @@ function FrStockInventoryContent({ user, brands }) {
                 </div>
 
                 <div className="stock-modal-footer">
-                  {cartHasStockIssues && (
+                  {cartLineItems.some(
+                    (entry) =>
+                      selectedCartIds.includes(entry.id) &&
+                      (entry.stock <= 0 ||
+                        Number(entry.quantity || 0) > Number(entry.stock || 0)),
+                  ) && (
                     <div
                       style={{
                         display: "flex",
@@ -10401,19 +11041,20 @@ function FrStockInventoryContent({ user, brands }) {
                           letterSpacing: ".06em",
                         }}
                       >
-                        {cartItemCount} total unit
-                        {cartItemCount === 1 ? "" : "s"}
+                        {selectedCart.length
+                          ? `${selectedCart.length} selected`
+                          : "No items selected"}
                       </div>
                       <div
                         style={{ marginTop: 2, fontSize: 11, color: C.muted }}
                       >
-                        Estimated order total
+                        Total
                       </div>
                     </div>
                     <strong
                       style={{ fontSize: 22, lineHeight: 1, color: C.greenDk }}
                     >
-                      {fmtPeso(cartTotal)}
+                      {fmtPeso(selectedCartTotal)}
                     </strong>
                   </div>
                   <button
@@ -10425,10 +11066,25 @@ function FrStockInventoryContent({ user, brands }) {
                       marginTop: 12,
                       borderRadius: 9,
                     }}
-                    onClick={() => prepareCheckout(cartLineItems, false)}
-                    disabled={!cartLineItems.length || cartHasStockIssues}
+                    onClick={() =>
+                      prepareCheckout(
+                        cartLineItems.filter((entry) =>
+                          selectedCartIds.includes(entry.id),
+                        ),
+                      )
+                    }
+                    disabled={
+                      !selectedCart.length ||
+                      cartLineItems.some(
+                        (entry) =>
+                          selectedCartIds.includes(entry.id) &&
+                          (entry.stock <= 0 ||
+                            Number(entry.quantity || 0) >
+                              Number(entry.stock || 0)),
+                      )
+                    }
                   >
-                    <CreditCard size={14} /> Proceed to Checkout
+                    <CheckCircle size={16} /> Check Out
                   </button>
                 </div>
               </>
@@ -10761,33 +11417,30 @@ function FrStockInventoryContent({ user, brands }) {
             className="v-modal stock-order-checkout-modal"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <div>
-                <div className="v-modal-title">Checkout Supply Order</div>
-                <div className="stock-order-muted" style={{ marginTop: 4 }}>
-                  {userBrand} · {userBranch}
+            <div className="checkout-mobile-head">
+              <div className="checkout-mobile-head-left">
+                <button
+                  type="button"
+                  className="checkout-mobile-back"
+                  onClick={() => setShowCheckout(false)}
+                  disabled={placingOrder}
+                  aria-label="Back"
+                >
+                  <span style={{ fontSize: 20, lineHeight: 1 }}>‹</span>
+                </button>
+                <div>
+                  <div className="checkout-mobile-title">Check Out</div>
+                  <div className="checkout-mobile-subtitle">
+                    {checkoutItems.length}{" "}
+                    {checkoutItems.length === 1 ? "item" : "items"} to order
+                  </div>
                 </div>
               </div>
-              <button
-                type="button"
-                className="v-btn v-btn-secondary"
-                onClick={() => setShowCheckout(false)}
-                disabled={placingOrder}
-              >
-                <X size={14} /> Close
-              </button>
             </div>
 
             {orderSuccess ? (
-              <div className="stock-order-success">
-                <CheckCircle size={50} color={C.green} />
+              <div className="checkout-success-mobile">
+                <CheckCircle size={54} color={C.green} />
                 <div
                   style={{
                     marginTop: 14,
@@ -10806,183 +11459,304 @@ function FrStockInventoryContent({ user, brands }) {
                 </div>
                 <button
                   type="button"
-                  className="v-btn v-btn-primary"
-                  style={{ marginTop: 20, minWidth: 120 }}
+                  className="checkout-place-btn"
+                  style={{ maxWidth: 220, margin: "22px auto 0" }}
                   onClick={() => {
                     setShowCheckout(false);
                     setOrderSuccess(null);
                   }}
                 >
-                  Done
+                  <CheckCircle size={18} /> Done
                 </button>
               </div>
             ) : (
               <>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.25fr .9fr",
-                    gap: 16,
-                    marginTop: 18,
-                  }}
-                >
-                  <div
-                    style={{
-                      border: `1px solid ${C.border}`,
-                      borderRadius: 14,
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "10px 14px",
-                        background: C.bg,
-                        borderBottom: `1px solid ${C.border}`,
-                        fontSize: 10.5,
-                        fontWeight: 900,
-                        textTransform: "uppercase",
-                        letterSpacing: ".06em",
-                        color: C.muted,
-                      }}
-                    >
-                      Order summary
+                <div className="checkout-mobile-scroll">
+                  <section className="checkout-mobile-section">
+                    <div className="checkout-mobile-section-title">
+                      <span className="checkout-mobile-section-bar" />
+                      Franchisee
                     </div>
-                    {checkoutItems.map((entry) => (
-                      <div
-                        key={entry.id}
-                        style={{
-                          padding: "12px 14px",
-                          borderBottom: `1px solid #F0F2EC`,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          gap: 12,
-                          alignItems: "center",
-                        }}
-                      >
-                        <div style={{ minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontSize: 12.5,
-                              fontWeight: 900,
-                              color: C.ink,
-                              overflowWrap: "anywhere",
-                            }}
-                          >
-                            {entry.name}
+                    <div className="checkout-mobile-card checkout-user-card">
+                      <div className="checkout-user-thumb">
+                        {String(user?.name || "F")
+                          .trim()
+                          .charAt(0)
+                          .toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="checkout-user-name">
+                          {user?.name || "Franchisee"}
+                        </div>
+                        <div className="checkout-user-meta">
+                          {user?.role || "Franchisee"}
+                        </div>
+                        {userBranch && (
+                          <div className="checkout-branch-pill">
+                            <StoreIcon size={13} /> {userBranch}
                           </div>
-                          <div
-                            className="stock-order-muted"
-                            style={{ marginTop: 3 }}
-                          >
-                            {entry.quantity} × {fmtPeso(entry.price)} /{" "}
-                            {entry.unit || "unit"}
+                        )}
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="checkout-mobile-section">
+                    <div className="checkout-mobile-section-title">
+                      <span className="checkout-mobile-section-bar" />
+                      Order Summary
+                    </div>
+                    <div className="checkout-mobile-card">
+                      {checkoutItems.map((entry) => (
+                        <div className="checkout-order-row" key={entry.id}>
+                          <div className="checkout-order-thumb">
+                            {entry.image_url ? (
+                              <img src={entry.image_url} alt="" />
+                            ) : (
+                              <Package size={16} />
+                            )}
+                          </div>
+                          <div className="checkout-order-main">
+                            <div className="checkout-order-name">
+                              {entry.name}
+                            </div>
+                            <div className="checkout-order-qty">
+                              ×{entry.quantity} · {fmtPeso(entry.price)} each
+                            </div>
+                          </div>
+                          <div className="checkout-order-price">
+                            {fmtPeso(
+                              Number(entry.price) * Number(entry.quantity),
+                            )}
                           </div>
                         </div>
-                        <strong
-                          style={{ color: C.greenDk, whiteSpace: "nowrap" }}
-                        >
-                          {fmtPeso(entry.quantity * entry.price)}
-                        </strong>
-                      </div>
-                    ))}
-                    <div
-                      style={{
-                        padding: "12px 14px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <span style={{ fontWeight: 800, color: C.muted }}>
-                        Total
-                      </span>
-                      <strong style={{ fontSize: 19, color: C.greenDk }}>
-                        {fmtPeso(checkoutTotal)}
-                      </strong>
+                      ))}
                     </div>
-                  </div>
+                  </section>
 
-                  <div>
-                    <div className="v-form-group">
-                      <label className="v-form-label">Delivery Address</label>
+                  <section className="checkout-mobile-section">
+                    <div className="checkout-mobile-section-title">
+                      <span className="checkout-mobile-section-bar" />
+                      Delivery Location
+                    </div>
+                    {renderLocationMap()}
+                    <p className="checkout-map-hint">
+                      Tap the map or drag the pin to set your exact delivery
+                      location.
+                    </p>
+                    {locationError && (
+                      <p className="checkout-map-error" role="alert">
+                        {locationError}
+                      </p>
+                    )}
+                    <div className="checkout-address-card">
+                      <StoreIcon
+                        size={20}
+                        color="#2c5c16"
+                        style={{ marginTop: 2, flexShrink: 0 }}
+                      />
                       <textarea
-                        className="v-form-input"
-                        rows={4}
+                        ref={addressInputRef}
                         value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        placeholder="Enter the supply delivery address"
-                        style={{ resize: "vertical" }}
+                        onChange={(e) => {
+                          mapRequestRef.current += 1;
+                          clearTimeout(reverseTimerRef.current);
+                          setLocationBusy(false);
+                          setAddress(e.target.value);
+                          setPinCoords(null);
+                        }}
+                        placeholder="Address auto-fills from pin, or type manually"
+                        rows={3}
                       />
                     </div>
-                    <div className="v-form-group">
-                      <label className="v-form-label">Payment Method</label>
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "1fr 1fr",
-                          gap: 7,
-                        }}
-                      >
-                        <button
-                          type="button"
-                          className={`v-btn ${paymentMethod === "cod" ? "v-btn-primary" : "v-btn-secondary"}`}
-                          onClick={() => setPaymentMethod("cod")}
-                        >
-                          Cash on Delivery
-                        </button>
-                        <button
-                          type="button"
-                          className={`v-btn ${paymentMethod === "gcash" ? "v-btn-primary" : "v-btn-secondary"}`}
-                          onClick={() => setPaymentMethod("gcash")}
-                        >
-                          GCash
-                        </button>
-                      </div>
+                  </section>
+
+                  <section className="checkout-mobile-section">
+                    <div className="checkout-mobile-section-title">
+                      <span className="checkout-mobile-section-bar" />
+                      Payment Method
                     </div>
-                    {paymentMethod === "gcash" && (
-                      <div className="v-form-group">
-                        <label className="v-form-label">
-                          GCash Reference Number
-                        </label>
-                        <input
-                          className="v-form-input"
-                          value={gcashRef}
-                          onChange={(e) => setGcashRef(e.target.value)}
-                          placeholder="Enter GCash reference number"
-                        />
+
+                    <button
+                      type="button"
+                      className={`checkout-pay-card${paymentMethod === "gcash" ? " selected" : ""}`}
+                      onClick={() => setPaymentMethod("gcash")}
+                    >
+                      <div className="checkout-pay-thumb gcash">G</div>
+                      <div className="checkout-pay-main">
+                        <div className="checkout-pay-label">GCash</div>
+                        <div className="checkout-pay-desc">
+                          Pay via GCash for your supply order
+                        </div>
                       </div>
-                    )}
-                  </div>
+                      <span className="checkout-radio">
+                        {paymentMethod === "gcash" && (
+                          <span className="checkout-radio-dot" />
+                        )}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`checkout-pay-card${paymentMethod === "cod" ? " selected" : ""}`}
+                      onClick={() => setPaymentMethod("cod")}
+                    >
+                      <div className="checkout-pay-thumb">
+                        <CreditCard size={20} color="#2c5c16" />
+                      </div>
+                      <div className="checkout-pay-main">
+                        <div className="checkout-pay-label">
+                          Cash on Delivery
+                        </div>
+                        <div className="checkout-pay-desc">
+                          Pay when your order arrives
+                        </div>
+                      </div>
+                      <span className="checkout-radio">
+                        {paymentMethod === "cod" && (
+                          <span className="checkout-radio-dot" />
+                        )}
+                      </span>
+                    </button>
+                  </section>
                 </div>
 
-                <div
-                  style={{
-                    marginTop: 16,
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: 8,
-                  }}
-                >
+                <div className="checkout-mobile-bottom">
+                  <div className="checkout-mobile-accent" />
+                  <div
+                    className="checkout-mobile-section-title"
+                    style={{ marginBottom: 16 }}
+                  >
+                    <span className="checkout-mobile-section-bar" />
+                    Order Total
+                  </div>
+                  <div className="checkout-total-row">
+                    <div className="checkout-total-label">Total Amount</div>
+                    <div className="checkout-total-amount">
+                      {fmtPeso(checkoutTotal)}
+                    </div>
+                  </div>
+                  <div
+                    className="checkout-payment-chip"
+                    style={
+                      paymentMethod === "gcash"
+                        ? { color: "#1565C0" }
+                        : undefined
+                    }
+                  >
+                    {paymentMethod === "gcash" ? (
+                      <>
+                        <strong>G</strong>
+                        <span>GCash payment</span>
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard size={14} />
+                        <span>Cash on Delivery</span>
+                      </>
+                    )}
+                  </div>
                   <button
                     type="button"
-                    className="v-btn v-btn-secondary"
-                    onClick={() => setShowCheckout(false)}
+                    className="checkout-place-btn"
+                    onClick={handleCheckoutAction}
                     disabled={placingOrder}
                   >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    className="v-btn v-btn-primary"
-                    style={{ minWidth: 170, minHeight: 44 }}
-                    onClick={submitOrder}
-                    disabled={placingOrder}
-                  >
-                    {placingOrder ? "Placing Order…" : "Place Order"}
+                    {placingOrder ? (
+                      "Placing Order…"
+                    ) : paymentMethod === "gcash" ? (
+                      <>
+                        <CreditCard size={18} /> Pay with GCash
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={18} /> Place Order (COD)
+                      </>
+                    )}
                   </button>
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+      <WebGCashPaymentModal
+        visible={showGCash}
+        amount={gcashAmount}
+        onConfirm={handleGCashConfirmed}
+        onCancel={() => setShowGCash(false)}
+      />
+      {showMapPicker && (
+        <div
+          className="v-modal-overlay checkout-map-picker-overlay"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div
+            className="v-modal checkout-map-picker"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Pin your delivery location"
+          >
+            <div className="checkout-map-picker-head">
+              <button
+                type="button"
+                onClick={() => setShowMapPicker(false)}
+                aria-label="Back to checkout"
+              >
+                ‹
+              </button>
+              <strong>Pin Your Location</strong>
+              <button type="button" onClick={() => setShowMapPicker(false)}>
+                Done
+              </button>
+            </div>
+            {renderLocationMap(true)}
+            {locationError && (
+              <p className="checkout-map-error" role="alert">
+                {locationError}
+              </p>
+            )}
+            <p className="checkout-map-hint">
+              Tap the map or drag the pin to set your exact delivery location.
+            </p>
+          </div>
+        </div>
+      )}
+      {showAddressPrompt && (
+        <div
+          className="v-modal-overlay"
+          style={{ zIndex: 10002 }}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div
+            className="v-modal checkout-address-prompt"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="checkout-address-prompt-title"
+            aria-describedby="checkout-address-prompt-message"
+          >
+            <div className="checkout-address-prompt-icon">
+              <StoreIcon size={25} />
+            </div>
+            <h2 id="checkout-address-prompt-title">Delivery address needed</h2>
+            <p id="checkout-address-prompt-message">
+              Please enter your delivery address before placing your order.
+            </p>
+            <button
+              type="button"
+              autoFocus
+              onClick={() => {
+                setShowAddressPrompt(false);
+                requestAnimationFrame(() => {
+                  addressInputRef.current?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                  });
+                  addressInputRef.current?.focus();
+                });
+              }}
+            >
+              Enter Address
+            </button>
           </div>
         </div>
       )}
@@ -14524,6 +15298,7 @@ ${topItems}
     </div>
   );
 }
+
 function ConfirmDeleteReportModal({ report, deleting, onConfirm, onCancel }) {
   const fmtPeriod = (period) => {
     if (!period) return "—";
