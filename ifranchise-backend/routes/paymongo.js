@@ -34,10 +34,18 @@ router.post("/paymongo/create-gcash", async (req, res) => {
     });
 
     const data = await response.json();
-    if (!response.ok)
-      return res
-        .status(400)
-        .json({ error: data.errors?.[0]?.detail || "PayMongo error" });
+    if (!response.ok) {
+      console.error("PAYMONGO CREATE LINK ERROR:", {
+        status: response.status,
+        statusText: response.statusText,
+        data,
+      });
+
+      return res.status(response.status).json({
+        error: data.errors?.[0]?.detail || "PayMongo error",
+        paymongoStatus: response.status,
+      });
+    }
 
     const link = data.data;
     res.json({
@@ -47,7 +55,11 @@ router.post("/paymongo/create-gcash", async (req, res) => {
       linkId: link.id,
     });
   } catch (err) {
-    res.status(500).json({ error: "Failed to create payment link" });
+    console.error("POST /paymongo/create-gcash ERROR:", err);
+
+    res.status(500).json({
+      error: "Failed to create payment link",
+    });
   }
 });
 

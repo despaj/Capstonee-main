@@ -13,6 +13,7 @@ import Receipts from "./Receipts";
 import jsPDF from "jspdf";
 import ifranchisejpg from "../assets/ifranchisejpg.jpg";
 import franchisync from "../assets/franchisyncjpg.jpg";
+import { POSContent } from "./StaffDashboard";
 import {
   Home,
   Bell,
@@ -928,122 +929,125 @@ const getUserFromStorage = () => {
   }
 };
 
-
-
 /* ─────────────────────────────────────────────────────────────────────────
    INTEGRATED STOCK INVENTORY + SUPPLY ORDERING
    Uses the original StockInventoryContent implementation and callbacks.
 ───────────────────────────────────────────────────────────────────────── */
 
 const SI_C = {
-    green: "#3b791e",
-    greenDk: "#2c5c16",
-    greenLt: "#f0f5e8",
-    greenMid: "#c9dba0",
-    teal: "#509820",
-    lime: "#cac055",
-    limeInk: "#24310C",
-    ink: "#24700d",
-    muted: "#5C6B60",
-    border: "#E1E6D8",
-    bg: "#F6F7F1",
-    white: "#ffffff",
-    warn: "#b45309",
-    warnBg: "#fff7ed",
-    ok: "#2c5c16",
-    okBg: "#f0f5e8",
-    red: "#c0392b",
-    redBg: "#fdf1f0",
-    amber: "#d97706",
-    amberBg: "#fff7ed",
-    amberBorder: "#fed7aa",
+  green: "#3b791e",
+  greenDk: "#2c5c16",
+  greenLt: "#f0f5e8",
+  greenMid: "#c9dba0",
+  teal: "#509820",
+  lime: "#cac055",
+  limeInk: "#24310C",
+  ink: "#24700d",
+  muted: "#5C6B60",
+  border: "#E1E6D8",
+  bg: "#F6F7F1",
+  white: "#ffffff",
+  warn: "#b45309",
+  warnBg: "#fff7ed",
+  ok: "#2c5c16",
+  okBg: "#f0f5e8",
+  red: "#c0392b",
+  redBg: "#fdf1f0",
+  amber: "#d97706",
+  amberBg: "#fff7ed",
+  amberBorder: "#fed7aa",
 };
 
 const getBrowserLocation = () => {
-    return new Promise((resolve) => {
-        if (!navigator.geolocation) {
-            resolve(null);
-            return;
-        }
-        navigator.geolocation.getCurrentPosition((position) => resolve({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-        }), () => resolve(null), { timeout: 5000, maximumAge: 60000 });
-    });
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) =>
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 },
+    );
+  });
 };
 
 /* ── shared style atoms ── */
 const SI_invInputSt = {
-    height: 38,
-    padding: "0 13px",
-    borderRadius: 11,
-    border: `1.5px solid ${SI_C.border}`,
-    background: SI_C.white,
-    fontSize: 13,
-    color: SI_C.ink,
-    outline: "none",
-    fontFamily: "inherit",
-    boxSizing: "border-box",
-    width: "100%",
-    transition: "border-color .15s",
+  height: 38,
+  padding: "0 13px",
+  borderRadius: 11,
+  border: `1.5px solid ${SI_C.border}`,
+  background: SI_C.white,
+  fontSize: 13,
+  color: SI_C.ink,
+  outline: "none",
+  fontFamily: "inherit",
+  boxSizing: "border-box",
+  width: "100%",
+  transition: "border-color .15s",
 };
 
 const invLabelSt = {
-    display: "block",
-    fontSize: 11,
-    fontWeight: 700,
-    color: SI_C.muted,
-    marginBottom: 5,
-    letterSpacing: "0.04em",
+  display: "block",
+  fontSize: 11,
+  fontWeight: 700,
+  color: SI_C.muted,
+  marginBottom: 5,
+  letterSpacing: "0.04em",
 };
 
 const SI_btnSt = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    height: 38,
-    padding: "0 18px",
-    borderRadius: 999,
-    border: `1px solid ${SI_C.border}`,
-    background: SI_C.white,
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-    fontFamily: "inherit",
-    whiteSpace: "nowrap",
-    color: SI_C.ink,
-    transition: "background .15s, border-color .15s",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  height: 38,
+  padding: "0 18px",
+  borderRadius: 999,
+  border: `1px solid ${SI_C.border}`,
+  background: SI_C.white,
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  whiteSpace: "nowrap",
+  color: SI_C.ink,
+  transition: "background .15s, border-color .15s",
 };
 
 const btnPrimarySt = {
-    ...SI_btnSt,
-    background: SI_C.green,
-    color: SI_C.white,
-    border: "none",
-    boxShadow: "0 10px 24px rgba(59,121,30,0.22)",
+  ...SI_btnSt,
+  background: SI_C.green,
+  color: SI_C.white,
+  border: "none",
+  boxShadow: "0 10px 24px rgba(59,121,30,0.22)",
 };
 
 const btnAmberSt = {
-    ...SI_btnSt,
-    background: `linear-gradient(135deg,#fbbf24,${SI_C.warn})`,
-    color: SI_C.white,
-    border: "none",
-    boxShadow: "0 2px 10px rgba(217,119,6,0.30)",
+  ...SI_btnSt,
+  background: `linear-gradient(135deg,#fbbf24,${SI_C.warn})`,
+  color: SI_C.white,
+  border: "none",
+  boxShadow: "0 2px 10px rgba(217,119,6,0.30)",
 };
 
 const SI_smallBtnSt = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 4,
-    height: 28,
-    padding: "0 12px",
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: "pointer",
-    fontFamily: "inherit",
-    background: "transparent",
-    transition: "background .12s, color .12s",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 4,
+  height: 28,
+  padding: "0 12px",
+  borderRadius: 999,
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  background: "transparent",
+  transition: "background .12s, color .12s",
 };
 
 const capitalizeName = (str) => str.replace(/\b\w/g, (c) => c.toUpperCase());
@@ -1051,197 +1055,244 @@ const capitalizeName = (str) => str.replace(/\b\w/g, (c) => c.toUpperCase());
 const normalizeName = (str) => str.trim().toLowerCase().replace(/s$/i, "");
 
 const SI_UNITS = [
-    "pcs",
-    "kg",
-    "g",
-    "liters",
-    "ml",
-    "tbsp",
-    "tsp",
-    "cups",
-    "bottles",
-    "packs",
-    "bags",
-    "boxes",
-    "cans",
-    "gallons",
+  "pcs",
+  "kg",
+  "g",
+  "liters",
+  "ml",
+  "tbsp",
+  "tsp",
+  "cups",
+  "bottles",
+  "packs",
+  "bags",
+  "boxes",
+  "cans",
+  "gallons",
 ];
 
 const DOSAGE_FORMS = [
-    "Tablet",
-    "Capsule",
-    "Liquid",
-    "Injection",
-    "Cream",
-    "Ointment",
-    "Syrup",
-    "Other",
+  "Tablet",
+  "Capsule",
+  "Liquid",
+  "Injection",
+  "Cream",
+  "Ointment",
+  "Syrup",
+  "Other",
 ];
 
 const STORAGE_REQS = ["Room Temperature", "Refrigerated", "Frozen"];
 
 const FUEL_GRADES = [
-    "Regular Gasoline",
-    "Ethanol-Blended Gasoline",
-    "Premium Gasoline",
-    "Diesel",
-    "Kerosene",
+  "Regular Gasoline",
+  "Ethanol-Blended Gasoline",
+  "Premium Gasoline",
+  "Diesel",
+  "Kerosene",
 ];
 
 // Display-only quantity formatting.
 // UI shows whole numbers with full unit names (e.g. "50 Liters"),
 // while stored numeric values remain unchanged for calculations/API payloads.
 const DISPLAY_UNIT_NAMES = {
-    pcs: "Pieces", piece: "Pieces", pieces: "Pieces",
-    kg: "Kilograms", kilogram: "Kilograms", kilograms: "Kilograms",
-    g: "Grams", gram: "Grams", grams: "Grams",
-    l: "Liters", liter: "Liters", liters: "Liters",
-    ml: "Milliliters", milliliter: "Milliliters", milliliters: "Milliliters",
-    tbsp: "Tablespoons", tablespoon: "Tablespoons", tablespoons: "Tablespoons",
-    tsp: "Teaspoons", teaspoon: "Teaspoons", teaspoons: "Teaspoons",
-    cup: "Cups", cups: "Cups",
-    bottle: "Bottles", bottles: "Bottles",
-    pack: "Packs", packs: "Packs",
-    bag: "Bags", bags: "Bags",
-    box: "Boxes", boxes: "Boxes",
-    can: "Cans", cans: "Cans",
-    gallon: "Gallons", gallons: "Gallons",
+  pcs: "Pieces",
+  piece: "Pieces",
+  pieces: "Pieces",
+  kg: "Kilograms",
+  kilogram: "Kilograms",
+  kilograms: "Kilograms",
+  g: "Grams",
+  gram: "Grams",
+  grams: "Grams",
+  l: "Liters",
+  liter: "Liters",
+  liters: "Liters",
+  ml: "Milliliters",
+  milliliter: "Milliliters",
+  milliliters: "Milliliters",
+  tbsp: "Tablespoons",
+  tablespoon: "Tablespoons",
+  tablespoons: "Tablespoons",
+  tsp: "Teaspoons",
+  teaspoon: "Teaspoons",
+  teaspoons: "Teaspoons",
+  cup: "Cups",
+  cups: "Cups",
+  bottle: "Bottles",
+  bottles: "Bottles",
+  pack: "Packs",
+  packs: "Packs",
+  bag: "Bags",
+  bags: "Bags",
+  box: "Boxes",
+  boxes: "Boxes",
+  can: "Cans",
+  cans: "Cans",
+  gallon: "Gallons",
+  gallons: "Gallons",
 };
 
 const formatQuantityWithUnit = (value, unit) => {
-    const numeric = Number(value || 0);
-    const rawUnit = String(unit || "").trim();
-    const fullUnit = DISPLAY_UNIT_NAMES[rawUnit] ||
-        DISPLAY_UNIT_NAMES[rawUnit.toLowerCase()] ||
-        rawUnit ||
-        "Units";
-    return `${Math.round(numeric).toLocaleString("en-PH")} ${fullUnit}`;
+  const numeric = Number(value || 0);
+  const rawUnit = String(unit || "").trim();
+  const fullUnit =
+    DISPLAY_UNIT_NAMES[rawUnit] ||
+    DISPLAY_UNIT_NAMES[rawUnit.toLowerCase()] ||
+    rawUnit ||
+    "Units";
+  return `${Math.round(numeric).toLocaleString("en-PH")} ${fullUnit}`;
 };
 
 const formatUnitName = (unit) => {
-    const rawUnit = String(unit || "").trim();
-    return (DISPLAY_UNIT_NAMES[rawUnit] ||
-        DISPLAY_UNIT_NAMES[rawUnit.toLowerCase()] ||
-        rawUnit ||
-        "Units");
+  const rawUnit = String(unit || "").trim();
+  return (
+    DISPLAY_UNIT_NAMES[rawUnit] ||
+    DISPLAY_UNIT_NAMES[rawUnit.toLowerCase()] ||
+    rawUnit ||
+    "Units"
+  );
 };
 
 const SI_PAGE_SIZE = 15;
 
 const SI_EXPIRY_WARN_DAYS = 30;
 
-const fmtTs = (d) => new Date(d).toLocaleString("en-PH", {
+const fmtTs = (d) =>
+  new Date(d).toLocaleString("en-PH", {
     month: "short",
     day: "numeric",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Asia/Manila",
-});
+  });
 
-const fmtDate = (d) => d
+const fmtDate = (d) =>
+  d
     ? new Date(d).toLocaleDateString("en-PH", {
         month: "short",
         day: "numeric",
         year: "numeric",
         timeZone: "Asia/Manila",
-    })
+      })
     : "—";
 
 /* ── validation helpers ── */
 function isValidDateStr(s) {
-    if (!s)
-        return true;
-    const d = new Date(s);
-    return !isNaN(d.getTime());
+  if (!s) return true;
+  const d = new Date(s);
+  return !isNaN(d.getTime());
 }
 
 function isPositiveOrZeroNumber(v) {
-    if (v === "" || v === null || v === undefined)
-        return false;
-    const n = parseFloat(v);
-    return !isNaN(n) && n >= 0;
+  if (v === "" || v === null || v === undefined) return false;
+  const n = parseFloat(v);
+  return !isNaN(n) && n >= 0;
 }
 
 function SI_Toast({ toast, onClose }) {
-    useEffect(() => {
-        if (!toast)
-            return;
-        if (toast.type === "loading")
-            return;
-        const t = setTimeout(onClose, 2000);
-        return () => clearTimeout(t);
-    }, [toast, onClose]);
-    if (!toast)
-        return null;
-    const isErr = toast.type === "error";
-    const isLoading = toast.type === "loading";
-    return (<div style={{
-            position: "fixed",
-            top: 22,
-            right: 22,
-            zIndex: 4000,
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 12,
-            maxWidth: 380,
-            padding: "16px 18px",
-            borderRadius: 14,
-            background: isErr ? "#fef2f2" : "#f0fdf5",
-            borderLeft: `5px solid ${isErr ? "#dc2626" : "#00897b"}`,
-            border: `1px solid ${isErr ? "#fecaca" : "#b2dfdb"}`,
-            borderLeftWidth: 5,
-            boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
-            fontFamily: "'Plus Jakarta Sans',sans-serif",
-            animation: "toastIn .22s ease",
-        }}>
-      <div style={{
-            flexShrink: 0,
-            width: 32,
-            height: 32,
-            borderRadius: "50%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: isErr ? "#dc2626" : "#00897b",
-            color: "#fff",
-            boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(0,137,123,0.4)"}`,
-        }}>
-        {isErr ? (<AlertTriangle size={16}/>) : isLoading ? (<RefreshCw size={16} style={{ animation: "spin 0.8s linear infinite" }}/>) : (<Check size={16}/>)}
+  useEffect(() => {
+    if (!toast) return;
+    if (toast.type === "loading") return;
+    const t = setTimeout(onClose, 2000);
+    return () => clearTimeout(t);
+  }, [toast, onClose]);
+  if (!toast) return null;
+  const isErr = toast.type === "error";
+  const isLoading = toast.type === "loading";
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 22,
+        right: 22,
+        zIndex: 4000,
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 12,
+        maxWidth: 380,
+        padding: "16px 18px",
+        borderRadius: 14,
+        background: isErr ? "#fef2f2" : "#f0fdf5",
+        borderLeft: `5px solid ${isErr ? "#dc2626" : "#00897b"}`,
+        border: `1px solid ${isErr ? "#fecaca" : "#b2dfdb"}`,
+        borderLeftWidth: 5,
+        boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
+        fontFamily: "'Plus Jakarta Sans',sans-serif",
+        animation: "toastIn .22s ease",
+      }}
+    >
+      <div
+        style={{
+          flexShrink: 0,
+          width: 32,
+          height: 32,
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: isErr ? "#dc2626" : "#00897b",
+          color: "#fff",
+          boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(0,137,123,0.4)"}`,
+        }}
+      >
+        {isErr ? (
+          <AlertTriangle size={16} />
+        ) : isLoading ? (
+          <RefreshCw
+            size={16}
+            style={{ animation: "spin 0.8s linear infinite" }}
+          />
+        ) : (
+          <Check size={16} />
+        )}
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
+        <div
+          style={{
             fontSize: 14,
             fontWeight: 800,
             color: isErr ? "#7f1d1d" : "#0d2b1e",
-        }}>
+          }}
+        >
           {toast.title}
         </div>
-        {toast.message && (<div style={{
-                fontSize: 12.5,
-                color: isErr ? "#991b1b" : "#3f5f4f",
-                marginTop: 3,
-                lineHeight: 1.4,
-            }}>
+        {toast.message && (
+          <div
+            style={{
+              fontSize: 12.5,
+              color: isErr ? "#991b1b" : "#3f5f4f",
+              marginTop: 3,
+              lineHeight: 1.4,
+            }}
+          >
             {toast.message}
-          </div>)}
+          </div>
+        )}
       </div>
 
-      {!isLoading && (<button onClick={onClose} style={{
-                background: "none",
-                border: "none",
-                color: isErr ? "#991b1b" : "#3f5f4f",
-                cursor: "pointer",
-                padding: 2,
-                flexShrink: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-            }}>
-          <X size={14}/>
-        </button>)}
-    </div>);
+      {!isLoading && (
+        <button
+          onClick={onClose}
+          style={{
+            background: "none",
+            border: "none",
+            color: isErr ? "#991b1b" : "#3f5f4f",
+            cursor: "pointer",
+            padding: 2,
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <X size={14} />
+        </button>
+      )}
+    </div>
+  );
 }
 
 /* ── Lucide icon aliases/wrappers ── */
@@ -1265,7 +1316,12 @@ const SI_SortDescIcon = ArrowDown;
 
 const FilterIcon = Filter;
 
-const SI_ChevronIcon = ({ size = 12, dir = "down", ...props }) => dir === "up" ? (<ChevronUp size={size} {...props}/>) : (<ChevronDown size={size} {...props}/>);
+const SI_ChevronIcon = ({ size = 12, dir = "down", ...props }) =>
+  dir === "up" ? (
+    <ChevronUp size={size} {...props} />
+  ) : (
+    <ChevronDown size={size} {...props} />
+  );
 
 const HistoryIcon = History;
 
@@ -1279,7 +1335,13 @@ const CheckCircleIcon = CheckCircle2;
 
 const InfoIcon = Info;
 
-const LoaderIcon = ({ size = 28, color = "currentColor" }) => (<LoaderCircle size={size} color={color} style={{ animation: "spin 0.9s linear infinite" }}/>);
+const LoaderIcon = ({ size = 28, color = "currentColor" }) => (
+  <LoaderCircle
+    size={size}
+    color={color}
+    style={{ animation: "spin 0.9s linear infinite" }}
+  />
+);
 
 const UploadIcon = UploadCloud;
 
@@ -1293,206 +1355,225 @@ const PackageIcon = Package;
 
 /* ── Brand accent colors (for brand column text only — no bg pill) ── */
 function brandAccent(brandName) {
-    if (!brandName)
-        return { color: "#00695c" };
-    const n = brandName.toLowerCase();
-    if (n.includes("ipharma"))
-        return { color: "#3949ab" };
-    if (n.includes("coffee"))
-        return { color: "#b45309" };
-    if (n.includes("ifuel"))
-        return { color: "#1565c0" };
-    return { color: "#00695c" };
+  if (!brandName) return { color: "#00695c" };
+  const n = brandName.toLowerCase();
+  if (n.includes("ipharma")) return { color: "#3949ab" };
+  if (n.includes("coffee")) return { color: "#b45309" };
+  if (n.includes("ifuel")) return { color: "#1565c0" };
+  return { color: "#00695c" };
 }
 
 /* ── FIFO / FEFO helpers (shared by ReceiveStockModal, FifoQueue) ── */
 function computeExpiryStatus(exp_date, brand) {
-    if (!exp_date)
-        return null;
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const exp = new Date(exp_date);
-    const msLeft = exp - now;
-    if (msLeft < 0)
-        return "expired";
-    if (msLeft < 7 * 86400000)
-        return "critical";
-    if (msLeft < 30 * 86400000)
-        return "warning";
-    return "ok";
+  if (!exp_date) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const exp = new Date(exp_date);
+  const msLeft = exp - now;
+  if (msLeft < 0) return "expired";
+  if (msLeft < 7 * 86400000) return "critical";
+  if (msLeft < 30 * 86400000) return "warning";
+  return "ok";
 }
 
 function getFifoMethod(brand, isPerishable) {
-    const isPharma = (brand || "").toLowerCase().includes("ipharma");
-    if (isPharma || isPerishable) {
-        return {
-            method: "FEFO",
-            topLabel: "EXPIRY DATE (FEFO KEY)",
-            queueLabel: isPharma
-                ? "nearest expiry dispensed first — FDA compliance & patient safety"
-                : "nearest expiry dispensed first — reduce spoilage waste",
-        };
-    }
+  const isPharma = (brand || "").toLowerCase().includes("ipharma");
+  if (isPharma || isPerishable) {
     return {
-        method: "FIFO",
-        topLabel: "NEXT OUT",
-        queueLabel: "oldest received batch used first",
+      method: "FEFO",
+      topLabel: "EXPIRY DATE (FEFO KEY)",
+      queueLabel: isPharma
+        ? "nearest expiry dispensed first — FDA compliance & patient safety"
+        : "nearest expiry dispensed first — reduce spoilage waste",
     };
+  }
+  return {
+    method: "FIFO",
+    topLabel: "NEXT OUT",
+    queueLabel: "oldest received batch used first",
+  };
 }
 
 function sortBatchesByMethod(batches, brand, isPerishable) {
-    const { method } = getFifoMethod(brand, isPerishable);
-    return [...batches].sort((a, b) => {
-        if (method === "FEFO") {
-            const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
-            const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
-            return da - db;
-        }
-        const da = new Date(a.supply_date || a.mfg_date || a.created_at || 0).getTime();
-        const db = new Date(b.supply_date || b.mfg_date || b.created_at || 0).getTime();
-        return da - db;
-    });
+  const { method } = getFifoMethod(brand, isPerishable);
+  return [...batches].sort((a, b) => {
+    if (method === "FEFO") {
+      const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
+      const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
+      return da - db;
+    }
+    const da = new Date(
+      a.supply_date || a.mfg_date || a.created_at || 0,
+    ).getTime();
+    const db = new Date(
+      b.supply_date || b.mfg_date || b.created_at || 0,
+    ).getTime();
+    return da - db;
+  });
 }
 
 function computeNextOutCost(batches, brand, isPerishable) {
-    const active = batches.filter((b) => Number(b.stock) > 0);
-    if (active.length === 0)
-        return null;
-    const sorted = sortBatchesByMethod(active, brand, isPerishable);
-    return Number(sorted[0].cost_per_unit) || 0;
+  const active = batches.filter((b) => Number(b.stock) > 0);
+  if (active.length === 0) return null;
+  const sorted = sortBatchesByMethod(active, brand, isPerishable);
+  return Number(sorted[0].cost_per_unit) || 0;
 }
 
 function daysRemaining(exp_date) {
-    if (!exp_date)
-        return null;
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const exp = new Date(exp_date);
-    return Math.round((exp - now) / 86400000);
+  if (!exp_date) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const exp = new Date(exp_date);
+  return Math.round((exp - now) / 86400000);
 }
 
 const EXPIRY_STYLE = {
-    expired: {
-        border: "#fecaca",
-        bg: "#fef2f2",
-        badge: "#fecaca",
-        badgeText: "#991b1b",
-        label: "EXPIRED",
-        dot: "#dc2626",
-    },
-    critical: {
-        border: "#fed7aa",
-        bg: "#fff7ed",
-        badge: "#fed7aa",
-        badgeText: "#9a3412",
-        label: "CRITICAL",
-        dot: "#ea580c",
-    },
-    warning: {
-        border: "#fef08a",
-        bg: "#fefce8",
-        badge: "#fef08a",
-        badgeText: "#854d0e",
-        label: "EXPIRING",
-        dot: "#ca8a04",
-    },
-    ok: {
-        border: SI_C.greenMid,
-        bg: "#f9fefb",
-        badge: null,
-        badgeText: null,
-        label: null,
-        dot: SI_C.green,
-    },
+  expired: {
+    border: "#fecaca",
+    bg: "#fef2f2",
+    badge: "#fecaca",
+    badgeText: "#991b1b",
+    label: "EXPIRED",
+    dot: "#dc2626",
+  },
+  critical: {
+    border: "#fed7aa",
+    bg: "#fff7ed",
+    badge: "#fed7aa",
+    badgeText: "#9a3412",
+    label: "CRITICAL",
+    dot: "#ea580c",
+  },
+  warning: {
+    border: "#fef08a",
+    bg: "#fefce8",
+    badge: "#fef08a",
+    badgeText: "#854d0e",
+    label: "EXPIRING",
+    dot: "#ca8a04",
+  },
+  ok: {
+    border: SI_C.greenMid,
+    bg: "#f9fefb",
+    badge: null,
+    badgeText: null,
+    label: null,
+    dot: SI_C.green,
+  },
 };
 
 const BRAND_DEFS = [
-    { key: "coffee", label: "Coffee Spot", match: (n) => n.includes("coffee") },
-    { key: "ifuel", label: "iFuel", match: (n) => n.includes("ifuel") },
-    {
-        key: "ipharma",
-        label: "iPharma Mart",
-        match: (n) => n.includes("ipharma"),
-    },
+  { key: "coffee", label: "Coffee Spot", match: (n) => n.includes("coffee") },
+  { key: "ifuel", label: "iFuel", match: (n) => n.includes("ifuel") },
+  {
+    key: "ipharma",
+    label: "iPharma Mart",
+    match: (n) => n.includes("ipharma"),
+  },
 ];
 
 function isPharmaBrand(brand) {
-    return (brand || "").toLowerCase().includes("ipharma");
+  return (brand || "").toLowerCase().includes("ipharma");
 }
 
 function isFuelBrand(brand) {
-    return (brand || "").toLowerCase().includes("ifuel");
+  return (brand || "").toLowerCase().includes("ifuel");
 }
 
 function isDirectProductBrand(brand) {
-    return isPharmaBrand(brand) || isFuelBrand(brand);
+  return isPharmaBrand(brand) || isFuelBrand(brand);
 }
 
 function isHeadOfficeBranch(branchName) {
-    return (branchName || "").trim().toLowerCase().includes("head office");
+  return (branchName || "").trim().toLowerCase().includes("head office");
 }
 
 function normalizeShelfText(value) {
-    return String(value || "")
-        .trim()
-        .toLowerCase()
-        .replace(/[–—]/g, "-")
-        .replace(/[^a-z0-9]+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[–—]/g, "-")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function parseLocalDateOnly(value) {
-    if (!value)
-        return null;
-    const raw = String(value).slice(0, 10);
-    const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!m) {
-        const fallback = new Date(value);
-        if (Number.isNaN(fallback.getTime()))
-            return null;
-        return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate(), 12, 0, 0, 0);
-    }
-    const y = Number(m[1]), month = Number(m[2]), d = Number(m[3]);
-    const date = new Date(y, month - 1, d, 12, 0, 0, 0);
-    if (date.getFullYear() !== y ||
-        date.getMonth() !== month - 1 ||
-        date.getDate() !== d)
-        return null;
-    return date;
+  if (!value) return null;
+  const raw = String(value).slice(0, 10);
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) {
+    const fallback = new Date(value);
+    if (Number.isNaN(fallback.getTime())) return null;
+    return new Date(
+      fallback.getFullYear(),
+      fallback.getMonth(),
+      fallback.getDate(),
+      12,
+      0,
+      0,
+      0,
+    );
+  }
+  const y = Number(m[1]),
+    month = Number(m[2]),
+    d = Number(m[3]);
+  const date = new Date(y, month - 1, d, 12, 0, 0, 0);
+  if (
+    date.getFullYear() !== y ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== d
+  )
+    return null;
+  return date;
 }
 
 function addMonthsClamped(dateValue, months) {
-    const base = dateValue instanceof Date
-        ? new Date(dateValue)
-        : parseLocalDateOnly(dateValue);
-    if (!base || Number.isNaN(base.getTime()))
-        return null;
-    const day = base.getDate();
-    const target = new Date(base.getFullYear(), base.getMonth() + Number(months || 0), 1, 12, 0, 0, 0);
-    const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0, 12, 0, 0, 0).getDate();
-    target.setDate(Math.min(day, lastDay));
-    return target;
+  const base =
+    dateValue instanceof Date
+      ? new Date(dateValue)
+      : parseLocalDateOnly(dateValue);
+  if (!base || Number.isNaN(base.getTime())) return null;
+  const day = base.getDate();
+  const target = new Date(
+    base.getFullYear(),
+    base.getMonth() + Number(months || 0),
+    1,
+    12,
+    0,
+    0,
+    0,
+  );
+  const lastDay = new Date(
+    target.getFullYear(),
+    target.getMonth() + 1,
+    0,
+    12,
+    0,
+    0,
+    0,
+  ).getDate();
+  target.setDate(Math.min(day, lastDay));
+  return target;
 }
 
 function addDaysLocal(dateValue, days) {
-    const base = dateValue instanceof Date
-        ? new Date(dateValue)
-        : parseLocalDateOnly(dateValue);
-    if (!base || Number.isNaN(base.getTime()))
-        return null;
-    base.setDate(base.getDate() + Number(days || 0));
-    return base;
+  const base =
+    dateValue instanceof Date
+      ? new Date(dateValue)
+      : parseLocalDateOnly(dateValue);
+  if (!base || Number.isNaN(base.getTime())) return null;
+  base.setDate(base.getDate() + Number(days || 0));
+  return base;
 }
 
 function toDateInputValue(date) {
-    if (!(date instanceof Date) || Number.isNaN(date.getTime()))
-        return "";
-    return [
-        date.getFullYear(),
-        String(date.getMonth() + 1).padStart(2, "0"),
-        String(date.getDate()).padStart(2, "0"),
-    ].join("-");
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
 }
 
 /*
@@ -1511,633 +1592,731 @@ function toDateInputValue(date) {
   - Diesel: up to 12 months.
 */
 function getCategoryShelfLifeRule(brand, category, grade = "") {
-    const categoryKey = normalizeShelfText(category);
-    const gradeKey = normalizeShelfText(grade);
-    if (isPharmaBrand(brand)) {
-        if (!categoryKey) {
-            return {
-                kind: "missing-category",
-                allowNoExpiry: false,
-                requiresManufactureDate: true,
-                label: "iPharma category required",
-            };
-        }
-        if (categoryKey.includes("health device") ||
-            categoryKey.includes("medical device") ||
-            categoryKey.includes("equipment")) {
-            return {
-                kind: "manufacturer",
-                allowNoExpiry: true,
-                requiresManufactureDate: false,
-                label: "Health device / equipment",
-            };
-        }
-        if (categoryKey.includes("first aid") ||
-            categoryKey.includes("medical suppl") ||
-            categoryKey.includes("bandage") ||
-            categoryKey.includes("gauze") ||
-            categoryKey.includes("dressing") ||
-            categoryKey.includes("hygiene")) {
-            return {
-                kind: "exact",
-                months: 9,
-                allowNoExpiry: false,
-                requiresManufactureDate: true,
-                label: "9 months from manufacture date",
-            };
-        }
-        // Medicine, Antibiotic, Vitamins & Supplements, and future medicine-like
-        // iPharma categories use the 3-year shelf-life rule.
-        return {
-            kind: "exact",
-            months: 36,
-            allowNoExpiry: false,
-            requiresManufactureDate: true,
-            label: "3 years from manufacture date",
-        };
+  const categoryKey = normalizeShelfText(category);
+  const gradeKey = normalizeShelfText(grade);
+  if (isPharmaBrand(brand)) {
+    if (!categoryKey) {
+      return {
+        kind: "missing-category",
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "iPharma category required",
+      };
     }
-    if (isFuelBrand(brand)) {
-        if (!categoryKey && !gradeKey) {
-            return {
-                kind: "missing-category",
-                allowNoExpiry: false,
-                requiresManufactureDate: true,
-                label: "iFuel category required",
-            };
-        }
-        // CATEGORY is authoritative. Grade is only a compatibility fallback for
-        // older records that were saved before fuel categories were connected.
-        const key = categoryKey || gradeKey;
-        if (key.includes("ethanol") ||
-            /\be10\b/.test(key) ||
-            /\be15\b/.test(key) ||
-            /\be85\b/.test(key)) {
-            return {
-                kind: "range",
-                minMonths: 1,
-                maxMonths: 3,
-                recommendedMonths: 3,
-                allowNoExpiry: false,
-                requiresManufactureDate: true,
-                label: "Ethanol-blended gasoline · 1–3 months",
-            };
-        }
-        if (key.includes("premium")) {
-            return {
-                kind: "max",
-                maxMonths: 9,
-                recommendedMonths: 9,
-                allowNoExpiry: false,
-                requiresManufactureDate: true,
-                label: "Premium gasoline · up to 9 months",
-            };
-        }
-        if (key.includes("diesel")) {
-            return {
-                kind: "max",
-                maxMonths: 12,
-                recommendedMonths: 12,
-                allowNoExpiry: false,
-                requiresManufactureDate: true,
-                label: "Diesel · up to 12 months",
-            };
-        }
-        if (key.includes("regular") ||
-            key.includes("unleaded") ||
-            key === "gasoline" ||
-            key === "petrol" ||
-            key.includes("regular gasoline")) {
-            return {
-                kind: "range",
-                minMonths: 3,
-                maxMonths: 6,
-                recommendedMonths: 6,
-                allowNoExpiry: false,
-                requiresManufactureDate: true,
-                label: "Regular gasoline · 3–6 months",
-            };
-        }
-        return {
-            kind: "unconfigured-fuel",
-            allowNoExpiry: false,
-            requiresManufactureDate: true,
-            label: "Fuel shelf life not configured for this category",
-        };
+    if (
+      categoryKey.includes("health device") ||
+      categoryKey.includes("medical device") ||
+      categoryKey.includes("equipment")
+    ) {
+      return {
+        kind: "manufacturer",
+        allowNoExpiry: true,
+        requiresManufactureDate: false,
+        label: "Health device / equipment",
+      };
     }
-    return null;
+    if (
+      categoryKey.includes("first aid") ||
+      categoryKey.includes("medical suppl") ||
+      categoryKey.includes("bandage") ||
+      categoryKey.includes("gauze") ||
+      categoryKey.includes("dressing") ||
+      categoryKey.includes("hygiene")
+    ) {
+      return {
+        kind: "exact",
+        months: 9,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "9 months from manufacture date",
+      };
+    }
+    // Medicine, Antibiotic, Vitamins & Supplements, and future medicine-like
+    // iPharma categories use the 3-year shelf-life rule.
+    return {
+      kind: "exact",
+      months: 36,
+      allowNoExpiry: false,
+      requiresManufactureDate: true,
+      label: "3 years from manufacture date",
+    };
+  }
+  if (isFuelBrand(brand)) {
+    if (!categoryKey && !gradeKey) {
+      return {
+        kind: "missing-category",
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "iFuel category required",
+      };
+    }
+    // CATEGORY is authoritative. Grade is only a compatibility fallback for
+    // older records that were saved before fuel categories were connected.
+    const key = categoryKey || gradeKey;
+    if (
+      key.includes("ethanol") ||
+      /\be10\b/.test(key) ||
+      /\be15\b/.test(key) ||
+      /\be85\b/.test(key)
+    ) {
+      return {
+        kind: "range",
+        minMonths: 1,
+        maxMonths: 3,
+        recommendedMonths: 3,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "Ethanol-blended gasoline · 1–3 months",
+      };
+    }
+    if (key.includes("premium")) {
+      return {
+        kind: "max",
+        maxMonths: 9,
+        recommendedMonths: 9,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "Premium gasoline · up to 9 months",
+      };
+    }
+    if (key.includes("diesel")) {
+      return {
+        kind: "max",
+        maxMonths: 12,
+        recommendedMonths: 12,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "Diesel · up to 12 months",
+      };
+    }
+    if (
+      key.includes("regular") ||
+      key.includes("unleaded") ||
+      key === "gasoline" ||
+      key === "petrol" ||
+      key.includes("regular gasoline")
+    ) {
+      return {
+        kind: "range",
+        minMonths: 3,
+        maxMonths: 6,
+        recommendedMonths: 6,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "Regular gasoline · 3–6 months",
+      };
+    }
+    return {
+      kind: "unconfigured-fuel",
+      allowNoExpiry: false,
+      requiresManufactureDate: true,
+      label: "Fuel shelf life not configured for this category",
+    };
+  }
+  return null;
 }
 
 function getExpiryBoundsFromManufacture(mfgDate, rule) {
-    const mfg = parseLocalDateOnly(mfgDate);
-    if (!mfg || !rule) {
-        return {
-            minDate: null,
-            maxDate: null,
-            recommendedDate: null,
-            minStr: "",
-            maxStr: "",
-            recommendedStr: "",
-        };
-    }
-    let minDate = null;
-    let maxDate = null;
-    let recommendedDate = null;
-    if (rule.kind === "exact") {
-        minDate = addMonthsClamped(mfg, rule.months);
-        maxDate = null;
-        recommendedDate = minDate ? new Date(minDate) : null;
-    }
-    else if (rule.kind === "range") {
-        minDate = addMonthsClamped(mfg, rule.minMonths);
-        maxDate = addMonthsClamped(mfg, rule.maxMonths);
-        recommendedDate = addMonthsClamped(mfg, rule.recommendedMonths ?? rule.maxMonths);
-    }
-    else if (rule.kind === "max") {
-        minDate = addDaysLocal(mfg, 1);
-        maxDate = addMonthsClamped(mfg, rule.maxMonths);
-        recommendedDate = addMonthsClamped(mfg, rule.recommendedMonths ?? rule.maxMonths);
-    }
-    else if (rule.kind === "manufacturer" ||
-        rule.kind === "unconfigured-fuel") {
-        minDate = addDaysLocal(mfg, 1);
-    }
+  const mfg = parseLocalDateOnly(mfgDate);
+  if (!mfg || !rule) {
     return {
-        minDate,
-        maxDate,
-        recommendedDate,
-        minStr: toDateInputValue(minDate),
-        maxStr: toDateInputValue(maxDate),
-        recommendedStr: toDateInputValue(recommendedDate),
+      minDate: null,
+      maxDate: null,
+      recommendedDate: null,
+      minStr: "",
+      maxStr: "",
+      recommendedStr: "",
     };
+  }
+  let minDate = null;
+  let maxDate = null;
+  let recommendedDate = null;
+  if (rule.kind === "exact") {
+    minDate = addMonthsClamped(mfg, rule.months);
+    maxDate = null;
+    recommendedDate = minDate ? new Date(minDate) : null;
+  } else if (rule.kind === "range") {
+    minDate = addMonthsClamped(mfg, rule.minMonths);
+    maxDate = addMonthsClamped(mfg, rule.maxMonths);
+    recommendedDate = addMonthsClamped(
+      mfg,
+      rule.recommendedMonths ?? rule.maxMonths,
+    );
+  } else if (rule.kind === "max") {
+    minDate = addDaysLocal(mfg, 1);
+    maxDate = addMonthsClamped(mfg, rule.maxMonths);
+    recommendedDate = addMonthsClamped(
+      mfg,
+      rule.recommendedMonths ?? rule.maxMonths,
+    );
+  } else if (
+    rule.kind === "manufacturer" ||
+    rule.kind === "unconfigured-fuel"
+  ) {
+    minDate = addDaysLocal(mfg, 1);
+  }
+  return {
+    minDate,
+    maxDate,
+    recommendedDate,
+    minStr: toDateInputValue(minDate),
+    maxStr: toDateInputValue(maxDate),
+    recommendedStr: toDateInputValue(recommendedDate),
+  };
 }
 
 function shelfLifeHelperText(rule, bounds, category) {
-    if (!rule)
-        return "";
-    const categoryLabel = String(category || "").trim();
-    if (rule.kind === "missing-category") {
-        return "Assign a category to this product first. Expiry validation depends on the selected category.";
+  if (!rule) return "";
+  const categoryLabel = String(category || "").trim();
+  if (rule.kind === "missing-category") {
+    return "Assign a category to this product first. Expiry validation depends on the selected category.";
+  }
+  if (rule.kind === "exact") {
+    if (!bounds?.recommendedStr) {
+      return `${categoryLabel || "This category"} requires expiry ${rule.label}. Enter the manufacture date first.`;
     }
-    if (rule.kind === "exact") {
-        if (!bounds?.recommendedStr) {
-            return `${categoryLabel || "This category"} requires expiry ${rule.label}. Enter the manufacture date first.`;
-        }
-        return `${categoryLabel || "This category"}: expiry must be exactly ${rule.label}. Required date: ${fmtDate(bounds.recommendedStr)}.`;
+    return `${categoryLabel || "This category"}: expiry must be exactly ${rule.label}. Required date: ${fmtDate(bounds.recommendedStr)}.`;
+  }
+  if (rule.kind === "range") {
+    if (!bounds?.minStr || !bounds?.maxStr) {
+      return `${rule.label}. Enter the manufacture date first.`;
     }
-    if (rule.kind === "range") {
-        if (!bounds?.minStr || !bounds?.maxStr) {
-            return `${rule.label}. Enter the manufacture date first.`;
-        }
-        return `${rule.label}. Allowed expiry: ${fmtDate(bounds.minStr)} to ${fmtDate(bounds.maxStr)}.`;
+    return `${rule.label}. Allowed expiry: ${fmtDate(bounds.minStr)} to ${fmtDate(bounds.maxStr)}.`;
+  }
+  if (rule.kind === "max") {
+    if (!bounds?.maxStr) {
+      return `${rule.label}. Enter the manufacture date first.`;
     }
-    if (rule.kind === "max") {
-        if (!bounds?.maxStr) {
-            return `${rule.label}. Enter the manufacture date first.`;
-        }
-        return `${rule.label}. Expiry must be after manufacture and no later than ${fmtDate(bounds.maxStr)}.`;
-    }
-    if (rule.kind === "manufacturer") {
-        return "Use the manufacturer-provided expiry date. If the device/equipment has no expiry date, select “No expiry date”.";
-    }
-    if (rule.kind === "unconfigured-fuel") {
-        return "This fuel category has no configured shelf-life rule. Use Regular Gasoline, Ethanol-Blended Gasoline, Premium Gasoline, or Diesel.";
-    }
-    return "";
+    return `${rule.label}. Expiry must be after manufacture and no later than ${fmtDate(bounds.maxStr)}.`;
+  }
+  if (rule.kind === "manufacturer") {
+    return "Use the manufacturer-provided expiry date. If the device/equipment has no expiry date, select “No expiry date”.";
+  }
+  if (rule.kind === "unconfigured-fuel") {
+    return "This fuel category has no configured shelf-life rule. Use Regular Gasoline, Ethanol-Blended Gasoline, Premium Gasoline, or Diesel.";
+  }
+  return "";
 }
 
-function validateCategoryShelfLife({ brand, category, grade, mfgDate, expiryDate, noExpiry = false, }) {
-    const errors = [];
-    const rule = getCategoryShelfLifeRule(brand, category, grade);
-    if (!rule)
-        return errors;
-    if (rule.kind === "missing-category") {
-        errors.push(`Assign a category to this ${isPharmaBrand(brand) ? "iPharma" : "iFuel"} product before receiving or editing stock.`);
-        return errors;
-    }
-    if (rule.kind === "unconfigured-fuel") {
-        errors.push(`No fuel shelf-life validation is configured for category "${category || grade || "Unknown"}". Use Regular Gasoline, Ethanol-Blended Gasoline, Premium Gasoline, or Diesel.`);
-        return errors;
-    }
-    if (rule.requiresManufactureDate && !mfgDate) {
-        errors.push("Manufacture date is required because expiration is calculated from the manufacture date.");
-        return errors;
-    }
-    if (noExpiry) {
-        if (!rule.allowNoExpiry) {
-            errors.push(`${category || "This category"} requires an expiration date.`);
-        }
-        return errors;
-    }
-    if (!expiryDate) {
-        errors.push("Expiry date is required.");
-        return errors;
-    }
-    const mfg = parseLocalDateOnly(mfgDate);
-    const exp = parseLocalDateOnly(expiryDate);
-    if (mfgDate && !mfg) {
-        errors.push("Manufacture date is not a valid date.");
-        return errors;
-    }
-    if (!exp) {
-        errors.push("Expiry date is not a valid date.");
-        return errors;
-    }
-    if (mfg && exp <= mfg) {
-        errors.push("Expiry date must be after the manufacture date.");
-        return errors;
-    }
-    const bounds = getExpiryBoundsFromManufacture(mfgDate, rule);
-    if (rule.kind === "exact" && bounds.minDate) {
-        if (exp < bounds.minDate) {
-            errors.push(`${category || "This category"} expiry must be on or after ${fmtDate(bounds.minStr)}.`);
-        }
-    }
-    else if (rule.kind === "range" && bounds.minDate && bounds.maxDate) {
-        if (exp < bounds.minDate || exp > bounds.maxDate) {
-            errors.push(`${rule.label}. Expiry must be between ${fmtDate(bounds.minStr)} and ${fmtDate(bounds.maxStr)}.`);
-        }
-    }
-    else if (rule.kind === "max" && bounds.maxDate) {
-        if (exp > bounds.maxDate) {
-            errors.push(`${rule.label}. Latest allowed expiry: ${fmtDate(bounds.maxStr)}.`);
-        }
+function validateCategoryShelfLife({
+  brand,
+  category,
+  grade,
+  mfgDate,
+  expiryDate,
+  noExpiry = false,
+}) {
+  const errors = [];
+  const rule = getCategoryShelfLifeRule(brand, category, grade);
+  if (!rule) return errors;
+  if (rule.kind === "missing-category") {
+    errors.push(
+      `Assign a category to this ${isPharmaBrand(brand) ? "iPharma" : "iFuel"} product before receiving or editing stock.`,
+    );
+    return errors;
+  }
+  if (rule.kind === "unconfigured-fuel") {
+    errors.push(
+      `No fuel shelf-life validation is configured for category "${category || grade || "Unknown"}". Use Regular Gasoline, Ethanol-Blended Gasoline, Premium Gasoline, or Diesel.`,
+    );
+    return errors;
+  }
+  if (rule.requiresManufactureDate && !mfgDate) {
+    errors.push(
+      "Manufacture date is required because expiration is calculated from the manufacture date.",
+    );
+    return errors;
+  }
+  if (noExpiry) {
+    if (!rule.allowNoExpiry) {
+      errors.push(
+        `${category || "This category"} requires an expiration date.`,
+      );
     }
     return errors;
+  }
+  if (!expiryDate) {
+    errors.push("Expiry date is required.");
+    return errors;
+  }
+  const mfg = parseLocalDateOnly(mfgDate);
+  const exp = parseLocalDateOnly(expiryDate);
+  if (mfgDate && !mfg) {
+    errors.push("Manufacture date is not a valid date.");
+    return errors;
+  }
+  if (!exp) {
+    errors.push("Expiry date is not a valid date.");
+    return errors;
+  }
+  if (mfg && exp <= mfg) {
+    errors.push("Expiry date must be after the manufacture date.");
+    return errors;
+  }
+  const bounds = getExpiryBoundsFromManufacture(mfgDate, rule);
+  if (rule.kind === "exact" && bounds.minDate) {
+    if (exp < bounds.minDate) {
+      errors.push(
+        `${category || "This category"} expiry must be on or after ${fmtDate(bounds.minStr)}.`,
+      );
+    }
+  } else if (rule.kind === "range" && bounds.minDate && bounds.maxDate) {
+    if (exp < bounds.minDate || exp > bounds.maxDate) {
+      errors.push(
+        `${rule.label}. Expiry must be between ${fmtDate(bounds.minStr)} and ${fmtDate(bounds.maxStr)}.`,
+      );
+    }
+  } else if (rule.kind === "max" && bounds.maxDate) {
+    if (exp > bounds.maxDate) {
+      errors.push(
+        `${rule.label}. Latest allowed expiry: ${fmtDate(bounds.maxStr)}.`,
+      );
+    }
+  }
+  return errors;
 }
 
 // Brand & Branch is the source of truth for iFuel/iPharma categories.
 // The API normally returns categories as an array, but this also safely
 // handles JSON/text values so Stock Inventory stays connected to it.
 function getBrandCategories(brandObj) {
-    const raw = brandObj?.categories;
-    if (Array.isArray(raw)) {
-        return [...new Set(raw.map((c) => String(c || "").trim()).filter(Boolean))];
-    }
-    if (typeof raw === "string" && raw.trim()) {
-        try {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-                return [
-                    ...new Set(parsed.map((c) => String(c || "").trim()).filter(Boolean)),
-                ];
-            }
-        }
-        catch { }
+  const raw = brandObj?.categories;
+  if (Array.isArray(raw)) {
+    return [...new Set(raw.map((c) => String(c || "").trim()).filter(Boolean))];
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
         return [
-            ...new Set(raw
-                .split(",")
-                .map((c) => c.trim())
-                .filter(Boolean)),
+          ...new Set(parsed.map((c) => String(c || "").trim()).filter(Boolean)),
         ];
-    }
-    return [];
+      }
+    } catch {}
+    return [
+      ...new Set(
+        raw
+          .split(",")
+          .map((c) => c.trim())
+          .filter(Boolean),
+      ),
+    ];
+  }
+  return [];
 }
 
 // Brand is authoritative. Branch is used only as a legacy fallback when the
 // old row has no brand at all. This prevents shared branches such as
 // "Head Office" from leaking Coffee Spot products into iPharma/iFuel.
 function itemBelongsToBrand(item, brandDef, brandObj) {
-    const storedBrand = String(item?.brand || item?.brand_name || "")
-        .trim()
-        .toLowerCase();
-    if (storedBrand)
-        return brandDef.match(storedBrand);
-    // iFuel/iPharma are direct-product inventories and must always have an
-    // explicit brand. Never infer them from Head Office or another shared branch.
-    if (isDirectProductBrand(brandObj?.name || brandDef?.label || ""))
-        return false;
-    // Legacy fallback is retained only for non-direct brands whose old rows may
-    // predate the brand field.
-    const validBranches = (brandObj?.branches || [])
-        .map((br) => (typeof br === "string" ? br : br?.name))
-        .filter(Boolean);
-    return !!item?.branch && validBranches.includes(item.branch);
+  const storedBrand = String(item?.brand || item?.brand_name || "")
+    .trim()
+    .toLowerCase();
+  if (storedBrand) return brandDef.match(storedBrand);
+  // iFuel/iPharma are direct-product inventories and must always have an
+  // explicit brand. Never infer them from Head Office or another shared branch.
+  if (isDirectProductBrand(brandObj?.name || brandDef?.label || ""))
+    return false;
+  // Legacy fallback is retained only for non-direct brands whose old rows may
+  // predate the brand field.
+  const validBranches = (brandObj?.branches || [])
+    .map((br) => (typeof br === "string" ? br : br?.name))
+    .filter(Boolean);
+  return !!item?.branch && validBranches.includes(item.branch);
 }
 
 const STOCK_CATEGORY_STORAGE_KEY = "franchisync_stock_product_categories_v2";
 
 function readStockCategoryMap() {
-    if (typeof window === "undefined" || !window.localStorage)
-        return {};
-    try {
-        const raw = window.localStorage.getItem(STOCK_CATEGORY_STORAGE_KEY);
-        const parsed = raw ? JSON.parse(raw) : {};
-        return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-            ? parsed
-            : {};
-    }
-    catch {
-        return {};
-    }
+  if (typeof window === "undefined" || !window.localStorage) return {};
+  try {
+    const raw = window.localStorage.getItem(STOCK_CATEGORY_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : {};
+  } catch {
+    return {};
+  }
 }
 
 function persistStockCategory(itemId, category) {
-    if (itemId === null || itemId === undefined || itemId === "")
-        return;
-    if (typeof window === "undefined" || !window.localStorage)
-        return;
-    const value = String(category || "").trim();
-    try {
-        const map = readStockCategoryMap();
-        if (value)
-            map[String(itemId)] = value;
-        else
-            delete map[String(itemId)];
-        window.localStorage.setItem(STOCK_CATEGORY_STORAGE_KEY, JSON.stringify(map));
-    }
-    catch { }
+  if (itemId === null || itemId === undefined || itemId === "") return;
+  if (typeof window === "undefined" || !window.localStorage) return;
+  const value = String(category || "").trim();
+  try {
+    const map = readStockCategoryMap();
+    if (value) map[String(itemId)] = value;
+    else delete map[String(itemId)];
+    window.localStorage.setItem(
+      STOCK_CATEGORY_STORAGE_KEY,
+      JSON.stringify(map),
+    );
+  } catch {}
 }
 
 function getPersistedStockCategory(itemId) {
-    if (itemId === null || itemId === undefined || itemId === "")
-        return "";
-    return String(readStockCategoryMap()[String(itemId)] || "").trim();
+  if (itemId === null || itemId === undefined || itemId === "") return "";
+  return String(readStockCategoryMap()[String(itemId)] || "").trim();
 }
 
 function normalizeStockItem(row) {
-    if (!row || typeof row !== "object")
-        return row;
-    const backendCategory = String(row.category ?? row.product_category ?? row.category_name ?? "").trim();
-    // If the API already returns a category, it remains authoritative and we
-    // cache it. If the current backend silently drops the category field on
-    // /ingredients PUT/POST, use the last category explicitly selected for this
-    // exact product instead of reverting the UI to "Uncategorized".
-    if (backendCategory && row.id != null) {
-        persistStockCategory(row.id, backendCategory);
-    }
-    const resolvedCategory = backendCategory || getPersistedStockCategory(row.id);
-    return {
-        ...row,
-        brand: String(row.brand ?? row.brand_name ?? "").trim(),
-        category: resolvedCategory,
-        sku: row.sku || "",
-    };
+  if (!row || typeof row !== "object") return row;
+  const backendCategory = String(
+    row.category ?? row.product_category ?? row.category_name ?? "",
+  ).trim();
+  // If the API already returns a category, it remains authoritative and we
+  // cache it. If the current backend silently drops the category field on
+  // /ingredients PUT/POST, use the last category explicitly selected for this
+  // exact product instead of reverting the UI to "Uncategorized".
+  if (backendCategory && row.id != null) {
+    persistStockCategory(row.id, backendCategory);
+  }
+  const resolvedCategory = backendCategory || getPersistedStockCategory(row.id);
+  return {
+    ...row,
+    brand: String(row.brand ?? row.brand_name ?? "").trim(),
+    category: resolvedCategory,
+    sku: row.sku || "",
+  };
 }
 
 const DIRECT_COST_RATE = 0.35;
 
 const computeDirectSellingPrice = (cost) => {
-    const base = Number(cost || 0);
-    return base > 0 ? Math.round((base / DIRECT_COST_RATE) * 100) / 100 : 0;
+  const base = Number(cost || 0);
+  return base > 0 ? Math.round((base / DIRECT_COST_RATE) * 100) / 100 : 0;
 };
 
 /* small reusable bar for stock level / freshness */
 function MiniBar({ pct, color, track = "#eef6f1", height = 6 }) {
-    const w = Math.max(0, Math.min(100, pct ?? 0));
-    return (<div style={{
-            background: track,
-            borderRadius: 20,
-            height,
-            overflow: "hidden",
-            width: "100%",
-        }}>
-      <div style={{
-            width: `${w}%`,
-            height: "100%",
-            background: color,
-            borderRadius: 20,
-            transition: "width .3s ease",
-        }}/>
-    </div>);
+  const w = Math.max(0, Math.min(100, pct ?? 0));
+  return (
+    <div
+      style={{
+        background: track,
+        borderRadius: 20,
+        height,
+        overflow: "hidden",
+        width: "100%",
+      }}
+    >
+      <div
+        style={{
+          width: `${w}%`,
+          height: "100%",
+          background: color,
+          borderRadius: 20,
+          transition: "width .3s ease",
+        }}
+      />
+    </div>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
    UI MODAL
 ───────────────────────────────────────────────────────────────────────── */
 function UIModal({ modal, onClose, onConfirm }) {
-    if (!modal)
-        return null;
-    const { type, title, message, lines, confirmLabel, cancelLabel } = modal;
-    const iconMap = {
-        error: <AlertCircleIcon size={26} color={SI_C.red}/>,
-        success: <CheckCircleIcon size={26} color={SI_C.green}/>,
-        info: <InfoIcon size={26} color="#1d4ed8"/>,
-        confirm: <AlertCircleIcon size={26} color={SI_C.warn}/>,
-    };
-    const hc = {
-        error: { bg: SI_C.redBg, border: "#fecaca", titleColor: "#991b1b" },
-        success: { bg: SI_C.greenLt, border: SI_C.greenMid, titleColor: SI_C.greenDk },
-        info: { bg: "#eff6ff", border: "#bfdbfe", titleColor: "#1e3a8a" },
-        confirm: { bg: SI_C.warnBg, border: "#fed7aa", titleColor: "#9a3412" },
-    }[type] || { bg: "#eff6ff", border: "#bfdbfe", titleColor: "#1e3a8a" };
-    return (<div onClick={onClose} style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(13,43,30,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 3000,
-            padding: 20,
-            backdropFilter: "blur(4px)",
-        }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-            background: SI_C.white,
-            borderRadius: 16,
-            width: "100%",
-            maxWidth: 440,
-            boxShadow: "0 24px 64px rgba(0,0,0,0.16)",
-            border: `1px solid ${hc.border}`,
-            fontFamily: "Montserrat,sans-serif",
-            overflow: "hidden",
-        }}>
-        <div style={{
+  if (!modal) return null;
+  const { type, title, message, lines, confirmLabel, cancelLabel } = modal;
+  const iconMap = {
+    error: <AlertCircleIcon size={26} color={SI_C.red} />,
+    success: <CheckCircleIcon size={26} color={SI_C.green} />,
+    info: <InfoIcon size={26} color="#1d4ed8" />,
+    confirm: <AlertCircleIcon size={26} color={SI_C.warn} />,
+  };
+  const hc = {
+    error: { bg: SI_C.redBg, border: "#fecaca", titleColor: "#991b1b" },
+    success: {
+      bg: SI_C.greenLt,
+      border: SI_C.greenMid,
+      titleColor: SI_C.greenDk,
+    },
+    info: { bg: "#eff6ff", border: "#bfdbfe", titleColor: "#1e3a8a" },
+    confirm: { bg: SI_C.warnBg, border: "#fed7aa", titleColor: "#9a3412" },
+  }[type] || { bg: "#eff6ff", border: "#bfdbfe", titleColor: "#1e3a8a" };
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(13,43,30,0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 3000,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: SI_C.white,
+          borderRadius: 16,
+          width: "100%",
+          maxWidth: 440,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.16)",
+          border: `1px solid ${hc.border}`,
+          fontFamily: "Montserrat,sans-serif",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
             background: hc.bg,
             padding: "20px 24px 16px",
             borderBottom: `1px solid ${hc.border}`,
             display: "flex",
             alignItems: "flex-start",
             gap: 13,
-        }}>
+          }}
+        >
           <div style={{ flexShrink: 0, marginTop: 1 }}>{iconMap[type]}</div>
           <div style={{ flex: 1 }}>
-            <div style={{
-            fontSize: 15,
-            fontWeight: 800,
-            color: hc.titleColor,
-            marginBottom: 4,
-        }}>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                color: hc.titleColor,
+                marginBottom: 4,
+              }}
+            >
               {title}
             </div>
-            {message && (<div style={{
-                fontSize: 13,
-                color: SI_C.ink,
-                lineHeight: 1.6,
-                opacity: 0.85,
-            }}>
+            {message && (
+              <div
+                style={{
+                  fontSize: 13,
+                  color: SI_C.ink,
+                  lineHeight: 1.6,
+                  opacity: 0.85,
+                }}
+              >
                 {message}
-              </div>)}
+              </div>
+            )}
           </div>
-          <button onClick={onClose} style={{
-            flexShrink: 0,
-            width: 28,
-            height: 28,
-            borderRadius: "50%",
-            border: `1px solid ${hc.border}`,
-            background: "transparent",
-            cursor: "pointer",
-            color: SI_C.muted,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-        }}>
-            <SI_XIcon size={13}/>
+          <button
+            onClick={onClose}
+            style={{
+              flexShrink: 0,
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              border: `1px solid ${hc.border}`,
+              background: "transparent",
+              cursor: "pointer",
+              color: SI_C.muted,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <SI_XIcon size={13} />
           </button>
         </div>
-        {lines && lines.length > 0 && (<div style={{
-                maxHeight: 220,
-                overflowY: "auto",
-                padding: "12px 24px",
-                borderBottom: `1px solid ${SI_C.border}`,
-            }}>
-            {lines.map((l, i) => (<div key={i} style={{
-                    fontSize: 12,
-                    color: l.warn ? SI_C.warn : SI_C.muted,
-                    padding: "3px 0",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 7,
-                }}>
-                <span style={{
+        {lines && lines.length > 0 && (
+          <div
+            style={{
+              maxHeight: 220,
+              overflowY: "auto",
+              padding: "12px 24px",
+              borderBottom: `1px solid ${SI_C.border}`,
+            }}
+          >
+            {lines.map((l, i) => (
+              <div
+                key={i}
+                style={{
+                  fontSize: 12,
+                  color: l.warn ? SI_C.warn : SI_C.muted,
+                  padding: "3px 0",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 7,
+                }}
+              >
+                <span
+                  style={{
                     marginTop: 1,
                     flexShrink: 0,
                     color: l.warn ? SI_C.warn : SI_C.green,
-                }}>
+                  }}
+                >
                   {l.warn ? "–" : "+"}
                 </span>
                 <span>{l.text}</span>
-              </div>))}
-          </div>)}
-        <div style={{
+              </div>
+            ))}
+          </div>
+        )}
+        <div
+          style={{
             padding: "14px 24px",
             display: "flex",
             justifyContent: "flex-end",
             gap: 8,
-        }}>
-          {type === "confirm" && (<button onClick={onClose} style={{ ...SI_btnSt }}>
+          }}
+        >
+          {type === "confirm" && (
+            <button onClick={onClose} style={{ ...SI_btnSt }}>
               {cancelLabel || "Cancel"}
-            </button>)}
-          {type === "confirm" ? (<button onClick={onConfirm} style={{
+            </button>
+          )}
+          {type === "confirm" ? (
+            <button
+              onClick={onConfirm}
+              style={{
                 ...SI_btnSt,
                 background: SI_C.red,
                 color: "#fff",
                 border: "none",
-            }}>
+              }}
+            >
               {confirmLabel || "Confirm"}
-            </button>) : (<button onClick={onClose} style={{ ...btnPrimarySt }}>
+            </button>
+          ) : (
+            <button onClick={onClose} style={{ ...btnPrimarySt }}>
               {confirmLabel || "OK"}
-            </button>)}
+            </button>
+          )}
         </div>
       </div>
-    </div>);
+    </div>
+  );
 }
 
 /* ── DELETE CONFIRM MODAL ── */
 function DeleteConfirmModal({ item, deleting, onConfirm, onCancel }) {
-    if (!item)
-        return null;
-    return (<div onClick={onCancel} style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(13,43,30,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2500,
-            padding: 20,
-            backdropFilter: "blur(4px)",
-        }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-            background: SI_C.white,
-            borderRadius: 16,
-            width: "100%",
-            maxWidth: 420,
-            boxShadow: "0 24px 64px rgba(0,0,0,0.16)",
-            border: `1px solid #fecaca`,
-            fontFamily: "Montserrat,sans-serif",
-            overflow: "hidden",
-        }}>
-        <div style={{
+  if (!item) return null;
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(13,43,30,0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2500,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: SI_C.white,
+          borderRadius: 16,
+          width: "100%",
+          maxWidth: 420,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.16)",
+          border: `1px solid #fecaca`,
+          fontFamily: "Montserrat,sans-serif",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
             background: SI_C.redBg,
             padding: "20px 24px 16px",
             borderBottom: "1px solid #fecaca",
             display: "flex",
             alignItems: "flex-start",
             gap: 13,
-        }}>
+          }}
+        >
           <div style={{ flexShrink: 0, marginTop: 1 }}>
-            <AlertCircleIcon size={26} color={SI_C.red}/>
+            <AlertCircleIcon size={26} color={SI_C.red} />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{
-            fontSize: 15,
-            fontWeight: 800,
-            color: "#991b1b",
-            marginBottom: 5,
-        }}>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                color: "#991b1b",
+                marginBottom: 5,
+              }}
+            >
               Delete Ingredient
             </div>
             <div style={{ fontSize: 13, color: SI_C.ink, lineHeight: 1.6 }}>
               Are you sure you want to delete <strong>"{item.name}"</strong>?
             </div>
-            <div style={{
-            marginTop: 8,
-            background: "#fff5f5",
-            border: "1px solid #fecaca",
-            borderRadius: 8,
-            padding: "8px 12px",
-            fontSize: 12,
-            color: "#7f1d1d",
-        }}>
+            <div
+              style={{
+                marginTop: 8,
+                background: "#fff5f5",
+                border: "1px solid #fecaca",
+                borderRadius: 8,
+                padding: "8px 12px",
+                fontSize: 12,
+                color: "#7f1d1d",
+              }}
+            >
               This will move the ingredient to Delete History where it can be
               restored.
             </div>
           </div>
-          <button onClick={onCancel} style={{
-            flexShrink: 0,
-            width: 28,
-            height: 28,
-            borderRadius: "50%",
-            border: "1px solid #fecaca",
-            background: "transparent",
-            cursor: "pointer",
-            color: SI_C.muted,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-        }}>
-            <SI_XIcon size={13}/>
+          <button
+            onClick={onCancel}
+            style={{
+              flexShrink: 0,
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              border: "1px solid #fecaca",
+              background: "transparent",
+              cursor: "pointer",
+              color: SI_C.muted,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <SI_XIcon size={13} />
           </button>
         </div>
-        <div style={{
+        <div
+          style={{
             padding: "12px 24px",
             borderBottom: `1px solid ${SI_C.border}`,
             display: "flex",
             gap: 20,
-        }}>
+          }}
+        >
           {[
             { label: "Branch", val: item.branch || "—" },
             { label: "Unit", val: item.unit },
             { label: "Stock", val: item.stock },
             {
-                label: "Cost/Unit",
-                val: `₱${Number(item.cost_per_unit || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+              label: "Cost/Unit",
+              val: `₱${Number(item.cost_per_unit || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             },
-        ].map((x) => (<div key={x.label} style={{ fontSize: 12 }}>
-              <div style={{
-                color: SI_C.muted,
-                fontSize: 10,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                marginBottom: 3,
-            }}>
+          ].map((x) => (
+            <div key={x.label} style={{ fontSize: 12 }}>
+              <div
+                style={{
+                  color: SI_C.muted,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  marginBottom: 3,
+                }}
+              >
                 {x.label}
               </div>
               <div style={{ fontWeight: 700, color: SI_C.ink }}>{x.val}</div>
-            </div>))}
+            </div>
+          ))}
         </div>
-        <div style={{
+        <div
+          style={{
             fontSize: 10.5,
             color: SI_C.muted,
             marginTop: 3,
@@ -2145,108 +2324,153 @@ function DeleteConfirmModal({ item, deleting, onConfirm, onCancel }) {
             alignItems: "center",
             gap: 6,
             flexWrap: "wrap",
-        }}>
-          <span style={{
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-        }}>
+          }}
+        >
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             {item.branch}
           </span>
-          {(isDirectProductBrand(item.brand) || item.category) && (<>
+          {(isDirectProductBrand(item.brand) || item.category) && (
+            <>
               <span style={{ opacity: 0.45 }}>•</span>
-              <span style={{
-                color: item.category ? SI_C.greenDk : SI_C.warn,
-                fontWeight: 700,
-            }}>
+              <span
+                style={{
+                  color: item.category ? SI_C.greenDk : SI_C.warn,
+                  fontWeight: 700,
+                }}
+              >
                 {item.category || "Uncategorized"}
               </span>
-            </>)}
-          {item.sku && (<>
+            </>
+          )}
+          {item.sku && (
+            <>
               <span style={{ opacity: 0.45 }}>•</span>
-              <span style={{
-                fontFamily: "monospace",
-                fontSize: 9.5,
-                color: "#9ca3af",
-            }}>
+              <span
+                style={{
+                  fontFamily: "monospace",
+                  fontSize: 9.5,
+                  color: "#9ca3af",
+                }}
+              >
                 {item.sku}
               </span>
-            </>)}
+            </>
+          )}
         </div>
-        <div style={{
+        <div
+          style={{
             padding: "14px 24px",
             display: "flex",
             justifyContent: "flex-end",
             gap: 8,
-        }}>
-          <button onClick={onCancel} disabled={deleting} style={{ ...SI_btnSt, opacity: deleting ? 0.5 : 1 }}>
+          }}
+        >
+          <button
+            onClick={onCancel}
+            disabled={deleting}
+            style={{ ...SI_btnSt, opacity: deleting ? 0.5 : 1 }}
+          >
             Cancel
           </button>
-          <button onClick={onConfirm} disabled={deleting} style={{
-            ...SI_btnSt,
-            background: SI_C.red,
-            color: "#fff",
-            border: "none",
-            boxShadow: "0 2px 8px rgba(220,38,38,0.25)",
-            opacity: deleting ? 0.7 : 1,
-            cursor: deleting ? "not-allowed" : "pointer",
-        }}>
-            {deleting ? (<>
-                <RefreshCw size={13} style={{ animation: "spin .8s linear infinite" }}/>{" "}
+          <button
+            onClick={onConfirm}
+            disabled={deleting}
+            style={{
+              ...SI_btnSt,
+              background: SI_C.red,
+              color: "#fff",
+              border: "none",
+              boxShadow: "0 2px 8px rgba(220,38,38,0.25)",
+              opacity: deleting ? 0.7 : 1,
+              cursor: deleting ? "not-allowed" : "pointer",
+            }}
+          >
+            {deleting ? (
+              <>
+                <RefreshCw
+                  size={13}
+                  style={{ animation: "spin .8s linear infinite" }}
+                />{" "}
                 Deleting…
-              </>) : (<>
-                <TrashIcon size={13}/> Delete
-              </>)}
+              </>
+            ) : (
+              <>
+                <TrashIcon size={13} /> Delete
+              </>
+            )}
           </button>
         </div>
       </div>
-    </div>);
+    </div>
+  );
 }
 
 /* ── BATCH DELETE CONFIRM MODAL ── */
-function BatchDeleteConfirmModal({ batch, ingredient, deleting, onConfirm, onCancel, }) {
-    if (!batch)
-        return null;
-    const expStr = fmtDate(batch.exp_date);
-    return (<div onClick={onCancel} style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(13,43,30,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2700,
-            padding: 20,
-            backdropFilter: "blur(4px)",
-        }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-            background: SI_C.white,
-            borderRadius: 16,
-            width: "100%",
-            maxWidth: 420,
-            boxShadow: "0 24px 64px rgba(0,0,0,0.16)",
-            border: "1px solid #fecaca",
-            fontFamily: "Montserrat,sans-serif",
-            overflow: "hidden",
-        }}>
-        <div style={{
+function BatchDeleteConfirmModal({
+  batch,
+  ingredient,
+  deleting,
+  onConfirm,
+  onCancel,
+}) {
+  if (!batch) return null;
+  const expStr = fmtDate(batch.exp_date);
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(13,43,30,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2700,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: SI_C.white,
+          borderRadius: 16,
+          width: "100%",
+          maxWidth: 420,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.16)",
+          border: "1px solid #fecaca",
+          fontFamily: "Montserrat,sans-serif",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
             background: SI_C.redBg,
             padding: "20px 24px 16px",
             borderBottom: "1px solid #fecaca",
             display: "flex",
             alignItems: "flex-start",
             gap: 13,
-        }}>
+          }}
+        >
           <div style={{ flexShrink: 0, marginTop: 1 }}>
-            <AlertCircleIcon size={26} color={SI_C.red}/>
+            <AlertCircleIcon size={26} color={SI_C.red} />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{
-            fontSize: 15,
-            fontWeight: 800,
-            color: "#991b1b",
-            marginBottom: 5,
-        }}>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                color: "#991b1b",
+                marginBottom: 5,
+              }}
+            >
               Delete Batch
             </div>
             <div style={{ fontSize: 13, color: SI_C.ink, lineHeight: 1.6 }}>
@@ -2254,323 +2478,410 @@ function BatchDeleteConfirmModal({ batch, ingredient, deleting, onConfirm, onCan
               <strong>Batch {batch.batch_number || "—"}</strong> of{" "}
               <strong>"{ingredient?.name}"</strong>?
             </div>
-            <div style={{
-            marginTop: 8,
-            background: "#fff5f5",
-            border: "1px solid #fecaca",
-            borderRadius: 8,
-            padding: "8px 12px",
-            fontSize: 12,
-            color: "#7f1d1d",
-        }}>
+            <div
+              style={{
+                marginTop: 8,
+                background: "#fff5f5",
+                border: "1px solid #fecaca",
+                borderRadius: 8,
+                padding: "8px 12px",
+                fontSize: 12,
+                color: "#7f1d1d",
+              }}
+            >
               This will move the batch to Batch Delete History where it can be
               restored. Ingredient stock totals will be recalculated.
             </div>
           </div>
-          <button onClick={onCancel} style={{
-            flexShrink: 0,
-            width: 28,
-            height: 28,
-            borderRadius: "50%",
-            border: "1px solid #fecaca",
-            background: "transparent",
-            cursor: "pointer",
-            color: SI_C.muted,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-        }}>
-            <SI_XIcon size={13}/>
+          <button
+            onClick={onCancel}
+            style={{
+              flexShrink: 0,
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              border: "1px solid #fecaca",
+              background: "transparent",
+              cursor: "pointer",
+              color: SI_C.muted,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <SI_XIcon size={13} />
           </button>
         </div>
-        <div style={{
+        <div
+          style={{
             padding: "12px 24px",
             borderBottom: `1px solid ${SI_C.border}`,
             display: "flex",
             gap: 20,
             flexWrap: "wrap",
-        }}>
+          }}
+        >
           {[
             {
-                label: "Stock",
-                val: `${batch.stock ?? "—"} ${ingredient?.unit || ""}`,
+              label: "Stock",
+              val: `${batch.stock ?? "—"} ${ingredient?.unit || ""}`,
             },
             { label: "Supplier", val: batch.supplier || "—" },
             { label: "Exp Date", val: expStr },
-        ].map((x) => (<div key={x.label} style={{ fontSize: 12 }}>
-              <div style={{
-                color: SI_C.muted,
-                fontSize: 10,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                marginBottom: 3,
-            }}>
+          ].map((x) => (
+            <div key={x.label} style={{ fontSize: 12 }}>
+              <div
+                style={{
+                  color: SI_C.muted,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  marginBottom: 3,
+                }}
+              >
                 {x.label}
               </div>
               <div style={{ fontWeight: 700, color: SI_C.ink }}>{x.val}</div>
-            </div>))}
+            </div>
+          ))}
         </div>
-        <div style={{
+        <div
+          style={{
             padding: "14px 24px",
             display: "flex",
             justifyContent: "flex-end",
             gap: 8,
-        }}>
-          <button onClick={onCancel} disabled={deleting} style={{ ...SI_btnSt, opacity: deleting ? 0.5 : 1 }}>
+          }}
+        >
+          <button
+            onClick={onCancel}
+            disabled={deleting}
+            style={{ ...SI_btnSt, opacity: deleting ? 0.5 : 1 }}
+          >
             Cancel
           </button>
-          <button onClick={onConfirm} disabled={deleting} style={{
-            ...SI_btnSt,
-            background: SI_C.red,
-            color: "#fff",
-            border: "none",
-            boxShadow: "0 2px 8px rgba(220,38,38,0.25)",
-            opacity: deleting ? 0.7 : 1,
-            cursor: deleting ? "not-allowed" : "pointer",
-        }}>
-            {deleting ? (<>
-                <RefreshCw size={13} style={{ animation: "spin .8s linear infinite" }}/>{" "}
+          <button
+            onClick={onConfirm}
+            disabled={deleting}
+            style={{
+              ...SI_btnSt,
+              background: SI_C.red,
+              color: "#fff",
+              border: "none",
+              boxShadow: "0 2px 8px rgba(220,38,38,0.25)",
+              opacity: deleting ? 0.7 : 1,
+              cursor: deleting ? "not-allowed" : "pointer",
+            }}
+          >
+            {deleting ? (
+              <>
+                <RefreshCw
+                  size={13}
+                  style={{ animation: "spin .8s linear infinite" }}
+                />{" "}
                 Deleting…
-              </>) : (<>
-                <TrashIcon size={13}/> Delete Batch
-              </>)}
+              </>
+            ) : (
+              <>
+                <TrashIcon size={13} /> Delete Batch
+              </>
+            )}
           </button>
         </div>
       </div>
-    </div>);
+    </div>
+  );
 }
 
 /* ── BATCH TRANSFER HISTORY MODAL — Head Office batches only ── */
 function BatchTransferHistoryModal({ batch, ingredient, apiUrl, onClose }) {
-    const [loading, setLoading] = useState(true);
-    const [rows, setRows] = useState([]);
-    useEffect(() => {
-        let cancelled = false;
-        setLoading(true);
-        fetch(`${apiUrl}/ingredient-batches/${batch.id}/transfer-history`)
-            .then((r) => r.json())
-            .then((d) => {
-            if (!cancelled) {
-                setRows(Array.isArray(d) ? d : []);
-                setLoading(false);
-            }
-        })
-            .catch(() => {
-            if (!cancelled)
-                setLoading(false);
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [batch.id, apiUrl]);
-    const totalTransferred = rows.reduce((s, r) => s + Number(r.quantity || 0), 0);
-    return (<div onClick={onClose} style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(13,43,30,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2800,
-            padding: 20,
-            backdropFilter: "blur(4px)",
-        }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-            background: SI_C.white,
-            borderRadius: 18,
-            width: "100%",
-            maxWidth: 560,
-            maxHeight: "80vh",
-            display: "flex",
-            flexDirection: "column",
-            boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-            border: `1px solid ${SI_C.border}`,
-            fontFamily: "Montserrat,sans-serif",
-            overflow: "hidden",
-        }}>
-        <div style={{
+  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`${apiUrl}/ingredient-batches/${batch.id}/transfer-history`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) {
+          setRows(Array.isArray(d) ? d : []);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [batch.id, apiUrl]);
+  const totalTransferred = rows.reduce(
+    (s, r) => s + Number(r.quantity || 0),
+    0,
+  );
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(13,43,30,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2800,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: SI_C.white,
+          borderRadius: 18,
+          width: "100%",
+          maxWidth: 560,
+          maxHeight: "80vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: `1px solid ${SI_C.border}`,
+          fontFamily: "Montserrat,sans-serif",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
             padding: "18px 24px",
             borderBottom: `1px solid ${SI_C.border}`,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             background: "#fbfcf8",
-        }}>
+          }}
+        >
           <div>
-            <div style={{
-            fontSize: 15,
-            fontWeight: 800,
-            color: SI_C.ink,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-        }}>
-              <HistoryIcon size={14}/> Transfer History — Batch{" "}
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                color: SI_C.ink,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <HistoryIcon size={14} /> Transfer History — Batch{" "}
               {batch.batch_number || "—"}
             </div>
             <div style={{ fontSize: 12, color: SI_C.muted, marginTop: 2 }}>
               {ingredient.name} · {ingredient.branch}
             </div>
           </div>
-          <button onClick={onClose} style={{
-            width: 30,
-            height: 30,
-            borderRadius: "50%",
-            border: `1px solid ${SI_C.border}`,
-            background: SI_C.white,
-            cursor: "pointer",
-            color: SI_C.muted,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-        }}>
-            <SI_XIcon size={14}/>
+          <button
+            onClick={onClose}
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              border: `1px solid ${SI_C.border}`,
+              background: SI_C.white,
+              cursor: "pointer",
+              color: SI_C.muted,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <SI_XIcon size={14} />
           </button>
         </div>
 
-        <div style={{
+        <div
+          style={{
             padding: "14px 24px",
             borderBottom: `1px solid ${SI_C.border}`,
             display: "flex",
             gap: 20,
             background: "#fafffe",
-        }}>
+          }}
+        >
           <div>
-            <div style={{
-            fontSize: 10,
-            color: SI_C.muted,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-        }}>
+            <div
+              style={{
+                fontSize: 10,
+                color: SI_C.muted,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
               Total Transferred
             </div>
-            <div style={{
-            fontSize: 16,
-            fontWeight: 800,
-            color: SI_C.ink,
-            marginTop: 2,
-        }}>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 800,
+                color: SI_C.ink,
+                marginTop: 2,
+              }}
+            >
               {totalTransferred} {ingredient.unit}
             </div>
           </div>
           <div>
-            <div style={{
-            fontSize: 10,
-            color: SI_C.muted,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-        }}>
+            <div
+              style={{
+                fontSize: 10,
+                color: SI_C.muted,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
               Transfers
             </div>
-            <div style={{
-            fontSize: 16,
-            fontWeight: 800,
-            color: SI_C.ink,
-            marginTop: 2,
-        }}>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 800,
+                color: SI_C.ink,
+                marginTop: 2,
+              }}
+            >
               {rows.length}
             </div>
           </div>
         </div>
 
         <div style={{ overflowY: "auto", flex: 1, padding: "8px 24px 20px" }}>
-          {loading ? (<div style={{
+          {loading ? (
+            <div
+              style={{
                 textAlign: "center",
                 padding: "30px 0",
                 color: SI_C.muted,
                 fontSize: 12.5,
-            }}>
+              }}
+            >
               Loading transfer history…
-            </div>) : rows.length === 0 ? (<div style={{
+            </div>
+          ) : rows.length === 0 ? (
+            <div
+              style={{
                 textAlign: "center",
                 padding: "36px 0",
                 color: "#9ca3af",
                 fontSize: 13,
                 fontStyle: "italic",
-            }}>
+              }}
+            >
               No stock from this batch has been transferred to a branch yet.
-            </div>) : (rows.map((r, i) => (<div key={r.id} style={{
-                padding: "12px 0",
-                borderBottom: i < rows.length - 1 ? `1px solid ${SI_C.bg}` : "none",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 10,
-            }}>
+            </div>
+          ) : (
+            rows.map((r, i) => (
+              <div
+                key={r.id}
+                style={{
+                  padding: "12px 0",
+                  borderBottom:
+                    i < rows.length - 1 ? `1px solid ${SI_C.bg}` : "none",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <SI_StoreIcon size={12} color={SI_C.green}/>
-                    <span style={{
-                fontWeight: 700,
-                fontSize: 13,
-                color: SI_C.ink,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-            }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <SI_StoreIcon size={12} color={SI_C.green} />
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 13,
+                        color: SI_C.ink,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {r.destination_branch || "—"}
                     </span>
                   </div>
-                  <div style={{ fontSize: 11, color: SI_C.muted, marginTop: 3 }}>
+                  <div
+                    style={{ fontSize: 11, color: SI_C.muted, marginTop: 3 }}
+                  >
                     Order #{r.order_id} · {r.destination_brand || "—"} ·{" "}
                     {r.transferred_at ? fmtTs(r.transferred_at) : "—"}
                   </div>
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <div style={{ fontWeight: 800, fontSize: 14, color: SI_C.ink }}>
+                  <div
+                    style={{ fontWeight: 800, fontSize: 14, color: SI_C.ink }}
+                  >
                     {r.quantity} {ingredient.unit}
                   </div>
-                  <span style={{
-                fontSize: 9.5,
-                fontWeight: 800,
-                padding: "2px 8px",
-                borderRadius: 20,
-                marginTop: 3,
-                display: "inline-block",
-                background: r.applied ? SI_C.greenLt : SI_C.amberBg,
-                color: r.applied ? SI_C.greenDk : "#9a3412",
-                border: `1px solid ${r.applied ? SI_C.greenMid : SI_C.amberBorder}`,
-            }}>
+                  <span
+                    style={{
+                      fontSize: 9.5,
+                      fontWeight: 800,
+                      padding: "2px 8px",
+                      borderRadius: 20,
+                      marginTop: 3,
+                      display: "inline-block",
+                      background: r.applied ? SI_C.greenLt : SI_C.amberBg,
+                      color: r.applied ? SI_C.greenDk : "#9a3412",
+                      border: `1px solid ${r.applied ? SI_C.greenMid : SI_C.amberBorder}`,
+                    }}
+                  >
                     {r.applied ? "RECEIVED" : "IN TRANSIT"}
                   </span>
                 </div>
-              </div>)))}
+              </div>
+            ))
+          )}
         </div>
       </div>
-    </div>);
+    </div>
+  );
 }
 
 /* ── IMPORT LOADING MODAL ── */
 function ImportLoadingModal({ visible, progress }) {
-    if (!visible)
-        return null;
-    return (<div style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(13,43,30,0.55)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 3500,
-            padding: 20,
-            backdropFilter: "blur(6px)",
-        }}>
+  if (!visible) return null;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(13,43,30,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 3500,
+        padding: 20,
+        backdropFilter: "blur(6px)",
+      }}
+    >
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      <div style={{
-            background: SI_C.white,
-            borderRadius: 18,
-            padding: "32px 36px",
-            width: "100%",
-            maxWidth: 380,
-            boxShadow: "0 28px 70px rgba(0,0,0,0.22)",
-            border: `1px solid ${SI_C.greenMid}`,
-            fontFamily: "Montserrat,sans-serif",
-            textAlign: "center",
-        }}>
-        <div style={{
+      <div
+        style={{
+          background: SI_C.white,
+          borderRadius: 18,
+          padding: "32px 36px",
+          width: "100%",
+          maxWidth: 380,
+          boxShadow: "0 28px 70px rgba(0,0,0,0.22)",
+          border: `1px solid ${SI_C.greenMid}`,
+          fontFamily: "Montserrat,sans-serif",
+          textAlign: "center",
+        }}
+      >
+        <div
+          style={{
             width: 60,
             height: 60,
             borderRadius: "50%",
@@ -2579,122 +2890,153 @@ function ImportLoadingModal({ visible, progress }) {
             alignItems: "center",
             justifyContent: "center",
             margin: "0 auto 18px",
-        }}>
-          <UploadIcon size={28} color={SI_C.green}/>
+          }}
+        >
+          <UploadIcon size={28} color={SI_C.green} />
         </div>
-        <div style={{
+        <div
+          style={{
             fontSize: 16,
             fontWeight: 800,
             color: SI_C.ink,
             marginBottom: 6,
-        }}>
+          }}
+        >
           Importing Excel
         </div>
         <div style={{ fontSize: 13, color: SI_C.muted, marginBottom: 20 }}>
           Please wait while your data is being processed…
         </div>
-        <div style={{
+        <div
+          style={{
             background: SI_C.greenLt,
             borderRadius: 999,
             height: 6,
             overflow: "hidden",
             marginBottom: 12,
-        }}>
-          <div style={{
-            background: `linear-gradient(90deg,${SI_C.teal},${SI_C.green})`,
-            borderRadius: 999,
-            height: "100%",
-            width: `${progress.percent}%`,
-            transition: "width 0.4s ease",
-        }}/>
+          }}
+        >
+          <div
+            style={{
+              background: `linear-gradient(90deg,${SI_C.teal},${SI_C.green})`,
+              borderRadius: 999,
+              height: "100%",
+              width: `${progress.percent}%`,
+              transition: "width 0.4s ease",
+            }}
+          />
         </div>
-        <div style={{
+        <div
+          style={{
             fontSize: 12,
             color: SI_C.muted,
             fontWeight: 600,
             marginBottom: 6,
-        }}>
+          }}
+        >
           {progress.label}
         </div>
-        {progress.current > 0 && (<div style={{ fontSize: 11, color: SI_C.muted, opacity: 0.7 }}>
+        {progress.current > 0 && (
+          <div style={{ fontSize: 11, color: SI_C.muted, opacity: 0.7 }}>
             {progress.current} / {progress.total} rows processed
-          </div>)}
-        <div style={{
+          </div>
+        )}
+        <div
+          style={{
             marginTop: 18,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             gap: 8,
             color: SI_C.green,
-        }}>
-          <LoaderIcon size={16} color={SI_C.green}/>
+          }}
+        >
+          <LoaderIcon size={16} color={SI_C.green} />
           <span style={{ fontSize: 12, fontWeight: 700 }}>
             Do not close this window
           </span>
         </div>
       </div>
-    </div>);
+    </div>
+  );
 }
 
 /* ── BrandBranchFilter ── */
-function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, onChangeBranch, }) {
-    const [brandQ, setBrandQ] = useState("");
-    const [branchQ, setBranchQ] = useState("");
-    const [openB, setOpenB] = useState(false);
-    const [openBr, setOpenBr] = useState(false);
-    const brandRef = useRef(null);
-    const branchRef = useRef(null);
-    useEffect(() => {
-        const fn = (e) => {
-            if (brandRef.current && !brandRef.current.contains(e.target))
-                setOpenB(false);
-            if (branchRef.current && !branchRef.current.contains(e.target))
-                setOpenBr(false);
-        };
-        document.addEventListener("mousedown", fn);
-        return () => document.removeEventListener("mousedown", fn);
-    }, []);
-    const selectedBrand = brands.find((b) => b.id === activeBrand);
-    const branchList = selectedBrand
-        ? (selectedBrand.branches || []).map((br) => typeof br === "string" ? br : br.name)
-        : [];
-    const filteredBrands = brands.filter((b) => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
-    const filteredBranches = branchList.filter((br) => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
-    const dropSt = {
-        position: "absolute",
-        top: "calc(100% + 4px)",
-        left: 0,
-        right: 0,
-        zIndex: 300,
-        background: SI_C.white,
-        border: `1px solid ${SI_C.border}`,
-        borderRadius: 10,
-        boxShadow: "0 8px 28px rgba(0,0,0,0.10)",
-        maxHeight: 230,
-        overflowY: "auto",
+function BrandBranchFilter({
+  brands,
+  activeBrand,
+  activeBranch,
+  onChangeBrand,
+  onChangeBranch,
+}) {
+  const [brandQ, setBrandQ] = useState("");
+  const [branchQ, setBranchQ] = useState("");
+  const [openB, setOpenB] = useState(false);
+  const [openBr, setOpenBr] = useState(false);
+  const brandRef = useRef(null);
+  const branchRef = useRef(null);
+  useEffect(() => {
+    const fn = (e) => {
+      if (brandRef.current && !brandRef.current.contains(e.target))
+        setOpenB(false);
+      if (branchRef.current && !branchRef.current.contains(e.target))
+        setOpenBr(false);
     };
-    const optSt = (active) => ({
-        padding: "9px 14px",
-        cursor: "pointer",
-        fontSize: 13,
-        color: SI_C.ink,
-        fontWeight: active ? 700 : 500,
-        background: active ? SI_C.greenLt : "transparent",
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+  const selectedBrand = brands.find((b) => b.id === activeBrand);
+  const branchList = selectedBrand
+    ? (selectedBrand.branches || []).map((br) =>
+        typeof br === "string" ? br : br.name,
+      )
+    : [];
+  const filteredBrands = brands.filter(
+    (b) => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()),
+  );
+  const filteredBranches = branchList.filter(
+    (br) => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()),
+  );
+  const dropSt = {
+    position: "absolute",
+    top: "calc(100% + 4px)",
+    left: 0,
+    right: 0,
+    zIndex: 300,
+    background: SI_C.white,
+    border: `1px solid ${SI_C.border}`,
+    borderRadius: 10,
+    boxShadow: "0 8px 28px rgba(0,0,0,0.10)",
+    maxHeight: 230,
+    overflowY: "auto",
+  };
+  const optSt = (active) => ({
+    padding: "9px 14px",
+    cursor: "pointer",
+    fontSize: 13,
+    color: SI_C.ink,
+    fontWeight: active ? 700 : 500,
+    background: active ? SI_C.greenLt : "transparent",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  });
+  return (
+    <div
+      style={{
         display: "flex",
-        alignItems: "center",
         gap: 8,
-    });
-    return (<div style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-            flexWrap: "wrap",
-        }}>
+        alignItems: "center",
+        flexWrap: "wrap",
+      }}
+    >
       <div ref={brandRef} style={{ position: "relative", minWidth: 175 }}>
-        <div onClick={() => {
+        <div
+          onClick={() => {
             setOpenB((v) => !v);
             setBrandQ("");
-        }} style={{
+          }}
+          style={{
             ...SI_invInputSt,
             display: "flex",
             alignItems: "center",
@@ -2703,78 +3045,115 @@ function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, o
             paddingRight: 30,
             userSelect: "none",
             color: activeBrand ? SI_C.ink : SI_C.muted,
-        }}>
-          <FilterIcon color={SI_C.green}/>
-          <span style={{
-            flex: 1,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            fontSize: 13,
-        }}>
+          }}
+        >
+          <FilterIcon color={SI_C.green} />
+          <span
+            style={{
+              flex: 1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              fontSize: 13,
+            }}
+          >
             {selectedBrand ? selectedBrand.name : "All Brands"}
           </span>
-          <SI_ChevronIcon dir={openB ? "up" : "down"}/>
+          <SI_ChevronIcon dir={openB ? "up" : "down"} />
         </div>
-        {openB && (<div style={dropSt}>
-            <div style={{
+        {openB && (
+          <div style={dropSt}>
+            <div
+              style={{
                 padding: "7px 9px",
                 borderBottom: `1px solid ${SI_C.border}`,
                 position: "sticky",
                 top: 0,
                 background: SI_C.white,
-            }}>
+              }}
+            >
               <div style={{ position: "relative" }}>
-                <div style={{
-                position: "absolute",
-                left: 8,
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: SI_C.muted,
-            }}>
-                  <SI_SearchIcon size={11}/>
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 8,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: SI_C.muted,
+                  }}
+                >
+                  <SI_SearchIcon size={11} />
                 </div>
-                <input autoFocus type="text" value={brandQ} onChange={(e) => setBrandQ(e.target.value)} placeholder="Search brand…" onClick={(e) => e.stopPropagation()} style={{
-                ...SI_invInputSt,
-                height: 30,
-                fontSize: 12,
-                paddingLeft: 26,
-            }}/>
+                <input
+                  autoFocus
+                  type="text"
+                  value={brandQ}
+                  onChange={(e) => setBrandQ(e.target.value)}
+                  placeholder="Search brand…"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    ...SI_invInputSt,
+                    height: 30,
+                    fontSize: 12,
+                    paddingLeft: 26,
+                  }}
+                />
               </div>
             </div>
-            <div style={optSt(!activeBrand)} onMouseDown={() => {
+            <div
+              style={optSt(!activeBrand)}
+              onMouseDown={() => {
                 onChangeBrand(null);
                 onChangeBranch(null);
                 setBrandQ("");
                 setOpenB(false);
-            }}>
+              }}
+            >
               All Brands
             </div>
-            {filteredBrands.map((b) => (<div key={b.id} style={optSt(activeBrand === b.id)} onMouseDown={() => {
-                    onChangeBrand(b.id);
-                    onChangeBranch(null);
-                    setBrandQ("");
-                    setOpenB(false);
-                }}>
+            {filteredBrands.map((b) => (
+              <div
+                key={b.id}
+                style={optSt(activeBrand === b.id)}
+                onMouseDown={() => {
+                  onChangeBrand(b.id);
+                  onChangeBranch(null);
+                  setBrandQ("");
+                  setOpenB(false);
+                }}
+              >
                 {b.name}
-                <span style={{ marginLeft: "auto", fontSize: 11, color: SI_C.muted }}>
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    fontSize: 11,
+                    color: SI_C.muted,
+                  }}
+                >
                   {(b.branches || []).length} branches
                 </span>
-              </div>))}
-          </div>)}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div ref={branchRef} style={{
-            position: "relative",
-            minWidth: 185,
-            opacity: activeBrand ? 1 : 0.45,
-        }}>
-        <div onClick={() => {
+      <div
+        ref={branchRef}
+        style={{
+          position: "relative",
+          minWidth: 185,
+          opacity: activeBrand ? 1 : 0.45,
+        }}
+      >
+        <div
+          onClick={() => {
             if (activeBrand) {
-                setOpenBr((v) => !v);
-                setBranchQ("");
+              setOpenBr((v) => !v);
+              setBranchQ("");
             }
-        }} style={{
+          }}
+          style={{
             ...SI_invInputSt,
             display: "flex",
             alignItems: "center",
@@ -2783,80 +3162,114 @@ function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, o
             paddingRight: 30,
             userSelect: "none",
             color: activeBranch ? SI_C.ink : SI_C.muted,
-        }}>
-          <SI_StoreIcon size={12} color={activeBrand ? SI_C.green : SI_C.muted}/>
-          <span style={{
-            flex: 1,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            fontSize: 13,
-        }}>
+          }}
+        >
+          <SI_StoreIcon
+            size={12}
+            color={activeBrand ? SI_C.green : SI_C.muted}
+          />
+          <span
+            style={{
+              flex: 1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              fontSize: 13,
+            }}
+          >
             {activeBranch ||
-            (activeBrand ? "All Branches" : "Select brand first")}
+              (activeBrand ? "All Branches" : "Select brand first")}
           </span>
         </div>
-        {openBr && activeBrand && (<div style={dropSt}>
-            <div style={{
+        {openBr && activeBrand && (
+          <div style={dropSt}>
+            <div
+              style={{
                 padding: "7px 9px",
                 borderBottom: `1px solid ${SI_C.border}`,
                 position: "sticky",
                 top: 0,
                 background: SI_C.white,
-            }}>
-              <input autoFocus type="text" value={branchQ} onChange={(e) => setBranchQ(e.target.value)} placeholder="Search branch…" style={{ ...SI_invInputSt, height: 30, fontSize: 12 }}/>
+              }}
+            >
+              <input
+                autoFocus
+                type="text"
+                value={branchQ}
+                onChange={(e) => setBranchQ(e.target.value)}
+                placeholder="Search branch…"
+                style={{ ...SI_invInputSt, height: 30, fontSize: 12 }}
+              />
             </div>
-            <div style={optSt(!activeBranch)} onMouseDown={() => {
+            <div
+              style={optSt(!activeBranch)}
+              onMouseDown={() => {
                 onChangeBranch(null);
                 setOpenBr(false);
-            }}>
+              }}
+            >
               All Branches
             </div>
-            {filteredBranches.map((br) => (<div key={br} style={optSt(activeBranch === br)} onMouseDown={() => {
-                    onChangeBranch(br);
-                    setOpenBr(false);
-                }}>
-                <SI_StoreIcon size={11} color={SI_C.green}/> {br}
-              </div>))}
-          </div>)}
+            {filteredBranches.map((br) => (
+              <div
+                key={br}
+                style={optSt(activeBranch === br)}
+                onMouseDown={() => {
+                  onChangeBranch(br);
+                  setOpenBr(false);
+                }}
+              >
+                <SI_StoreIcon size={11} color={SI_C.green} /> {br}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {(activeBrand || activeBranch) && (<span style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "3px 10px 3px 8px",
-                borderRadius: 20,
-                fontSize: 11,
-                fontWeight: 700,
-                background: SI_C.greenLt,
-                color: SI_C.greenDk,
-                border: `1px solid ${SI_C.greenMid}`,
-                cursor: "pointer",
-            }} onClick={() => {
-                onChangeBrand(null);
-                onChangeBranch(null);
-            }}>
-          {activeBranch || selectedBrand?.name} <SI_XIcon size={10}/>
-        </span>)}
-    </div>);
+      {(activeBrand || activeBranch) && (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            padding: "3px 10px 3px 8px",
+            borderRadius: 20,
+            fontSize: 11,
+            fontWeight: 700,
+            background: SI_C.greenLt,
+            color: SI_C.greenDk,
+            border: `1px solid ${SI_C.greenMid}`,
+            cursor: "pointer",
+          }}
+          onClick={() => {
+            onChangeBrand(null);
+            onChangeBranch(null);
+          }}
+        >
+          {activeBranch || selectedBrand?.name} <SI_XIcon size={10} />
+        </span>
+      )}
+    </div>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
    Pagination
 ───────────────────────────────────────────────────────────────────────── */
 function SI_Pagination({ page, setPage, total, pageSize }) {
-    const totalPgs = Math.max(1, Math.ceil(total / pageSize));
-    if (totalPgs <= 1)
-        return null;
-    return (<div style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "12px 18px",
-            borderTop: `1px solid ${SI_C.border}`,
-            background: "#f9fefb",
-        }}>
+  const totalPgs = Math.max(1, Math.ceil(total / pageSize));
+  if (totalPgs <= 1) return null;
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "12px 18px",
+        borderTop: `1px solid ${SI_C.border}`,
+        background: "#f9fefb",
+      }}
+    >
       <span style={{ fontSize: 12, color: SI_C.muted }}>
         Showing{" "}
         <strong style={{ color: SI_C.ink }}>
@@ -2867,354 +3280,476 @@ function SI_Pagination({ page, setPage, total, pageSize }) {
       </span>
       <div style={{ display: "flex", gap: 4 }}>
         {[
-            { l: "«", a: () => setPage(0), d: page === 0 },
-            {
-                l: "‹",
-                a: () => setPage((p) => Math.max(0, p - 1)),
-                d: page === 0,
-            },
-        ].map(({ l, a, d }) => (<button key={l} onClick={a} disabled={d} style={{
-                ...SI_smallBtnSt,
-                height: 30,
-                width: 30,
-                justifyContent: "center",
-                border: `1px solid ${SI_C.border}`,
-                opacity: d ? 0.35 : 1,
-                background: SI_C.white,
-            }}>
+          { l: "«", a: () => setPage(0), d: page === 0 },
+          {
+            l: "‹",
+            a: () => setPage((p) => Math.max(0, p - 1)),
+            d: page === 0,
+          },
+        ].map(({ l, a, d }) => (
+          <button
+            key={l}
+            onClick={a}
+            disabled={d}
+            style={{
+              ...SI_smallBtnSt,
+              height: 30,
+              width: 30,
+              justifyContent: "center",
+              border: `1px solid ${SI_C.border}`,
+              opacity: d ? 0.35 : 1,
+              background: SI_C.white,
+            }}
+          >
             {l}
-          </button>))}
+          </button>
+        ))}
         {Array.from({ length: totalPgs }, (_, i) => i)
-            .filter((i) => Math.abs(i - page) <= 2)
-            .map((i) => (<button key={i} onClick={() => setPage(i)} style={{
+          .filter((i) => Math.abs(i - page) <= 2)
+          .map((i) => (
+            <button
+              key={i}
+              onClick={() => setPage(i)}
+              style={{
                 ...SI_smallBtnSt,
                 height: 30,
                 minWidth: 30,
                 justifyContent: "center",
                 fontWeight: i === page ? 800 : 600,
                 border: i === page ? "none" : `1px solid ${SI_C.border}`,
-                background: i === page
+                background:
+                  i === page
                     ? `linear-gradient(135deg,${SI_C.teal},${SI_C.green})`
                     : SI_C.white,
                 color: i === page ? SI_C.white : SI_C.ink,
-            }}>
+              }}
+            >
               {i + 1}
-            </button>))}
+            </button>
+          ))}
         {[
-            {
-                l: "›",
-                a: () => setPage((p) => Math.min(totalPgs - 1, p + 1)),
-                d: page >= totalPgs - 1,
-            },
-            { l: "»", a: () => setPage(totalPgs - 1), d: page >= totalPgs - 1 },
-        ].map(({ l, a, d }) => (<button key={l} onClick={a} disabled={d} style={{
-                ...SI_smallBtnSt,
-                height: 30,
-                width: 30,
-                justifyContent: "center",
-                border: `1px solid ${SI_C.border}`,
-                opacity: d ? 0.35 : 1,
-                background: SI_C.white,
-            }}>
+          {
+            l: "›",
+            a: () => setPage((p) => Math.min(totalPgs - 1, p + 1)),
+            d: page >= totalPgs - 1,
+          },
+          { l: "»", a: () => setPage(totalPgs - 1), d: page >= totalPgs - 1 },
+        ].map(({ l, a, d }) => (
+          <button
+            key={l}
+            onClick={a}
+            disabled={d}
+            style={{
+              ...SI_smallBtnSt,
+              height: 30,
+              width: 30,
+              justifyContent: "center",
+              border: `1px solid ${SI_C.border}`,
+              opacity: d ? 0.35 : 1,
+              background: SI_C.white,
+            }}
+          >
             {l}
-          </button>))}
+          </button>
+        ))}
       </div>
-    </div>);
+    </div>
+  );
 }
 
 /* ── DELETE HISTORY PANEL ── */
 function DeleteHistoryPanel({ history, restoringId, onRestore, onClose }) {
-    return (<div onClick={onClose} style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(13,43,30,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2000,
-            padding: 20,
-            backdropFilter: "blur(4px)",
-        }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-            background: SI_C.white,
-            borderRadius: 18,
-            padding: "28px 32px",
-            width: "100%",
-            maxWidth: 680,
-            maxHeight: "80vh",
-            display: "flex",
-            flexDirection: "column",
-            boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-            border: "1px solid rgba(0,168,76,0.15)",
-            fontFamily: "Montserrat,sans-serif",
-        }}>
-        <div style={{
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(13,43,30,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2000,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: SI_C.white,
+          borderRadius: 18,
+          padding: "28px 32px",
+          width: "100%",
+          maxWidth: 680,
+          maxHeight: "80vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat,sans-serif",
+        }}
+      >
+        <div
+          style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             marginBottom: 18,
-        }}>
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 800, color: SI_C.ink, margin: 0 }}>
+            <h2
+              style={{
+                fontSize: 16,
+                fontWeight: 800,
+                color: SI_C.ink,
+                margin: 0,
+              }}
+            >
               Delete History
             </h2>
-            {history.length > 0 && (<span style={{
-                fontSize: 11,
-                fontWeight: 700,
-                padding: "3px 10px",
-                borderRadius: 20,
-                background: "#fee2e2",
-                color: SI_C.red,
-            }}>
+            {history.length > 0 && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: "3px 10px",
+                  borderRadius: 20,
+                  background: "#fee2e2",
+                  color: SI_C.red,
+                }}
+              >
                 {history.length} deleted
-              </span>)}
+              </span>
+            )}
           </div>
-          <button onClick={onClose} style={{
-            width: 32,
-            height: 32,
-            borderRadius: "50%",
-            border: `1px solid ${SI_C.border}`,
-            background: SI_C.greenLt,
-            cursor: "pointer",
-            color: SI_C.green,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-        }}>
-            <SI_XIcon size={15}/>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              border: `1px solid ${SI_C.border}`,
+              background: SI_C.greenLt,
+              cursor: "pointer",
+              color: SI_C.green,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <SI_XIcon size={15} />
           </button>
         </div>
-        {history.length > 0 && (<div style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 90px 90px 110px 100px",
-                gap: 8,
-                padding: "6px 0 10px",
-                borderBottom: `2px solid ${SI_C.greenLt}`,
-                fontSize: 10,
-                fontWeight: 700,
-                color: SI_C.muted,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-            }}>
+        {history.length > 0 && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 90px 90px 110px 100px",
+              gap: 8,
+              padding: "6px 0 10px",
+              borderBottom: `2px solid ${SI_C.greenLt}`,
+              fontSize: 10,
+              fontWeight: 700,
+              color: SI_C.muted,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}
+          >
             <span>Ingredient</span>
             <span>Branch</span>
             <span>Stock</span>
             <span>Deleted At</span>
             <span></span>
-          </div>)}
+          </div>
+        )}
         <div style={{ overflowY: "auto", flex: 1 }}>
-          {history.length === 0 ? (<div style={{
+          {history.length === 0 ? (
+            <div
+              style={{
                 padding: "40px 0",
                 textAlign: "center",
                 color: "#9ca3af",
                 fontSize: 13,
-            }}>
+              }}
+            >
               No deleted ingredients yet.
-            </div>) : (history.map((entry, i) => {
-            const d = entry.data || {};
-            return (<div key={entry.id} style={{
+            </div>
+          ) : (
+            history.map((entry, i) => {
+              const d = entry.data || {};
+              return (
+                <div
+                  key={entry.id}
+                  style={{
                     display: "grid",
                     gridTemplateColumns: "1fr 90px 90px 110px 100px",
                     gap: 8,
                     alignItems: "center",
                     padding: "12px 0",
-                    borderBottom: i < history.length - 1 ? `1px solid ${SI_C.bg}` : "none",
-                }}>
+                    borderBottom:
+                      i < history.length - 1 ? `1px solid ${SI_C.bg}` : "none",
+                  }}
+                >
                   <div>
-                    <div style={{
-                    fontWeight: 700,
-                    fontSize: 13,
-                    color: SI_C.ink,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                }}>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 13,
+                        color: SI_C.ink,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {d.name}
                     </div>
-                    <div style={{ fontSize: 11, color: SI_C.muted, marginTop: 2 }}>
+                    <div
+                      style={{ fontSize: 11, color: SI_C.muted, marginTop: 2 }}
+                    >
                       {d.brand || "—"}
                       {isDirectProductBrand(d.brand) || d.category
-                    ? ` · ${d.category || "Uncategorized"}`
-                    : ""}
+                        ? ` · ${d.category || "Uncategorized"}`
+                        : ""}
                     </div>
                   </div>
-                  <div style={{
-                    fontSize: 12,
-                    color: SI_C.muted,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: SI_C.muted,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     {d.branch}
                   </div>
-                  <div style={{ fontSize: 12, color: SI_C.ink, fontWeight: 600 }}>
+                  <div
+                    style={{ fontSize: 12, color: SI_C.ink, fontWeight: 600 }}
+                  >
                     {d.stock} {d.unit}
                   </div>
                   <div style={{ fontSize: 11, color: "#9ca3af" }}>
                     {entry.deletedAt ? fmtTs(entry.deletedAt) : "—"}
                   </div>
-                  <button onClick={() => onRestore(entry)} disabled={restoringId !== null} style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 5,
-                    padding: "7px 12px",
-                    borderRadius: 8,
-                    border: `1.5px solid ${SI_C.green}`,
-                    background: SI_C.greenLt,
-                    color: SI_C.greenDk,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: restoringId !== null ? "not-allowed" : "pointer",
-                    fontFamily: "inherit",
-                    whiteSpace: "nowrap",
-                    opacity: restoringId !== null
-                        ? restoringId === entry.id
+                  <button
+                    onClick={() => onRestore(entry)}
+                    disabled={restoringId !== null}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "7px 12px",
+                      borderRadius: 8,
+                      border: `1.5px solid ${SI_C.green}`,
+                      background: SI_C.greenLt,
+                      color: SI_C.greenDk,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: restoringId !== null ? "not-allowed" : "pointer",
+                      fontFamily: "inherit",
+                      whiteSpace: "nowrap",
+                      opacity:
+                        restoringId !== null
+                          ? restoringId === entry.id
                             ? 0.85
                             : 0.4
-                        : 1,
-                }}>
-                    {restoringId === entry.id ? (<>
-                        <RefreshCw size={12} style={{ animation: "spin 1s linear infinite" }}/>{" "}
+                          : 1,
+                    }}
+                  >
+                    {restoringId === entry.id ? (
+                      <>
+                        <RefreshCw
+                          size={12}
+                          style={{ animation: "spin 1s linear infinite" }}
+                        />{" "}
                         Restoring…
-                      </>) : (<>
+                      </>
+                    ) : (
+                      <>
                         <RestoreIcon /> Restore
-                      </>)}
+                      </>
+                    )}
                   </button>
-                </div>);
-        }))}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
-    </div>);
+    </div>
+  );
 }
 
 /* ── ACTIVITY LOG PANEL ── */
 function ActivityLogPanel({ log, onClose }) {
-    const [search, setSearch] = useState("");
-    const [typeFilter, setTypeFilter] = useState("all");
-    const filtered = log.filter((entry) => {
-        if (typeFilter !== "all" && entry.action !== typeFilter)
-            return false;
-        if (search) {
-            const q = search.toLowerCase();
-            if (!entry.ingredientName?.toLowerCase().includes(q) &&
-                !(entry.performedBy || "").toLowerCase().includes(q) &&
-                !(entry.branch || "").toLowerCase().includes(q))
-                return false;
-        }
-        return true;
-    });
-    const actionBadge = (action) => {
-        const map = {
-            add: { bg: "rgba(16,185,129,0.12)", color: "#059669", label: "Added" },
-            edit: { bg: "rgba(59,130,246,0.12)", color: "#1d4ed8", label: "Edited" },
-            import: {
-                bg: "rgba(139,92,246,0.12)",
-                color: "#7c3aed",
-                label: "Imported",
-            },
-            receive: {
-                bg: "rgba(245,158,11,0.14)",
-                color: "#b45309",
-                label: "Received",
-            },
-        };
-        const s = map[action] || map.edit;
-        return (<span style={{
-                padding: "2px 9px",
-                borderRadius: 4,
-                fontSize: 10,
-                fontWeight: 700,
-                background: s.bg,
-                color: s.color,
-                whiteSpace: "nowrap",
-            }}>
-        {s.label}
-      </span>);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const filtered = log.filter((entry) => {
+    if (typeFilter !== "all" && entry.action !== typeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (
+        !entry.ingredientName?.toLowerCase().includes(q) &&
+        !(entry.performedBy || "").toLowerCase().includes(q) &&
+        !(entry.branch || "").toLowerCase().includes(q)
+      )
+        return false;
+    }
+    return true;
+  });
+  const actionBadge = (action) => {
+    const map = {
+      add: { bg: "rgba(16,185,129,0.12)", color: "#059669", label: "Added" },
+      edit: { bg: "rgba(59,130,246,0.12)", color: "#1d4ed8", label: "Edited" },
+      import: {
+        bg: "rgba(139,92,246,0.12)",
+        color: "#7c3aed",
+        label: "Imported",
+      },
+      receive: {
+        bg: "rgba(245,158,11,0.14)",
+        color: "#b45309",
+        label: "Received",
+      },
     };
-    return (<div onClick={onClose} style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(13,43,30,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2000,
-            padding: 20,
-            backdropFilter: "blur(4px)",
-        }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-            background: SI_C.white,
-            borderRadius: 18,
-            padding: "28px 32px",
-            width: "100%",
-            maxWidth: 780,
-            maxHeight: "82vh",
-            display: "flex",
-            flexDirection: "column",
-            boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-            border: "1px solid rgba(0,168,76,0.15)",
-            fontFamily: "Montserrat,sans-serif",
-        }}>
-        <div style={{
+    const s = map[action] || map.edit;
+    return (
+      <span
+        style={{
+          padding: "2px 9px",
+          borderRadius: 4,
+          fontSize: 10,
+          fontWeight: 700,
+          background: s.bg,
+          color: s.color,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {s.label}
+      </span>
+    );
+  };
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(13,43,30,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2000,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: SI_C.white,
+          borderRadius: 18,
+          padding: "28px 32px",
+          width: "100%",
+          maxWidth: 780,
+          maxHeight: "82vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat,sans-serif",
+        }}
+      >
+        <div
+          style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             marginBottom: 16,
-        }}>
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 800, color: SI_C.ink, margin: 0 }}>
+            <h2
+              style={{
+                fontSize: 16,
+                fontWeight: 800,
+                color: SI_C.ink,
+                margin: 0,
+              }}
+            >
               Activity Log
             </h2>
-            <span style={{
-            fontSize: 11,
-            fontWeight: 700,
-            padding: "3px 10px",
-            borderRadius: 20,
-            background: SI_C.greenLt,
-            color: SI_C.greenDk,
-        }}>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                padding: "3px 10px",
+                borderRadius: 20,
+                background: SI_C.greenLt,
+                color: SI_C.greenDk,
+              }}
+            >
               {filtered.length} entries
             </span>
           </div>
-          <button onClick={onClose} style={{
-            width: 32,
-            height: 32,
-            borderRadius: "50%",
-            border: `1px solid ${SI_C.border}`,
-            background: SI_C.greenLt,
-            cursor: "pointer",
-            color: SI_C.green,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-        }}>
-            <SI_XIcon size={15}/>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              border: `1px solid ${SI_C.border}`,
+              background: SI_C.greenLt,
+              cursor: "pointer",
+              color: SI_C.green,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <SI_XIcon size={15} />
           </button>
         </div>
-        <div style={{
+        <div
+          style={{
             display: "flex",
             gap: 8,
             marginBottom: 16,
             flexWrap: "wrap",
-        }}>
+          }}
+        >
           <div style={{ position: "relative", flex: "1 1 200px" }}>
-            <div style={{
-            position: "absolute",
-            left: 9,
-            top: "50%",
-            transform: "translateY(-50%)",
-            color: SI_C.muted,
-        }}>
-              <SI_SearchIcon size={12}/>
+            <div
+              style={{
+                position: "absolute",
+                left: 9,
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: SI_C.muted,
+              }}
+            >
+              <SI_SearchIcon size={12} />
             </div>
-            <input type="text" placeholder="Search ingredient, user, branch…" value={search} onChange={(e) => setSearch(e.target.value)} style={{
-            ...SI_invInputSt,
-            paddingLeft: 28,
-            height: 32,
-            fontSize: 12,
-        }}/>
+            <input
+              type="text"
+              placeholder="Search ingredient, user, branch…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                ...SI_invInputSt,
+                paddingLeft: 28,
+                height: 32,
+                fontSize: 12,
+              }}
+            />
           </div>
-          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{ ...SI_invInputSt, width: 130, height: 32, fontSize: 12 }}>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            style={{ ...SI_invInputSt, width: 130, height: 32, fontSize: 12 }}
+          >
             <option value="all">All Actions</option>
             <option value="add">Added</option>
             <option value="edit">Edited</option>
@@ -3222,7 +3757,8 @@ function ActivityLogPanel({ log, onClose }) {
             <option value="receive">Received</option>
           </select>
         </div>
-        <div style={{
+        <div
+          style={{
             display: "grid",
             gridTemplateColumns: "80px 1fr 100px 120px 160px",
             gap: 8,
@@ -3233,7 +3769,8 @@ function ActivityLogPanel({ log, onClose }) {
             color: SI_C.muted,
             textTransform: "uppercase",
             letterSpacing: "0.06em",
-        }}>
+          }}
+        >
           <span>Action</span>
           <span>Ingredient</span>
           <span>Branch</span>
@@ -3241,70 +3778,93 @@ function ActivityLogPanel({ log, onClose }) {
           <span>Timestamp</span>
         </div>
         <div style={{ overflowY: "auto", flex: 1 }}>
-          {filtered.length === 0 ? (<div style={{
+          {filtered.length === 0 ? (
+            <div
+              style={{
                 padding: "40px 0",
                 textAlign: "center",
                 color: "#9ca3af",
                 fontSize: 13,
-            }}>
+              }}
+            >
               No activity yet.
-            </div>) : (filtered.map((entry, i) => (<div key={entry.id || i} style={{
-                display: "grid",
-                gridTemplateColumns: "80px 1fr 100px 120px 160px",
-                gap: 8,
-                alignItems: "center",
-                padding: "11px 0",
-                borderBottom: i < filtered.length - 1 ? `1px solid ${SI_C.bg}` : "none",
-            }}>
+            </div>
+          ) : (
+            filtered.map((entry, i) => (
+              <div
+                key={entry.id || i}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "80px 1fr 100px 120px 160px",
+                  gap: 8,
+                  alignItems: "center",
+                  padding: "11px 0",
+                  borderBottom:
+                    i < filtered.length - 1 ? `1px solid ${SI_C.bg}` : "none",
+                }}
+              >
                 <div>{actionBadge(entry.action)}</div>
                 <div>
-                  <div style={{
-                fontWeight: 700,
-                fontSize: 13,
-                color: SI_C.ink,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-            }}>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 13,
+                      color: SI_C.ink,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     {entry.ingredientName}
                   </div>
-                  {entry.changes && (<div style={{
-                    fontSize: 10,
+                  {entry.changes && (
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: SI_C.muted,
+                        marginTop: 2,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {entry.changes}
+                    </div>
+                  )}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11,
                     color: SI_C.muted,
-                    marginTop: 2,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
-                }}>
-                      {entry.changes}
-                    </div>)}
-                </div>
-                <div style={{
-                fontSize: 11,
-                color: SI_C.muted,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-            }}>
+                  }}
+                >
                   {entry.branch || "—"}
                 </div>
-                <div style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: SI_C.ink,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-            }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: SI_C.ink,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {entry.performedBy || "System"}
                 </div>
                 <div style={{ fontSize: 11, color: "#9ca3af" }}>
                   {entry.timestamp ? fmtTs(entry.timestamp) : "—"}
                 </div>
-              </div>)))}
+              </div>
+            ))
+          )}
         </div>
       </div>
-    </div>);
+    </div>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -3312,119 +3872,158 @@ function ActivityLogPanel({ log, onClose }) {
    Simple white rows, divided by a thin bottom line (green for the next-out
    batch, gray for the rest) instead of colored backgrounds.
 ───────────────────────────────────────────────────────────────────────── */
-function FifoQueue({ product, batches, loading, onEditBatch, onDeleteBatch, onViewHistory, readOnly = false, }) {
-    if (!product) {
-        return (<div style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                minHeight: 300,
-                color: SI_C.muted,
-                fontSize: 12.5,
-                textAlign: "center",
-                padding: 20,
-            }}>
+function FifoQueue({
+  product,
+  batches,
+  loading,
+  onEditBatch,
+  onDeleteBatch,
+  onViewHistory,
+  readOnly = false,
+}) {
+  if (!product) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+          minHeight: 300,
+          color: SI_C.muted,
+          fontSize: 12.5,
+          textAlign: "center",
+          padding: 20,
+        }}
+      >
         <div>
           Select a product on the left
           <br />
           to view its consumption queue.
         </div>
-      </div>);
-    }
-    const fifo = getFifoMethod(product.brand, product.perishable);
-    const sorted = sortBatchesByMethod(batches, product.brand, product.perishable);
-    const totalStock = sorted.reduce((s, b) => s + Number(b.stock || 0), 0);
-    return (<div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            marginBottom: 10,
-            gap: 8,
-        }}>
+      </div>
+    );
+  }
+  const fifo = getFifoMethod(product.brand, product.perishable);
+  const sorted = sortBatchesByMethod(
+    batches,
+    product.brand,
+    product.perishable,
+  );
+  const totalStock = sorted.reduce((s, b) => s + Number(b.stock || 0), 0);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          marginBottom: 10,
+          gap: 8,
+        }}
+      >
         <div style={{ minWidth: 0 }}>
-          <div style={{
-            fontSize: 14,
-            fontWeight: 800,
-            color: SI_C.ink,
-            fontFamily: "monospace",
-            display: "flex",
-            alignItems: "center",
-            gap: 7,
-            overflow: "hidden",
-        }}>
-            <span style={{
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-        }}>
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 800,
+              color: SI_C.ink,
+              fontFamily: "monospace",
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              overflow: "hidden",
+            }}
+          >
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
               {product.sku || "—"}
             </span>
           </div>
-          <div style={{
-            fontSize: 11,
-            color: SI_C.muted,
-            marginTop: 2,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-        }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: SI_C.muted,
+              marginTop: 2,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
             <span style={{ fontSize: 9.5, fontWeight: 700, color: SI_C.ink }}>
               {product.name}
             </span>
             <span style={{ opacity: 0.45 }}>•</span>
             <span>
-              {formatQuantityWithUnit(totalStock, product.unit)} · {sorted.length} active batch
+              {formatQuantityWithUnit(totalStock, product.unit)} ·{" "}
+              {sorted.length} active batch
               {sorted.length === 1 ? "" : "es"}
             </span>
           </div>
         </div>
       </div>
 
-      <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "6px 10px",
-            borderRadius: 8,
-            background: fifo.method === "FEFO" ? SI_C.amberBg : SI_C.greenLt,
-            border: `1px solid ${fifo.method === "FEFO" ? SI_C.amberBorder : SI_C.greenMid}`,
-            fontSize: 10.5,
-            color: fifo.method === "FEFO" ? "#9a3412" : SI_C.greenDk,
-            fontWeight: 700,
-            marginBottom: 10,
-        }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "6px 10px",
+          borderRadius: 8,
+          background: fifo.method === "FEFO" ? SI_C.amberBg : SI_C.greenLt,
+          border: `1px solid ${fifo.method === "FEFO" ? SI_C.amberBorder : SI_C.greenMid}`,
+          fontSize: 10.5,
+          color: fifo.method === "FEFO" ? "#9a3412" : SI_C.greenDk,
+          fontWeight: 700,
+          marginBottom: 10,
+        }}
+      >
         <span>{fifo.method} QUEUE</span>
         <span style={{ fontWeight: 500, opacity: 0.85 }}>
           — {fifo.queueLabel}
         </span>
       </div>
 
-      <div style={{
-            flex: 1,
-            overflowY: "auto",
-            display: "flex",
-            flexDirection: "column",
-            paddingRight: 2,
-            minHeight: 0,
-        }}>
-        {loading ? (<div style={{
-                textAlign: "center",
-                padding: "30px 0",
-                color: SI_C.muted,
-                fontSize: 12,
-            }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          paddingRight: 2,
+          minHeight: 0,
+        }}
+      >
+        {loading ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "30px 0",
+              color: SI_C.muted,
+              fontSize: 12,
+            }}
+          >
             Loading queue…
-          </div>) : sorted.length === 0 ? (<div style={{
-                textAlign: "center",
-                padding: "30px 0",
-                color: SI_C.muted,
-                fontSize: 12,
-                fontStyle: "italic",
-            }}>
+          </div>
+        ) : sorted.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "30px 0",
+              color: SI_C.muted,
+              fontSize: 12,
+              fontStyle: "italic",
+            }}
+          >
             No batches yet for this product.
-          </div>) : (sorted.map((b, idx) => {
+          </div>
+        ) : (
+          sorted.map((b, idx) => {
             const status = computeExpiryStatus(b.exp_date, product.brand);
             const ss = EXPIRY_STYLE[status] || EXPIRY_STYLE.ok;
             const isFirst = idx === 0;
@@ -3432,81 +4031,106 @@ function FifoQueue({ product, batches, loading, onEditBatch, onDeleteBatch, onVi
             const supplyStr = b.supply_date ? fmtTs(b.supply_date) : "—";
             const expStr = fmtDate(b.exp_date);
             const dRem = daysRemaining(b.exp_date);
-            const stockPct = totalStock > 0
+            const stockPct =
+              totalStock > 0
                 ? Math.round((Number(b.stock || 0) / totalStock) * 100)
                 : 0;
-            return (<div key={b.id} style={{
-                    background: SI_C.white,
-                    borderBottom: isLast
-                        ? "none"
-                        : `1px solid ${isFirst ? SI_C.greenMid : SI_C.border}`,
-                    padding: "7px 4px",
-                }}>
-                <div style={{
+            return (
+              <div
+                key={b.id}
+                style={{
+                  background: SI_C.white,
+                  borderBottom: isLast
+                    ? "none"
+                    : `1px solid ${isFirst ? SI_C.greenMid : SI_C.border}`,
+                  padding: "7px 4px",
+                }}
+              >
+                <div
+                  style={{
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
                     marginBottom: 6,
                     gap: 8,
                     flexWrap: "wrap",
-                }}>
-                  <span style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                }}>
-                    <span style={{
-                    width: 19,
-                    height: 19,
-                    borderRadius: "50%",
-                    background: isFirst ? SI_C.green : "#b9c9bf",
-                    color: "#fff",
-                    fontSize: 10,
-                    fontWeight: 800,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                }}>
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 19,
+                        height: 19,
+                        borderRadius: "50%",
+                        background: isFirst ? SI_C.green : "#b9c9bf",
+                        color: "#fff",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
                       {idx + 1}
                     </span>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: SI_C.ink }}>
+                    <span
+                      style={{ fontSize: 12, fontWeight: 800, color: SI_C.ink }}
+                    >
                       Batch {b.batch_number || "—"}
                     </span>
-                    {isFirst && (<span style={{
-                        fontSize: 9,
-                        fontWeight: 800,
-                        color: SI_C.greenDk,
-                        border: `1px solid ${SI_C.greenMid}`,
-                        padding: "2px 8px",
-                        borderRadius: 20,
-                    }}>
+                    {isFirst && (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 800,
+                          color: SI_C.greenDk,
+                          border: `1px solid ${SI_C.greenMid}`,
+                          padding: "2px 8px",
+                          borderRadius: 20,
+                        }}
+                      >
                         {fifo.topLabel}
-                      </span>)}
+                      </span>
+                    )}
                   </span>
-                  {ss.label && (<span style={{
+                  {ss.label && (
+                    <span
+                      style={{
                         fontSize: 9,
                         fontWeight: 800,
                         color: ss.badgeText,
                         border: `1px solid ${ss.border}`,
                         padding: "2px 7px",
                         borderRadius: 20,
-                    }}>
+                      }}
+                    >
                       {ss.label}
-                    </span>)}
+                    </span>
+                  )}
                 </div>
-                <div style={{
+                <div
+                  style={{
                     display: "flex",
                     flexWrap: "wrap",
                     gap: 12,
                     fontSize: 11,
                     color: SI_C.muted,
                     marginBottom: 8,
-                }}>
-                  {b.supplier && (<span>
+                  }}
+                >
+                  {b.supplier && (
+                    <span>
                       Supplier:{" "}
                       <strong style={{ color: SI_C.ink }}>{b.supplier}</strong>
-                    </span>)}
+                    </span>
+                  )}
                   <span>
                     Arrived:{" "}
                     <strong style={{ color: SI_C.ink }}>{supplyStr}</strong>
@@ -3516,55 +4140,68 @@ function FifoQueue({ product, batches, loading, onEditBatch, onDeleteBatch, onVi
                     <strong style={{ color: ss.dot }}>
                       {expStr}
                       {dRem != null
-                    ? ` (${dRem < 0 ? "expired" : dRem + "d left"})`
-                    : ""}
+                        ? ` (${dRem < 0 ? "expired" : dRem + "d left"})`
+                        : ""}
                     </strong>
                   </span>
-                  {b.cost_per_unit ? (<span>
+                  {b.cost_per_unit ? (
+                    <span>
                       Cost/Unit:{" "}
                       <strong style={{ color: SI_C.ink }}>
                         ₱
                         {Number(b.cost_per_unit).toLocaleString("en-PH", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                    })}
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
                       </strong>
-                    </span>) : null}
-                  {b.storage_location && (<span>
+                    </span>
+                  ) : null}
+                  {b.storage_location && (
+                    <span>
                       Location:{" "}
                       <strong style={{ color: SI_C.ink }}>
                         {b.storage_location}
                       </strong>
-                    </span>)}
-                  {b.received_by && (<span>
+                    </span>
+                  )}
+                  {b.received_by && (
+                    <span>
                       Received by:{" "}
-                      <strong style={{ color: SI_C.ink }}>{b.received_by}</strong>
-                    </span>)}
+                      <strong style={{ color: SI_C.ink }}>
+                        {b.received_by}
+                      </strong>
+                    </span>
+                  )}
                 </div>
 
                 <div>
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: 9.5,
-                    color: SI_C.muted,
-                    fontWeight: 700,
-                    marginBottom: 2,
-                }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: 9.5,
+                      color: SI_C.muted,
+                      fontWeight: 700,
+                      marginBottom: 2,
+                    }}
+                  >
                     <span>STOCK</span>
                     <span>
-                      {formatQuantityWithUnit(b.stock, product.unit)} / {formatQuantityWithUnit(totalStock, product.unit)}
+                      {formatQuantityWithUnit(b.stock, product.unit)} /{" "}
+                      {formatQuantityWithUnit(totalStock, product.unit)}
                     </span>
                   </div>
-                  <MiniBar pct={stockPct} color={SI_C.green}/>
+                  <MiniBar pct={stockPct} color={SI_C.green} />
                 </div>
 
                 {isPharmaBrand(product.brand) &&
-                    (b.lot_number ||
-                        b.ndc_code ||
-                        b.dosage_form ||
-                        b.storage_requirement ||
-                        b.controlled_substance) && (<div style={{
+                  (b.lot_number ||
+                    b.ndc_code ||
+                    b.dosage_form ||
+                    b.storage_requirement ||
+                    b.controlled_substance) && (
+                    <div
+                      style={{
                         marginTop: 8,
                         paddingTop: 8,
                         borderTop: `1px dashed ${SI_C.border}`,
@@ -3573,33 +4210,49 @@ function FifoQueue({ product, batches, loading, onEditBatch, onDeleteBatch, onVi
                         gap: 10,
                         fontSize: 10.5,
                         color: SI_C.muted,
-                    }}>
-                      {b.lot_number && (<span>
+                      }}
+                    >
+                      {b.lot_number && (
+                        <span>
                           LOT:{" "}
                           <strong style={{ color: SI_C.ink }}>
                             {b.lot_number}
                           </strong>
-                        </span>)}
-                      {b.ndc_code && (<span>
+                        </span>
+                      )}
+                      {b.ndc_code && (
+                        <span>
                           NDC:{" "}
-                          <strong style={{ color: SI_C.ink }}>{b.ndc_code}</strong>
-                        </span>)}
-                      {b.dosage_form && (<span>
+                          <strong style={{ color: SI_C.ink }}>
+                            {b.ndc_code}
+                          </strong>
+                        </span>
+                      )}
+                      {b.dosage_form && (
+                        <span>
                           {b.dosage_form}
                           {b.strength ? ` · ${b.strength}` : ""}
-                        </span>)}
-                      {b.storage_requirement && (<span>
+                        </span>
+                      )}
+                      {b.storage_requirement && (
+                        <span>
                           Storage:{" "}
                           <strong style={{ color: SI_C.ink }}>
                             {b.storage_requirement}
                           </strong>
-                        </span>)}
-                      {b.controlled_substance && (<span style={{ color: "#991b1b", fontWeight: 800 }}>
+                        </span>
+                      )}
+                      {b.controlled_substance && (
+                        <span style={{ color: "#991b1b", fontWeight: 800 }}>
                           CONTROLLED SUBSTANCE
-                        </span>)}
-                    </div>)}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 {isFuelBrand(product.brand) &&
-                    (b.tank_id || b.grade || b.octane_rating || b.truck_id) && (<div style={{
+                  (b.tank_id || b.grade || b.octane_rating || b.truck_id) && (
+                    <div
+                      style={{
                         marginTop: 8,
                         paddingTop: 8,
                         borderTop: `1px dashed ${SI_C.border}`,
@@ -3608,155 +4261,220 @@ function FifoQueue({ product, batches, loading, onEditBatch, onDeleteBatch, onVi
                         gap: 10,
                         fontSize: 10.5,
                         color: SI_C.muted,
-                    }}>
-                      {b.tank_id && (<span>
+                      }}
+                    >
+                      {b.tank_id && (
+                        <span>
                           Tank:{" "}
-                          <strong style={{ color: SI_C.ink }}>{b.tank_id}</strong>
-                        </span>)}
-                      {b.grade && (<span>
+                          <strong style={{ color: SI_C.ink }}>
+                            {b.tank_id}
+                          </strong>
+                        </span>
+                      )}
+                      {b.grade && (
+                        <span>
                           Grade:{" "}
                           <strong style={{ color: SI_C.ink }}>{b.grade}</strong>
-                        </span>)}
-                      {b.octane_rating && (<span>
+                        </span>
+                      )}
+                      {b.octane_rating && (
+                        <span>
                           Octane:{" "}
                           <strong style={{ color: SI_C.ink }}>
                             {b.octane_rating}
                           </strong>
-                        </span>)}
-                      {b.delivery_temp && (<span>
+                        </span>
+                      )}
+                      {b.delivery_temp && (
+                        <span>
                           Delivery Temp:{" "}
                           <strong style={{ color: SI_C.ink }}>
                             {b.delivery_temp}°F
                           </strong>
-                        </span>)}
-                      {b.truck_id && (<span>
+                        </span>
+                      )}
+                      {b.truck_id && (
+                        <span>
                           Truck:{" "}
-                          <strong style={{ color: SI_C.ink }}>{b.truck_id}</strong>
-                        </span>)}
-                      {b.volume_correction && (<span>
+                          <strong style={{ color: SI_C.ink }}>
+                            {b.truck_id}
+                          </strong>
+                        </span>
+                      )}
+                      {b.volume_correction && (
+                        <span>
                           Corrected Vol (60°F):{" "}
                           <strong style={{ color: SI_C.ink }}>
                             {b.volume_correction}
                           </strong>
-                        </span>)}
-                    </div>)}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
-                {b.notes && (<div style={{
-                        fontSize: 10.5,
-                        color: SI_C.muted,
-                        marginTop: 6,
-                        fontStyle: "italic",
-                    }}>
+                {b.notes && (
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      color: SI_C.muted,
+                      marginTop: 6,
+                      fontStyle: "italic",
+                    }}
+                  >
                     {b.notes}
-                  </div>)}
+                  </div>
+                )}
 
                 {(!readOnly ||
-                    (product.branch || "")
-                        .trim()
-                        .toLowerCase()
-                        .includes("head office")) && (<div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                    {!readOnly && (<>
-                        <button onClick={() => onEditBatch(b)} className="edit-btn" style={{
+                  (product.branch || "")
+                    .trim()
+                    .toLowerCase()
+                    .includes("head office")) && (
+                  <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                    {!readOnly && (
+                      <>
+                        <button
+                          onClick={() => onEditBatch(b)}
+                          className="edit-btn"
+                          style={{
                             ...SI_smallBtnSt,
                             border: `1px solid ${SI_C.border}`,
                             color: SI_C.green,
                             padding: "3px 8px",
                             fontSize: 10,
-                        }}>
-                          <EditIcon size={9}/> Edit
+                          }}
+                        >
+                          <EditIcon size={9} /> Edit
                         </button>
-                        <button onClick={() => onDeleteBatch(b)} className="del-btn" style={{
+                        <button
+                          onClick={() => onDeleteBatch(b)}
+                          className="del-btn"
+                          style={{
                             ...SI_smallBtnSt,
                             border: "1px solid #fecaca",
                             color: "#e53935",
                             padding: "3px 8px",
                             fontSize: 10,
-                        }}>
-                          <TrashIcon size={9}/> Delete
+                          }}
+                        >
+                          <TrashIcon size={9} /> Delete
                         </button>
-                      </>)}
+                      </>
+                    )}
                     {(product.branch || "")
-                        .trim()
-                        .toLowerCase()
-                        .includes("head office") && (<button onClick={() => onViewHistory(b)} className="hist-btn" style={{
-                            ...SI_smallBtnSt,
-                            border: "1px solid #bbdefb",
-                            color: "#1565c0",
-                            padding: "3px 8px",
-                            fontSize: 10,
-                        }}>
-                        <HistoryIcon size={9}/> History
-                      </button>)}
-                  </div>)}
-              </div>);
-        }))}
+                      .trim()
+                      .toLowerCase()
+                      .includes("head office") && (
+                      <button
+                        onClick={() => onViewHistory(b)}
+                        className="hist-btn"
+                        style={{
+                          ...SI_smallBtnSt,
+                          border: "1px solid #bbdefb",
+                          color: "#1565c0",
+                          padding: "3px 8px",
+                          fontSize: 10,
+                        }}
+                      >
+                        <HistoryIcon size={9} /> History
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
-    </div>);
+    </div>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
    BRAND OVERVIEW CARD — landing screen, one per brand, clickable
 ───────────────────────────────────────────────────────────────────────── */
 function BrandOverviewCard({ brandDef, brandObj, items, onClick }) {
-    const validBranches = (brandObj?.branches || []).map((br) => typeof br === "string" ? br : br.name);
-    const brandItems = items.filter((i) => itemBelongsToBrand(i, brandDef, brandObj));
-    const lowCount = brandItems.filter((i) => Number(i.stock) < Number(i.min_stock)).length;
-    // Show the number of inventory items that currently have stock, not the
-    // combined quantity of every item's units.
-    const stockedItems = brandItems.filter((i) => Number(i.stock || 0) > 0).length;
-    const stockMetricLabel = "Stocked Items";
-    const stockMetricValue = stockedItems;
-    const branchCount = validBranches.length;
-    return (<div role="button" tabIndex={0} onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onClick();
-            }
-        }} className="stock-brand-overview-card" onClick={onClick} style={{
-            textAlign: "left",
-            width: "100%",
-            minWidth: 0,
-            minHeight: 148,
-            height: "auto",
-            padding: 0,
-            appearance: "none",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "stretch",
-            justifyContent: "flex-start",
-            gap: 0,
-            boxSizing: "border-box",
-            whiteSpace: "normal",
-            background: SI_C.white,
-            border: `1px solid ${SI_C.border}`,
-            borderRadius: 18,
-            overflow: "hidden",
-            boxShadow: "0 2px 10px rgba(50,109,32,.05)",
-            cursor: "pointer",
-            transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
-            fontFamily: "inherit",
-        }} onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translateY(-3px)";
-            e.currentTarget.style.boxShadow = "0 14px 32px rgba(50,109,32,.12)";
-            e.currentTarget.style.borderColor = SI_C.greenMid;
-        }} onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "";
-            e.currentTarget.style.boxShadow = "0 2px 10px rgba(50,109,32,.05)";
-            e.currentTarget.style.borderColor = SI_C.border;
-        }}>
-      <div style={{
-            width: "100%",
-            minHeight: 75,
-            boxSizing: "border-box",
-            flexShrink: 0,
-            padding: "18px 18px 15px",
-            borderBottom: `1px solid ${SI_C.border}`,
-            background: "#fbfcf8",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-        }}>
-        <div style={{
+  const validBranches = (brandObj?.branches || []).map((br) =>
+    typeof br === "string" ? br : br.name,
+  );
+  const brandItems = items.filter((i) =>
+    itemBelongsToBrand(i, brandDef, brandObj),
+  );
+  const lowCount = brandItems.filter(
+    (i) => Number(i.stock) < Number(i.min_stock),
+  ).length;
+  // Show the number of inventory items that currently have stock, not the
+  // combined quantity of every item's units.
+  const stockedItems = brandItems.filter(
+    (i) => Number(i.stock || 0) > 0,
+  ).length;
+  const stockMetricLabel = "Stocked Items";
+  const stockMetricValue = stockedItems;
+  const branchCount = validBranches.length;
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className="stock-brand-overview-card"
+      onClick={onClick}
+      style={{
+        textAlign: "left",
+        width: "100%",
+        minWidth: 0,
+        minHeight: 148,
+        height: "auto",
+        padding: 0,
+        appearance: "none",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "stretch",
+        justifyContent: "flex-start",
+        gap: 0,
+        boxSizing: "border-box",
+        whiteSpace: "normal",
+        background: SI_C.white,
+        border: `1px solid ${SI_C.border}`,
+        borderRadius: 18,
+        overflow: "hidden",
+        boxShadow: "0 2px 10px rgba(50,109,32,.05)",
+        cursor: "pointer",
+        transition:
+          "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
+        fontFamily: "inherit",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-3px)";
+        e.currentTarget.style.boxShadow = "0 14px 32px rgba(50,109,32,.12)";
+        e.currentTarget.style.borderColor = SI_C.greenMid;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "";
+        e.currentTarget.style.boxShadow = "0 2px 10px rgba(50,109,32,.05)";
+        e.currentTarget.style.borderColor = SI_C.border;
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          minHeight: 75,
+          boxSizing: "border-box",
+          flexShrink: 0,
+          padding: "18px 18px 15px",
+          borderBottom: `1px solid ${SI_C.border}`,
+          background: "#fbfcf8",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
             width: 42,
             height: 42,
             borderRadius: 12,
@@ -3766,25 +4484,29 @@ function BrandOverviewCard({ brandDef, brandObj, items, onClick }) {
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
-        }}>
-          <SI_StoreIcon size={19} color={SI_C.lime}/>
+          }}
+        >
+          <SI_StoreIcon size={19} color={SI_C.lime} />
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{
-            fontSize: 15,
-            fontWeight: 800,
-            color: SI_C.ink,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-        }}>
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 800,
+              color: SI_C.ink,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             {brandDef.label}
           </div>
           <div style={{ fontSize: 11, color: SI_C.muted, marginTop: 3 }}>
             {branchCount} branch{branchCount === 1 ? "" : "es"}
           </div>
         </div>
-        <div style={{
+        <div
+          style={{
             width: 30,
             height: 30,
             flexShrink: 0,
@@ -3795,484 +4517,589 @@ function BrandOverviewCard({ brandDef, brandObj, items, onClick }) {
             alignItems: "center",
             justifyContent: "center",
             color: SI_C.greenDk,
-        }}>
-          <ArrowRightIcon size={13}/>
+          }}
+        >
+          <ArrowRightIcon size={13} />
         </div>
       </div>
-      <div style={{
-            width: "100%",
-            padding: "13px 18px 16px",
-            borderTop: `1px solid ${SI_C.border}`,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 10,
-            color: SI_C.muted,
-            fontSize: 11,
-        }}>
+      <div
+        style={{
+          width: "100%",
+          padding: "13px 18px 16px",
+          borderTop: `1px solid ${SI_C.border}`,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 10,
+          color: SI_C.muted,
+          fontSize: 11,
+        }}
+      >
         <span>
-          {brandItems.length} product{brandItems.length === 1 ? "" : "s"} in inventory
+          {brandItems.length} product{brandItems.length === 1 ? "" : "s"} in
+          inventory
         </span>
         <span style={{ color: SI_C.greenDk, fontWeight: 750 }}>
-          Open Inventory <ArrowRightIcon size={12} style={{ verticalAlign: "middle", marginLeft: 3 }}/>
+          Open Inventory{" "}
+          <ArrowRightIcon
+            size={12}
+            style={{ verticalAlign: "middle", marginLeft: 3 }}
+          />
         </span>
       </div>
-    </div>);
+    </div>
+  );
 }
 
 /* ── Searchable branch filter — same UX pattern as MenuInventoryContent's BrandBranchFilter,
      but scoped to a single already-selected brand (BrandCard is itself the brand context) ── */
 function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
-    const [branchQ, setBranchQ] = useState("");
-    const [open, setOpen] = useState(false);
-    const ref = useRef(null);
-    useEffect(() => {
-        const fn = (e) => {
-            if (ref.current && !ref.current.contains(e.target))
-                setOpen(false);
-        };
-        document.addEventListener("mousedown", fn);
-        return () => document.removeEventListener("mousedown", fn);
-    }, []);
-    const filteredBranches = branches.filter((br) => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
-    const dropSt = {
-        position: "absolute",
-        top: "calc(100% + 4px)",
-        left: 0,
-        right: 0,
-        zIndex: 300,
-        background: SI_C.white,
-        border: `1px solid ${SI_C.border}`,
-        borderRadius: 10,
-        boxShadow: "0 8px 28px rgba(0,0,0,0.10)",
-        maxHeight: 230,
-        overflowY: "auto",
+  const [branchQ, setBranchQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const fn = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
     };
-    const optSt = (active) => ({
-        padding: "9px 14px",
-        cursor: "pointer",
-        fontSize: 13,
-        color: SI_C.ink,
-        fontWeight: active ? 700 : 500,
-        background: active ? SI_C.greenLt : "transparent",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-    });
-    return (<div ref={ref} style={{ position: "relative", minWidth: 150 }}>
-      <div onClick={() => {
-            setOpen((v) => !v);
-            setBranchQ("");
-        }} style={{
-            ...SI_invInputSt,
-            height: 30,
-            fontSize: 11,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            cursor: "pointer",
-            paddingRight: 26,
-            userSelect: "none",
-            color: activeBranch ? SI_C.ink : SI_C.muted,
-        }}>
-        <SI_StoreIcon size={11} color={SI_C.green}/>
-        <span style={{
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+  const filteredBranches = branches.filter(
+    (br) => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()),
+  );
+  const dropSt = {
+    position: "absolute",
+    top: "calc(100% + 4px)",
+    left: 0,
+    right: 0,
+    zIndex: 300,
+    background: SI_C.white,
+    border: `1px solid ${SI_C.border}`,
+    borderRadius: 10,
+    boxShadow: "0 8px 28px rgba(0,0,0,0.10)",
+    maxHeight: 230,
+    overflowY: "auto",
+  };
+  const optSt = (active) => ({
+    padding: "9px 14px",
+    cursor: "pointer",
+    fontSize: 13,
+    color: SI_C.ink,
+    fontWeight: active ? 700 : 500,
+    background: active ? SI_C.greenLt : "transparent",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  });
+  return (
+    <div ref={ref} style={{ position: "relative", minWidth: 150 }}>
+      <div
+        onClick={() => {
+          setOpen((v) => !v);
+          setBranchQ("");
+        }}
+        style={{
+          ...SI_invInputSt,
+          height: 30,
+          fontSize: 11,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          cursor: "pointer",
+          paddingRight: 26,
+          userSelect: "none",
+          color: activeBranch ? SI_C.ink : SI_C.muted,
+        }}
+      >
+        <SI_StoreIcon size={11} color={SI_C.green} />
+        <span
+          style={{
             flex: 1,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-        }}>
+          }}
+        >
           {activeBranch || "All Branches"}
         </span>
-        <SI_ChevronIcon size={10} dir={open ? "up" : "down"}/>
+        <SI_ChevronIcon size={10} dir={open ? "up" : "down"} />
       </div>
-      {open && (<div style={dropSt}>
-          <div style={{
-                padding: "6px 8px",
-                borderBottom: `1px solid ${SI_C.border}`,
-                position: "sticky",
-                top: 0,
-                background: SI_C.white,
-            }}>
+      {open && (
+        <div style={dropSt}>
+          <div
+            style={{
+              padding: "6px 8px",
+              borderBottom: `1px solid ${SI_C.border}`,
+              position: "sticky",
+              top: 0,
+              background: SI_C.white,
+            }}
+          >
             <div style={{ position: "relative" }}>
-              <div style={{
-                position: "absolute",
-                left: 8,
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: SI_C.muted,
-            }}>
-                <SI_SearchIcon size={11}/>
+              <div
+                style={{
+                  position: "absolute",
+                  left: 8,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: SI_C.muted,
+                }}
+              >
+                <SI_SearchIcon size={11} />
               </div>
-              <input autoFocus type="text" value={branchQ} onChange={(e) => setBranchQ(e.target.value)} placeholder="Search branch…" onClick={(e) => e.stopPropagation()} style={{
-                ...SI_invInputSt,
-                height: 28,
-                fontSize: 11,
-                paddingLeft: 26,
-            }}/>
+              <input
+                autoFocus
+                type="text"
+                value={branchQ}
+                onChange={(e) => setBranchQ(e.target.value)}
+                placeholder="Search branch…"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  ...SI_invInputSt,
+                  height: 28,
+                  fontSize: 11,
+                  paddingLeft: 26,
+                }}
+              />
             </div>
           </div>
-          <div style={optSt(!activeBranch)} onMouseDown={() => {
-                onChangeBranch("");
-                setOpen(false);
-            }}>
+          <div
+            style={optSt(!activeBranch)}
+            onMouseDown={() => {
+              onChangeBranch("");
+              setOpen(false);
+            }}
+          >
             All Branches
           </div>
-          {filteredBranches.map((br) => (<div key={br} style={optSt(activeBranch === br)} onMouseDown={() => {
-                    onChangeBranch(br);
-                    setOpen(false);
-                }}>
-              <SI_StoreIcon size={11} color={SI_C.green}/> {br}
-            </div>))}
-        </div>)}
-    </div>);
+          {filteredBranches.map((br) => (
+            <div
+              key={br}
+              style={optSt(activeBranch === br)}
+              onMouseDown={() => {
+                onChangeBranch(br);
+                setOpen(false);
+              }}
+            >
+              <SI_StoreIcon size={11} color={SI_C.green} /> {br}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
    MANAGER SUPPLY ORDERING — mirrors the Franchisee Stock Inventory ordering
    controls/flow while preserving the Manager's existing inventory callbacks.
 ───────────────────────────────────────────────────────────────────────── */
-function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuickAdd, onReceiveStock, onOpenDeleteHistory, deleteHistoryCount = 0, onBack, expanded = false, initialBranchFilter = "", initialStatusFilter = "", readOnly = false, userName, userRole, showUiModal, setToast, onItemsChanged, focusMutation = null, refreshToken = 0, restrictBranch = "", enableOrdering = false, orderUser = null, orderBrand = "", orderBranch = "", }) {
-    const [search, setSearch] = useState("");
-    const [branchF, setBranchF] = useState(restrictBranch || initialBranchFilter || "");
-    const [categoryF, setCategoryF] = useState("");
-    const [unitF, setUnitF] = useState("");
-    const [statusF, setStatusF] = useState(initialStatusFilter);
-    const [selectedId, setSelectedId] = useState(null);
-    const [batches, setBatches] = useState([]);
-    const [editingBatch, setEditingBatch] = useState(null);
-    const [savingBatch, setSavingBatch] = useState(false);
-    const [deleteConfirmBatch, setDeleteConfirmBatch] = useState(null);
-    const [deletingBatch, setDeletingBatch] = useState(false);
-    const [batchLoading, setBatchLoading] = useState(false);
-    const didSetDefaultBranch = useRef(false);
-    const [transferHistoryBatch, setTransferHistoryBatch] = useState(null);
-    const branchOptions = useMemo(() => {
-        return (brandObj?.branches || []).map((br) => typeof br === "string" ? br : br.name);
-    }, [brandObj]);
-    const categoryOptions = useMemo(() => getBrandCategories(brandObj), [brandObj]);
-    const brandItems = useMemo(() => items
+function BrandCard({
+  brandDef,
+  brandObj,
+  items,
+  apiUrl,
+  onEdit,
+  onDelete,
+  onQuickAdd,
+  onReceiveStock,
+  onOpenDeleteHistory,
+  deleteHistoryCount = 0,
+  onBack,
+  expanded = false,
+  initialBranchFilter = "",
+  initialStatusFilter = "",
+  readOnly = false,
+  userName,
+  userRole,
+  showUiModal,
+  setToast,
+  onItemsChanged,
+  focusMutation = null,
+  refreshToken = 0,
+  restrictBranch = "",
+  enableOrdering = false,
+  orderUser = null,
+  orderBrand = "",
+  orderBranch = "",
+}) {
+  const [search, setSearch] = useState("");
+  const [branchF, setBranchF] = useState(
+    restrictBranch || initialBranchFilter || "",
+  );
+  const [categoryF, setCategoryF] = useState("");
+  const [unitF, setUnitF] = useState("");
+  const [statusF, setStatusF] = useState(initialStatusFilter);
+  const [selectedId, setSelectedId] = useState(null);
+  const [batches, setBatches] = useState([]);
+  const [editingBatch, setEditingBatch] = useState(null);
+  const [savingBatch, setSavingBatch] = useState(false);
+  const [deleteConfirmBatch, setDeleteConfirmBatch] = useState(null);
+  const [deletingBatch, setDeletingBatch] = useState(false);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const didSetDefaultBranch = useRef(false);
+  const [transferHistoryBatch, setTransferHistoryBatch] = useState(null);
+  const branchOptions = useMemo(() => {
+    return (brandObj?.branches || []).map((br) =>
+      typeof br === "string" ? br : br.name,
+    );
+  }, [brandObj]);
+  const categoryOptions = useMemo(
+    () => getBrandCategories(brandObj),
+    [brandObj],
+  );
+  const brandItems = useMemo(
+    () =>
+      items
         .filter((i) => itemBelongsToBrand(i, brandDef, brandObj))
-        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))), [items, brandDef, brandObj]);
-    const filtered = useMemo(() => {
-        const q = search.toLowerCase();
-        return brandItems
-            .filter((i) => {
-            if (q &&
-                !i.name.toLowerCase().includes(q) &&
-                !String(i.category || "")
-                    .toLowerCase()
-                    .includes(q))
-                return false;
-            if (branchF && i.branch !== branchF)
-                return false;
-            if (categoryF && i.category !== categoryF)
-                return false;
-            if (unitF && i.unit !== unitF)
-                return false;
-            if (statusF === "low" && Number(i.stock) >= Number(i.min_stock))
-                return false;
-            if (statusF === "ok" && Number(i.stock) < Number(i.min_stock))
-                return false;
-            return true;
-        })
-            .sort((a, b) => a.name.localeCompare(b.name));
-    }, [brandItems, search, branchF, categoryF, unitF, statusF]);
-    useEffect(() => {
-        if (!restrictBranch && branchF && !branchOptions.includes(branchF)) {
-            setBranchF("");
-        }
-    }, [branchF, branchOptions, restrictBranch]);
-    useEffect(() => {
-        if (categoryF && !categoryOptions.includes(categoryF))
-            setCategoryF("");
-    }, [categoryF, categoryOptions]);
-    useEffect(() => {
-        if (restrictBranch) {
-            setBranchF(restrictBranch);
-            didSetDefaultBranch.current = true;
-            return;
-        }
-        if (initialBranchFilter) {
-            setBranchF(initialBranchFilter);
-            didSetDefaultBranch.current = true;
-            return;
-        }
-    }, [restrictBranch, initialBranchFilter, branchOptions]);
-    useEffect(() => {
-        setStatusF(initialStatusFilter);
-    }, [initialStatusFilter]);
-    // Keep a newly added/edited/received product visible even when the current
-    // branch/category/status filter would otherwise hide the result immediately.
-    useEffect(() => {
-        const changed = focusMutation?.item;
-        if (!changed || !itemBelongsToBrand(changed, brandDef, brandObj))
-            return;
-        if (!restrictBranch && branchF && changed.branch !== branchF) {
-            setBranchF("");
-        }
-        if (categoryF && String(changed.category || "") !== categoryF)
-            setCategoryF("");
-        const isLow = Number(changed.stock || 0) < Number(changed.min_stock || 0);
-        if ((statusF === "low" && !isLow) || (statusF === "ok" && isLow))
-            setStatusF("");
-        if (changed.id != null)
-            setSelectedId(changed.id);
-    }, [focusMutation?.stamp, brandDef, brandObj]);
-    useEffect(() => {
-        if (selectedId && !brandItems.find((i) => i.id === selectedId))
-            setSelectedId(null);
-    }, [brandItems, selectedId]);
-    const selected = brandItems.find((i) => i.id === selectedId) || null;
-    const refreshBatches = useCallback(() => {
-        if (!selectedId) {
-            setBatches([]);
-            return;
-        }
-        setBatchLoading(true);
-        fetch(`${apiUrl}/ingredient-batches?ingredient_id=${selectedId}`)
-            .then((r) => r.json())
-            .then((d) => {
-            setBatches(Array.isArray(d) ? d : []);
-            setBatchLoading(false);
-        })
-            .catch(() => {
-            setBatchLoading(false);
-        });
-    }, [selectedId, apiUrl]);
-    const syncIngredientStock = async (ingredient) => {
-        try {
-            const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`);
-            const freshBatches = await res.json();
-            const activeBatches = Array.isArray(freshBatches) ? freshBatches : [];
-            const totalStock = activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0);
-            const nextOutCost = computeNextOutCost(activeBatches, ingredient.brand, !!ingredient.perishable);
-            await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...ingredient,
-                    stock: totalStock,
-                    ...(nextOutCost !== null ? { cost_per_unit: nextOutCost } : {}),
-                }),
-            });
-        }
-        catch (err) {
-            console.warn("Failed to sync ingredient stock:", err);
-        }
+        .sort((a, b) =>
+          String(a.name || "").localeCompare(String(b.name || "")),
+        ),
+    [items, brandDef, brandObj],
+  );
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return brandItems
+      .filter((i) => {
+        if (
+          q &&
+          !i.name.toLowerCase().includes(q) &&
+          !String(i.category || "")
+            .toLowerCase()
+            .includes(q)
+        )
+          return false;
+        if (branchF && i.branch !== branchF) return false;
+        if (categoryF && i.category !== categoryF) return false;
+        if (unitF && i.unit !== unitF) return false;
+        if (statusF === "low" && Number(i.stock) >= Number(i.min_stock))
+          return false;
+        if (statusF === "ok" && Number(i.stock) < Number(i.min_stock))
+          return false;
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [brandItems, search, branchF, categoryF, unitF, statusF]);
+  useEffect(() => {
+    if (!restrictBranch && branchF && !branchOptions.includes(branchF)) {
+      setBranchF("");
+    }
+  }, [branchF, branchOptions, restrictBranch]);
+  useEffect(() => {
+    if (categoryF && !categoryOptions.includes(categoryF)) setCategoryF("");
+  }, [categoryF, categoryOptions]);
+  useEffect(() => {
+    if (restrictBranch) {
+      setBranchF(restrictBranch);
+      didSetDefaultBranch.current = true;
+      return;
+    }
+    if (initialBranchFilter) {
+      setBranchF(initialBranchFilter);
+      didSetDefaultBranch.current = true;
+      return;
+    }
+  }, [restrictBranch, initialBranchFilter, branchOptions]);
+  useEffect(() => {
+    setStatusF(initialStatusFilter);
+  }, [initialStatusFilter]);
+  // Keep a newly added/edited/received product visible even when the current
+  // branch/category/status filter would otherwise hide the result immediately.
+  useEffect(() => {
+    const changed = focusMutation?.item;
+    if (!changed || !itemBelongsToBrand(changed, brandDef, brandObj)) return;
+    if (!restrictBranch && branchF && changed.branch !== branchF) {
+      setBranchF("");
+    }
+    if (categoryF && String(changed.category || "") !== categoryF)
+      setCategoryF("");
+    const isLow = Number(changed.stock || 0) < Number(changed.min_stock || 0);
+    if ((statusF === "low" && !isLow) || (statusF === "ok" && isLow))
+      setStatusF("");
+    if (changed.id != null) setSelectedId(changed.id);
+  }, [focusMutation?.stamp, brandDef, brandObj]);
+  useEffect(() => {
+    if (selectedId && !brandItems.find((i) => i.id === selectedId))
+      setSelectedId(null);
+  }, [brandItems, selectedId]);
+  const selected = brandItems.find((i) => i.id === selectedId) || null;
+  const refreshBatches = useCallback(() => {
+    if (!selectedId) {
+      setBatches([]);
+      return;
+    }
+    setBatchLoading(true);
+    fetch(`${apiUrl}/ingredient-batches?ingredient_id=${selectedId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setBatches(Array.isArray(d) ? d : []);
+        setBatchLoading(false);
+      })
+      .catch(() => {
+        setBatchLoading(false);
+      });
+  }, [selectedId, apiUrl]);
+  const syncIngredientStock = async (ingredient) => {
+    try {
+      const res = await fetch(
+        `${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`,
+      );
+      const freshBatches = await res.json();
+      const activeBatches = Array.isArray(freshBatches) ? freshBatches : [];
+      const totalStock = activeBatches.reduce(
+        (sum, b) => sum + Number(b.stock || 0),
+        0,
+      );
+      const nextOutCost = computeNextOutCost(
+        activeBatches,
+        ingredient.brand,
+        !!ingredient.perishable,
+      );
+      await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...ingredient,
+          stock: totalStock,
+          ...(nextOutCost !== null ? { cost_per_unit: nextOutCost } : {}),
+        }),
+      });
+    } catch (err) {
+      console.warn("Failed to sync ingredient stock:", err);
+    }
+  };
+  const validateBatchForm = (form, ingredient) => {
+    const pharma = isPharmaBrand(ingredient.brand);
+    const fuel = isFuelBrand(ingredient.brand);
+    const errors = [];
+    if (!isPositiveOrZeroNumber(form.stock))
+      errors.push("Count must be a valid number of 0 or more.");
+    if (form.mfg_date && !isValidDateStr(form.mfg_date))
+      errors.push("Manufacture date is not a valid date.");
+    if (form.exp_date && !isValidDateStr(form.exp_date))
+      errors.push("Expiry date is not a valid date.");
+    if (form.supply_date && !isValidDateStr(form.supply_date))
+      errors.push("Supply date is not a valid date.");
+    if (
+      form.mfg_date &&
+      form.exp_date &&
+      isValidDateStr(form.mfg_date) &&
+      isValidDateStr(form.exp_date) &&
+      new Date(form.mfg_date) > new Date(form.exp_date)
+    ) {
+      errors.push("Manufacture date cannot be after the expiry date.");
+    }
+    if (
+      form.supply_date &&
+      form.mfg_date &&
+      isValidDateStr(form.supply_date) &&
+      isValidDateStr(form.mfg_date) &&
+      new Date(form.supply_date) < new Date(form.mfg_date)
+    ) {
+      errors.push(
+        "Supply/receiving date cannot be before the manufacture date.",
+      );
+    }
+    if (
+      form.supply_date &&
+      form.exp_date &&
+      isValidDateStr(form.supply_date) &&
+      isValidDateStr(form.exp_date) &&
+      new Date(form.supply_date) > new Date(form.exp_date)
+    ) {
+      errors.push("Supply/receiving date cannot be after the expiry date.");
+    }
+    if (pharma || fuel) {
+      errors.push(
+        ...validateCategoryShelfLife({
+          brand: ingredient.brand,
+          category: ingredient.category,
+          grade: form.grade,
+          mfgDate: form.mfg_date,
+          expiryDate: form.exp_date,
+          noExpiry: !form.exp_date,
+        }),
+      );
+    }
+    if (form.exp_date && isValidDateStr(form.exp_date)) {
+      if (computeExpiryStatus(form.exp_date, ingredient.brand) === "expired") {
+        errors.push("This expiry date is already in the past.");
+      }
+    }
+    if (pharma && form.controlled_substance && !form.lot_number) {
+      errors.push("LOT Number is required for controlled substances.");
+    }
+    return [...new Set(errors)];
+  };
+  const saveBatch = async (form) => {
+    const { batch, ingredient } = editingBatch;
+    const errors = validateBatchForm(form, ingredient);
+    if (errors.length > 0) {
+      showUiModal({
+        type: "error",
+        title: "Please fix the following",
+        lines: errors.map((t) => ({ text: t, warn: true })),
+      });
+      return;
+    }
+    setSavingBatch(true);
+    const coords = await getBrowserLocation();
+    const pharma = isPharmaBrand(ingredient.brand);
+    const industryFields = {
+      ...(pharma
+        ? {
+            lot_number: form.lot_number,
+            ndc_code: form.ndc_code,
+            dosage_form: form.dosage_form,
+            strength: form.strength,
+            storage_requirement: form.storage_requirement,
+            controlled_substance: !!form.controlled_substance,
+          }
+        : {}),
+      ...(isFuelBrand(ingredient.brand)
+        ? {
+            tank_id: form.tank_id,
+            grade: form.grade,
+            octane_rating: form.octane_rating,
+            delivery_temp: form.delivery_temp,
+            truck_id: form.truck_id,
+            volume_correction: form.volume_correction,
+          }
+        : {}),
     };
-    const validateBatchForm = (form, ingredient) => {
-        const pharma = isPharmaBrand(ingredient.brand);
-        const fuel = isFuelBrand(ingredient.brand);
-        const errors = [];
-        if (!isPositiveOrZeroNumber(form.stock))
-            errors.push("Count must be a valid number of 0 or more.");
-        if (form.mfg_date && !isValidDateStr(form.mfg_date))
-            errors.push("Manufacture date is not a valid date.");
-        if (form.exp_date && !isValidDateStr(form.exp_date))
-            errors.push("Expiry date is not a valid date.");
-        if (form.supply_date && !isValidDateStr(form.supply_date))
-            errors.push("Supply date is not a valid date.");
-        if (form.mfg_date &&
-            form.exp_date &&
-            isValidDateStr(form.mfg_date) &&
-            isValidDateStr(form.exp_date) &&
-            new Date(form.mfg_date) > new Date(form.exp_date)) {
-            errors.push("Manufacture date cannot be after the expiry date.");
+    try {
+      await fetch(`${apiUrl}/ingredient-batches/${batch.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          ...industryFields,
+          performed_by: userName,
+          performed_by_role: userRole || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      await syncIngredientStock(ingredient);
+      setEditingBatch(null);
+      refreshBatches();
+      onItemsChanged?.();
+      setToast({
+        type: "success",
+        title: "Batch Updated",
+        message: "The batch has been updated successfully.",
+      });
+    } catch {
+      setToast({
+        type: "error",
+        title: "Connection Error",
+        message: "Failed to save the batch.",
+      });
+    } finally {
+      setSavingBatch(false);
+    }
+  };
+  const confirmDeleteBatch = async () => {
+    if (!deleteConfirmBatch) return;
+    const { batch, ingredient } = deleteConfirmBatch;
+    setDeletingBatch(true);
+    try {
+      await fetch(`${apiUrl}/ingredient-batch-delete-history`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          batch_data: batch,
+          ingredient_id: ingredient.id,
+          ingredient_name: ingredient.name,
+          deleted_by: userName,
+        }),
+      });
+      await fetch(`${apiUrl}/ingredient-batches/${batch.id}`, {
+        method: "DELETE",
+      });
+      await syncIngredientStock(ingredient);
+      refreshBatches();
+      onItemsChanged?.();
+      setToast({
+        type: "success",
+        title: "Batch Deleted",
+        message: `Batch ${batch.batch_number || ""} has been deleted.`,
+      });
+    } catch {
+      setToast({
+        type: "error",
+        title: "Connection Error",
+        message: "Failed to delete the batch.",
+      });
+    } finally {
+      setDeletingBatch(false);
+      setDeleteConfirmBatch(null);
+    }
+  };
+  useEffect(() => {
+    if (!selectedId) {
+      setBatches([]);
+      return;
+    }
+    let cancelled = false;
+    setBatchLoading(true);
+    fetch(`${apiUrl}/ingredient-batches?ingredient_id=${selectedId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) {
+          setBatches(Array.isArray(d) ? d : []);
+          setBatchLoading(false);
         }
-        if (form.supply_date &&
-            form.mfg_date &&
-            isValidDateStr(form.supply_date) &&
-            isValidDateStr(form.mfg_date) &&
-            new Date(form.supply_date) < new Date(form.mfg_date)) {
-            errors.push("Supply/receiving date cannot be before the manufacture date.");
-        }
-        if (form.supply_date &&
-            form.exp_date &&
-            isValidDateStr(form.supply_date) &&
-            isValidDateStr(form.exp_date) &&
-            new Date(form.supply_date) > new Date(form.exp_date)) {
-            errors.push("Supply/receiving date cannot be after the expiry date.");
-        }
-        if (pharma || fuel) {
-            errors.push(...validateCategoryShelfLife({
-                brand: ingredient.brand,
-                category: ingredient.category,
-                grade: form.grade,
-                mfgDate: form.mfg_date,
-                expiryDate: form.exp_date,
-                noExpiry: !form.exp_date,
-            }));
-        }
-        if (form.exp_date && isValidDateStr(form.exp_date)) {
-            if (computeExpiryStatus(form.exp_date, ingredient.brand) === "expired") {
-                errors.push("This expiry date is already in the past.");
-            }
-        }
-        if (pharma && form.controlled_substance && !form.lot_number) {
-            errors.push("LOT Number is required for controlled substances.");
-        }
-        return [...new Set(errors)];
+      })
+      .catch(() => {
+        if (!cancelled) setBatchLoading(false);
+      });
+    return () => {
+      cancelled = true;
     };
-    const saveBatch = async (form) => {
-        const { batch, ingredient } = editingBatch;
-        const errors = validateBatchForm(form, ingredient);
-        if (errors.length > 0) {
-            showUiModal({
-                type: "error",
-                title: "Please fix the following",
-                lines: errors.map((t) => ({ text: t, warn: true })),
-            });
-            return;
-        }
-        setSavingBatch(true);
-        const coords = await getBrowserLocation();
-        const pharma = isPharmaBrand(ingredient.brand);
-        const industryFields = {
-            ...(pharma
-                ? {
-                    lot_number: form.lot_number,
-                    ndc_code: form.ndc_code,
-                    dosage_form: form.dosage_form,
-                    strength: form.strength,
-                    storage_requirement: form.storage_requirement,
-                    controlled_substance: !!form.controlled_substance,
-                }
-                : {}),
-            ...(isFuelBrand(ingredient.brand)
-                ? {
-                    tank_id: form.tank_id,
-                    grade: form.grade,
-                    octane_rating: form.octane_rating,
-                    delivery_temp: form.delivery_temp,
-                    truck_id: form.truck_id,
-                    volume_correction: form.volume_correction,
-                }
-                : {}),
-        };
-        try {
-            await fetch(`${apiUrl}/ingredient-batches/${batch.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...form,
-                    ...industryFields,
-                    performed_by: userName,
-                    performed_by_role: userRole || "Unknown",
-                    latitude: coords?.latitude,
-                    longitude: coords?.longitude,
-                }),
-            });
-            await syncIngredientStock(ingredient);
-            setEditingBatch(null);
-            refreshBatches();
-            onItemsChanged?.();
-            setToast({
-                type: "success",
-                title: "Batch Updated",
-                message: "The batch has been updated successfully.",
-            });
-        }
-        catch {
-            setToast({
-                type: "error",
-                title: "Connection Error",
-                message: "Failed to save the batch.",
-            });
-        }
-        finally {
-            setSavingBatch(false);
-        }
-    };
-    const confirmDeleteBatch = async () => {
-        if (!deleteConfirmBatch)
-            return;
-        const { batch, ingredient } = deleteConfirmBatch;
-        setDeletingBatch(true);
-        try {
-            await fetch(`${apiUrl}/ingredient-batch-delete-history`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    batch_data: batch,
-                    ingredient_id: ingredient.id,
-                    ingredient_name: ingredient.name,
-                    deleted_by: userName,
-                }),
-            });
-            await fetch(`${apiUrl}/ingredient-batches/${batch.id}`, {
-                method: "DELETE",
-            });
-            await syncIngredientStock(ingredient);
-            refreshBatches();
-            onItemsChanged?.();
-            setToast({
-                type: "success",
-                title: "Batch Deleted",
-                message: `Batch ${batch.batch_number || ""} has been deleted.`,
-            });
-        }
-        catch {
-            setToast({
-                type: "error",
-                title: "Connection Error",
-                message: "Failed to delete the batch.",
-            });
-        }
-        finally {
-            setDeletingBatch(false);
-            setDeleteConfirmBatch(null);
-        }
-    };
-    useEffect(() => {
-        if (!selectedId) {
-            setBatches([]);
-            return;
-        }
-        let cancelled = false;
-        setBatchLoading(true);
-        fetch(`${apiUrl}/ingredient-batches?ingredient_id=${selectedId}`)
-            .then((r) => r.json())
-            .then((d) => {
-            if (!cancelled) {
-                setBatches(Array.isArray(d) ? d : []);
-                setBatchLoading(false);
-            }
-        })
-            .catch(() => {
-            if (!cancelled)
-                setBatchLoading(false);
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [selectedId, apiUrl, refreshToken]);
-    const branchScopedItems = useMemo(() => branchF ? brandItems.filter((i) => i.branch === branchF) : brandItems, [brandItems, branchF]);
-    const lowCount = branchScopedItems.filter((i) => Number(i.stock) < Number(i.min_stock)).length;
-    const listMaxHeight = expanded ? 700 : 480;
-    return (<div className="stock-surface" style={{
-            background: SI_C.white,
-            border: `1px solid ${SI_C.border}`,
-            borderRadius: 18,
-            overflow: "hidden",
-            boxShadow: "0 2px 10px rgba(50,109,32,.05)",
-            display: "flex",
-            flexDirection: "column",
-        }}>
+  }, [selectedId, apiUrl, refreshToken]);
+  const branchScopedItems = useMemo(
+    () =>
+      branchF ? brandItems.filter((i) => i.branch === branchF) : brandItems,
+    [brandItems, branchF],
+  );
+  const lowCount = branchScopedItems.filter(
+    (i) => Number(i.stock) < Number(i.min_stock),
+  ).length;
+  const listMaxHeight = expanded ? 700 : 480;
+  return (
+    <div
+      className="stock-surface"
+      style={{
+        background: SI_C.white,
+        border: `1px solid ${SI_C.border}`,
+        borderRadius: 18,
+        overflow: "hidden",
+        boxShadow: "0 2px 10px rgba(50,109,32,.05)",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
       {/* header */}
-      <div style={{
-            padding: expanded ? "16px 22px" : "12px 18px",
-            background: "#fbfcf8",
-            borderBottom: `1px solid ${SI_C.border}`,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            color: SI_C.ink,
-            flexWrap: "wrap",
-            gap: 8,
-        }}>
+      <div
+        style={{
+          padding: expanded ? "16px 22px" : "12px 18px",
+          background: "#fbfcf8",
+          borderBottom: `1px solid ${SI_C.border}`,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          color: SI_C.ink,
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
         <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {onBack ? (<button onClick={onBack} title="Back to all brands" style={{
+          {onBack ? (
+            <button
+              onClick={onBack}
+              title="Back to all brands"
+              style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 6,
@@ -4286,140 +5113,208 @@ function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuic
                 fontWeight: 800,
                 fontFamily: "inherit",
                 cursor: "pointer",
-            }}>
-              <ArrowLeftIcon size={16} strokeWidth={2.5}/>
-            </button>) : (<SI_StoreIcon size={expanded ? 17 : 14} color={SI_C.green}/>)}
+              }}
+            >
+              <ArrowLeftIcon size={16} strokeWidth={2.5} />
+            </button>
+          ) : (
+            <SI_StoreIcon size={expanded ? 17 : 14} color={SI_C.green} />
+          )}
           <span style={{ fontWeight: 800, fontSize: expanded ? 17 : 14 }}>
             {brandDef.label}
           </span>
         </span>
-        <span style={{
+        <span
+          style={{
             display: "flex",
             alignItems: "center",
             gap: 10,
             fontSize: 11,
-        }}>
+          }}
+        >
           <span style={{ opacity: 0.92 }}>
             {branchScopedItems.length} item
             {branchScopedItems.length === 1 ? "" : "s"}
             {lowCount > 0 ? ` · ${lowCount} low` : ""}
           </span>
-          <button onClick={onOpenDeleteHistory} title={`View ${brandDef.label} delete history`} style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 5,
-            height: 26,
-            padding: "0 10px",
-            borderRadius: 7,
-            border: "1px solid #fecaca",
-            background: SI_C.white,
-            color: SI_C.red,
-            fontSize: 11,
-            fontWeight: 700,
-            fontFamily: "inherit",
-        }}>
-            <HistoryIcon size={11}/> Delete History
-            {deleteHistoryCount > 0 && (<span style={{
-                fontSize: 9.5,
-                fontWeight: 800,
-                background: "#fee2e2",
-                color: SI_C.red,
-                borderRadius: 20,
-                padding: "1px 6px",
-            }}>
+          <button
+            onClick={onOpenDeleteHistory}
+            title={`View ${brandDef.label} delete history`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              height: 26,
+              padding: "0 10px",
+              borderRadius: 7,
+              border: "1px solid #fecaca",
+              background: SI_C.white,
+              color: SI_C.red,
+              fontSize: 11,
+              fontWeight: 700,
+              fontFamily: "inherit",
+            }}
+          >
+            <HistoryIcon size={11} /> Delete History
+            {deleteHistoryCount > 0 && (
+              <span
+                style={{
+                  fontSize: 9.5,
+                  fontWeight: 800,
+                  background: "#fee2e2",
+                  color: SI_C.red,
+                  borderRadius: 20,
+                  padding: "1px 6px",
+                }}
+              >
                 {deleteHistoryCount}
-              </span>)}
+              </span>
+            )}
           </button>
-          {!readOnly && (<>
-              <button onClick={() => onReceiveStock(brandDef, selected)} title="Receive stock for this brand" style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                height: 26,
-                padding: "0 11px",
-                borderRadius: 7,
-                border: `1px solid ${SI_C.border}`,
-                background: SI_C.white,
-                color: SI_C.greenDk,
-                fontSize: 11,
-                fontWeight: 700,
-                fontFamily: "inherit",
-            }}>
-                <PlusIcon size={11}/> Receive Stock
+          {!readOnly && (
+            <>
+              <button
+                onClick={() => onReceiveStock(brandDef, selected)}
+                title="Receive stock for this brand"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  height: 26,
+                  padding: "0 11px",
+                  borderRadius: 7,
+                  border: `1px solid ${SI_C.border}`,
+                  background: SI_C.white,
+                  color: SI_C.greenDk,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  fontFamily: "inherit",
+                }}
+              >
+                <PlusIcon size={11} /> Receive Stock
               </button>
-              <button onClick={() => onQuickAdd(brandDef, branchF)} title="Add a new ingredient to this brand" style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                height: 26,
-                padding: "0 12px",
-                borderRadius: 7,
-                border: "none",
-                background: SI_C.green,
-                color: SI_C.white,
-                fontSize: 11,
-                fontWeight: 700,
-                fontFamily: "inherit",
-                whiteSpace: "nowrap",
-            }}>
-                <PlusIcon size={12}/> Add Item
+              <button
+                onClick={() => onQuickAdd(brandDef, branchF)}
+                title="Add a new ingredient to this brand"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  height: 26,
+                  padding: "0 12px",
+                  borderRadius: 7,
+                  border: "none",
+                  background: SI_C.green,
+                  color: SI_C.white,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  fontFamily: "inherit",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <PlusIcon size={12} /> Add Item
               </button>
-            </>)}
+            </>
+          )}
         </span>
       </div>
 
       {/* filter row (brand filter intentionally omitted — this card IS the brand filter) */}
-      <div style={{
-            padding: expanded ? "12px 18px" : "10px 14px",
-            borderBottom: `1px solid ${SI_C.border}`,
-            display: "flex",
-            gap: 6,
-            flexWrap: "wrap",
-            background: "#fbfcf8",
-        }}>
+      <div
+        style={{
+          padding: expanded ? "12px 18px" : "10px 14px",
+          borderBottom: `1px solid ${SI_C.border}`,
+          display: "flex",
+          gap: 6,
+          flexWrap: "wrap",
+          background: "#fbfcf8",
+        }}
+      >
         <div style={{ position: "relative", flex: "1 1 160px", minWidth: 100 }}>
-          <div style={{
-            position: "absolute",
-            left: 8,
-            top: "50%",
-            transform: "translateY(-50%)",
-            color: SI_C.muted,
-        }}>
-            <SI_SearchIcon size={11}/>
+          <div
+            style={{
+              position: "absolute",
+              left: 8,
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: SI_C.muted,
+            }}
+          >
+            <SI_SearchIcon size={11} />
           </div>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" style={{ ...SI_invInputSt, height: 30, fontSize: 12, paddingLeft: 24 }}/>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search…"
+            style={{
+              ...SI_invInputSt,
+              height: 30,
+              fontSize: 12,
+              paddingLeft: 24,
+            }}
+          />
         </div>
-        {restrictBranch ? (<div style={{
-                ...SI_invInputSt,
-                height: 30,
-                minWidth: 160,
-                fontSize: 11,
-                padding: "6px 10px",
-                background: "#F6F7F1",
-                color: SI_C.ink,
-                fontWeight: 700,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                cursor: "default",
-            }} title="Assigned branch">
-            <SI_StoreIcon size={12} color={SI_C.green}/>
+        {restrictBranch ? (
+          <div
+            style={{
+              ...SI_invInputSt,
+              height: 30,
+              minWidth: 160,
+              fontSize: 11,
+              padding: "6px 10px",
+              background: "#F6F7F1",
+              color: SI_C.ink,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: "default",
+            }}
+            title="Assigned branch"
+          >
+            <SI_StoreIcon size={12} color={SI_C.green} />
             {restrictBranch}
-          </div>) : (<BranchOnlyFilter branches={branchOptions} activeBranch={branchF} onChangeBranch={setBranchF}/>)}
-        {categoryOptions.length > 0 && (<select value={categoryF} onChange={(e) => setCategoryF(e.target.value)} style={{ ...SI_invInputSt, height: 30, fontSize: 11, width: 150 }} title="Filter by Brand & Branch category">
+          </div>
+        ) : (
+          <BranchOnlyFilter
+            branches={branchOptions}
+            activeBranch={branchF}
+            onChangeBranch={setBranchF}
+          />
+        )}
+        {categoryOptions.length > 0 && (
+          <select
+            value={categoryF}
+            onChange={(e) => setCategoryF(e.target.value)}
+            style={{ ...SI_invInputSt, height: 30, fontSize: 11, width: 150 }}
+            title="Filter by Brand & Branch category"
+          >
             <option value="">All Categories</option>
-            {categoryOptions.map((cat) => (<option key={cat} value={cat}>
+            {categoryOptions.map((cat) => (
+              <option key={cat} value={cat}>
                 {cat}
-              </option>))}
-          </select>)}
+              </option>
+            ))}
+          </select>
+        )}
 
-        <select value={unitF} onChange={(e) => setUnitF(e.target.value)} style={{ ...SI_invInputSt, height: 30, fontSize: 11, width: 100 }}>
+        <select
+          value={unitF}
+          onChange={(e) => setUnitF(e.target.value)}
+          style={{ ...SI_invInputSt, height: 30, fontSize: 11, width: 100 }}
+        >
           <option value="">All Units</option>
-          {SI_UNITS.map((u) => (<option key={u} value={u}>
+          {SI_UNITS.map((u) => (
+            <option key={u} value={u}>
               {u}
-            </option>))}
+            </option>
+          ))}
         </select>
-        <select value={statusF} onChange={(e) => setStatusF(e.target.value)} style={{ ...SI_invInputSt, height: 30, fontSize: 11, width: 110 }}>
+        <select
+          value={statusF}
+          onChange={(e) => setStatusF(e.target.value)}
+          style={{ ...SI_invInputSt, height: 30, fontSize: 11, width: 110 }}
+        >
           <option value="">All Status</option>
           <option value="low">Low Stock</option>
           <option value="ok">In Stock</option>
@@ -4427,630 +5322,795 @@ function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuic
       </div>
 
       {/* two columns: left = scrollable product list, right = scrollable FIFO/FEFO queue */}
-      <div style={{
-            display: "grid",
-            gridTemplateColumns: expanded
-                ? "minmax(360px,.95fr) minmax(430px,1.25fr)"
-                : "1fr 1fr",
-            minHeight: expanded ? 540 : 380,
-            maxHeight: listMaxHeight,
-        }}>
-        <div style={{
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: expanded
+            ? "minmax(360px,.95fr) minmax(430px,1.25fr)"
+            : "1fr 1fr",
+          minHeight: expanded ? 540 : 380,
+          maxHeight: listMaxHeight,
+        }}
+      >
+        <div
+          style={{
             borderRight: `1px solid ${SI_C.border}`,
             overflowY: "auto",
             maxHeight: listMaxHeight,
             minHeight: 0,
-        }}>
-          {filtered.length === 0 ? (<div style={{
+          }}
+        >
+          {filtered.length === 0 ? (
+            <div
+              style={{
                 padding: "30px 14px",
                 textAlign: "center",
                 color: SI_C.muted,
                 fontSize: 12,
-            }}>
+              }}
+            >
               No products found.
-            </div>) : (filtered.map((item) => {
-            const low = Number(item.stock) < Number(item.min_stock);
-            const active = item.id === selectedId;
-            const stockPct = Number(item.min_stock) > 0
-                ? Math.min(100, Math.round((Number(item.stock || 0) /
-                    (Number(item.min_stock) * 2)) *
-                    100))
-                : Number(item.stock) > 0
+            </div>
+          ) : (
+            filtered.map((item) => {
+              const low = Number(item.stock) < Number(item.min_stock);
+              const active = item.id === selectedId;
+              const stockPct =
+                Number(item.min_stock) > 0
+                  ? Math.min(
+                      100,
+                      Math.round(
+                        (Number(item.stock || 0) /
+                          (Number(item.min_stock) * 2)) *
+                          100,
+                      ),
+                    )
+                  : Number(item.stock) > 0
                     ? 100
                     : 0;
-            return (<div key={item.id} onClick={() => setSelectedId(item.id)} className={`stock-product-row${active ? " active" : ""}`} style={{
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => setSelectedId(item.id)}
+                  className={`stock-product-row${active ? " active" : ""}`}
+                  style={{
                     padding: "12px 16px",
                     cursor: "pointer",
                     borderLeft: `3px solid ${active ? SI_C.lime : "transparent"}`,
                     background: active ? "#f6f8ef" : SI_C.white,
                     borderBottom: `1px solid ${SI_C.bg}`,
-                }}>
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 6,
-                }}>
-                    <span style={{
-                    fontSize: 12.5,
-                    fontWeight: active ? 800 : 600,
-                    color: SI_C.ink,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                }}>
-                      {item.name}
-                    </span>
-            </div>
-                  <div style={{
-                    fontSize: 10.5,
-                    color: SI_C.muted,
-                    marginTop: 3,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    flexWrap: "wrap",
-                }}>
-                    {item.sku && (<>
-                        <span style={{
-                        fontSize: 9.5,
-                        fontFamily: "monospace",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 12.5,
+                        fontWeight: active ? 800 : 600,
+                        color: SI_C.ink,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
-                    }}>
+                      }}
+                    >
+                      {item.name}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      color: SI_C.muted,
+                      marginTop: 3,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {item.sku && (
+                      <>
+                        <span
+                          style={{
+                            fontSize: 9.5,
+                            fontFamily: "monospace",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
                           {item.sku}
                         </span>
                         <span style={{ opacity: 0.45 }}>•</span>
-                      </>)}
-                    <span style={{
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                }}>
+                      </>
+                    )}
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {item.branch}
                     </span>
-                    {isDirectProductBrand(item.brand || brandObj?.name || brandDef.label) && (<>
+                    {isDirectProductBrand(
+                      item.brand || brandObj?.name || brandDef.label,
+                    ) && (
+                      <>
                         <span style={{ opacity: 0.45 }}>•</span>
-                        <span style={{
-                        color: item.category ? SI_C.greenDk : SI_C.warn,
-                        fontWeight: 700,
-                    }}>
+                        <span
+                          style={{
+                            color: item.category ? SI_C.greenDk : SI_C.warn,
+                            fontWeight: 700,
+                          }}
+                        >
                           {item.category || "Uncategorized"}
                         </span>
-                      </>)}
+                      </>
+                    )}
                   </div>
-                  <div style={{
-                    fontSize: 10.5,
-                    color: SI_C.muted,
-                    marginTop: 3,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    flexWrap: "wrap",
-                }}>
-                    <span style={{
-                    fontSize: 9.5,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                }}>
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      color: SI_C.muted,
+                      marginTop: 3,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {item.name}
                     </span>
                     <span style={{ opacity: 0.45 }}>•</span>
-                    <span style={{
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                }}>
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {item.branch}
                     </span>
-                    {isDirectProductBrand(item.brand || brandObj?.name || brandDef.label) && (<>
+                    {isDirectProductBrand(
+                      item.brand || brandObj?.name || brandDef.label,
+                    ) && (
+                      <>
                         <span style={{ opacity: 0.45 }}>•</span>
-                        <span style={{
-                        color: item.category ? SI_C.greenDk : SI_C.warn,
-                        fontWeight: 700,
-                    }}>
+                        <span
+                          style={{
+                            color: item.category ? SI_C.greenDk : SI_C.warn,
+                            fontWeight: 700,
+                          }}
+                        >
                           {item.category || "Uncategorized"}
                         </span>
-                      </>)}
+                      </>
+                    )}
                   </div>
-            <div style={{ display: "flex", gap: 6, marginTop: 7 }}>
-                    {!readOnly && (<>
-                        <button onClick={(e) => {
-                        e.stopPropagation();
-                        onEdit(item);
-                    }} className="edit-btn" style={{
-                        ...SI_smallBtnSt,
-                        height: 24,
-                        padding: "0 9px",
-                        fontSize: 10.5,
-                        border: `1px solid ${SI_C.border}`,
-                        color: SI_C.green,
-                    }}>
-                          <EditIcon size={10}/> Edit
+                  <div style={{ display: "flex", gap: 6, marginTop: 7 }}>
+                    {!readOnly && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEdit(item);
+                          }}
+                          className="edit-btn"
+                          style={{
+                            ...SI_smallBtnSt,
+                            height: 24,
+                            padding: "0 9px",
+                            fontSize: 10.5,
+                            border: `1px solid ${SI_C.border}`,
+                            color: SI_C.green,
+                          }}
+                        >
+                          <EditIcon size={10} /> Edit
                         </button>
-                        <button onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(item);
-                    }} className="del-btn" style={{
-                        ...SI_smallBtnSt,
-                        height: 24,
-                        padding: "0 9px",
-                        fontSize: 10.5,
-                        border: "1px solid #fecaca",
-                        color: "#e53935",
-                    }}>
-                          <TrashIcon size={10}/> Delete
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(item);
+                          }}
+                          className="del-btn"
+                          style={{
+                            ...SI_smallBtnSt,
+                            height: 24,
+                            padding: "0 9px",
+                            fontSize: 10.5,
+                            border: "1px solid #fecaca",
+                            color: "#e53935",
+                          }}
+                        >
+                          <TrashIcon size={10} /> Delete
                         </button>
-                      </>)}
+                      </>
+                    )}
                   </div>
-                </div>);
-        }))}
+                </div>
+              );
+            })
+          )}
         </div>
 
-        <div style={{
+        <div
+          style={{
             padding: expanded ? 17 : 14,
             overflowY: "auto",
             maxHeight: listMaxHeight,
             minHeight: 0,
-        }}>
-          <FifoQueue product={selected} batches={batches} loading={batchLoading} readOnly={readOnly} onEditBatch={(b) => setEditingBatch({ batch: b, ingredient: selected })} onDeleteBatch={(b) => setDeleteConfirmBatch({ batch: b, ingredient: selected })} onViewHistory={(b) => setTransferHistoryBatch({ batch: b, ingredient: selected })}/>
+          }}
+        >
+          <FifoQueue
+            product={selected}
+            batches={batches}
+            loading={batchLoading}
+            readOnly={readOnly}
+            onEditBatch={(b) =>
+              setEditingBatch({ batch: b, ingredient: selected })
+            }
+            onDeleteBatch={(b) =>
+              setDeleteConfirmBatch({ batch: b, ingredient: selected })
+            }
+            onViewHistory={(b) =>
+              setTransferHistoryBatch({ batch: b, ingredient: selected })
+            }
+          />
         </div>
       </div>
-      {editingBatch && (<BatchEditModal ingredient={editingBatch.ingredient} batch={editingBatch.batch} saving={savingBatch} onClose={() => setEditingBatch(null)} onSave={saveBatch}/>)}
+      {editingBatch && (
+        <BatchEditModal
+          ingredient={editingBatch.ingredient}
+          batch={editingBatch.batch}
+          saving={savingBatch}
+          onClose={() => setEditingBatch(null)}
+          onSave={saveBatch}
+        />
+      )}
 
-      {deleteConfirmBatch && (<BatchDeleteConfirmModal batch={deleteConfirmBatch.batch} ingredient={deleteConfirmBatch.ingredient} deleting={deletingBatch} onConfirm={confirmDeleteBatch} onCancel={() => {
-                if (!deletingBatch)
-                    setDeleteConfirmBatch(null);
-            }}/>)}
+      {deleteConfirmBatch && (
+        <BatchDeleteConfirmModal
+          batch={deleteConfirmBatch.batch}
+          ingredient={deleteConfirmBatch.ingredient}
+          deleting={deletingBatch}
+          onConfirm={confirmDeleteBatch}
+          onCancel={() => {
+            if (!deletingBatch) setDeleteConfirmBatch(null);
+          }}
+        />
+      )}
 
-      {transferHistoryBatch && (<BatchTransferHistoryModal batch={transferHistoryBatch.batch} ingredient={transferHistoryBatch.ingredient} apiUrl={apiUrl} onClose={() => setTransferHistoryBatch(null)}/>)}
-    </div>);
+      {transferHistoryBatch && (
+        <BatchTransferHistoryModal
+          batch={transferHistoryBatch.batch}
+          ingredient={transferHistoryBatch.ingredient}
+          apiUrl={apiUrl}
+          onClose={() => setTransferHistoryBatch(null)}
+        />
+      )}
+    </div>
+  );
 }
 
-function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userName, userRole, onClose, onDone, showUiModal, setToast, }) {
-    const nowLocal = () => {
-        const d = new Date();
-        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-        return d.toISOString().slice(0, 16);
-    };
-    const defaultBatchForm = () => ({
-        stock: "",
-        cost_batch: "",
-        supplier: "",
-        mfg_date: "",
-        received_at: nowLocal(),
-        exp_date: "",
-        notes: "",
-        lot_number: "",
-        ndc_code: "",
-        dosage_form: "",
-        strength: "",
-        storage_requirement: "",
-        controlled_substance: false,
-        tank_id: "",
-        grade: "",
-        octane_rating: "",
-        delivery_temp: "",
-        truck_id: "",
-        volume_correction: "",
-        noExpiry: false,
+function ReceiveStockModal({
+  brandDef,
+  brandItems,
+  initialProduct,
+  apiUrl,
+  userName,
+  userRole,
+  onClose,
+  onDone,
+  showUiModal,
+  setToast,
+}) {
+  const nowLocal = () => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  };
+  const defaultBatchForm = () => ({
+    stock: "",
+    cost_batch: "",
+    supplier: "",
+    mfg_date: "",
+    received_at: nowLocal(),
+    exp_date: "",
+    notes: "",
+    lot_number: "",
+    ndc_code: "",
+    dosage_form: "",
+    strength: "",
+    storage_requirement: "",
+    controlled_substance: false,
+    tank_id: "",
+    grade: "",
+    octane_rating: "",
+    delivery_temp: "",
+    truck_id: "",
+    volume_correction: "",
+    noExpiry: false,
+  });
+  const [selectedIds, setSelectedIds] = useState(
+    initialProduct?.id != null ? [initialProduct.id] : [],
+  );
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [formsById, setFormsById] = useState(() =>
+    initialProduct?.id != null
+      ? { [initialProduct.id]: defaultBatchForm() }
+      : {},
+  );
+  const [savedIds, setSavedIds] = useState(() => new Set());
+  const [saving, setSaving] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
+  useEffect(() => {
+    if (activeIndex >= selectedIds.length)
+      setActiveIndex(Math.max(0, selectedIds.length - 1));
+  }, [selectedIds, activeIndex]);
+  const toggleProduct = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+    setFormsById((prev) =>
+      prev[id] ? prev : { ...prev, [id]: defaultBatchForm() },
+    );
+    setSavedIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
     });
-    const [selectedIds, setSelectedIds] = useState(initialProduct?.id != null ? [initialProduct.id] : []);
-    const [activeIndex, setActiveIndex] = useState(0);
-    const [formsById, setFormsById] = useState(() => initialProduct?.id != null
-        ? { [initialProduct.id]: defaultBatchForm() }
-        : {});
-    const [savedIds, setSavedIds] = useState(() => new Set());
-    const [saving, setSaving] = useState(false);
-    const [productSearch, setProductSearch] = useState("");
-    useEffect(() => {
-        if (activeIndex >= selectedIds.length)
-            setActiveIndex(Math.max(0, selectedIds.length - 1));
-    }, [selectedIds, activeIndex]);
-    const toggleProduct = (id) => {
-        setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-        setFormsById((prev) => prev[id] ? prev : { ...prev, [id]: defaultBatchForm() });
-        setSavedIds((prev) => {
-            if (!prev.has(id))
-                return prev;
-            const next = new Set(prev);
-            next.delete(id);
-            return next;
-        });
-    };
-    const activeId = selectedIds[activeIndex];
-    const product = brandItems.find((i) => String(i.id) === String(activeId)) || null;
-    const form = formsById[activeId] || defaultBatchForm();
-    const setF = (k, v) => setFormsById((prev) => ({
-        ...prev,
-        [activeId]: { ...(prev[activeId] || defaultBatchForm()), [k]: v },
+  };
+  const activeId = selectedIds[activeIndex];
+  const product =
+    brandItems.find((i) => String(i.id) === String(activeId)) || null;
+  const form = formsById[activeId] || defaultBatchForm();
+  const setF = (k, v) =>
+    setFormsById((prev) => ({
+      ...prev,
+      [activeId]: { ...(prev[activeId] || defaultBatchForm()), [k]: v },
     }));
-    const pharma = isPharmaBrand(product?.brand);
-    const fuel = isFuelBrand(product?.brand);
-    const directProduct = isDirectProductBrand(product?.brand);
-    const qty = parseFloat(form.stock) || 0;
-    const batchCost = parseFloat(form.cost_batch) || 0;
-    const unitCost = qty > 0 && batchCost > 0 ? batchCost / qty : 0;
-    const expiryRule = useMemo(() => getCategoryShelfLifeRule(product?.brand, product?.category, form.grade), [product?.brand, product?.category, form.grade]);
-    const expiryBounds = useMemo(() => getExpiryBoundsFromManufacture(form.mfg_date, expiryRule), [form.mfg_date, expiryRule]);
-    const canUseNoExpiry = expiryRule
-        ? !!expiryRule.allowNoExpiry
-        : !pharma && !fuel;
-    useEffect(() => {
-        if (!canUseNoExpiry && form.noExpiry)
-            setF("noExpiry", false);
-    }, [canUseNoExpiry, form.noExpiry, activeId]);
-    useEffect(() => {
-        if (!product || form.noExpiry || !form.mfg_date || !expiryRule)
-            return;
-        const bounds = getExpiryBoundsFromManufacture(form.mfg_date, expiryRule);
-        if (expiryRule.kind === "exact" &&
-            bounds.recommendedStr &&
-            !form.exp_date) {
-            setF("exp_date", bounds.recommendedStr);
-            return;
+  const pharma = isPharmaBrand(product?.brand);
+  const fuel = isFuelBrand(product?.brand);
+  const directProduct = isDirectProductBrand(product?.brand);
+  const qty = parseFloat(form.stock) || 0;
+  const batchCost = parseFloat(form.cost_batch) || 0;
+  const unitCost = qty > 0 && batchCost > 0 ? batchCost / qty : 0;
+  const expiryRule = useMemo(
+    () =>
+      getCategoryShelfLifeRule(product?.brand, product?.category, form.grade),
+    [product?.brand, product?.category, form.grade],
+  );
+  const expiryBounds = useMemo(
+    () => getExpiryBoundsFromManufacture(form.mfg_date, expiryRule),
+    [form.mfg_date, expiryRule],
+  );
+  const canUseNoExpiry = expiryRule
+    ? !!expiryRule.allowNoExpiry
+    : !pharma && !fuel;
+  useEffect(() => {
+    if (!canUseNoExpiry && form.noExpiry) setF("noExpiry", false);
+  }, [canUseNoExpiry, form.noExpiry, activeId]);
+  useEffect(() => {
+    if (!product || form.noExpiry || !form.mfg_date || !expiryRule) return;
+    const bounds = getExpiryBoundsFromManufacture(form.mfg_date, expiryRule);
+    if (
+      expiryRule.kind === "exact" &&
+      bounds.recommendedStr &&
+      !form.exp_date
+    ) {
+      setF("exp_date", bounds.recommendedStr);
+      return;
+    }
+    if (
+      (expiryRule.kind === "range" || expiryRule.kind === "max") &&
+      bounds.recommendedStr &&
+      !form.exp_date
+    ) {
+      setF("exp_date", bounds.recommendedStr);
+    }
+  }, [
+    activeId,
+    product?.id,
+    form.mfg_date,
+    form.noExpiry,
+    expiryRule?.kind,
+    expiryRule?.months,
+    expiryRule?.minMonths,
+    expiryRule?.maxMonths,
+    expiryRule?.recommendedMonths,
+  ]);
+  const basicReceivedDateStr = useMemo(() => {
+    if (!form.received_at || !isValidDateStr(form.received_at)) return "";
+    const received = new Date(form.received_at);
+    return [
+      received.getFullYear(),
+      String(received.getMonth() + 1).padStart(2, "0"),
+      String(received.getDate()).padStart(2, "0"),
+    ].join("-");
+  }, [form.received_at]);
+  const minExpiryDateStr = expiryRule
+    ? expiryBounds.minStr
+    : basicReceivedDateStr;
+  const maxExpiryDateStr = expiryRule ? expiryBounds.maxStr : "";
+  const syncIngredientStock = async (prod) => {
+    const res = await fetch(
+      `${apiUrl}/ingredient-batches?ingredient_id=${prod.id}`,
+    );
+    const freshBatches = await res.json();
+    const activeBatches = Array.isArray(freshBatches) ? freshBatches : [];
+    const totalStock = activeBatches.reduce(
+      (sum, b) => sum + Number(b.stock || 0),
+      0,
+    );
+    const nextOutCost = computeNextOutCost(
+      activeBatches,
+      prod.brand,
+      !!prod.perishable,
+    );
+    const updateRes = await fetch(`${apiUrl}/ingredients/${prod.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...prod,
+        stock: totalStock,
+        ...(nextOutCost !== null ? { cost_per_unit: nextOutCost } : {}),
+      }),
+    });
+    if (!updateRes.ok)
+      throw new Error("Failed to sync product totals after receiving stock.");
+  };
+  const validateProductForm = (prod, f) => {
+    const errors = [];
+    if (!prod) {
+      errors.push("Please select a product to receive stock for.");
+      return errors;
+    }
+    const isPharma = isPharmaBrand(prod.brand);
+    const isFuel = isFuelBrand(prod.brand);
+    if (!isPositiveOrZeroNumber(f.stock) || parseFloat(f.stock) <= 0) {
+      errors.push("Quantity received must be a number greater than 0.");
+    }
+    if (f.cost_batch !== "" && !isPositiveOrZeroNumber(f.cost_batch)) {
+      errors.push("Total batch cost must be a valid number of 0 or more.");
+    }
+    if (
+      f.cost_batch &&
+      Number(f.cost_batch) > 0 &&
+      (!f.stock || Number(f.stock) <= 0)
+    ) {
+      errors.push(
+        "Enter the quantity received before the total batch cost, so cost per unit can be calculated.",
+      );
+    }
+    if (f.mfg_date && !isValidDateStr(f.mfg_date))
+      errors.push("Manufacture date is not a valid date.");
+    if (f.received_at && !isValidDateStr(f.received_at))
+      errors.push("Date & time received is not a valid date.");
+    if (
+      f.mfg_date &&
+      f.received_at &&
+      isValidDateStr(f.mfg_date) &&
+      isValidDateStr(f.received_at) &&
+      new Date(f.received_at) < new Date(f.mfg_date)
+    ) {
+      errors.push("Date received cannot be before the manufacture date.");
+    }
+    if (isPharma || isFuel) {
+      errors.push(
+        ...validateCategoryShelfLife({
+          brand: prod.brand,
+          category: prod.category,
+          grade: f.grade,
+          mfgDate: f.mfg_date,
+          expiryDate: f.exp_date,
+          noExpiry: f.noExpiry,
+        }),
+      );
+    } else if (!f.noExpiry) {
+      if (!f.exp_date) {
+        errors.push("Expiry date is required.");
+      } else if (!isValidDateStr(f.exp_date)) {
+        errors.push("Expiry date is not a valid date.");
+      } else if (
+        f.received_at &&
+        isValidDateStr(f.received_at) &&
+        new Date(f.exp_date) < new Date(f.received_at)
+      ) {
+        errors.push("Expiry date cannot be earlier than the date received.");
+      }
+    }
+    if (
+      !f.noExpiry &&
+      f.exp_date &&
+      isValidDateStr(f.exp_date) &&
+      f.received_at &&
+      isValidDateStr(f.received_at) &&
+      new Date(f.received_at) > new Date(f.exp_date)
+    ) {
+      errors.push("Date received cannot be after the expiry date.");
+    }
+    if (
+      !f.noExpiry &&
+      f.exp_date &&
+      isValidDateStr(f.exp_date) &&
+      computeExpiryStatus(f.exp_date, prod.brand) === "expired"
+    ) {
+      errors.push("Expiry date is already in the past.");
+    }
+    if (isPharma && f.controlled_substance && !f.lot_number) {
+      errors.push("LOT Number is required for controlled substances.");
+    }
+    return [...new Set(errors)];
+  };
+  const buildBody = (prod, f, uName, uRole, coords) => {
+    const isPharma = isPharmaBrand(prod.brand);
+    const isFuel = isFuelBrand(prod.brand);
+    const q = parseFloat(f.stock) || 0;
+    const bc = parseFloat(f.cost_batch) || 0;
+    const uc = q > 0 && bc > 0 ? bc / q : 0;
+    return {
+      ingredient_id: prod.id,
+      stock: q,
+      cost_per_unit: uc ? Math.round(uc * 100) / 100 : 0,
+      supplier: f.supplier || null,
+      mfg_date: f.mfg_date || null,
+      supply_date: f.received_at ? new Date(f.received_at).toISOString() : null,
+      exp_date: f.noExpiry ? null : f.exp_date || null,
+      notes: f.notes || null,
+      performed_by: uName,
+      performed_by_role: uRole || "Unknown",
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
+      ...(isPharma
+        ? {
+            lot_number: f.lot_number || null,
+            ndc_code: f.ndc_code || null,
+            dosage_form: f.dosage_form || null,
+            strength: f.strength || null,
+            storage_requirement: f.storage_requirement || null,
+            controlled_substance: !!f.controlled_substance,
+          }
+        : {}),
+      ...(isFuel
+        ? {
+            tank_id: f.tank_id || null,
+            grade: f.grade || null,
+            octane_rating: f.octane_rating || null,
+            delivery_temp: f.delivery_temp || null,
+            truck_id: f.truck_id || null,
+            volume_correction: f.volume_correction || null,
+          }
+        : {}),
+    };
+  };
+  const saveAndContinue = () => {
+    const errs = validateProductForm(product, form);
+    if (errs.length > 0) {
+      showUiModal({
+        type: "error",
+        title: "Please fix the following",
+        lines: errs.map((t) => ({ text: t, warn: true })),
+      });
+      return;
+    }
+    const nextSaved = new Set(savedIds);
+    nextSaved.add(activeId);
+    setSavedIds(nextSaved);
+    let nextIdx = -1;
+    for (let i = activeIndex + 1; i < selectedIds.length; i++) {
+      if (!nextSaved.has(selectedIds[i])) {
+        nextIdx = i;
+        break;
+      }
+    }
+    if (nextIdx === -1) {
+      for (let i = 0; i < selectedIds.length; i++) {
+        if (!nextSaved.has(selectedIds[i])) {
+          nextIdx = i;
+          break;
         }
-        if ((expiryRule.kind === "range" || expiryRule.kind === "max") &&
-            bounds.recommendedStr &&
-            !form.exp_date) {
-            setF("exp_date", bounds.recommendedStr);
-        }
-    }, [
-        activeId,
-        product?.id,
-        form.mfg_date,
-        form.noExpiry,
-        expiryRule?.kind,
-        expiryRule?.months,
-        expiryRule?.minMonths,
-        expiryRule?.maxMonths,
-        expiryRule?.recommendedMonths,
-    ]);
-    const basicReceivedDateStr = useMemo(() => {
-        if (!form.received_at || !isValidDateStr(form.received_at))
-            return "";
-        const received = new Date(form.received_at);
-        return [
-            received.getFullYear(),
-            String(received.getMonth() + 1).padStart(2, "0"),
-            String(received.getDate()).padStart(2, "0"),
-        ].join("-");
-    }, [form.received_at]);
-    const minExpiryDateStr = expiryRule
-        ? expiryBounds.minStr
-        : basicReceivedDateStr;
-    const maxExpiryDateStr = expiryRule ? expiryBounds.maxStr : "";
-    const syncIngredientStock = async (prod) => {
-        const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${prod.id}`);
-        const freshBatches = await res.json();
-        const activeBatches = Array.isArray(freshBatches) ? freshBatches : [];
-        const totalStock = activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0);
-        const nextOutCost = computeNextOutCost(activeBatches, prod.brand, !!prod.perishable);
-        const updateRes = await fetch(`${apiUrl}/ingredients/${prod.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                ...prod,
-                stock: totalStock,
-                ...(nextOutCost !== null ? { cost_per_unit: nextOutCost } : {}),
-            }),
+      }
+    }
+    if (nextIdx !== -1) setActiveIndex(nextIdx);
+  };
+  const submitAll = async () => {
+    setSaving(true);
+    const coords = await getBrowserLocation();
+    const results = [];
+    let lastProduct = null;
+    for (const id of selectedIds) {
+      const prod = brandItems.find((i) => String(i.id) === String(id));
+      const f = formsById[id];
+      if (!prod || !f) {
+        results.push({
+          ok: false,
+          name: "Unknown product",
+          reason: "missing data",
         });
-        if (!updateRes.ok)
-            throw new Error("Failed to sync product totals after receiving stock.");
-    };
-    const validateProductForm = (prod, f) => {
-        const errors = [];
-        if (!prod) {
-            errors.push("Please select a product to receive stock for.");
-            return errors;
+        continue;
+      }
+      const body = buildBody(prod, f, userName, userRole, coords);
+      try {
+        const res = await fetch(`${apiUrl}/ingredient-batches`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || d?.success === false) {
+          results.push({
+            ok: false,
+            name: prod.name,
+            reason: d?.error || "failed to save",
+          });
+          continue;
         }
-        const isPharma = isPharmaBrand(prod.brand);
-        const isFuel = isFuelBrand(prod.brand);
-        if (!isPositiveOrZeroNumber(f.stock) || parseFloat(f.stock) <= 0) {
-            errors.push("Quantity received must be a number greater than 0.");
-        }
-        if (f.cost_batch !== "" && !isPositiveOrZeroNumber(f.cost_batch)) {
-            errors.push("Total batch cost must be a valid number of 0 or more.");
-        }
-        if (f.cost_batch &&
-            Number(f.cost_batch) > 0 &&
-            (!f.stock || Number(f.stock) <= 0)) {
-            errors.push("Enter the quantity received before the total batch cost, so cost per unit can be calculated.");
-        }
-        if (f.mfg_date && !isValidDateStr(f.mfg_date))
-            errors.push("Manufacture date is not a valid date.");
-        if (f.received_at && !isValidDateStr(f.received_at))
-            errors.push("Date & time received is not a valid date.");
-        if (f.mfg_date &&
-            f.received_at &&
-            isValidDateStr(f.mfg_date) &&
-            isValidDateStr(f.received_at) &&
-            new Date(f.received_at) < new Date(f.mfg_date)) {
-            errors.push("Date received cannot be before the manufacture date.");
-        }
-        if (isPharma || isFuel) {
-            errors.push(...validateCategoryShelfLife({
-                brand: prod.brand,
-                category: prod.category,
-                grade: f.grade,
-                mfgDate: f.mfg_date,
-                expiryDate: f.exp_date,
-                noExpiry: f.noExpiry,
-            }));
-        }
-        else if (!f.noExpiry) {
-            if (!f.exp_date) {
-                errors.push("Expiry date is required.");
-            }
-            else if (!isValidDateStr(f.exp_date)) {
-                errors.push("Expiry date is not a valid date.");
-            }
-            else if (f.received_at &&
-                isValidDateStr(f.received_at) &&
-                new Date(f.exp_date) < new Date(f.received_at)) {
-                errors.push("Expiry date cannot be earlier than the date received.");
-            }
-        }
-        if (!f.noExpiry &&
-            f.exp_date &&
-            isValidDateStr(f.exp_date) &&
-            f.received_at &&
-            isValidDateStr(f.received_at) &&
-            new Date(f.received_at) > new Date(f.exp_date)) {
-            errors.push("Date received cannot be after the expiry date.");
-        }
-        if (!f.noExpiry &&
-            f.exp_date &&
-            isValidDateStr(f.exp_date) &&
-            computeExpiryStatus(f.exp_date, prod.brand) === "expired") {
-            errors.push("Expiry date is already in the past.");
-        }
-        if (isPharma && f.controlled_substance && !f.lot_number) {
-            errors.push("LOT Number is required for controlled substances.");
-        }
-        return [...new Set(errors)];
-    };
-    const buildBody = (prod, f, uName, uRole, coords) => {
-        const isPharma = isPharmaBrand(prod.brand);
-        const isFuel = isFuelBrand(prod.brand);
-        const q = parseFloat(f.stock) || 0;
-        const bc = parseFloat(f.cost_batch) || 0;
-        const uc = q > 0 && bc > 0 ? bc / q : 0;
-        return {
-            ingredient_id: prod.id,
-            stock: q,
-            cost_per_unit: uc ? Math.round(uc * 100) / 100 : 0,
-            supplier: f.supplier || null,
-            mfg_date: f.mfg_date || null,
-            supply_date: f.received_at ? new Date(f.received_at).toISOString() : null,
-            exp_date: f.noExpiry ? null : f.exp_date || null,
-            notes: f.notes || null,
-            performed_by: uName,
-            performed_by_role: uRole || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-            ...(isPharma
-                ? {
-                    lot_number: f.lot_number || null,
-                    ndc_code: f.ndc_code || null,
-                    dosage_form: f.dosage_form || null,
-                    strength: f.strength || null,
-                    storage_requirement: f.storage_requirement || null,
-                    controlled_substance: !!f.controlled_substance,
-                }
-                : {}),
-            ...(isFuel
-                ? {
-                    tank_id: f.tank_id || null,
-                    grade: f.grade || null,
-                    octane_rating: f.octane_rating || null,
-                    delivery_temp: f.delivery_temp || null,
-                    truck_id: f.truck_id || null,
-                    volume_correction: f.volume_correction || null,
-                }
-                : {}),
-        };
-    };
-    const saveAndContinue = () => {
-        const errs = validateProductForm(product, form);
-        if (errs.length > 0) {
-            showUiModal({
-                type: "error",
-                title: "Please fix the following",
-                lines: errs.map((t) => ({ text: t, warn: true })),
-            });
-            return;
-        }
-        const nextSaved = new Set(savedIds);
-        nextSaved.add(activeId);
-        setSavedIds(nextSaved);
-        let nextIdx = -1;
-        for (let i = activeIndex + 1; i < selectedIds.length; i++) {
-            if (!nextSaved.has(selectedIds[i])) {
-                nextIdx = i;
-                break;
-            }
-        }
-        if (nextIdx === -1) {
-            for (let i = 0; i < selectedIds.length; i++) {
-                if (!nextSaved.has(selectedIds[i])) {
-                    nextIdx = i;
-                    break;
-                }
-            }
-        }
-        if (nextIdx !== -1)
-            setActiveIndex(nextIdx);
-    };
-    const submitAll = async () => {
-        setSaving(true);
-        const coords = await getBrowserLocation();
-        const results = [];
-        let lastProduct = null;
-        for (const id of selectedIds) {
-            const prod = brandItems.find((i) => String(i.id) === String(id));
-            const f = formsById[id];
-            if (!prod || !f) {
-                results.push({
-                    ok: false,
-                    name: "Unknown product",
-                    reason: "missing data",
-                });
-                continue;
-            }
-            const body = buildBody(prod, f, userName, userRole, coords);
-            try {
-                const res = await fetch(`${apiUrl}/ingredient-batches`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(body),
-                });
-                const d = await res.json().catch(() => ({}));
-                if (!res.ok || d?.success === false) {
-                    results.push({
-                        ok: false,
-                        name: prod.name,
-                        reason: d?.error || "failed to save",
-                    });
-                    continue;
-                }
-                await syncIngredientStock(prod);
-                lastProduct = prod;
-                results.push({ ok: true, name: prod.name });
-            }
-            catch (err) {
-                results.push({
-                    ok: false,
-                    name: prod.name,
-                    reason: err?.message || "connection error",
-                });
-            }
-        }
-        setSaving(false);
-        if (lastProduct) {
-            await Promise.resolve(onDone?.(lastProduct));
-            window.dispatchEvent(new CustomEvent("stock-inventory-updated", {
-                detail: { ingredientId: lastProduct.id, brand: lastProduct.brand },
-            }));
-        }
-        const succeeded = results.filter((r) => r.ok);
-        const failed = results.filter((r) => !r.ok);
-        if (succeeded.length > 0 && failed.length === 0) {
-            setToast({
-                type: "success",
-                title: "Stock Received",
-                message: succeeded.length === 1
-                    ? `Batch logged for "${succeeded[0].name}".`
-                    : `Batches logged for ${succeeded.length} products.`,
-            });
-        }
-        else if (succeeded.length > 0) {
-            showUiModal({
-                type: "info",
-                title: "Received With Some Failures",
-                message: `${succeeded.length} product(s) logged. ${failed.length} failed.`,
-                lines: failed.map((f) => ({
-                    text: `${f.name}: ${f.reason}`,
-                    warn: true,
-                })),
-            });
-        }
-        else {
-            showUiModal({
-                type: "error",
-                title: "Failed to Receive Stock",
-                message: "None of the selected products were saved.",
-                lines: failed.map((f) => ({
-                    text: `${f.name}: ${f.reason}`,
-                    warn: true,
-                })),
-            });
-        }
-    };
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (selectedIds.length === 0) {
-            showUiModal({
-                type: "error",
-                title: "Please fix the following",
-                lines: [{ text: "Select at least one product.", warn: true }],
-            });
-            return;
-        }
-        if (selectedIds.length === 1) {
-            const errs = validateProductForm(product, form);
-            if (errs.length > 0) {
-                showUiModal({
-                    type: "error",
-                    title: "Please fix the following",
-                    lines: errs.map((t) => ({ text: t, warn: true })),
-                });
-                return;
-            }
-            await submitAll();
-            return;
-        }
-        if (savedIds.size < selectedIds.length) {
-            showUiModal({
-                type: "error",
-                title: "Please fix the following",
-                lines: [
-                    {
-                        text: "Save each product before adding them to the queue.",
-                        warn: true,
-                    },
-                ],
-            });
-            return;
-        }
-        await submitAll();
-    };
-    const multiMode = selectedIds.length >= 2;
-    const filteredBrandItems = brandItems
-        .slice()
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .filter((i) => !productSearch ||
-        i.name.toLowerCase().includes(productSearch.toLowerCase()));
-    return (<div onClick={onClose} style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(13,43,30,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2200,
-            padding: 20,
-            backdropFilter: "blur(4px)",
-        }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-            background: SI_C.white,
-            borderRadius: 20,
-            width: "100%",
-            maxWidth: 560,
-            maxHeight: "90vh",
-            overflowY: "auto",
-            boxShadow: "0 24px 64px rgba(0,0,0,0.20)",
-            fontFamily: "Montserrat,sans-serif",
-        }}>
-        <div style={{
+        await syncIngredientStock(prod);
+        lastProduct = prod;
+        results.push({ ok: true, name: prod.name });
+      } catch (err) {
+        results.push({
+          ok: false,
+          name: prod.name,
+          reason: err?.message || "connection error",
+        });
+      }
+    }
+    setSaving(false);
+    if (lastProduct) {
+      await Promise.resolve(onDone?.(lastProduct));
+      window.dispatchEvent(
+        new CustomEvent("stock-inventory-updated", {
+          detail: { ingredientId: lastProduct.id, brand: lastProduct.brand },
+        }),
+      );
+    }
+    const succeeded = results.filter((r) => r.ok);
+    const failed = results.filter((r) => !r.ok);
+    if (succeeded.length > 0 && failed.length === 0) {
+      setToast({
+        type: "success",
+        title: "Stock Received",
+        message:
+          succeeded.length === 1
+            ? `Batch logged for "${succeeded[0].name}".`
+            : `Batches logged for ${succeeded.length} products.`,
+      });
+    } else if (succeeded.length > 0) {
+      showUiModal({
+        type: "info",
+        title: "Received With Some Failures",
+        message: `${succeeded.length} product(s) logged. ${failed.length} failed.`,
+        lines: failed.map((f) => ({
+          text: `${f.name}: ${f.reason}`,
+          warn: true,
+        })),
+      });
+    } else {
+      showUiModal({
+        type: "error",
+        title: "Failed to Receive Stock",
+        message: "None of the selected products were saved.",
+        lines: failed.map((f) => ({
+          text: `${f.name}: ${f.reason}`,
+          warn: true,
+        })),
+      });
+    }
+  };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (selectedIds.length === 0) {
+      showUiModal({
+        type: "error",
+        title: "Please fix the following",
+        lines: [{ text: "Select at least one product.", warn: true }],
+      });
+      return;
+    }
+    if (selectedIds.length === 1) {
+      const errs = validateProductForm(product, form);
+      if (errs.length > 0) {
+        showUiModal({
+          type: "error",
+          title: "Please fix the following",
+          lines: errs.map((t) => ({ text: t, warn: true })),
+        });
+        return;
+      }
+      await submitAll();
+      return;
+    }
+    if (savedIds.size < selectedIds.length) {
+      showUiModal({
+        type: "error",
+        title: "Please fix the following",
+        lines: [
+          {
+            text: "Save each product before adding them to the queue.",
+            warn: true,
+          },
+        ],
+      });
+      return;
+    }
+    await submitAll();
+  };
+  const multiMode = selectedIds.length >= 2;
+  const filteredBrandItems = brandItems
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .filter(
+      (i) =>
+        !productSearch ||
+        i.name.toLowerCase().includes(productSearch.toLowerCase()),
+    );
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(13,43,30,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2200,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: SI_C.white,
+          borderRadius: 20,
+          width: "100%",
+          maxWidth: 560,
+          maxHeight: "90vh",
+          overflowY: "auto",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.20)",
+          fontFamily: "Montserrat,sans-serif",
+        }}
+      >
+        <div
+          style={{
             padding: "20px 26px",
             background: `linear-gradient(135deg,#fbbf24,${SI_C.warn})`,
             color: "#fff",
             borderRadius: "20px 20px 0 0",
-        }}>
-          <div style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-        }}>
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+            }}
+          >
             <div>
-              <div style={{
-            fontSize: 18,
-            fontWeight: 900,
-            letterSpacing: "0.02em",
-        }}>
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 900,
+                  letterSpacing: "0.02em",
+                }}
+              >
                 RECEIVE STOCK
               </div>
               <div style={{ fontSize: 12, opacity: 0.9, marginTop: 2 }}>
@@ -5058,23 +6118,30 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
                 {multiMode ? ` · ${selectedIds.length} products selected` : ""}
               </div>
             </div>
-            <button onClick={onClose} style={{
-            background: "rgba(255,255,255,0.2)",
-            border: "none",
-            color: "#fff",
-            borderRadius: "50%",
-            width: 30,
-            height: 30,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-        }}>
-              <SI_XIcon size={14}/>
+            <button
+              onClick={onClose}
+              style={{
+                background: "rgba(255,255,255,0.2)",
+                border: "none",
+                color: "#fff",
+                borderRadius: "50%",
+                width: 30,
+                height: 30,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <SI_XIcon size={14} />
             </button>
           </div>
         </div>
 
-        <form noValidate onSubmit={handleSubmit} style={{ padding: 24, display: "grid", gap: 14 }}>
+        <form
+          noValidate
+          onSubmit={handleSubmit}
+          style={{ padding: 24, display: "grid", gap: 14 }}
+        >
           <div>
             <label style={invLabelSt}>
               Products *{" "}
@@ -5083,673 +6150,1036 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
               </span>
             </label>
             <div style={{ position: "relative", marginBottom: 6 }}>
-              <div style={{
-            position: "absolute",
-            left: 10,
-            top: "50%",
-            transform: "translateY(-50%)",
-            color: SI_C.muted,
-        }}>
-                <SI_SearchIcon size={12}/>
+              <div
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: SI_C.muted,
+                }}
+              >
+                <SI_SearchIcon size={12} />
               </div>
-              <input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Search products…" style={{ ...SI_invInputSt, paddingLeft: 30 }}/>
+              <input
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                placeholder="Search products…"
+                style={{ ...SI_invInputSt, paddingLeft: 30 }}
+              />
             </div>
-            <div style={{
-            border: `1.5px solid ${SI_C.border}`,
-            borderRadius: 11,
-            padding: "8px 4px",
-            maxHeight: 180,
-            overflowY: "auto",
-        }}>
-              {filteredBrandItems.length === 0 ? (<div style={{ padding: "8px 10px", fontSize: 12, color: SI_C.muted }}>
+            <div
+              style={{
+                border: `1.5px solid ${SI_C.border}`,
+                borderRadius: 11,
+                padding: "8px 4px",
+                maxHeight: 180,
+                overflowY: "auto",
+              }}
+            >
+              {filteredBrandItems.length === 0 ? (
+                <div
+                  style={{
+                    padding: "8px 10px",
+                    fontSize: 12,
+                    color: SI_C.muted,
+                  }}
+                >
                   No products found.
-                </div>) : (filteredBrandItems.map((i) => (<label key={i.id} style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "6px 10px",
-                cursor: "pointer",
-                fontSize: 13,
-                color: SI_C.ink,
-            }}>
-                    <input type="checkbox" checked={selectedIds.includes(i.id)} onChange={() => toggleProduct(i.id)}/>
+                </div>
+              ) : (
+                filteredBrandItems.map((i) => (
+                  <label
+                    key={i.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "6px 10px",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      color: SI_C.ink,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(i.id)}
+                      onChange={() => toggleProduct(i.id)}
+                    />
                     {i.name}{" "}
                     <span style={{ fontSize: 11, color: SI_C.muted }}>
                       ({i.branch})
                     </span>
-                  </label>)))}
+                  </label>
+                ))
+              )}
             </div>
-            {selectedIds.length > 0 && (<div style={{ fontSize: 11, color: SI_C.muted, marginTop: 5 }}>
+            {selectedIds.length > 0 && (
+              <div style={{ fontSize: 11, color: SI_C.muted, marginTop: 5 }}>
                 {selectedIds.length} product
                 {selectedIds.length === 1 ? "" : "s"} selected
-              </div>)}
+              </div>
+            )}
           </div>
 
-          {selectedIds.length === 0 ? (<div style={{
+          {selectedIds.length === 0 ? (
+            <div
+              style={{
                 padding: "20px 0",
                 textAlign: "center",
                 color: SI_C.muted,
                 fontSize: 13,
                 fontStyle: "italic",
-            }}>
+              }}
+            >
               Select at least one product above to continue.
-            </div>) : (<>
-              {multiMode && (<div>
+            </div>
+          ) : (
+            <>
+              {multiMode && (
+                <div>
                   <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                    {selectedIds.map((id, idx) => (<div key={id} style={{
-                        flex: 1,
-                        height: 4,
-                        borderRadius: 4,
-                        background: savedIds.has(id)
+                    {selectedIds.map((id, idx) => (
+                      <div
+                        key={id}
+                        style={{
+                          flex: 1,
+                          height: 4,
+                          borderRadius: 4,
+                          background: savedIds.has(id)
                             ? SI_C.green
                             : idx === activeIndex
-                                ? SI_C.amber
-                                : SI_C.border,
-                    }}/>))}
+                              ? SI_C.amber
+                              : SI_C.border,
+                        }}
+                      />
+                    ))}
                   </div>
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: 10,
-                    gap: 8,
-                }}>
-                    <button type="button" disabled={activeIndex === 0} onClick={() => setActiveIndex((i) => Math.max(0, i - 1))} style={{
-                    ...SI_smallBtnSt,
-                    border: `1px solid ${SI_C.border}`,
-                    opacity: activeIndex === 0 ? 0.4 : 1,
-                    minWidth: 0,
-                    overflow: "hidden",
-                }}>
-                      <ArrowLeftIcon size={12}/>
-                      <span style={{
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 10,
+                      gap: 8,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      disabled={activeIndex === 0}
+                      onClick={() => setActiveIndex((i) => Math.max(0, i - 1))}
+                      style={{
+                        ...SI_smallBtnSt,
+                        border: `1px solid ${SI_C.border}`,
+                        opacity: activeIndex === 0 ? 0.4 : 1,
+                        minWidth: 0,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <ArrowLeftIcon size={12} />
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {selectedIds[activeIndex - 1]
-                    ? brandItems.find((x) => x.id === selectedIds[activeIndex - 1])?.name || ""
-                    : ""}
+                          ? brandItems.find(
+                              (x) => x.id === selectedIds[activeIndex - 1],
+                            )?.name || ""
+                          : ""}
                       </span>
                     </button>
-                    <span style={{ fontSize: 11, color: SI_C.muted, flexShrink: 0 }}>
+                    <span
+                      style={{ fontSize: 11, color: SI_C.muted, flexShrink: 0 }}
+                    >
                       product {activeIndex + 1} of {selectedIds.length}
                     </span>
-                    <button type="button" disabled={activeIndex === selectedIds.length - 1} onClick={() => setActiveIndex((i) => Math.min(selectedIds.length - 1, i + 1))} style={{
-                    ...SI_smallBtnSt,
-                    border: `1px solid ${SI_C.border}`,
-                    opacity: activeIndex === selectedIds.length - 1 ? 0.4 : 1,
-                    minWidth: 0,
-                    overflow: "hidden",
-                }}>
-                      <span style={{
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                }}>
+                    <button
+                      type="button"
+                      disabled={activeIndex === selectedIds.length - 1}
+                      onClick={() =>
+                        setActiveIndex((i) =>
+                          Math.min(selectedIds.length - 1, i + 1),
+                        )
+                      }
+                      style={{
+                        ...SI_smallBtnSt,
+                        border: `1px solid ${SI_C.border}`,
+                        opacity:
+                          activeIndex === selectedIds.length - 1 ? 0.4 : 1,
+                        minWidth: 0,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {selectedIds[activeIndex + 1]
-                    ? brandItems.find((x) => x.id === selectedIds[activeIndex + 1])?.name || ""
-                    : ""}
+                          ? brandItems.find(
+                              (x) => x.id === selectedIds[activeIndex + 1],
+                            )?.name || ""
+                          : ""}
                       </span>
-                      <ArrowRightIcon size={12}/>
+                      <ArrowRightIcon size={12} />
                     </button>
                   </div>
-                </div>)}
+                </div>
+              )}
 
-              <div style={{
-                fontSize: 10.5,
-                fontWeight: 800,
-                color: SI_C.muted,
-                letterSpacing: "0.06em",
-                borderBottom: `1px solid ${SI_C.border}`,
-                paddingBottom: 6,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-            }}>
+              <div
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 800,
+                  color: SI_C.muted,
+                  letterSpacing: "0.06em",
+                  borderBottom: `1px solid ${SI_C.border}`,
+                  paddingBottom: 6,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <span>BATCH DETAILS — {product?.name || "—"}</span>
-                {multiMode && savedIds.has(activeId) && (<span style={{
-                    color: SI_C.greenDk,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                }}>
-                    <CheckCircleIcon size={12}/> Saved
-                  </span>)}
+                {multiMode && savedIds.has(activeId) && (
+                  <span
+                    style={{
+                      color: SI_C.greenDk,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <CheckCircleIcon size={12} /> Saved
+                  </span>
+                )}
               </div>
 
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 12,
-            }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 12,
+                }}
+              >
                 <div>
                   <label style={invLabelSt}>
                     Quantity ({product?.unit || "unit"}) *
                   </label>
-                  <input type="number" min="0" step="0.01" style={SI_invInputSt} value={form.stock} required placeholder="0.00" onChange={(e) => setF("stock", e.target.value)}/>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    style={SI_invInputSt}
+                    value={form.stock}
+                    required
+                    placeholder="0.00"
+                    onChange={(e) => setF("stock", e.target.value)}
+                  />
                 </div>
                 <div>
                   <label style={invLabelSt}>Total Batch Cost (₱)</label>
-                  <input type="number" min="0" step="0.01" style={SI_invInputSt} value={form.cost_batch} placeholder="e.g. 4000.00" onChange={(e) => setF("cost_batch", e.target.value)}/>
-                  <div style={{ fontSize: 10, color: SI_C.muted, marginTop: 4 }}>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    style={SI_invInputSt}
+                    value={form.cost_batch}
+                    placeholder="e.g. 4000.00"
+                    onChange={(e) => setF("cost_batch", e.target.value)}
+                  />
+                  <div
+                    style={{ fontSize: 10, color: SI_C.muted, marginTop: 4 }}
+                  >
                     What you paid for this whole batch — not per unit
                   </div>
                 </div>
               </div>
-              {batchCost > 0 && qty > 0 && (<div style={{
+              {batchCost > 0 && qty > 0 && (
+                <div
+                  style={{
                     display: "grid",
                     gridTemplateColumns: "1fr 1fr",
                     gap: 10,
-                }}>
-                  <div style={{
-                    padding: "10px 13px",
-                    borderRadius: 9,
-                    background: SI_C.bg,
-                    border: `1px solid ${SI_C.border}`,
-                }}>
-                    <div style={{
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    color: SI_C.muted,
-                }}>
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: "10px 13px",
+                      borderRadius: 9,
+                      background: SI_C.bg,
+                      border: `1px solid ${SI_C.border}`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        color: SI_C.muted,
+                      }}
+                    >
                       Cost / Unit
                     </div>
-                    <div style={{ fontSize: 10, color: SI_C.muted, marginTop: 2 }}>
+                    <div
+                      style={{ fontSize: 10, color: SI_C.muted, marginTop: 2 }}
+                    >
                       ₱{batchCost.toFixed(2)} ÷ {qty} {product?.unit || "unit"}
                     </div>
-                    <div style={{
-                    fontSize: 18,
-                    fontWeight: 900,
-                    color: SI_C.ink,
-                    marginTop: 4,
-                }}>
+                    <div
+                      style={{
+                        fontSize: 18,
+                        fontWeight: 900,
+                        color: SI_C.ink,
+                        marginTop: 4,
+                      }}
+                    >
                       ₱{unitCost.toFixed(2)}
                     </div>
                   </div>
-                  <div style={{
-                    padding: "10px 13px",
-                    borderRadius: 9,
-                    background: SI_C.greenLt,
-                    border: `1px solid ${SI_C.greenMid}`,
-                }}>
-                    <div style={{
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    color: SI_C.greenDk,
-                }}>
+                  <div
+                    style={{
+                      padding: "10px 13px",
+                      borderRadius: 9,
+                      background: SI_C.greenLt,
+                      border: `1px solid ${SI_C.greenMid}`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        color: SI_C.greenDk,
+                      }}
+                    >
                       {directProduct ? "Auto Selling Price" : "Shop Price"}
                     </div>
-                    <div style={{ fontSize: 10, color: SI_C.muted, marginTop: 2 }}>
+                    <div
+                      style={{ fontSize: 10, color: SI_C.muted, marginTop: 2 }}
+                    >
                       {directProduct
-                    ? "cost ÷ 0.35 — 35% product, 45% ops, 20% profit"
-                    : "cost/unit + 15% (weighted avg across batches)"}
+                        ? "cost ÷ 0.35 — 35% product, 45% ops, 20% profit"
+                        : "cost/unit + 15% (weighted avg across batches)"}
                     </div>
-                    <div style={{
-                    fontSize: 18,
-                    fontWeight: 900,
-                    color: SI_C.greenDk,
-                    marginTop: 4,
-                }}>
+                    <div
+                      style={{
+                        fontSize: 18,
+                        fontWeight: 900,
+                        color: SI_C.greenDk,
+                        marginTop: 4,
+                      }}
+                    >
                       ₱
                       {(directProduct
-                    ? computeDirectSellingPrice(unitCost)
-                    : unitCost * 1.15).toFixed(2)}
+                        ? computeDirectSellingPrice(unitCost)
+                        : unitCost * 1.15
+                      ).toFixed(2)}
                     </div>
                   </div>
-                </div>)}
+                </div>
+              )}
               <div>
                 <label style={invLabelSt}>Supplier</label>
-                <input style={SI_invInputSt} value={form.supplier} placeholder="Supplier name" onChange={(e) => setF("supplier", e.target.value)}/>
+                <input
+                  style={SI_invInputSt}
+                  value={form.supplier}
+                  placeholder="Supplier name"
+                  onChange={(e) => setF("supplier", e.target.value)}
+                />
               </div>
 
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 12,
-            }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 12,
+                }}
+              >
                 <div>
                   <label style={invLabelSt}>Manufacture Date</label>
-                  <input type="date" style={SI_invInputSt} value={form.mfg_date} onChange={(e) => setF("mfg_date", e.target.value)}/>
+                  <input
+                    type="date"
+                    style={SI_invInputSt}
+                    value={form.mfg_date}
+                    onChange={(e) => setF("mfg_date", e.target.value)}
+                  />
                 </div>
                 <div>
                   <label style={invLabelSt}>Date &amp; Time Received</label>
-                  <input type="datetime-local" style={SI_invInputSt} value={form.received_at} onChange={(e) => setF("received_at", e.target.value)}/>
+                  <input
+                    type="datetime-local"
+                    style={SI_invInputSt}
+                    value={form.received_at}
+                    onChange={(e) => setF("received_at", e.target.value)}
+                  />
                 </div>
               </div>
 
               <div>
-                <div style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 5,
-            }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 5,
+                  }}
+                >
                   <label style={{ ...invLabelSt, marginBottom: 0 }}>
                     {canUseNoExpiry ? "Expiry Date" : "Expiry Date *"}
                   </label>
-                  {canUseNoExpiry && (<label style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    color: SI_C.muted,
-                    cursor: "pointer",
-                }}>
-                      <input type="checkbox" checked={form.noExpiry} onChange={(e) => {
-                    setF("noExpiry", e.target.checked);
-                    if (e.target.checked)
-                        setF("exp_date", "");
-                }}/>
+                  {canUseNoExpiry && (
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        color: SI_C.muted,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.noExpiry}
+                        onChange={(e) => {
+                          setF("noExpiry", e.target.checked);
+                          if (e.target.checked) setF("exp_date", "");
+                        }}
+                      />
                       No expiry date
-                    </label>)}
+                    </label>
+                  )}
                 </div>
 
-                <input type="date" style={{
-                ...SI_invInputSt,
-                opacity: form.noExpiry ||
-                    (!!expiryRule?.requiresManufactureDate &&
+                <input
+                  type="date"
+                  style={{
+                    ...SI_invInputSt,
+                    opacity:
+                      form.noExpiry ||
+                      (!!expiryRule?.requiresManufactureDate &&
                         !form.mfg_date) ||
+                      expiryRule?.kind === "missing-category" ||
+                      expiryRule?.kind === "unconfigured-fuel"
+                        ? 0.5
+                        : 1,
+                  }}
+                  value={form.exp_date}
+                  min={minExpiryDateStr || undefined}
+                  max={maxExpiryDateStr || undefined}
+                  required={!form.noExpiry}
+                  disabled={
+                    form.noExpiry ||
+                    (!!expiryRule?.requiresManufactureDate && !form.mfg_date) ||
                     expiryRule?.kind === "missing-category" ||
                     expiryRule?.kind === "unconfigured-fuel"
-                    ? 0.5
-                    : 1,
-            }} value={form.exp_date} min={minExpiryDateStr || undefined} max={maxExpiryDateStr || undefined} required={!form.noExpiry} disabled={form.noExpiry ||
-                (!!expiryRule?.requiresManufactureDate && !form.mfg_date) ||
-                expiryRule?.kind === "missing-category" ||
-                expiryRule?.kind === "unconfigured-fuel"} onChange={(e) => setF("exp_date", e.target.value)}/>
+                  }
+                  onChange={(e) => setF("exp_date", e.target.value)}
+                />
 
-                <div style={{
-                fontSize: 11,
-                color: expiryRule?.kind === "missing-category" ||
-                    expiryRule?.kind === "unconfigured-fuel"
-                    ? SI_C.warn
-                    : SI_C.muted,
-                marginTop: 5,
-                lineHeight: 1.45,
-            }}>
-                  {expiryRule ? (shelfLifeHelperText(expiryRule, expiryBounds, product?.category)) : (<>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color:
+                      expiryRule?.kind === "missing-category" ||
+                      expiryRule?.kind === "unconfigured-fuel"
+                        ? SI_C.warn
+                        : SI_C.muted,
+                    marginTop: 5,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {expiryRule ? (
+                    shelfLifeHelperText(
+                      expiryRule,
+                      expiryBounds,
+                      product?.category,
+                    )
+                  ) : (
+                    <>
                       Expiry must not be earlier than the date received.
-                      {minExpiryDateStr && (<>
+                      {minExpiryDateStr && (
+                        <>
                           {" "}
                           Earliest allowed:{" "}
                           <strong style={{ color: SI_C.ink }}>
                             {fmtDate(minExpiryDateStr)}
                           </strong>
                           .
-                        </>)}
-                    </>)}
+                        </>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
 
-              {pharma && (<div style={{
+              {pharma && (
+                <div
+                  style={{
                     display: "grid",
                     gap: 12,
                     padding: 14,
                     background: "#eef2ff",
                     border: "1px solid #c7d2fe",
                     borderRadius: 10,
-                }}>
-                  <div style={{
-                    fontSize: 10.5,
-                    fontWeight: 800,
-                    color: "#3730a3",
-                    letterSpacing: "0.06em",
-                }}>
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 800,
+                      color: "#3730a3",
+                      letterSpacing: "0.06em",
+                    }}
+                  >
                     PHARMACY DETAILS
                   </div>
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 12,
-                }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 12,
+                    }}
+                  >
                     <div>
                       <label style={invLabelSt}>LOT Number</label>
-                      <input style={SI_invInputSt} value={form.lot_number} onChange={(e) => setF("lot_number", e.target.value)}/>
+                      <input
+                        style={SI_invInputSt}
+                        value={form.lot_number}
+                        onChange={(e) => setF("lot_number", e.target.value)}
+                      />
                     </div>
                     <div>
                       <label style={invLabelSt}>NDC Code</label>
-                      <input style={SI_invInputSt} value={form.ndc_code} onChange={(e) => setF("ndc_code", e.target.value)}/>
+                      <input
+                        style={SI_invInputSt}
+                        value={form.ndc_code}
+                        onChange={(e) => setF("ndc_code", e.target.value)}
+                      />
                     </div>
                     <div>
                       <label style={invLabelSt}>Dosage Form</label>
-                      <select style={SI_invInputSt} value={form.dosage_form} onChange={(e) => setF("dosage_form", e.target.value)}>
+                      <select
+                        style={SI_invInputSt}
+                        value={form.dosage_form}
+                        onChange={(e) => setF("dosage_form", e.target.value)}
+                      >
                         <option value="">Select…</option>
-                        {DOSAGE_FORMS.map((d) => (<option key={d} value={d}>
+                        {DOSAGE_FORMS.map((d) => (
+                          <option key={d} value={d}>
                             {d}
-                          </option>))}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div>
                       <label style={invLabelSt}>Strength</label>
-                      <input style={SI_invInputSt} value={form.strength} placeholder="e.g. 500mg" onChange={(e) => setF("strength", e.target.value)}/>
+                      <input
+                        style={SI_invInputSt}
+                        value={form.strength}
+                        placeholder="e.g. 500mg"
+                        onChange={(e) => setF("strength", e.target.value)}
+                      />
                     </div>
                     <div>
                       <label style={invLabelSt}>Storage Requirement</label>
-                      <select style={SI_invInputSt} value={form.storage_requirement} onChange={(e) => setF("storage_requirement", e.target.value)}>
+                      <select
+                        style={SI_invInputSt}
+                        value={form.storage_requirement}
+                        onChange={(e) =>
+                          setF("storage_requirement", e.target.value)
+                        }
+                      >
                         <option value="">Select…</option>
-                        {STORAGE_REQS.map((s) => (<option key={s} value={s}>
+                        {STORAGE_REQS.map((s) => (
+                          <option key={s} value={s}>
                             {s}
-                          </option>))}
+                          </option>
+                        ))}
                       </select>
                     </div>
-                    <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    marginTop: 18,
-                }}>
-                      <input type="checkbox" id={`controlled-${activeId}`} checked={form.controlled_substance} onChange={(e) => setF("controlled_substance", e.target.checked)}/>
-                      <label htmlFor={`controlled-${activeId}`} style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: "#3730a3",
-                    cursor: "pointer",
-                }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        marginTop: 18,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        id={`controlled-${activeId}`}
+                        checked={form.controlled_substance}
+                        onChange={(e) =>
+                          setF("controlled_substance", e.target.checked)
+                        }
+                      />
+                      <label
+                        htmlFor={`controlled-${activeId}`}
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: "#3730a3",
+                          cursor: "pointer",
+                        }}
+                      >
                         Controlled substance
                       </label>
                     </div>
                   </div>
-                </div>)}
+                </div>
+              )}
 
-              {fuel && (<div style={{
+              {fuel && (
+                <div
+                  style={{
                     display: "grid",
                     gap: 12,
                     padding: 14,
                     background: "#eff6ff",
                     border: "1px solid #bfdbfe",
                     borderRadius: 10,
-                }}>
-                  <div style={{
-                    fontSize: 10.5,
-                    fontWeight: 800,
-                    color: "#1e40af",
-                    letterSpacing: "0.06em",
-                }}>
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 800,
+                      color: "#1e40af",
+                      letterSpacing: "0.06em",
+                    }}
+                  >
                     FUEL DETAILS
                   </div>
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 12,
-                }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 12,
+                    }}
+                  >
                     <div>
                       <label style={invLabelSt}>Tank ID</label>
-                      <input style={SI_invInputSt} value={form.tank_id} onChange={(e) => setF("tank_id", e.target.value)}/>
+                      <input
+                        style={SI_invInputSt}
+                        value={form.tank_id}
+                        onChange={(e) => setF("tank_id", e.target.value)}
+                      />
                     </div>
                     <div>
                       <label style={invLabelSt}>Grade</label>
-                      <select style={SI_invInputSt} value={form.grade} onChange={(e) => setF("grade", e.target.value)}>
+                      <select
+                        style={SI_invInputSt}
+                        value={form.grade}
+                        onChange={(e) => setF("grade", e.target.value)}
+                      >
                         <option value="">Select…</option>
-                        {FUEL_GRADES.map((g) => (<option key={g} value={g}>
+                        {FUEL_GRADES.map((g) => (
+                          <option key={g} value={g}>
                             {g}
-                          </option>))}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div>
                       <label style={invLabelSt}>Octane Rating</label>
-                      <input style={SI_invInputSt} value={form.octane_rating} placeholder="e.g. 95" onChange={(e) => setF("octane_rating", e.target.value)}/>
+                      <input
+                        style={SI_invInputSt}
+                        value={form.octane_rating}
+                        placeholder="e.g. 95"
+                        onChange={(e) => setF("octane_rating", e.target.value)}
+                      />
                     </div>
                     <div>
                       <label style={invLabelSt}>Delivery Temp (°F)</label>
-                      <input type="number" style={SI_invInputSt} value={form.delivery_temp} onChange={(e) => setF("delivery_temp", e.target.value)}/>
+                      <input
+                        type="number"
+                        style={SI_invInputSt}
+                        value={form.delivery_temp}
+                        onChange={(e) => setF("delivery_temp", e.target.value)}
+                      />
                     </div>
                     <div>
                       <label style={invLabelSt}>Truck / Tanker ID</label>
-                      <input style={SI_invInputSt} value={form.truck_id} onChange={(e) => setF("truck_id", e.target.value)}/>
+                      <input
+                        style={SI_invInputSt}
+                        value={form.truck_id}
+                        onChange={(e) => setF("truck_id", e.target.value)}
+                      />
                     </div>
                     <div>
                       <label style={invLabelSt}>Net Volume @ 60°F</label>
-                      <input style={SI_invInputSt} value={form.volume_correction} placeholder="API corrected volume" onChange={(e) => setF("volume_correction", e.target.value)}/>
+                      <input
+                        style={SI_invInputSt}
+                        value={form.volume_correction}
+                        placeholder="API corrected volume"
+                        onChange={(e) =>
+                          setF("volume_correction", e.target.value)
+                        }
+                      />
                     </div>
                   </div>
-                </div>)}
+                </div>
+              )}
 
               <div>
                 <label style={invLabelSt}>Notes</label>
-                <textarea style={{
-                ...SI_invInputSt,
-                height: 64,
-                padding: "8px 11px",
-                resize: "vertical",
-            }} value={form.notes} placeholder="Optional notes…" onChange={(e) => setF("notes", e.target.value)}/>
+                <textarea
+                  style={{
+                    ...SI_invInputSt,
+                    height: 64,
+                    padding: "8px 11px",
+                    resize: "vertical",
+                  }}
+                  value={form.notes}
+                  placeholder="Optional notes…"
+                  onChange={(e) => setF("notes", e.target.value)}
+                />
               </div>
 
-              {multiMode && (<div style={{
+              {multiMode && (
+                <div
+                  style={{
                     display: "flex",
                     flexWrap: "wrap",
                     gap: 8,
                     padding: "10px 0",
                     borderTop: `1px solid ${SI_C.border}`,
-                }}>
+                  }}
+                >
                   {selectedIds.map((id, idx) => {
                     const p = brandItems.find((x) => x.id === id);
                     const isSaved = savedIds.has(id);
                     const isActive = idx === activeIndex;
-                    return (<button type="button" key={id} onClick={() => setActiveIndex(idx)} style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 5,
-                            fontSize: 11,
-                            padding: "3px 9px",
-                            borderRadius: 20,
-                            border: `1px solid ${isSaved ? SI_C.greenMid : isActive ? SI_C.amberBorder : SI_C.border}`,
-                            background: isSaved
-                                ? SI_C.greenLt
-                                : isActive
-                                    ? SI_C.amberBg
-                                    : SI_C.white,
-                            color: isSaved
-                                ? SI_C.greenDk
-                                : isActive
-                                    ? SI_C.warn
-                                    : SI_C.muted,
-                            cursor: "pointer",
-                        }}>
-                        {isSaved ? (<CheckCircleIcon size={11}/>) : isActive ? (<EditIcon size={11}/>) : (<span style={{
-                                width: 8,
-                                height: 8,
-                                borderRadius: "50%",
-                                border: `1.5px dashed ${SI_C.muted}`,
-                            }}/>)}
+                    return (
+                      <button
+                        type="button"
+                        key={id}
+                        onClick={() => setActiveIndex(idx)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          fontSize: 11,
+                          padding: "3px 9px",
+                          borderRadius: 20,
+                          border: `1px solid ${isSaved ? SI_C.greenMid : isActive ? SI_C.amberBorder : SI_C.border}`,
+                          background: isSaved
+                            ? SI_C.greenLt
+                            : isActive
+                              ? SI_C.amberBg
+                              : SI_C.white,
+                          color: isSaved
+                            ? SI_C.greenDk
+                            : isActive
+                              ? SI_C.warn
+                              : SI_C.muted,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {isSaved ? (
+                          <CheckCircleIcon size={11} />
+                        ) : isActive ? (
+                          <EditIcon size={11} />
+                        ) : (
+                          <span
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: "50%",
+                              border: `1.5px dashed ${SI_C.muted}`,
+                            }}
+                          />
+                        )}
                         {p?.name || "—"}
-                      </button>);
-                })}
-                </div>)}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               <div style={{ display: "flex", gap: 8 }}>
-                {multiMode && (<button type="button" onClick={saveAndContinue} disabled={saving} style={{
-                    ...btnAmberSt,
+                {multiMode && (
+                  <button
+                    type="button"
+                    onClick={saveAndContinue}
+                    disabled={saving}
+                    style={{
+                      ...btnAmberSt,
+                      flex: 1,
+                      justifyContent: "center",
+                      height: 46,
+                      fontSize: 13.5,
+                      opacity: saving ? 0.6 : 1,
+                      cursor: saving ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    <Check size={14} /> Save and continue
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={
+                    saving ||
+                    selectedIds.length === 0 ||
+                    (multiMode && savedIds.size < selectedIds.length)
+                  }
+                  style={{
+                    ...btnPrimarySt,
                     flex: 1,
                     justifyContent: "center",
                     height: 46,
                     fontSize: 13.5,
-                    opacity: saving ? 0.6 : 1,
-                    cursor: saving ? "not-allowed" : "pointer",
-                }}>
-                    <Check size={14}/> Save and continue
-                  </button>)}
-                <button type="submit" disabled={saving ||
-                selectedIds.length === 0 ||
-                (multiMode && savedIds.size < selectedIds.length)} style={{
-                ...btnPrimarySt,
-                flex: 1,
-                justifyContent: "center",
-                height: 46,
-                fontSize: 13.5,
-                opacity: saving ||
-                    selectedIds.length === 0 ||
-                    (multiMode && savedIds.size < selectedIds.length)
-                    ? 0.5
-                    : 1,
-                cursor: saving ||
-                    selectedIds.length === 0 ||
-                    (multiMode && savedIds.size < selectedIds.length)
-                    ? "not-allowed"
-                    : "pointer",
-            }}>
-                  <PlusIcon size={14}/>{" "}
+                    opacity:
+                      saving ||
+                      selectedIds.length === 0 ||
+                      (multiMode && savedIds.size < selectedIds.length)
+                        ? 0.5
+                        : 1,
+                    cursor:
+                      saving ||
+                      selectedIds.length === 0 ||
+                      (multiMode && savedIds.size < selectedIds.length)
+                        ? "not-allowed"
+                        : "pointer",
+                  }}
+                >
+                  <PlusIcon size={14} />{" "}
                   {saving
-                ? "Saving…"
-                : multiMode
-                    ? `Add all ${selectedIds.length} to queue`
-                    : "Receive & Add to Queue"}
+                    ? "Saving…"
+                    : multiMode
+                      ? `Add all ${selectedIds.length} to queue`
+                      : "Receive & Add to Queue"}
                 </button>
               </div>
-            </>)}
+            </>
+          )}
         </form>
       </div>
-    </div>);
+    </div>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
    BATCH DELETE HISTORY PANEL
 ───────────────────────────────────────────────────────────────────────── */
 function BatchDeleteHistoryPanel({ history, restoringId, onRestore, onClose }) {
-    return (<div onClick={onClose} style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(13,43,30,0.55)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 3000,
-            padding: 20,
-            backdropFilter: "blur(5px)",
-        }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-            background: SI_C.white,
-            borderRadius: 20,
-            padding: "26px 30px",
-            width: "100%",
-            maxWidth: 660,
-            maxHeight: "80vh",
-            display: "flex",
-            flexDirection: "column",
-            boxShadow: "0 24px 64px rgba(0,0,0,0.20)",
-            border: "1px solid #fecaca",
-            fontFamily: "Montserrat,sans-serif",
-        }}>
-        <div style={{
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(13,43,30,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 3000,
+        padding: 20,
+        backdropFilter: "blur(5px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: SI_C.white,
+          borderRadius: 20,
+          padding: "26px 30px",
+          width: "100%",
+          maxWidth: 660,
+          maxHeight: "80vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.20)",
+          border: "1px solid #fecaca",
+          fontFamily: "Montserrat,sans-serif",
+        }}
+      >
+        <div
+          style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             marginBottom: 16,
-        }}>
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 800, color: SI_C.ink, margin: 0 }}>
+            <h2
+              style={{
+                fontSize: 16,
+                fontWeight: 800,
+                color: SI_C.ink,
+                margin: 0,
+              }}
+            >
               Batch Delete History
             </h2>
-            {history.length > 0 && (<span style={{
-                fontSize: 11,
-                fontWeight: 700,
-                padding: "3px 10px",
-                borderRadius: 20,
-                background: "#fee2e2",
-                color: "#dc2626",
-            }}>
+            {history.length > 0 && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: "3px 10px",
+                  borderRadius: 20,
+                  background: "#fee2e2",
+                  color: "#dc2626",
+                }}
+              >
                 {history.length} deleted
-              </span>)}
+              </span>
+            )}
           </div>
-          <button onClick={onClose} style={{
-            width: 32,
-            height: 32,
-            borderRadius: "50%",
-            border: "1px solid #fecaca",
-            background: "#fef2f2",
-            cursor: "pointer",
-            color: "#dc2626",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-        }}>
-            <SI_XIcon size={14}/>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              border: "1px solid #fecaca",
+              background: "#fef2f2",
+              cursor: "pointer",
+              color: "#dc2626",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <SI_XIcon size={14} />
           </button>
         </div>
-        {history.length > 0 && (<div style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 70px 100px 130px 90px",
-                gap: 8,
-                padding: "6px 0 10px",
-                borderBottom: "2px solid #fee2e2",
-                fontSize: 10,
-                fontWeight: 800,
-                color: "#dc2626",
-                textTransform: "uppercase",
-                letterSpacing: "0.07em",
-            }}>
+        {history.length > 0 && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 70px 100px 130px 90px",
+              gap: 8,
+              padding: "6px 0 10px",
+              borderBottom: "2px solid #fee2e2",
+              fontSize: 10,
+              fontWeight: 800,
+              color: "#dc2626",
+              textTransform: "uppercase",
+              letterSpacing: "0.07em",
+            }}
+          >
             <span>Batch No.</span>
             <span>Stock</span>
             <span>Exp Date</span>
             <span>Deleted At</span>
             <span></span>
-          </div>)}
+          </div>
+        )}
         <div style={{ overflowY: "auto", flex: 1 }}>
-          {history.length === 0 ? (<div style={{ padding: "44px 0", textAlign: "center" }}>
-              <div style={{ color: "#9ca3af", fontSize: 13, fontStyle: "italic" }}>
+          {history.length === 0 ? (
+            <div style={{ padding: "44px 0", textAlign: "center" }}>
+              <div
+                style={{ color: "#9ca3af", fontSize: 13, fontStyle: "italic" }}
+              >
                 No deleted batches yet.
               </div>
-            </div>) : (history.map((entry, i) => {
-            const d = entry.data || {};
-            const expStr = fmtDate(d.exp_date);
-            return (<div key={entry.id} style={{
+            </div>
+          ) : (
+            history.map((entry, i) => {
+              const d = entry.data || {};
+              const expStr = fmtDate(d.exp_date);
+              return (
+                <div
+                  key={entry.id}
+                  style={{
                     display: "grid",
                     gridTemplateColumns: "1fr 70px 100px 130px 90px",
                     gap: 8,
                     alignItems: "center",
                     padding: "12px 0",
-                    borderBottom: i < history.length - 1 ? "1px solid #fff0f0" : "none",
-                }}>
+                    borderBottom:
+                      i < history.length - 1 ? "1px solid #fff0f0" : "none",
+                  }}
+                >
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: SI_C.ink }}>
-                      {d.batch_number || (<span style={{ color: SI_C.muted, fontStyle: "italic" }}>
+                    <div
+                      style={{ fontWeight: 700, fontSize: 13, color: SI_C.ink }}
+                    >
+                      {d.batch_number || (
+                        <span
+                          style={{ color: SI_C.muted, fontStyle: "italic" }}
+                        >
                           No batch #
-                        </span>)}
+                        </span>
+                      )}
                     </div>
-                    {d.notes && (<div style={{ fontSize: 11, color: SI_C.muted, marginTop: 1 }}>
+                    {d.notes && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: SI_C.muted,
+                          marginTop: 1,
+                        }}
+                      >
                         {d.notes}
-                      </div>)}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: SI_C.ink }}>
+                  <div
+                    style={{ fontSize: 13, fontWeight: 600, color: SI_C.ink }}
+                  >
                     {d.stock ?? "—"}
                   </div>
                   <div style={{ fontSize: 12, color: "#6b7280" }}>{expStr}</div>
                   <div style={{ fontSize: 11, color: "#9ca3af" }}>
                     {entry.deletedAt ? fmtTs(entry.deletedAt) : "—"}
                   </div>
-                  <button onClick={() => onRestore(entry)} disabled={restoringId !== null} style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 5,
-                    padding: "7px 12px",
-                    borderRadius: 9,
-                    border: `1.5px solid ${SI_C.green}`,
-                    background: "#e0f2f1",
-                    color: SI_C.greenDk,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: restoringId !== null ? "not-allowed" : "pointer",
-                    fontFamily: "inherit",
-                    whiteSpace: "nowrap",
-                    opacity: restoringId !== null
-                        ? restoringId === entry.id
+                  <button
+                    onClick={() => onRestore(entry)}
+                    disabled={restoringId !== null}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "7px 12px",
+                      borderRadius: 9,
+                      border: `1.5px solid ${SI_C.green}`,
+                      background: "#e0f2f1",
+                      color: SI_C.greenDk,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: restoringId !== null ? "not-allowed" : "pointer",
+                      fontFamily: "inherit",
+                      whiteSpace: "nowrap",
+                      opacity:
+                        restoringId !== null
+                          ? restoringId === entry.id
                             ? 0.85
                             : 0.4
-                        : 1,
-                }}>
-                    {restoringId === entry.id ? (<>
-                        <RefreshCw size={12} style={{ animation: "spin 1s linear infinite" }}/>{" "}
+                          : 1,
+                    }}
+                  >
+                    {restoringId === entry.id ? (
+                      <>
+                        <RefreshCw
+                          size={12}
+                          style={{ animation: "spin 1s linear infinite" }}
+                        />{" "}
                         Restoring…
-                      </>) : (<>
+                      </>
+                    ) : (
+                      <>
                         <RestoreIcon /> Restore
-                      </>)}
+                      </>
+                    )}
                   </button>
-                </div>);
-        }))}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
-    </div>);
+    </div>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -5757,86 +7187,105 @@ function BatchDeleteHistoryPanel({ history, restoringId, onRestore, onClose }) {
    editing a single batch's queuing details (expiry date, stock, etc).
 ───────────────────────────────────────────────────────────────────────── */
 function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
-    const pharma = isPharmaBrand(ingredient.brand);
-    const fuel = isFuelBrand(ingredient.brand);
-    const [noExpiry, setNoExpiry] = useState(!batch.exp_date);
-    const toDatetimeLocal = (isoStr) => {
-        if (!isoStr)
-            return "";
-        const d = new Date(isoStr);
-        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-        return d.toISOString().slice(0, 16);
-    };
-    const [form, setForm] = useState({
-        stock: batch.stock || 0,
-        mfg_date: batch.mfg_date ? batch.mfg_date.split("T")[0] : "",
-        exp_date: batch.exp_date ? batch.exp_date.split("T")[0] : "",
-        supply_date: toDatetimeLocal(batch.supply_date),
-        notes: batch.notes || "",
-        supplier: batch.supplier || "",
-        cost_per_unit: batch.cost_per_unit || "",
-        lot_number: batch.lot_number || "",
-        ndc_code: batch.ndc_code || "",
-        dosage_form: batch.dosage_form || "",
-        strength: batch.strength || "",
-        storage_requirement: batch.storage_requirement || "",
-        controlled_substance: !!batch.controlled_substance,
-        tank_id: batch.tank_id || "",
-        grade: batch.grade || "",
-        octane_rating: batch.octane_rating || "",
-        delivery_temp: batch.delivery_temp || "",
-        truck_id: batch.truck_id || "",
-        volume_correction: batch.volume_correction || "",
+  const pharma = isPharmaBrand(ingredient.brand);
+  const fuel = isFuelBrand(ingredient.brand);
+  const [noExpiry, setNoExpiry] = useState(!batch.exp_date);
+  const toDatetimeLocal = (isoStr) => {
+    if (!isoStr) return "";
+    const d = new Date(isoStr);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  };
+  const [form, setForm] = useState({
+    stock: batch.stock || 0,
+    mfg_date: batch.mfg_date ? batch.mfg_date.split("T")[0] : "",
+    exp_date: batch.exp_date ? batch.exp_date.split("T")[0] : "",
+    supply_date: toDatetimeLocal(batch.supply_date),
+    notes: batch.notes || "",
+    supplier: batch.supplier || "",
+    cost_per_unit: batch.cost_per_unit || "",
+    lot_number: batch.lot_number || "",
+    ndc_code: batch.ndc_code || "",
+    dosage_form: batch.dosage_form || "",
+    strength: batch.strength || "",
+    storage_requirement: batch.storage_requirement || "",
+    controlled_substance: !!batch.controlled_substance,
+    tank_id: batch.tank_id || "",
+    grade: batch.grade || "",
+    octane_rating: batch.octane_rating || "",
+    delivery_temp: batch.delivery_temp || "",
+    truck_id: batch.truck_id || "",
+    volume_correction: batch.volume_correction || "",
+  });
+  const setF = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const getExpiryStatus = (exp_date, brand) =>
+    computeExpiryStatus(exp_date, brand);
+  const editExpiryRule = useMemo(
+    () =>
+      getCategoryShelfLifeRule(
+        ingredient.brand,
+        ingredient.category,
+        form.grade,
+      ),
+    [ingredient.brand, ingredient.category, form.grade],
+  );
+  const editExpiryBounds = useMemo(
+    () => getExpiryBoundsFromManufacture(form.mfg_date, editExpiryRule),
+    [form.mfg_date, editExpiryRule],
+  );
+  const canEditNoExpiry = editExpiryRule
+    ? !!editExpiryRule.allowNoExpiry
+    : !pharma && !fuel;
+  useEffect(() => {
+    if (!canEditNoExpiry && noExpiry) setNoExpiry(false);
+  }, [canEditNoExpiry, noExpiry]);
+  const submit = (e) => {
+    e.preventDefault();
+    onSave({
+      ...form,
+      exp_date: noExpiry ? "" : form.exp_date,
+      supply_date: form.supply_date
+        ? new Date(form.supply_date).toISOString()
+        : null,
     });
-    const setF = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-    const getExpiryStatus = (exp_date, brand) => computeExpiryStatus(exp_date, brand);
-    const editExpiryRule = useMemo(() => getCategoryShelfLifeRule(ingredient.brand, ingredient.category, form.grade), [ingredient.brand, ingredient.category, form.grade]);
-    const editExpiryBounds = useMemo(() => getExpiryBoundsFromManufacture(form.mfg_date, editExpiryRule), [form.mfg_date, editExpiryRule]);
-    const canEditNoExpiry = editExpiryRule
-        ? !!editExpiryRule.allowNoExpiry
-        : !pharma && !fuel;
-    useEffect(() => {
-        if (!canEditNoExpiry && noExpiry)
-            setNoExpiry(false);
-    }, [canEditNoExpiry, noExpiry]);
-    const submit = (e) => {
-        e.preventDefault();
-        onSave({
-            ...form,
-            exp_date: noExpiry ? "" : form.exp_date,
-            supply_date: form.supply_date
-                ? new Date(form.supply_date).toISOString()
-                : null,
-        });
-    };
-    return (<div onClick={onClose} style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(13,43,30,0.55)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2600,
-            padding: 20,
-            backdropFilter: "blur(5px)",
-        }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-            background: SI_C.white,
-            borderRadius: 18,
-            width: "100%",
-            maxWidth: 560,
-            maxHeight: "90vh",
-            overflowY: "auto",
-            boxShadow: "0 24px 64px rgba(0,0,0,0.20)",
-            fontFamily: "Montserrat,sans-serif",
-        }}>
-        <div style={{
+  };
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(13,43,30,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2600,
+        padding: 20,
+        backdropFilter: "blur(5px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: SI_C.white,
+          borderRadius: 18,
+          width: "100%",
+          maxWidth: 560,
+          maxHeight: "90vh",
+          overflowY: "auto",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.20)",
+          fontFamily: "Montserrat,sans-serif",
+        }}
+      >
+        <div
+          style={{
             padding: "18px 24px",
             borderBottom: `1px solid ${SI_C.border}`,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-        }}>
+          }}
+        >
           <div>
             <div style={{ fontSize: 15, fontWeight: 800, color: SI_C.ink }}>
               Edit Batch {batch.batch_number || ""}
@@ -5845,118 +7294,197 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
               {ingredient.name} · {ingredient.branch}
             </div>
           </div>
-          <button onClick={onClose} style={{
-            width: 30,
-            height: 30,
-            borderRadius: "50%",
-            border: `1px solid ${SI_C.border}`,
-            background: SI_C.white,
-            cursor: "pointer",
-            color: SI_C.muted,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-        }}>
-            <SI_XIcon size={14}/>
+          <button
+            onClick={onClose}
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              border: `1px solid ${SI_C.border}`,
+              background: SI_C.white,
+              cursor: "pointer",
+              color: SI_C.muted,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <SI_XIcon size={14} />
           </button>
         </div>
 
-        <form noValidate onSubmit={submit} style={{ padding: 22, display: "grid", gap: 14 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <form
+          noValidate
+          onSubmit={submit}
+          style={{ padding: 22, display: "grid", gap: 14 }}
+        >
+          <div
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
+          >
             <div>
               <label style={invLabelSt}>Quantity *</label>
-              <input type="number" min="0" required style={SI_invInputSt} value={form.stock} onChange={(e) => setF("stock", e.target.value)}/>
+              <input
+                type="number"
+                min="0"
+                required
+                style={SI_invInputSt}
+                value={form.stock}
+                onChange={(e) => setF("stock", e.target.value)}
+              />
             </div>
             <div>
               <label style={invLabelSt}>Supplier</label>
-              <input style={SI_invInputSt} value={form.supplier} placeholder="Supplier name" onChange={(e) => setF("supplier", e.target.value)}/>
+              <input
+                style={SI_invInputSt}
+                value={form.supplier}
+                placeholder="Supplier name"
+                onChange={(e) => setF("supplier", e.target.value)}
+              />
             </div>
             <div>
               <label style={invLabelSt}>Cost/Unit (₱)</label>
-              <input type="number" min="0" step="0.01" style={SI_invInputSt} value={form.cost_per_unit} onChange={(e) => setF("cost_per_unit", e.target.value)}/>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                style={SI_invInputSt}
+                value={form.cost_per_unit}
+                onChange={(e) => setF("cost_per_unit", e.target.value)}
+              />
             </div>
             <div>
               <label style={invLabelSt}>Mfg Date</label>
-              <input type="date" style={SI_invInputSt} value={form.mfg_date} onChange={(e) => setF("mfg_date", e.target.value)}/>
+              <input
+                type="date"
+                style={SI_invInputSt}
+                value={form.mfg_date}
+                onChange={(e) => setF("mfg_date", e.target.value)}
+              />
             </div>
             <div>
-              <div style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-            marginBottom: 5,
-        }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  marginBottom: 5,
+                }}
+              >
                 <label style={{ ...invLabelSt, marginBottom: 0 }}>
                   {canEditNoExpiry ? "Exp Date" : "Exp Date *"}
                 </label>
-                {canEditNoExpiry && (<label style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                fontSize: 10.5,
-                fontWeight: 600,
-                color: SI_C.muted,
-                cursor: "pointer",
-            }}>
-                    <input type="checkbox" checked={noExpiry} onChange={(e) => {
-                setNoExpiry(e.target.checked);
-                if (e.target.checked)
-                    setF("exp_date", "");
-            }}/>
+                {canEditNoExpiry && (
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                      color: SI_C.muted,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={noExpiry}
+                      onChange={(e) => {
+                        setNoExpiry(e.target.checked);
+                        if (e.target.checked) setF("exp_date", "");
+                      }}
+                    />
                     No expiry
-                  </label>)}
+                  </label>
+                )}
               </div>
 
-              <input type="date" style={{
-            ...SI_invInputSt,
-            opacity: noExpiry ||
-                (!!editExpiryRule?.requiresManufactureDate &&
+              <input
+                type="date"
+                style={{
+                  ...SI_invInputSt,
+                  opacity:
+                    noExpiry ||
+                    (!!editExpiryRule?.requiresManufactureDate &&
+                      !form.mfg_date) ||
+                    editExpiryRule?.kind === "missing-category" ||
+                    editExpiryRule?.kind === "unconfigured-fuel"
+                      ? 0.5
+                      : 1,
+                }}
+                value={form.exp_date}
+                min={editExpiryBounds.minStr || undefined}
+                max={editExpiryBounds.maxStr || undefined}
+                required={!noExpiry}
+                disabled={
+                  noExpiry ||
+                  (!!editExpiryRule?.requiresManufactureDate &&
                     !form.mfg_date) ||
-                editExpiryRule?.kind === "missing-category" ||
-                editExpiryRule?.kind === "unconfigured-fuel"
-                ? 0.5
-                : 1,
-        }} value={form.exp_date} min={editExpiryBounds.minStr || undefined} max={editExpiryBounds.maxStr || undefined} required={!noExpiry} disabled={noExpiry ||
-            (!!editExpiryRule?.requiresManufactureDate &&
-                !form.mfg_date) ||
-            editExpiryRule?.kind === "missing-category" ||
-            editExpiryRule?.kind === "unconfigured-fuel"} onChange={(e) => setF("exp_date", e.target.value)}/>
+                  editExpiryRule?.kind === "missing-category" ||
+                  editExpiryRule?.kind === "unconfigured-fuel"
+                }
+                onChange={(e) => setF("exp_date", e.target.value)}
+              />
 
-              {editExpiryRule && (<div style={{
-                marginTop: 5,
-                fontSize: 11,
-                lineHeight: 1.45,
-                color: editExpiryRule.kind === "missing-category" ||
-                    editExpiryRule.kind === "unconfigured-fuel"
-                    ? SI_C.warn
-                    : SI_C.muted,
-            }}>
-                  {shelfLifeHelperText(editExpiryRule, editExpiryBounds, ingredient.category)}
-                </div>)}
+              {editExpiryRule && (
+                <div
+                  style={{
+                    marginTop: 5,
+                    fontSize: 11,
+                    lineHeight: 1.45,
+                    color:
+                      editExpiryRule.kind === "missing-category" ||
+                      editExpiryRule.kind === "unconfigured-fuel"
+                        ? SI_C.warn
+                        : SI_C.muted,
+                  }}
+                >
+                  {shelfLifeHelperText(
+                    editExpiryRule,
+                    editExpiryBounds,
+                    ingredient.category,
+                  )}
+                </div>
+              )}
 
               {form.exp_date &&
-            getExpiryStatus(form.exp_date, ingredient.brand) ===
-                "expired" && (<div style={{
-                marginTop: 5,
-                fontSize: 11,
-                fontWeight: 700,
-                color: SI_C.red,
-            }}>
+                getExpiryStatus(form.exp_date, ingredient.brand) ===
+                  "expired" && (
+                  <div
+                    style={{
+                      marginTop: 5,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: SI_C.red,
+                    }}
+                  >
                     This expiry date is already in the past.
-                  </div>)}
+                  </div>
+                )}
             </div>
             <div>
               <label style={invLabelSt}>Supply Date &amp; Time</label>
-              <input type="datetime-local" style={SI_invInputSt} value={form.supply_date} onChange={(e) => setF("supply_date", e.target.value)}/>
+              <input
+                type="datetime-local"
+                style={SI_invInputSt}
+                value={form.supply_date}
+                onChange={(e) => setF("supply_date", e.target.value)}
+              />
             </div>
             <div style={{ gridColumn: "1 / -1" }}>
               <label style={invLabelSt}>Notes</label>
-              <input style={SI_invInputSt} value={form.notes} placeholder="Optional notes…" onChange={(e) => setF("notes", e.target.value)}/>
+              <input
+                style={SI_invInputSt}
+                value={form.notes}
+                placeholder="Optional notes…"
+                onChange={(e) => setF("notes", e.target.value)}
+              />
             </div>
           </div>
 
-          {pharma && (<div style={{
+          {pharma && (
+            <div
+              style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
                 gap: 12,
@@ -5964,65 +7492,108 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
                 background: "#eef2ff",
                 border: "1px solid #c7d2fe",
                 borderRadius: 10,
-            }}>
-              <div style={{
-                gridColumn: "1 / -1",
-                fontSize: 10.5,
-                fontWeight: 800,
-                color: "#3730a3",
-                letterSpacing: "0.06em",
-            }}>
+              }}
+            >
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  fontSize: 10.5,
+                  fontWeight: 800,
+                  color: "#3730a3",
+                  letterSpacing: "0.06em",
+                }}
+              >
                 PHARMACY DETAILS
               </div>
               <div>
                 <label style={invLabelSt}>LOT Number</label>
-                <input style={SI_invInputSt} value={form.lot_number} onChange={(e) => setF("lot_number", e.target.value)}/>
+                <input
+                  style={SI_invInputSt}
+                  value={form.lot_number}
+                  onChange={(e) => setF("lot_number", e.target.value)}
+                />
               </div>
               <div>
                 <label style={invLabelSt}>NDC Code</label>
-                <input style={SI_invInputSt} value={form.ndc_code} onChange={(e) => setF("ndc_code", e.target.value)}/>
+                <input
+                  style={SI_invInputSt}
+                  value={form.ndc_code}
+                  onChange={(e) => setF("ndc_code", e.target.value)}
+                />
               </div>
               <div>
                 <label style={invLabelSt}>Dosage Form</label>
-                <select style={SI_invInputSt} value={form.dosage_form} onChange={(e) => setF("dosage_form", e.target.value)}>
+                <select
+                  style={SI_invInputSt}
+                  value={form.dosage_form}
+                  onChange={(e) => setF("dosage_form", e.target.value)}
+                >
                   <option value="">Select…</option>
-                  {DOSAGE_FORMS.map((d) => (<option key={d} value={d}>
+                  {DOSAGE_FORMS.map((d) => (
+                    <option key={d} value={d}>
                       {d}
-                    </option>))}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label style={invLabelSt}>Strength</label>
-                <input style={SI_invInputSt} value={form.strength} placeholder="e.g. 500mg" onChange={(e) => setF("strength", e.target.value)}/>
+                <input
+                  style={SI_invInputSt}
+                  value={form.strength}
+                  placeholder="e.g. 500mg"
+                  onChange={(e) => setF("strength", e.target.value)}
+                />
               </div>
               <div>
                 <label style={invLabelSt}>Storage</label>
-                <select style={SI_invInputSt} value={form.storage_requirement} onChange={(e) => setF("storage_requirement", e.target.value)}>
+                <select
+                  style={SI_invInputSt}
+                  value={form.storage_requirement}
+                  onChange={(e) => setF("storage_requirement", e.target.value)}
+                >
                   <option value="">Select…</option>
-                  {STORAGE_REQS.map((s) => (<option key={s} value={s}>
+                  {STORAGE_REQS.map((s) => (
+                    <option key={s} value={s}>
                       {s}
-                    </option>))}
+                    </option>
+                  ))}
                 </select>
               </div>
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginTop: 18,
-            }}>
-                <input type="checkbox" id="controlled-edit" checked={form.controlled_substance} onChange={(e) => setF("controlled_substance", e.target.checked)}/>
-                <label htmlFor="controlled-edit" style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: "#3730a3",
-                cursor: "pointer",
-            }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginTop: 18,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  id="controlled-edit"
+                  checked={form.controlled_substance}
+                  onChange={(e) =>
+                    setF("controlled_substance", e.target.checked)
+                  }
+                />
+                <label
+                  htmlFor="controlled-edit"
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#3730a3",
+                    cursor: "pointer",
+                  }}
+                >
                   Controlled substance
                 </label>
               </div>
-            </div>)}
+            </div>
+          )}
 
-          {fuel && (<div style={{
+          {fuel && (
+            <div
+              style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
                 gap: 12,
@@ -6030,446 +7601,545 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
                 background: "#eff6ff",
                 border: "1px solid #bfdbfe",
                 borderRadius: 10,
-            }}>
-              <div style={{
-                gridColumn: "1 / -1",
-                fontSize: 10.5,
-                fontWeight: 800,
-                color: "#1e40af",
-                letterSpacing: "0.06em",
-            }}>
+              }}
+            >
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  fontSize: 10.5,
+                  fontWeight: 800,
+                  color: "#1e40af",
+                  letterSpacing: "0.06em",
+                }}
+              >
                 FUEL DETAILS
               </div>
               <div>
                 <label style={invLabelSt}>Tank ID</label>
-                <input style={SI_invInputSt} value={form.tank_id} onChange={(e) => setF("tank_id", e.target.value)}/>
+                <input
+                  style={SI_invInputSt}
+                  value={form.tank_id}
+                  onChange={(e) => setF("tank_id", e.target.value)}
+                />
               </div>
               <div>
                 <label style={invLabelSt}>Grade</label>
-                <select style={SI_invInputSt} value={form.grade} onChange={(e) => setF("grade", e.target.value)}>
+                <select
+                  style={SI_invInputSt}
+                  value={form.grade}
+                  onChange={(e) => setF("grade", e.target.value)}
+                >
                   <option value="">Select…</option>
-                  {FUEL_GRADES.map((g) => (<option key={g} value={g}>
+                  {FUEL_GRADES.map((g) => (
+                    <option key={g} value={g}>
                       {g}
-                    </option>))}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label style={invLabelSt}>Octane Rating</label>
-                <input style={SI_invInputSt} value={form.octane_rating} onChange={(e) => setF("octane_rating", e.target.value)}/>
+                <input
+                  style={SI_invInputSt}
+                  value={form.octane_rating}
+                  onChange={(e) => setF("octane_rating", e.target.value)}
+                />
               </div>
               <div>
                 <label style={invLabelSt}>Delivery Temp (°F)</label>
-                <input type="number" style={SI_invInputSt} value={form.delivery_temp} onChange={(e) => setF("delivery_temp", e.target.value)}/>
+                <input
+                  type="number"
+                  style={SI_invInputSt}
+                  value={form.delivery_temp}
+                  onChange={(e) => setF("delivery_temp", e.target.value)}
+                />
               </div>
               <div>
                 <label style={invLabelSt}>Truck/Tanker ID</label>
-                <input style={SI_invInputSt} value={form.truck_id} onChange={(e) => setF("truck_id", e.target.value)}/>
+                <input
+                  style={SI_invInputSt}
+                  value={form.truck_id}
+                  onChange={(e) => setF("truck_id", e.target.value)}
+                />
               </div>
               <div>
                 <label style={invLabelSt}>Net Vol @ 60°F</label>
-                <input style={SI_invInputSt} value={form.volume_correction} onChange={(e) => setF("volume_correction", e.target.value)}/>
+                <input
+                  style={SI_invInputSt}
+                  value={form.volume_correction}
+                  onChange={(e) => setF("volume_correction", e.target.value)}
+                />
               </div>
-            </div>)}
+            </div>
+          )}
 
-          <div style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-            paddingTop: 8,
-            borderTop: `1px solid ${SI_C.border}`,
-        }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 8,
+              paddingTop: 8,
+              borderTop: `1px solid ${SI_C.border}`,
+            }}
+          >
             <button type="button" onClick={onClose} style={SI_btnSt}>
               Cancel
             </button>
-            <button type="submit" disabled={saving} style={{ ...btnPrimarySt, opacity: saving ? 0.6 : 1 }}>
+            <button
+              type="submit"
+              disabled={saving}
+              style={{ ...btnPrimarySt, opacity: saving ? 0.6 : 1 }}
+            >
               {saving ? "Saving…" : "Save Changes"}
             </button>
           </div>
         </form>
       </div>
-    </div>);
+    </div>
+  );
 }
 
-function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl, userName, userRole, showUiModal, setToast, readOnly = false, }) {
-    const pharma = isPharmaBrand(ingredient.brand);
-    const [editingBatch, setEditingBatch] = useState(null);
-    const [savingEdit, setSavingEdit] = useState(false);
-    const [batchDeleteHistory, setBatchDeleteHistory] = useState([]);
-    const [showBatchHistory, setShowBatchHistory] = useState(false);
-    const [deleteConfirmBatch, setDeleteConfirmBatch] = useState(null);
-    const [deletingBatch, setDeletingBatch] = useState(false);
-    const [restoringBatchId, setRestoringBatchId] = useState(null);
-    const [historyBatch, setHistoryBatch] = useState(null);
-    const fetchBatchHistory = useCallback(async () => {
-        try {
-            const res = await fetch(`${apiUrl}/ingredient-batch-delete-history?ingredient_id=${ingredient.id}`);
-            const data = await res.json();
-            setBatchDeleteHistory(Array.isArray(data)
-                ? data.map((row) => ({
-                    id: row.id,
-                    data: row.batch_data,
-                    deletedAt: row.deleted_at,
-                    deletedBy: row.deleted_by,
-                }))
-                : []);
-        }
-        catch (err) {
-            console.warn("Failed to fetch batch delete history:", err);
-        }
-    }, [apiUrl, ingredient.id]); // eslint-disable-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        fetchBatchHistory();
-    }, [fetchBatchHistory]);
-    const getExpiryStatus = (exp_date, brand) => computeExpiryStatus(exp_date, brand);
-    const statusStyle = {
-        expired: {
-            badgeText: "#991b1b",
-            border: "#f3c9c9",
-            label: "EXPIRED",
-            dateColor: "#dc2626",
-        },
-        critical: {
-            badgeText: "#9a3412",
-            border: "#f0d3b2",
-            label: "EXPIRING CRITICAL",
-            dateColor: "#ea580c",
-        },
-        warning: {
-            badgeText: "#854d0e",
-            border: "#ecdca0",
-            label: "EXPIRING SOON",
-            dateColor: "#ca8a04",
-        },
-        ok: { badgeText: null, border: SI_C.border, label: null, dateColor: SI_C.ink },
+function BatchesModal({
+  ingredient,
+  batches,
+  loading,
+  onClose,
+  onRefresh,
+  apiUrl,
+  userName,
+  userRole,
+  showUiModal,
+  setToast,
+  readOnly = false,
+}) {
+  const pharma = isPharmaBrand(ingredient.brand);
+  const [editingBatch, setEditingBatch] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [batchDeleteHistory, setBatchDeleteHistory] = useState([]);
+  const [showBatchHistory, setShowBatchHistory] = useState(false);
+  const [deleteConfirmBatch, setDeleteConfirmBatch] = useState(null);
+  const [deletingBatch, setDeletingBatch] = useState(false);
+  const [restoringBatchId, setRestoringBatchId] = useState(null);
+  const [historyBatch, setHistoryBatch] = useState(null);
+  const fetchBatchHistory = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${apiUrl}/ingredient-batch-delete-history?ingredient_id=${ingredient.id}`,
+      );
+      const data = await res.json();
+      setBatchDeleteHistory(
+        Array.isArray(data)
+          ? data.map((row) => ({
+              id: row.id,
+              data: row.batch_data,
+              deletedAt: row.deleted_at,
+              deletedBy: row.deleted_by,
+            }))
+          : [],
+      );
+    } catch (err) {
+      console.warn("Failed to fetch batch delete history:", err);
+    }
+  }, [apiUrl, ingredient.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    fetchBatchHistory();
+  }, [fetchBatchHistory]);
+  const getExpiryStatus = (exp_date, brand) =>
+    computeExpiryStatus(exp_date, brand);
+  const statusStyle = {
+    expired: {
+      badgeText: "#991b1b",
+      border: "#f3c9c9",
+      label: "EXPIRED",
+      dateColor: "#dc2626",
+    },
+    critical: {
+      badgeText: "#9a3412",
+      border: "#f0d3b2",
+      label: "EXPIRING CRITICAL",
+      dateColor: "#ea580c",
+    },
+    warning: {
+      badgeText: "#854d0e",
+      border: "#ecdca0",
+      label: "EXPIRING SOON",
+      dateColor: "#ca8a04",
+    },
+    ok: {
+      badgeText: null,
+      border: SI_C.border,
+      label: null,
+      dateColor: SI_C.ink,
+    },
+  };
+  const syncIngredientStock = async () => {
+    try {
+      const res = await fetch(
+        `${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`,
+      );
+      const freshBatches = await res.json();
+      const activeBatches = Array.isArray(freshBatches) ? freshBatches : [];
+      const totalStock = activeBatches.reduce(
+        (sum, b) => sum + Number(b.stock || 0),
+        0,
+      );
+      const nextOutCost = computeNextOutCost(
+        activeBatches,
+        ingredient.brand,
+        !!ingredient.perishable,
+      );
+      await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...ingredient,
+          stock: totalStock,
+          ...(nextOutCost !== null ? { cost_per_unit: nextOutCost } : {}),
+        }),
+      });
+      window.dispatchEvent(
+        new CustomEvent("stock-inventory-updated", {
+          detail: { ingredientId: ingredient.id, brand: ingredient.brand },
+        }),
+      );
+    } catch (err) {
+      console.warn("Failed to sync ingredient stock:", err);
+    }
+  };
+  const validateBatchForm = (form) => {
+    const fuel = isFuelBrand(ingredient.brand);
+    const errors = [];
+    if (!isPositiveOrZeroNumber(form.stock))
+      errors.push("Count must be a valid number of 0 or more.");
+    if (form.mfg_date && !isValidDateStr(form.mfg_date))
+      errors.push("Manufacture date is not a valid date.");
+    if (form.exp_date && !isValidDateStr(form.exp_date))
+      errors.push("Expiry date is not a valid date.");
+    if (form.supply_date && !isValidDateStr(form.supply_date))
+      errors.push("Supply date is not a valid date.");
+    if (
+      form.mfg_date &&
+      form.exp_date &&
+      isValidDateStr(form.mfg_date) &&
+      isValidDateStr(form.exp_date) &&
+      new Date(form.mfg_date) > new Date(form.exp_date)
+    ) {
+      errors.push("Manufacture date cannot be after the expiry date.");
+    }
+    if (
+      form.supply_date &&
+      form.mfg_date &&
+      isValidDateStr(form.supply_date) &&
+      isValidDateStr(form.mfg_date) &&
+      new Date(form.supply_date) < new Date(form.mfg_date)
+    ) {
+      errors.push(
+        "Supply/receiving date cannot be before the manufacture date.",
+      );
+    }
+    if (
+      form.supply_date &&
+      form.exp_date &&
+      isValidDateStr(form.supply_date) &&
+      isValidDateStr(form.exp_date) &&
+      new Date(form.supply_date) > new Date(form.exp_date)
+    ) {
+      errors.push("Supply/receiving date cannot be after the expiry date.");
+    }
+    if (pharma || fuel) {
+      errors.push(
+        ...validateCategoryShelfLife({
+          brand: ingredient.brand,
+          category: ingredient.category,
+          grade: form.grade,
+          mfgDate: form.mfg_date,
+          expiryDate: form.exp_date,
+          noExpiry: !form.exp_date,
+        }),
+      );
+    }
+    if (form.exp_date && isValidDateStr(form.exp_date)) {
+      const status = getExpiryStatus(form.exp_date, ingredient.brand);
+      if (status === "expired") {
+        errors.push("This expiry date is already in the past.");
+      }
+    }
+    if (pharma && form.controlled_substance && !form.lot_number) {
+      errors.push("LOT Number is required for controlled substances.");
+    }
+    return [...new Set(errors)];
+  };
+  const saveBatch = async (form) => {
+    const errors = validateBatchForm(form);
+    if (errors.length > 0) {
+      showUiModal({
+        type: "error",
+        title: "Please fix the following",
+        lines: errors.map((t) => ({ text: t, warn: true })),
+      });
+      return;
+    }
+    setSavingEdit(true);
+    const coords = await getBrowserLocation();
+    const industryFields = {
+      ...(pharma
+        ? {
+            lot_number: form.lot_number,
+            ndc_code: form.ndc_code,
+            dosage_form: form.dosage_form,
+            strength: form.strength,
+            storage_requirement: form.storage_requirement,
+            controlled_substance: !!form.controlled_substance,
+          }
+        : {}),
+      ...(isFuelBrand(ingredient.brand)
+        ? {
+            tank_id: form.tank_id,
+            grade: form.grade,
+            octane_rating: form.octane_rating,
+            delivery_temp: form.delivery_temp,
+            truck_id: form.truck_id,
+            volume_correction: form.volume_correction,
+          }
+        : {}),
     };
-    const syncIngredientStock = async () => {
-        try {
-            const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`);
-            const freshBatches = await res.json();
-            const activeBatches = Array.isArray(freshBatches) ? freshBatches : [];
-            const totalStock = activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0);
-            const nextOutCost = computeNextOutCost(activeBatches, ingredient.brand, !!ingredient.perishable);
-            await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...ingredient,
-                    stock: totalStock,
-                    ...(nextOutCost !== null ? { cost_per_unit: nextOutCost } : {}),
-                }),
-            });
-            window.dispatchEvent(new CustomEvent("stock-inventory-updated", {
-                detail: { ingredientId: ingredient.id, brand: ingredient.brand },
-            }));
-        }
-        catch (err) {
-            console.warn("Failed to sync ingredient stock:", err);
-        }
+    const body = {
+      ...form,
+      ...industryFields,
+      performed_by: userName,
+      performed_by_role: userRole || "Unknown",
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
     };
-    const validateBatchForm = (form) => {
-        const fuel = isFuelBrand(ingredient.brand);
-        const errors = [];
-        if (!isPositiveOrZeroNumber(form.stock))
-            errors.push("Count must be a valid number of 0 or more.");
-        if (form.mfg_date && !isValidDateStr(form.mfg_date))
-            errors.push("Manufacture date is not a valid date.");
-        if (form.exp_date && !isValidDateStr(form.exp_date))
-            errors.push("Expiry date is not a valid date.");
-        if (form.supply_date && !isValidDateStr(form.supply_date))
-            errors.push("Supply date is not a valid date.");
-        if (form.mfg_date &&
-            form.exp_date &&
-            isValidDateStr(form.mfg_date) &&
-            isValidDateStr(form.exp_date) &&
-            new Date(form.mfg_date) > new Date(form.exp_date)) {
-            errors.push("Manufacture date cannot be after the expiry date.");
-        }
-        if (form.supply_date &&
-            form.mfg_date &&
-            isValidDateStr(form.supply_date) &&
-            isValidDateStr(form.mfg_date) &&
-            new Date(form.supply_date) < new Date(form.mfg_date)) {
-            errors.push("Supply/receiving date cannot be before the manufacture date.");
-        }
-        if (form.supply_date &&
-            form.exp_date &&
-            isValidDateStr(form.supply_date) &&
-            isValidDateStr(form.exp_date) &&
-            new Date(form.supply_date) > new Date(form.exp_date)) {
-            errors.push("Supply/receiving date cannot be after the expiry date.");
-        }
-        if (pharma || fuel) {
-            errors.push(...validateCategoryShelfLife({
-                brand: ingredient.brand,
-                category: ingredient.category,
-                grade: form.grade,
-                mfgDate: form.mfg_date,
-                expiryDate: form.exp_date,
-                noExpiry: !form.exp_date,
-            }));
-        }
-        if (form.exp_date && isValidDateStr(form.exp_date)) {
-            const status = getExpiryStatus(form.exp_date, ingredient.brand);
-            if (status === "expired") {
-                errors.push("This expiry date is already in the past.");
-            }
-        }
-        if (pharma && form.controlled_substance && !form.lot_number) {
-            errors.push("LOT Number is required for controlled substances.");
-        }
-        return [...new Set(errors)];
-    };
-    const saveBatch = async (form) => {
-        const errors = validateBatchForm(form);
-        if (errors.length > 0) {
-            showUiModal({
-                type: "error",
-                title: "Please fix the following",
-                lines: errors.map((t) => ({ text: t, warn: true })),
-            });
-            return;
-        }
-        setSavingEdit(true);
-        const coords = await getBrowserLocation();
-        const industryFields = {
-            ...(pharma
-                ? {
-                    lot_number: form.lot_number,
-                    ndc_code: form.ndc_code,
-                    dosage_form: form.dosage_form,
-                    strength: form.strength,
-                    storage_requirement: form.storage_requirement,
-                    controlled_substance: !!form.controlled_substance,
-                }
-                : {}),
-            ...(isFuelBrand(ingredient.brand)
-                ? {
-                    tank_id: form.tank_id,
-                    grade: form.grade,
-                    octane_rating: form.octane_rating,
-                    delivery_temp: form.delivery_temp,
-                    truck_id: form.truck_id,
-                    volume_correction: form.volume_correction,
-                }
-                : {}),
-        };
-        const body = {
-            ...form,
-            ...industryFields,
-            performed_by: userName,
-            performed_by_role: userRole || "Unknown",
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-        };
-        try {
-            await fetch(`${apiUrl}/ingredient-batches/${editingBatch.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-            });
-            await syncIngredientStock();
-            setEditingBatch(null);
-            onRefresh();
-            setToast({
-                type: "success",
-                title: "Batch Updated",
-                message: "The batch has been updated successfully.",
-            });
-        }
-        catch {
-            setToast({
-                type: "error",
-                title: "Connection Error",
-                message: "Failed to save the batch.",
-            });
-        }
-        finally {
-            setSavingEdit(false);
-        }
-    };
-    // Delete now requires confirmation via BatchDeleteConfirmModal — see requestDeleteBatch / confirmDeleteBatch below.
-    const deleteBatch = async (id) => {
-        // Find the batch data before deleting
-        const batchToDelete = batches.find((b) => b.id === id);
-        await fetch(`${apiUrl}/ingredient-batch-delete-history`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                batch_data: batchToDelete,
-                ingredient_id: ingredient.id,
-                ingredient_name: ingredient.name,
-                deleted_by: userName,
-            }),
+    try {
+      await fetch(`${apiUrl}/ingredient-batches/${editingBatch.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      await syncIngredientStock();
+      setEditingBatch(null);
+      onRefresh();
+      setToast({
+        type: "success",
+        title: "Batch Updated",
+        message: "The batch has been updated successfully.",
+      });
+    } catch {
+      setToast({
+        type: "error",
+        title: "Connection Error",
+        message: "Failed to save the batch.",
+      });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+  // Delete now requires confirmation via BatchDeleteConfirmModal — see requestDeleteBatch / confirmDeleteBatch below.
+  const deleteBatch = async (id) => {
+    // Find the batch data before deleting
+    const batchToDelete = batches.find((b) => b.id === id);
+    await fetch(`${apiUrl}/ingredient-batch-delete-history`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        batch_data: batchToDelete,
+        ingredient_id: ingredient.id,
+        ingredient_name: ingredient.name,
+        deleted_by: userName,
+      }),
+    });
+    await fetch(`${apiUrl}/ingredient-batches/${id}`, { method: "DELETE" });
+    await syncIngredientStock();
+    await fetchBatchHistory();
+    onRefresh();
+  };
+  // Step 1: user clicks "Delete" on a batch row — open confirmation modal instead of deleting immediately
+  const requestDeleteBatch = (batch) => setDeleteConfirmBatch(batch);
+  // Step 2: user confirms in the modal — perform the actual delete
+  const confirmDeleteBatch = async () => {
+    if (!deleteConfirmBatch) return;
+    setDeletingBatch(true);
+    try {
+      await deleteBatch(deleteConfirmBatch.id);
+      setToast({
+        type: "success",
+        title: "Batch Deleted",
+        message: `Batch ${deleteConfirmBatch.batch_number || ""} moved to history.`,
+      });
+    } catch {
+      setToast({
+        type: "error",
+        title: "Connection Error",
+        message: "Failed to delete the batch.",
+      });
+    } finally {
+      setDeletingBatch(false);
+      setDeleteConfirmBatch(null);
+    }
+  };
+  const restoreBatch = async (entry) => {
+    setRestoringBatchId(entry.id);
+    try {
+      const d = entry.data || {};
+      const res = await fetch(`${apiUrl}/ingredient-batches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ingredient_id: ingredient.id,
+          batch_number: d.batch_number || null,
+          stock: d.stock || 0,
+          mfg_date: d.mfg_date || null,
+          exp_date: d.exp_date || null,
+          supply_date: d.supply_date || null,
+          cost_per_unit: d.cost_per_unit || 0,
+          supplier: d.supplier || null,
+          perishable: d.perishable || false,
+          notes: d.notes || null,
+        }),
+      });
+      const result = await res.json();
+      if (result && (result.id || result.success)) {
+        await fetch(`${apiUrl}/ingredient-batch-delete-history/${entry.id}`, {
+          method: "DELETE",
         });
-        await fetch(`${apiUrl}/ingredient-batches/${id}`, { method: "DELETE" });
-        await syncIngredientStock();
         await fetchBatchHistory();
         onRefresh();
-    };
-    // Step 1: user clicks "Delete" on a batch row — open confirmation modal instead of deleting immediately
-    const requestDeleteBatch = (batch) => setDeleteConfirmBatch(batch);
-    // Step 2: user confirms in the modal — perform the actual delete
-    const confirmDeleteBatch = async () => {
-        if (!deleteConfirmBatch)
-            return;
-        setDeletingBatch(true);
-        try {
-            await deleteBatch(deleteConfirmBatch.id);
-            setToast({
-                type: "success",
-                title: "Batch Deleted",
-                message: `Batch ${deleteConfirmBatch.batch_number || ""} moved to history.`,
-            });
-        }
-        catch {
-            setToast({
-                type: "error",
-                title: "Connection Error",
-                message: "Failed to delete the batch.",
-            });
-        }
-        finally {
-            setDeletingBatch(false);
-            setDeleteConfirmBatch(null);
-        }
-    };
-    const restoreBatch = async (entry) => {
-        setRestoringBatchId(entry.id);
-        try {
-            const d = entry.data || {};
-            const res = await fetch(`${apiUrl}/ingredient-batches`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ingredient_id: ingredient.id,
-                    batch_number: d.batch_number || null,
-                    stock: d.stock || 0,
-                    mfg_date: d.mfg_date || null,
-                    exp_date: d.exp_date || null,
-                    supply_date: d.supply_date || null,
-                    cost_per_unit: d.cost_per_unit || 0,
-                    supplier: d.supplier || null,
-                    perishable: d.perishable || false,
-                    notes: d.notes || null,
-                }),
-            });
-            const result = await res.json();
-            if (result && (result.id || result.success)) {
-                await fetch(`${apiUrl}/ingredient-batch-delete-history/${entry.id}`, {
-                    method: "DELETE",
-                });
-                await fetchBatchHistory();
-                onRefresh();
-                setToast({
-                    type: "success",
-                    title: "Batch Restored",
-                    message: `Batch ${d.batch_number || ""} has been restored.`,
-                });
-            }
-            else {
-                setToast({
-                    type: "error",
-                    title: "Restore Failed",
-                    message: "Failed to restore the batch.",
-                });
-            }
-        }
-        catch {
-            setToast({
-                type: "error",
-                title: "Connection Error",
-                message: "Failed to restore the batch.",
-            });
-        }
-        finally {
-            setRestoringBatchId(null);
-        }
-    };
-    const fifo = getFifoMethod(ingredient.brand, ingredient.perishable);
-    const sortedBatches = sortBatchesByMethod(batches, ingredient.brand, ingredient.perishable);
-    return (<div onClick={onClose} style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.4)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2000,
-            padding: 20,
-            backdropFilter: "blur(4px)",
-        }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-            background: "#fff",
-            borderRadius: 20,
-            width: "100%",
-            maxWidth: 700,
-            maxHeight: "88vh",
-            display: "flex",
-            flexDirection: "column",
-            boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-            fontFamily: "Montserrat,sans-serif",
-            overflow: "hidden",
-        }}>
+        setToast({
+          type: "success",
+          title: "Batch Restored",
+          message: `Batch ${d.batch_number || ""} has been restored.`,
+        });
+      } else {
+        setToast({
+          type: "error",
+          title: "Restore Failed",
+          message: "Failed to restore the batch.",
+        });
+      }
+    } catch {
+      setToast({
+        type: "error",
+        title: "Connection Error",
+        message: "Failed to restore the batch.",
+      });
+    } finally {
+      setRestoringBatchId(null);
+    }
+  };
+  const fifo = getFifoMethod(ingredient.brand, ingredient.perishable);
+  const sortedBatches = sortBatchesByMethod(
+    batches,
+    ingredient.brand,
+    ingredient.perishable,
+  );
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2000,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff",
+          borderRadius: 20,
+          width: "100%",
+          maxWidth: 700,
+          maxHeight: "88vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          fontFamily: "Montserrat,sans-serif",
+          overflow: "hidden",
+        }}
+      >
         {/* Header */}
-        <div style={{
+        <div
+          style={{
             padding: "18px 24px",
             background: "linear-gradient(135deg,#00c853,#00897b)",
             color: "#fff",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-        }}>
+          }}
+        >
           <div>
             <div style={{ fontWeight: 800, fontSize: 16 }}>
               Batches — {ingredient.name}
             </div>
-            <div style={{
-            fontSize: 12,
-            opacity: 0.85,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            flexWrap: "wrap",
-        }}>
+            <div
+              style={{
+                fontSize: 12,
+                opacity: 0.85,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
               {ingredient.branch} · Total stock:{" "}
-              {formatQuantityWithUnit(batches.reduce((s, b) => s + Number(b.stock || 0), 0), ingredient.unit)}
-              <button onClick={() => setShowBatchHistory(true)} style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 5,
-            background: "rgba(255,255,255,0.2)",
-            border: "1px solid rgba(255,255,255,0.4)",
-            borderRadius: 8,
-            color: "#fff",
-            fontSize: 11,
-            fontWeight: 700,
-            padding: "3px 10px",
-        }}>
-                <HistoryIcon size={11}/> Delete History
-                {batchDeleteHistory.length > 0 && (<span style={{
-                background: "#dc2626",
-                borderRadius: 20,
-                fontSize: 10,
-                fontWeight: 800,
-                padding: "1px 6px",
-            }}>
+              {formatQuantityWithUnit(
+                batches.reduce((s, b) => s + Number(b.stock || 0), 0),
+                ingredient.unit,
+              )}
+              <button
+                onClick={() => setShowBatchHistory(true)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  background: "rgba(255,255,255,0.2)",
+                  border: "1px solid rgba(255,255,255,0.4)",
+                  borderRadius: 8,
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: "3px 10px",
+                }}
+              >
+                <HistoryIcon size={11} /> Delete History
+                {batchDeleteHistory.length > 0 && (
+                  <span
+                    style={{
+                      background: "#dc2626",
+                      borderRadius: 20,
+                      fontSize: 10,
+                      fontWeight: 800,
+                      padding: "1px 6px",
+                    }}
+                  >
                     {batchDeleteHistory.length}
-                  </span>)}
+                  </span>
+                )}
               </button>
             </div>
           </div>
-          <button onClick={onClose} style={{
-            background: "rgba(255,255,255,0.2)",
-            border: "none",
-            color: "#fff",
-            borderRadius: "50%",
-            width: 32,
-            height: 32,
-            fontSize: 16,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-        }}>
+          <button
+            onClick={onClose}
+            style={{
+              background: "rgba(255,255,255,0.2)",
+              border: "none",
+              color: "#fff",
+              borderRadius: "50%",
+              width: 32,
+              height: 32,
+              fontSize: 16,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
             ✕
           </button>
         </div>
@@ -6477,197 +8147,295 @@ function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl
         {/* Body */}
         <div style={{ overflowY: "auto", flex: 1, padding: "8px 24px 24px" }}>
           {/* Batch list — plain white rows, separated by a thin line */}
-          {loading ? (<div style={{
+          {loading ? (
+            <div
+              style={{
                 textAlign: "center",
                 padding: "24px 0",
                 color: "#5a7a65",
-            }}>
+              }}
+            >
               Loading batches…
-            </div>) : sortedBatches.length === 0 ? (<div style={{
+            </div>
+          ) : sortedBatches.length === 0 ? (
+            <div
+              style={{
                 textAlign: "center",
                 padding: "40px 0",
                 color: "#9ca3af",
                 fontSize: 13,
                 fontStyle: "italic",
-            }}>
+              }}
+            >
               No batches yet. Use <strong>Receive Stock</strong> to add the
               first one.
-            </div>) : (sortedBatches.map((batch, idx) => {
-            const status = getExpiryStatus(batch.exp_date, ingredient.brand);
-            const ss = statusStyle[status] || statusStyle.ok;
-            const isFirst = idx === 0;
-            const isLast = idx === sortedBatches.length - 1;
-            return (<div key={batch.id} style={{
+            </div>
+          ) : (
+            sortedBatches.map((batch, idx) => {
+              const status = getExpiryStatus(batch.exp_date, ingredient.brand);
+              const ss = statusStyle[status] || statusStyle.ok;
+              const isFirst = idx === 0;
+              const isLast = idx === sortedBatches.length - 1;
+              return (
+                <div
+                  key={batch.id}
+                  style={{
                     background: "#fff",
                     padding: "14px 4px",
                     borderBottom: isLast
-                        ? "none"
-                        : `1px solid ${isFirst ? SI_C.greenMid : SI_C.border}`,
+                      ? "none"
+                      : `1px solid ${isFirst ? SI_C.greenMid : SI_C.border}`,
                     display: "flex",
                     alignItems: "center",
                     gap: 12,
-                }}>
+                  }}
+                >
                   <div style={{ flex: 1 }}>
-                    <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    marginBottom: 4,
-                }}>
-                      <span style={{
-                    fontWeight: 800,
-                    fontSize: 13,
-                    color: "#0d2b1e",
-                }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        marginBottom: 4,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontWeight: 800,
+                          fontSize: 13,
+                          color: "#0d2b1e",
+                        }}
+                      >
                         Batch {batch.batch_number || "—"}
                       </span>
-                      {isFirst && (<span style={{
-                        fontSize: 9,
-                        fontWeight: 800,
-                        color: SI_C.greenDk,
-                        border: `1px solid ${SI_C.greenMid}`,
-                        padding: "2px 8px",
-                        borderRadius: 20,
-                    }}>
+                      {isFirst && (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 800,
+                            color: SI_C.greenDk,
+                            border: `1px solid ${SI_C.greenMid}`,
+                            padding: "2px 8px",
+                            borderRadius: 20,
+                          }}
+                        >
                           NEXT OUT
-                        </span>)}
-                      {ss.label && (<span style={{
-                        fontSize: 10,
-                        fontWeight: 800,
-                        color: ss.badgeText,
-                        border: `1px solid ${ss.border}`,
-                        padding: "2px 8px",
-                        borderRadius: 20,
-                    }}>
+                        </span>
+                      )}
+                      {ss.label && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 800,
+                            color: ss.badgeText,
+                            border: `1px solid ${ss.border}`,
+                            padding: "2px 8px",
+                            borderRadius: 20,
+                          }}
+                        >
                           {ss.label}
-                        </span>)}
+                        </span>
+                      )}
                     </div>
-                    <div style={{
-                    display: "flex",
-                    gap: 16,
-                    fontSize: 12,
-                    color: "#5a7a65",
-                    flexWrap: "wrap",
-                }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 16,
+                        fontSize: 12,
+                        color: "#5a7a65",
+                        flexWrap: "wrap",
+                      }}
+                    >
                       <span>
                         Stock:{" "}
                         <strong style={{ color: "#0d2b1e" }}>
                           {batch.stock}
                         </strong>
                       </span>
-                      {batch.supplier && (<span>
+                      {batch.supplier && (
+                        <span>
                           Supplier:{" "}
                           <strong style={{ color: "#0d2b1e" }}>
                             {batch.supplier}
                           </strong>
-                        </span>)}
-                      {batch.exp_date && (<span>
+                        </span>
+                      )}
+                      {batch.exp_date && (
+                        <span>
                           Exp:{" "}
                           <strong style={{ color: ss.dateColor }}>
                             {fmtDate(batch.exp_date)}
                           </strong>
-                        </span>)}
-                      {batch.mfg_date && (<span>Mfg: {fmtDate(batch.mfg_date)}</span>)}
-                      {batch.supply_date && (<span>Supplied: {fmtDate(batch.supply_date)}</span>)}
-                      {batch.storage_location && (<span>
+                        </span>
+                      )}
+                      {batch.mfg_date && (
+                        <span>Mfg: {fmtDate(batch.mfg_date)}</span>
+                      )}
+                      {batch.supply_date && (
+                        <span>Supplied: {fmtDate(batch.supply_date)}</span>
+                      )}
+                      {batch.storage_location && (
+                        <span>
                           Location:{" "}
                           <strong style={{ color: "#0d2b1e" }}>
                             {batch.storage_location}
                           </strong>
-                        </span>)}
-                      {batch.received_by && (<span>
+                        </span>
+                      )}
+                      {batch.received_by && (
+                        <span>
                           By:{" "}
                           <strong style={{ color: "#0d2b1e" }}>
                             {batch.received_by}
                           </strong>
-                        </span>)}
+                        </span>
+                      )}
                     </div>
-                    {status === "expired" && (<div style={{
-                        marginTop: 6,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: "#dc2626",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 5,
-                    }}>
+                    {status === "expired" && (
+                      <div
+                        style={{
+                          marginTop: 6,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: "#dc2626",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                        }}
+                      >
                         This batch has already expired.
-                      </div>)}
-                    {batch.notes && (<div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
+                      </div>
+                    )}
+                    {batch.notes && (
+                      <div
+                        style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}
+                      >
                         {batch.notes}
-                      </div>)}
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                    {!readOnly && (<>
-                        <button onClick={() => setEditingBatch(batch)} title="Edit batch" className="edit-btn" style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 5,
-                        height: 30,
-                        padding: "0 12px",
-                        borderRadius: 8,
-                        border: "1px solid #d1eedd",
-                        background: "#fff",
-                        color: "#00897b",
-                        fontSize: 12,
-                        fontWeight: 700,
-                        fontFamily: "inherit",
-                    }}>
-                          <EditIcon size={12}/> Edit
+                    {!readOnly && (
+                      <>
+                        <button
+                          onClick={() => setEditingBatch(batch)}
+                          title="Edit batch"
+                          className="edit-btn"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 5,
+                            height: 30,
+                            padding: "0 12px",
+                            borderRadius: 8,
+                            border: "1px solid #d1eedd",
+                            background: "#fff",
+                            color: "#00897b",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          <EditIcon size={12} /> Edit
                         </button>
-                        <button onClick={() => requestDeleteBatch(batch)} title="Delete batch" className="del-btn" style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 5,
-                        height: 30,
-                        padding: "0 12px",
-                        borderRadius: 8,
-                        border: "1px solid #ffcdd2",
-                        background: "#fff",
-                        color: "#e53935",
-                        fontSize: 12,
-                        fontWeight: 700,
-                        fontFamily: "inherit",
-                    }}>
-                          <TrashIcon size={12}/> Delete
+                        <button
+                          onClick={() => requestDeleteBatch(batch)}
+                          title="Delete batch"
+                          className="del-btn"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 5,
+                            height: 30,
+                            padding: "0 12px",
+                            borderRadius: 8,
+                            border: "1px solid #ffcdd2",
+                            background: "#fff",
+                            color: "#e53935",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          <TrashIcon size={12} /> Delete
                         </button>
-                      </>)}
+                      </>
+                    )}
                     {(ingredient.branch || "")
-                    .trim()
-                    .toLowerCase()
-                    .includes("head office") && (<button onClick={() => setHistoryBatch(batch)} title="View transfer history" className="hist-btn" style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 5,
-                        height: 30,
-                        padding: "0 12px",
-                        borderRadius: 8,
-                        border: "1px solid #bbdefb",
-                        background: "#fff",
-                        color: "#1565c0",
-                        fontSize: 12,
-                        fontWeight: 700,
-                        fontFamily: "inherit",
-                    }}>
-                        <HistoryIcon size={12}/> History
-                      </button>)}
+                      .trim()
+                      .toLowerCase()
+                      .includes("head office") && (
+                      <button
+                        onClick={() => setHistoryBatch(batch)}
+                        title="View transfer history"
+                        className="hist-btn"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          height: 30,
+                          padding: "0 12px",
+                          borderRadius: 8,
+                          border: "1px solid #bbdefb",
+                          background: "#fff",
+                          color: "#1565c0",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        <HistoryIcon size={12} /> History
+                      </button>
+                    )}
                   </div>
-                </div>);
-        }))}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
-      {editingBatch && (<BatchEditModal ingredient={ingredient} batch={editingBatch} saving={savingEdit} onClose={() => setEditingBatch(null)} onSave={saveBatch}/>)}
+      {editingBatch && (
+        <BatchEditModal
+          ingredient={ingredient}
+          batch={editingBatch}
+          saving={savingEdit}
+          onClose={() => setEditingBatch(null)}
+          onSave={saveBatch}
+        />
+      )}
 
-      {deleteConfirmBatch && (<BatchDeleteConfirmModal batch={deleteConfirmBatch} ingredient={ingredient} deleting={deletingBatch} onConfirm={confirmDeleteBatch} onCancel={() => {
-                if (!deletingBatch)
-                    setDeleteConfirmBatch(null);
-            }}/>)}
+      {deleteConfirmBatch && (
+        <BatchDeleteConfirmModal
+          batch={deleteConfirmBatch}
+          ingredient={ingredient}
+          deleting={deletingBatch}
+          onConfirm={confirmDeleteBatch}
+          onCancel={() => {
+            if (!deletingBatch) setDeleteConfirmBatch(null);
+          }}
+        />
+      )}
 
-      {showBatchHistory && (<BatchDeleteHistoryPanel history={batchDeleteHistory} restoringId={restoringBatchId} onRestore={restoreBatch} onClose={() => setShowBatchHistory(false)}/>)}
+      {showBatchHistory && (
+        <BatchDeleteHistoryPanel
+          history={batchDeleteHistory}
+          restoringId={restoringBatchId}
+          onRestore={restoreBatch}
+          onClose={() => setShowBatchHistory(false)}
+        />
+      )}
 
-      {historyBatch && (<BatchTransferHistoryModal batch={historyBatch} ingredient={ingredient} apiUrl={apiUrl} onClose={() => setHistoryBatch(null)}/>)}
-    </div>);
+      {historyBatch && (
+        <BatchTransferHistoryModal
+          batch={historyBatch}
+          ingredient={ingredient}
+          apiUrl={apiUrl}
+          onClose={() => setHistoryBatch(null)}
+        />
+      )}
+    </div>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -6978,7 +8746,11 @@ function ManagerFrFifoQueue({ product, batches, loading, lowStock = false }) {
                       {frStockQuantity(totalStock, product.unit)}
                     </span>
                   </div>
-                  <MiniBar pct={stockPct} color={lowStock ? C.red : C.green} track={lowStock ? "#fbe5e3" : "#eef6f1"} />
+                  <MiniBar
+                    pct={stockPct}
+                    color={lowStock ? C.red : C.green}
+                    track={lowStock ? "#fbe5e3" : "#eef6f1"}
+                  />
                 </div>
 
                 {isPharmaBrand(product.brand) &&
@@ -7116,9 +8888,15 @@ function ManagerFrFifoQueue({ product, batches, loading, lowStock = false }) {
 /* Read-only Stock Inventory UI for franchisees. */
 /* ── MAIN COMPONENT — read-only two-panel stock inventory for franchisees ── */
 
-
-function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initialFocus = null }) {
-  const isLowStock = (item) => Number(item.stock || 0) <= Number(item.min_stock || 0);
+function ManagerFrStockInventoryContent({
+  user,
+  brands,
+  onEdit,
+  onDelete,
+  initialFocus = null,
+}) {
+  const isLowStock = (item) =>
+    Number(item.stock || 0) <= Number(item.min_stock || 0);
   const userBranch = String(user?.branch || "").trim();
   const userBrand = String(user?.brand || user?.brand_name || "").trim();
   const CART_KEY = "@franchisee_supply_cart";
@@ -7151,7 +8929,10 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
   const hasExpiry = extraFields.some((f) => f.key === "exp_date");
 
   const normalize = useCallback(
-    (value) => String(value || "").trim().toLowerCase(),
+    (value) =>
+      String(value || "")
+        .trim()
+        .toLowerCase(),
     [],
   );
 
@@ -7233,7 +9014,9 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
       );
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data?.error || `Unable to load supply items (${res.status}).`);
+        throw new Error(
+          data?.error || `Unable to load supply items (${res.status}).`,
+        );
       }
 
       const rows = Array.isArray(data) ? data : [];
@@ -7302,17 +9085,14 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
     };
   }, [fetchItems, fetchShopItems]);
 
-  const saveCart = useCallback(
-    (next) => {
-      setCart(next);
-      try {
-        localStorage.setItem(CART_KEY, JSON.stringify(next));
-      } catch (error) {
-        console.warn("Failed to save franchisee supply cart:", error);
-      }
-    },
-    [],
-  );
+  const saveCart = useCallback((next) => {
+    setCart(next);
+    try {
+      localStorage.setItem(CART_KEY, JSON.stringify(next));
+    } catch (error) {
+      console.warn("Failed to save franchisee supply cart:", error);
+    }
+  }, []);
 
   const categoryOptions = useMemo(
     () =>
@@ -7330,9 +9110,15 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
       .filter((i) => {
         if (
           q &&
-          !String(i.name || "").toLowerCase().includes(q) &&
-          !String(i.category || "").toLowerCase().includes(q) &&
-          !String(i.sku || "").toLowerCase().includes(q)
+          !String(i.name || "")
+            .toLowerCase()
+            .includes(q) &&
+          !String(i.category || "")
+            .toLowerCase()
+            .includes(q) &&
+          !String(i.sku || "")
+            .toLowerCase()
+            .includes(q)
         )
           return false;
         if (categoryF && String(i.category || "") !== categoryF) return false;
@@ -7369,7 +9155,9 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
   // each row reflects its actual relative stock level: low stock = short bar,
   // mid-range stock = mid-length bar, highest stock = full bar.
   const maxBarStock = useMemo(() => {
-    const values = items.map((item) => Number(item?.stock ?? 0)).filter((n) => Number.isFinite(n) && n > 0);
+    const values = items
+      .map((item) => Number(item?.stock ?? 0))
+      .filter((n) => Number.isFinite(n) && n > 0);
     return Math.max(1, ...values);
   }, [items]);
 
@@ -7384,7 +9172,8 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
         ) ||
         shopItems.find(
           (shopItem) =>
-            normalize(shopItem?.brand) === normalize(inventoryItem?.brand || userBrand) &&
+            normalize(shopItem?.brand) ===
+              normalize(inventoryItem?.brand || userBrand) &&
             normalize(shopItem?.name) === normalize(inventoryItem?.name),
         ) ||
         null
@@ -7396,17 +9185,22 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
   const selectedShopItem = getShopListingFor(selected);
   const selectedSupplyAvailable = Number(selectedShopItem?.stock || 0);
   const selectedCurrentStock = Number(selected?.stock || 0);
-  const selectedPrice = selectedShopItem ? Number(selectedShopItem.price || 0) : 0;
+  const selectedPrice = selectedShopItem
+    ? Number(selectedShopItem.price || 0)
+    : 0;
   const selectedUnit = selectedShopItem?.unit || selected?.unit || "unit";
   const selectedCartQty = selectedShopItem
-    ? Number(cart.find((entry) => entry.id === selectedShopItem.id)?.quantity || 0)
+    ? Number(
+        cart.find((entry) => entry.id === selectedShopItem.id)?.quantity || 0,
+      )
     : 0;
   const cartItemCount = cart.reduce(
     (sum, entry) => sum + Number(entry.quantity || 0),
     0,
   );
   const cartTotal = cart.reduce(
-    (sum, entry) => sum + Number(entry.price || 0) * Number(entry.quantity || 0),
+    (sum, entry) =>
+      sum + Number(entry.price || 0) * Number(entry.quantity || 0),
     0,
   );
 
@@ -7469,14 +9263,18 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
     const next = cart
       .map((entry) => {
         if (entry.id !== id) return entry;
-        const max = liveItem ? Number(liveItem.stock || 0) : Number(entry.quantity || 0);
+        const max = liveItem
+          ? Number(liveItem.stock || 0)
+          : Number(entry.quantity || 0);
         return {
           ...entry,
           quantity: Math.min(
             max,
             Math.max(0, Number(entry.quantity || 0) + delta),
           ),
-          price: liveItem ? Number(liveItem.price || 0) : Number(entry.price || 0),
+          price: liveItem
+            ? Number(liveItem.price || 0)
+            : Number(entry.price || 0),
         };
       })
       .filter((entry) => entry.quantity > 0);
@@ -7508,7 +9306,9 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
         return;
       }
       if (requestedQty > available) {
-        problems.push(`${entry.name}: only ${available} ${live.unit || "unit(s)"} available`);
+        problems.push(
+          `${entry.name}: only ${available} ${live.unit || "unit(s)"} available`,
+        );
         return;
       }
       liveItems.push({
@@ -7532,7 +9332,11 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
       cart.map((entry) => {
         const live = shopItems.find((item) => item.id === entry.id);
         return live
-          ? { ...entry, price: Number(live.price || 0), unit: live.unit || entry.unit }
+          ? {
+              ...entry,
+              price: Number(live.price || 0),
+              unit: live.unit || entry.unit,
+            }
           : entry;
       }),
     );
@@ -7556,7 +9360,8 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
   };
 
   const checkoutTotal = checkoutItems.reduce(
-    (sum, entry) => sum + Number(entry.price || 0) * Number(entry.quantity || 0),
+    (sum, entry) =>
+      sum + Number(entry.price || 0) * Number(entry.quantity || 0),
     0,
   );
 
@@ -7583,7 +9388,9 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
       );
       const latestData = await latestResponse.json();
       if (!latestResponse.ok) {
-        throw new Error(latestData?.error || "Unable to verify supply availability.");
+        throw new Error(
+          latestData?.error || "Unable to verify supply availability.",
+        );
       }
 
       const latestEligible = (Array.isArray(latestData) ? latestData : [])
@@ -7598,7 +9405,8 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
 
       const validatedItems = checkoutItems.map((entry) => {
         const live = latestEligible.find((item) => item.id === entry.id);
-        if (!live) throw new Error(`${entry.name} is no longer available for ordering.`);
+        if (!live)
+          throw new Error(`${entry.name} is no longer available for ordering.`);
         if (Number(entry.quantity) > Number(live.stock)) {
           throw new Error(
             `${entry.name} now has only ${Number(live.stock)} ${live.unit || entry.unit || "unit(s)"} available.`,
@@ -7662,7 +9470,9 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
       await Promise.all([fetchItems(), fetchShopItems()]);
     } catch (error) {
       console.error("Supply order error:", error);
-      window.alert(error.message || "Something went wrong while placing the order.");
+      window.alert(
+        error.message || "Something went wrong while placing the order.",
+      );
     } finally {
       setPlacingOrder(false);
     }
@@ -7796,34 +9606,78 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
         }
       `}</style>
 
-      <div className="stock-surface" style={{
-        background: C.white,
-        border: `1px solid ${C.border}`,
-        borderRadius: 18,
-        overflow: "hidden",
-        boxShadow: "0 2px 10px rgba(50,109,32,.05)",
-        display: "flex",
-        flexDirection: "column",
-      }}>
-        <div className="stock-order-header" style={{
-          padding: "14px 18px 14px 22px",
-          background: "#fbfcf8",
-          borderBottom: `1px solid ${C.border}`,
-          color: C.ink,
-        }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
-            <div style={{ width:34, height:34, borderRadius:10, background:C.greenLt, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+      <div
+        className="stock-surface"
+        style={{
+          background: C.white,
+          border: `1px solid ${C.border}`,
+          borderRadius: 18,
+          overflow: "hidden",
+          boxShadow: "0 2px 10px rgba(50,109,32,.05)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div
+          className="stock-order-header"
+          style={{
+            padding: "14px 18px 14px 22px",
+            background: "#fbfcf8",
+            borderBottom: `1px solid ${C.border}`,
+            color: C.ink,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              minWidth: 0,
+            }}
+          >
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: C.greenLt,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
               <Layers size={16} color={C.green} />
             </div>
-            <div style={{ minWidth:0 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                <span style={{ fontWeight:900, fontSize:15 }}>{userBrand || "Stock Inventory"}</span>
-                <span style={{ padding:"4px 8px", borderRadius:999, background:C.white, border:`1px solid ${C.border}`, color:C.muted, fontSize:10, fontWeight:800 }}>
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                <span style={{ fontWeight: 900, fontSize: 15 }}>
+                  {userBrand || "Stock Inventory"}
+                </span>
+                <span
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 999,
+                    background: C.white,
+                    border: `1px solid ${C.border}`,
+                    color: C.muted,
+                    fontSize: 10,
+                    fontWeight: 800,
+                  }}
+                >
                   {userBranch || "No branch assigned"}
                 </span>
               </div>
-              <div style={{ marginTop:4, fontSize:11, color:C.muted }}>
-                Monitor branch stock and order approved supplies without leaving this screen.
+              <div style={{ marginTop: 4, fontSize: 11, color: C.muted }}>
+                Monitor branch stock and order approved supplies without leaving
+                this screen.
               </div>
             </div>
           </div>
@@ -7836,29 +9690,95 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
             <ShoppingCart size={15} />
             Cart
             <span className="stock-cart-count">{cartItemCount}</span>
-            <span style={{ opacity:.92 }}>{fmtPeso(cartTotal)}</span>
+            <span style={{ opacity: 0.92 }}>{fmtPeso(cartTotal)}</span>
           </button>
         </div>
 
-        <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:6, flexWrap:"wrap", background:"#fbfcf8" }}>
-          <div style={{ position:"relative", flex:"1 1 190px", minWidth:130 }}>
-            <div style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={11} /></div>
-            <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search item, category, SKU…" style={{ ...invInputSt, height:32, fontSize:12, paddingLeft:25 }} />
+        <div
+          style={{
+            padding: "12px 18px",
+            borderBottom: `1px solid ${C.border}`,
+            display: "flex",
+            gap: 6,
+            flexWrap: "wrap",
+            background: "#fbfcf8",
+          }}
+        >
+          <div
+            style={{ position: "relative", flex: "1 1 190px", minWidth: 130 }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                left: 8,
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: C.muted,
+              }}
+            >
+              <SearchIcon size={11} />
+            </div>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search item, category, SKU…"
+              style={{
+                ...invInputSt,
+                height: 32,
+                fontSize: 12,
+                paddingLeft: 25,
+              }}
+            />
           </div>
-          <div style={{ ...invInputSt, height:32, minWidth:150, fontSize:11, padding:"6px 10px", background:C.bg, color:C.ink, fontWeight:700, display:"flex", alignItems:"center", gap:6 }}>
-            <StoreIcon size={12} color={C.green} /> {userBranch || "Assigned Branch"}
+          <div
+            style={{
+              ...invInputSt,
+              height: 32,
+              minWidth: 150,
+              fontSize: 11,
+              padding: "6px 10px",
+              background: C.bg,
+              color: C.ink,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <StoreIcon size={12} color={C.green} />{" "}
+            {userBranch || "Assigned Branch"}
           </div>
           {categoryOptions.length > 0 && (
-            <select value={categoryF} onChange={(e)=>setCategoryF(e.target.value)} style={{ ...invInputSt, height:32, fontSize:11, width:150 }}>
+            <select
+              value={categoryF}
+              onChange={(e) => setCategoryF(e.target.value)}
+              style={{ ...invInputSt, height: 32, fontSize: 11, width: 150 }}
+            >
               <option value="">All Categories</option>
-              {categoryOptions.map((cat)=><option key={cat} value={cat}>{cat}</option>)}
+              {categoryOptions.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
             </select>
           )}
-          <select value={unitF} onChange={(e)=>setUnitF(e.target.value)} style={{ ...invInputSt, height:32, fontSize:11, width:100 }}>
+          <select
+            value={unitF}
+            onChange={(e) => setUnitF(e.target.value)}
+            style={{ ...invInputSt, height: 32, fontSize: 11, width: 100 }}
+          >
             <option value="">All Units</option>
-            {UNITS.map((u)=><option key={u} value={u}>{u}</option>)}
+            {UNITS.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
           </select>
-          <select value={statusF} onChange={(e)=>setStatusF(e.target.value)} style={{ ...invInputSt, height:32, fontSize:11, width:118 }}>
+          <select
+            value={statusF}
+            onChange={(e) => setStatusF(e.target.value)}
+            style={{ ...invInputSt, height: 32, fontSize: 11, width: 118 }}
+          >
             <option value="">All Status</option>
             <option value="low">Low Stock</option>
             <option value="ok">In Stock</option>
@@ -7866,18 +9786,54 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
             {hasExpiry && <option value="expired">Expired</option>}
           </select>
           {(search || categoryF || unitF || statusF) && (
-            <button type="button" className="v-btn v-btn-secondary" style={{ minHeight:32, padding:"6px 11px", fontSize:11 }} onClick={()=>{setSearch("");setCategoryF("");setUnitF("");setStatusF("");}}>
+            <button
+              type="button"
+              className="v-btn v-btn-secondary"
+              style={{ minHeight: 32, padding: "6px 11px", fontSize: 11 }}
+              onClick={() => {
+                setSearch("");
+                setCategoryF("");
+                setUnitF("");
+                setStatusF("");
+              }}
+            >
               Clear
             </button>
           )}
-          <button type="button" className="v-btn v-btn-secondary" style={{ minHeight:32, padding:"6px 11px", fontSize:11 }} onClick={()=>{fetchItems();fetchShopItems();}} disabled={loading || shopLoading}>
-            <RefreshCw size={13} className={loading || shopLoading ? "fr-spin" : ""} />
+          <button
+            type="button"
+            className="v-btn v-btn-secondary"
+            style={{ minHeight: 32, padding: "6px 11px", fontSize: 11 }}
+            onClick={() => {
+              fetchItems();
+              fetchShopItems();
+            }}
+            disabled={loading || shopLoading}
+          >
+            <RefreshCw
+              size={13}
+              className={loading || shopLoading ? "fr-spin" : ""}
+            />
             Refresh
           </button>
         </div>
 
         {(inventoryError || shopError) && (
-          <div role="alert" style={{ margin:"12px 18px 0", padding:"10px 12px", border:"1px solid #f2c9c4", borderRadius:10, background:C.redBg, color:C.red, fontSize:11, display:"flex", gap:8, alignItems:"center" }}>
+          <div
+            role="alert"
+            style={{
+              margin: "12px 18px 0",
+              padding: "10px 12px",
+              border: "1px solid #f2c9c4",
+              borderRadius: 10,
+              background: C.redBg,
+              color: C.red,
+              fontSize: 11,
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+            }}
+          >
             <AlertTriangle size={14} />
             {inventoryError || shopError}
           </div>
@@ -7886,23 +9842,48 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
         <div className="stock-order-layout" aria-busy={loading || shopLoading}>
           <div className="stock-order-list" aria-label="Branch inventory items">
             {loading ? (
-              <div style={{ padding:"50px 20px", textAlign:"center", color:C.muted }}>
+              <div
+                style={{
+                  padding: "50px 20px",
+                  textAlign: "center",
+                  color: C.muted,
+                }}
+              >
                 <RefreshCw size={20} className="fr-spin" />
-                <div style={{ marginTop:10, fontSize:12 }}>Loading inventory…</div>
+                <div style={{ marginTop: 10, fontSize: 12 }}>
+                  Loading inventory…
+                </div>
               </div>
             ) : filtered.length === 0 ? (
-              <div style={{ padding:"44px 20px", textAlign:"center", color:C.muted }}>
+              <div
+                style={{
+                  padding: "44px 20px",
+                  textAlign: "center",
+                  color: C.muted,
+                }}
+              >
                 <Package size={26} />
-                <div style={{ marginTop:10, fontSize:12, fontWeight:800 }}>{items.length ? "No items match your filters." : "No items found for your assigned brand and branch."}</div>
+                <div style={{ marginTop: 10, fontSize: 12, fontWeight: 800 }}>
+                  {items.length
+                    ? "No items match your filters."
+                    : "No items found for your assigned brand and branch."}
+                </div>
               </div>
             ) : (
               filtered.map((item) => {
                 const active = item.id === selectedId;
                 const stockValue = Math.max(0, Number(item.stock ?? 0));
                 const low = isLowStock(item);
-                const stockPercent = maxBarStock > 0
-                  ? Math.min(100, Math.max(0, Math.round((stockValue / maxBarStock) * 100)))
-                  : 0;
+                const stockPercent =
+                  maxBarStock > 0
+                    ? Math.min(
+                        100,
+                        Math.max(
+                          0,
+                          Math.round((stockValue / maxBarStock) * 100),
+                        ),
+                      )
+                    : 0;
                 const stockBarLabel = low
                   ? `Low stock: ${frStockQuantity(item.stock, item.unit)} (${stockPercent}% of highest stock)`
                   : `Stock okay: ${frStockQuantity(item.stock, item.unit)} (${stockPercent}% of highest stock)`;
@@ -7923,8 +9904,16 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
                   >
                     <span className="stock-order-row-top">
                       <span className="stock-order-row-name">{item.name}</span>
-                      <span className="stock-order-row-meta">{[item.sku || "No SKU", item.branch || userBranch].filter(Boolean).join("  •  ")}</span>
-                      <span className="stock-order-row-submeta">{[item.name, item.branch || userBranch].filter(Boolean).join("  •  ")}</span>
+                      <span className="stock-order-row-meta">
+                        {[item.sku || "No SKU", item.branch || userBranch]
+                          .filter(Boolean)
+                          .join("  •  ")}
+                      </span>
+                      <span className="stock-order-row-submeta">
+                        {[item.name, item.branch || userBranch]
+                          .filter(Boolean)
+                          .join("  •  ")}
+                      </span>
                     </span>
                     <span
                       className={`stock-order-stock-line${low ? " low-track" : ""}`}
@@ -7941,12 +9930,26 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
                       />
                     </span>
                     {(onEdit || onDelete) && (
-                      <span style={{ display:"flex", gap:6, marginTop:7 }}>
+                      <span style={{ display: "flex", gap: 6, marginTop: 7 }}>
                         {onEdit && (
                           <button
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); onEdit(item); }}
-                            style={{ minHeight:24, height:24, padding:"0 9px", borderRadius:7, border:`1px solid ${C.border}`, background:C.white, color:C.green, fontSize:10.5, fontWeight:700, cursor:"pointer" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEdit(item);
+                            }}
+                            style={{
+                              minHeight: 24,
+                              height: 24,
+                              padding: "0 9px",
+                              borderRadius: 7,
+                              border: `1px solid ${C.border}`,
+                              background: C.white,
+                              color: C.green,
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
                           >
                             <Pencil size={10} /> Edit
                           </button>
@@ -7954,8 +9957,22 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
                         {onDelete && (
                           <button
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); onDelete(item); }}
-                            style={{ minHeight:24, height:24, padding:"0 9px", borderRadius:7, border:"1px solid #fecaca", background:C.white, color:"#e53935", fontSize:10.5, fontWeight:700, cursor:"pointer" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDelete(item);
+                            }}
+                            style={{
+                              minHeight: 24,
+                              height: 24,
+                              padding: "0 9px",
+                              borderRadius: 7,
+                              border: "1px solid #fecaca",
+                              background: C.white,
+                              color: "#e53935",
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
                           >
                             <Trash2 size={10} /> Delete
                           </button>
@@ -7968,7 +9985,11 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
             )}
           </div>
 
-          <section id="fr-stock-order-detail" className="stock-order-detail" aria-label="Stock details and supply ordering">
+          <section
+            id="fr-stock-order-detail"
+            className="stock-order-detail"
+            aria-label="Stock details and supply ordering"
+          >
             {selected ? (
               <div>
                 <div className="stock-order-queue-panel">
@@ -7986,55 +10007,196 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
 
                 <div className="stock-order-detail-panel">
                   <div className="stock-order-hero">
-                    <div style={{ display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-start" }}>
-                      <div style={{ minWidth:0 }}>
-                        <div style={{ fontSize:9.5, fontWeight:800, letterSpacing:".08em", textTransform:"uppercase", color:C.muted }}>Supply Details</div>
-                        <h2 style={{ margin:"4px 0 0", fontSize:18, lineHeight:1.2, color:C.ink, overflowWrap:"anywhere" }}>{selected.name}</h2>
-                        <div style={{ marginTop:5, color:C.muted, fontSize:10.5 }}>
-                          {[selected.brand || userBrand, selected.branch || userBranch, selected.sku].filter(Boolean).join(" · ")}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 9.5,
+                            fontWeight: 800,
+                            letterSpacing: ".08em",
+                            textTransform: "uppercase",
+                            color: C.muted,
+                          }}
+                        >
+                          Supply Details
+                        </div>
+                        <h2
+                          style={{
+                            margin: "4px 0 0",
+                            fontSize: 18,
+                            lineHeight: 1.2,
+                            color: C.ink,
+                            overflowWrap: "anywhere",
+                          }}
+                        >
+                          {selected.name}
+                        </h2>
+                        <div
+                          style={{
+                            marginTop: 5,
+                            color: C.muted,
+                            fontSize: 10.5,
+                          }}
+                        >
+                          {[
+                            selected.brand || userBrand,
+                            selected.branch || userBranch,
+                            selected.sku,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </div>
                       </div>
-                      {isLowStock(selected) && <span className="v-badge v-badge-red" style={{ fontSize:9.5, padding:"3px 9px" }}>Low Stock</span>}
+                      {isLowStock(selected) && (
+                        <span
+                          className="v-badge v-badge-red"
+                          style={{ fontSize: 9.5, padding: "3px 9px" }}
+                        >
+                          Low Stock
+                        </span>
+                      )}
                     </div>
                   </div>
 
                   <div className="stock-order-facts">
-                    <div className="stock-order-fact"><div className="stock-order-fact-label">Your Stock</div><div className="stock-order-fact-value">{frStockQuantity(selectedCurrentStock, selected.unit)}</div></div>
-                    <div className="stock-order-fact"><div className="stock-order-fact-label">Category</div><div className="stock-order-fact-value">{selected.category || "—"}</div></div>
-                    <div className="stock-order-fact"><div className="stock-order-fact-label">Supply Available</div><div className="stock-order-fact-value">{selectedShopItem ? `${selectedSupplyAvailable} ${selectedUnit}` : "—"}</div></div>
-                    <div className="stock-order-fact"><div className="stock-order-fact-label">Unit Price</div><div className="stock-order-fact-value">{selectedShopItem ? fmtPeso(selectedPrice) : "—"}</div></div>
+                    <div className="stock-order-fact">
+                      <div className="stock-order-fact-label">Your Stock</div>
+                      <div className="stock-order-fact-value">
+                        {frStockQuantity(selectedCurrentStock, selected.unit)}
+                      </div>
+                    </div>
+                    <div className="stock-order-fact">
+                      <div className="stock-order-fact-label">Category</div>
+                      <div className="stock-order-fact-value">
+                        {selected.category || "—"}
+                      </div>
+                    </div>
+                    <div className="stock-order-fact">
+                      <div className="stock-order-fact-label">
+                        Supply Available
+                      </div>
+                      <div className="stock-order-fact-value">
+                        {selectedShopItem
+                          ? `${selectedSupplyAvailable} ${selectedUnit}`
+                          : "—"}
+                      </div>
+                    </div>
+                    <div className="stock-order-fact">
+                      <div className="stock-order-fact-label">Unit Price</div>
+                      <div className="stock-order-fact-value">
+                        {selectedShopItem ? fmtPeso(selectedPrice) : "—"}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="stock-order-purchase">
                     <div className="stock-order-purchase-top">
                       <div>
-                        <div className="stock-order-price-big">{selectedShopItem ? fmtPeso(selectedPrice) : "Not Listed"}</div>
-                        <div className="stock-order-price-unit">{selectedShopItem ? `per ${selectedUnit}` : "This item is not currently configured for ordering"}</div>
+                        <div className="stock-order-price-big">
+                          {selectedShopItem
+                            ? fmtPeso(selectedPrice)
+                            : "Not Listed"}
+                        </div>
+                        <div className="stock-order-price-unit">
+                          {selectedShopItem
+                            ? `per ${selectedUnit}`
+                            : "This item is not currently configured for ordering"}
+                        </div>
                       </div>
-                      <span className={`stock-order-availability${!selectedShopItem || selectedSupplyAvailable <= 0 ? " out" : ""}`}>
-                        {shopLoading ? "Checking…" : selectedShopItem ? (selectedSupplyAvailable > 0 ? `${selectedSupplyAvailable} available` : "Out of stock") : "Not orderable"}
+                      <span
+                        className={`stock-order-availability${!selectedShopItem || selectedSupplyAvailable <= 0 ? " out" : ""}`}
+                      >
+                        {shopLoading
+                          ? "Checking…"
+                          : selectedShopItem
+                            ? selectedSupplyAvailable > 0
+                              ? `${selectedSupplyAvailable} available`
+                              : "Out of stock"
+                            : "Not orderable"}
                       </span>
                     </div>
 
                     {selectedShopItem && selectedSupplyAvailable > 0 ? (
                       <>
                         <div className="stock-order-stepper">
-                          <button type="button" aria-label="Decrease quantity" onClick={()=>updateCartQuantity(selectedShopItem.id,-1)} disabled={selectedCartQty<=0}>−</button>
+                          <button
+                            type="button"
+                            aria-label="Decrease quantity"
+                            onClick={() =>
+                              updateCartQuantity(selectedShopItem.id, -1)
+                            }
+                            disabled={selectedCartQty <= 0}
+                          >
+                            −
+                          </button>
                           <strong>{selectedCartQty || 1}</strong>
-                          <button type="button" aria-label="Increase quantity" onClick={()=>addToCart(selectedShopItem, selected, 1)} disabled={selectedCartQty>=selectedSupplyAvailable}>+</button>
-                          <span style={{ marginLeft:2, color:C.muted, fontSize:9.5 }}>in cart</span>
+                          <button
+                            type="button"
+                            aria-label="Increase quantity"
+                            onClick={() =>
+                              addToCart(selectedShopItem, selected, 1)
+                            }
+                            disabled={
+                              selectedCartQty >= selectedSupplyAvailable
+                            }
+                          >
+                            +
+                          </button>
+                          <span
+                            style={{
+                              marginLeft: 2,
+                              color: C.muted,
+                              fontSize: 9.5,
+                            }}
+                          >
+                            in cart
+                          </span>
                         </div>
                         <div className="stock-order-actions">
-                          <button type="button" className="v-btn v-btn-secondary" onClick={()=>addToCart(selectedShopItem, selected, 1)} disabled={selectedCartQty>=selectedSupplyAvailable}>
+                          <button
+                            type="button"
+                            className="v-btn v-btn-secondary"
+                            onClick={() =>
+                              addToCart(selectedShopItem, selected, 1)
+                            }
+                            disabled={
+                              selectedCartQty >= selectedSupplyAvailable
+                            }
+                          >
                             <ShoppingCart size={13} /> Add to Cart
                           </button>
-                          <button type="button" className="v-btn v-btn-primary" onClick={buyNow} disabled={!selectedShopItem || selectedSupplyAvailable<=0}>
+                          <button
+                            type="button"
+                            className="v-btn v-btn-primary"
+                            onClick={buyNow}
+                            disabled={
+                              !selectedShopItem || selectedSupplyAvailable <= 0
+                            }
+                          >
                             Buy Now
                           </button>
                         </div>
                         {selectedCartQty > 0 && (
-                          <div style={{ marginTop:8, padding:"7px 9px", borderRadius:8, background:C.white, border:`1px solid ${C.border}`, fontSize:10, color:C.muted }}>
-                            {selectedCartQty} {selectedUnit} in cart · {fmtPeso(selectedCartQty * selectedPrice)}
+                          <div
+                            style={{
+                              marginTop: 8,
+                              padding: "7px 9px",
+                              borderRadius: 8,
+                              background: C.white,
+                              border: `1px solid ${C.border}`,
+                              fontSize: 10,
+                              color: C.muted,
+                            }}
+                          >
+                            {selectedCartQty} {selectedUnit} in cart ·{" "}
+                            {fmtPeso(selectedCartQty * selectedPrice)}
                           </div>
                         )}
                       </>
@@ -8049,11 +10211,46 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
                 </div>
               </div>
             ) : (
-              <div className="stock-order-detail-card" style={{ minHeight:430, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                <div style={{ textAlign:"center", padding:30, color:C.muted }}>
-                  <div style={{ width:48, height:48, borderRadius:13, background:C.greenLt, margin:"0 auto 12px", display:"flex", alignItems:"center", justifyContent:"center" }}><Layers size={22} color={C.green} /></div>
-                  <div style={{ fontSize:14, fontWeight:900, color:C.ink }}>Select an inventory item</div>
-                  <div style={{ marginTop:5, maxWidth:290, fontSize:10.5, lineHeight:1.6 }}>View the stock rotation queue first, then review supply details and order quantity.</div>
+              <div
+                className="stock-order-detail-card"
+                style={{
+                  minHeight: 430,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <div
+                  style={{ textAlign: "center", padding: 30, color: C.muted }}
+                >
+                  <div
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 13,
+                      background: C.greenLt,
+                      margin: "0 auto 12px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Layers size={22} color={C.green} />
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: C.ink }}>
+                    Select an inventory item
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 5,
+                      maxWidth: 290,
+                      fontSize: 10.5,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    View the stock rotation queue first, then review supply
+                    details and order quantity.
+                  </div>
                 </div>
               </div>
             )}
@@ -8062,109 +10259,389 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
       </div>
 
       {showCart && (
-        <div className="v-modal-overlay" onMouseDown={()=>setShowCart(false)}>
-          <div className="v-modal stock-order-cart-modal" onMouseDown={(e)=>e.stopPropagation()}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12 }}>
+        <div className="v-modal-overlay" onMouseDown={() => setShowCart(false)}>
+          <div
+            className="v-modal stock-order-cart-modal"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
               <div>
                 <div className="v-modal-title">Supply Cart</div>
-                <div className="stock-order-muted" style={{ marginTop:4 }}>{userBrand} · {userBranch}</div>
+                <div className="stock-order-muted" style={{ marginTop: 4 }}>
+                  {userBrand} · {userBranch}
+                </div>
               </div>
-              <button type="button" className="v-btn v-btn-secondary" onClick={()=>setShowCart(false)}><X size={14}/> Close</button>
+              <button
+                type="button"
+                className="v-btn v-btn-secondary"
+                onClick={() => setShowCart(false)}
+              >
+                <X size={14} /> Close
+              </button>
             </div>
 
             {cartLineItems.length ? (
               <>
-                <div style={{ marginTop:18, border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden" }}>
+                <div
+                  style={{
+                    marginTop: 18,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 14,
+                    overflow: "hidden",
+                  }}
+                >
                   {cartLineItems.map((entry) => (
                     <div key={entry.id} className="stock-order-cart-row">
-                      <div style={{ minWidth:0 }}>
-                        <div style={{ fontSize:13, fontWeight:900, color:C.ink, overflowWrap:"anywhere" }}>{entry.name}</div>
-                        <div className="stock-order-muted" style={{ marginTop:3 }}>{entry.unit || "unit"} · {fmtPeso(entry.price)} each</div>
-                        {entry.stock <= 0 && <div style={{ color:C.red, fontSize:10.5, marginTop:4, fontWeight:800 }}>No longer available</div>}
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 900,
+                            color: C.ink,
+                            overflowWrap: "anywhere",
+                          }}
+                        >
+                          {entry.name}
+                        </div>
+                        <div
+                          className="stock-order-muted"
+                          style={{ marginTop: 3 }}
+                        >
+                          {entry.unit || "unit"} · {fmtPeso(entry.price)} each
+                        </div>
+                        {entry.stock <= 0 && (
+                          <div
+                            style={{
+                              color: C.red,
+                              fontSize: 10.5,
+                              marginTop: 4,
+                              fontWeight: 800,
+                            }}
+                          >
+                            No longer available
+                          </div>
+                        )}
                       </div>
-                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                        <button type="button" className="v-btn v-btn-sm" onClick={()=>updateCartQuantity(entry.id,-1)}>−</button>
-                        <strong style={{ minWidth:20, textAlign:"center" }}>{entry.quantity}</strong>
-                        <button type="button" className="v-btn v-btn-sm" onClick={()=>updateCartQuantity(entry.id,1)} disabled={entry.quantity>=entry.stock}>+</button>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="v-btn v-btn-sm"
+                          onClick={() => updateCartQuantity(entry.id, -1)}
+                        >
+                          −
+                        </button>
+                        <strong style={{ minWidth: 20, textAlign: "center" }}>
+                          {entry.quantity}
+                        </strong>
+                        <button
+                          type="button"
+                          className="v-btn v-btn-sm"
+                          onClick={() => updateCartQuantity(entry.id, 1)}
+                          disabled={entry.quantity >= entry.stock}
+                        >
+                          +
+                        </button>
                       </div>
-                      <div style={{ display:"flex", alignItems:"center", gap:9, justifyContent:"flex-end" }}>
-                        <strong style={{ color:C.greenDk }}>{fmtPeso(entry.price * entry.quantity)}</strong>
-                        <button type="button" className="v-btn v-btn-sm" title="Remove" onClick={()=>removeFromCart(entry.id)}><Trash2 size={13}/></button>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 9,
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        <strong style={{ color: C.greenDk }}>
+                          {fmtPeso(entry.price * entry.quantity)}
+                        </strong>
+                        <button
+                          type="button"
+                          className="v-btn v-btn-sm"
+                          title="Remove"
+                          onClick={() => removeFromCart(entry.id)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </div>
                   ))}
                 </div>
-                <div style={{ marginTop:16 }}>
-                  <div className="stock-order-summary-row stock-order-summary-total"><span style={{ color:C.muted, fontWeight:800 }}>Estimated total</span><strong style={{ fontSize:20, color:C.greenDk }}>{fmtPeso(cartTotal)}</strong></div>
-                  <button type="button" className="v-btn v-btn-primary" style={{ width:"100%", minHeight:46, marginTop:12 }} onClick={()=>prepareCheckout(cartLineItems,false)} disabled={!cartLineItems.length}>
+                <div style={{ marginTop: 16 }}>
+                  <div className="stock-order-summary-row stock-order-summary-total">
+                    <span style={{ color: C.muted, fontWeight: 800 }}>
+                      Estimated total
+                    </span>
+                    <strong style={{ fontSize: 20, color: C.greenDk }}>
+                      {fmtPeso(cartTotal)}
+                    </strong>
+                  </div>
+                  <button
+                    type="button"
+                    className="v-btn v-btn-primary"
+                    style={{ width: "100%", minHeight: 46, marginTop: 12 }}
+                    onClick={() => prepareCheckout(cartLineItems, false)}
+                    disabled={!cartLineItems.length}
+                  >
                     Proceed to Checkout
                   </button>
                 </div>
               </>
             ) : (
-              <div style={{ textAlign:"center", padding:"50px 20px", color:C.muted }}><ShoppingCart size={28}/><div style={{ marginTop:10, fontWeight:800, color:C.ink }}>Your cart is empty</div></div>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "50px 20px",
+                  color: C.muted,
+                }}
+              >
+                <ShoppingCart size={28} />
+                <div style={{ marginTop: 10, fontWeight: 800, color: C.ink }}>
+                  Your cart is empty
+                </div>
+              </div>
             )}
           </div>
         </div>
       )}
 
       {showCheckout && (
-        <div className="v-modal-overlay" onMouseDown={()=>!placingOrder && setShowCheckout(false)}>
-          <div className="v-modal stock-order-checkout-modal" onMouseDown={(e)=>e.stopPropagation()}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12 }}>
+        <div
+          className="v-modal-overlay"
+          onMouseDown={() => !placingOrder && setShowCheckout(false)}
+        >
+          <div
+            className="v-modal stock-order-checkout-modal"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
               <div>
                 <div className="v-modal-title">Checkout Supply Order</div>
-                <div className="stock-order-muted" style={{ marginTop:4 }}>{userBrand} · {userBranch}</div>
+                <div className="stock-order-muted" style={{ marginTop: 4 }}>
+                  {userBrand} · {userBranch}
+                </div>
               </div>
-              <button type="button" className="v-btn v-btn-secondary" onClick={()=>setShowCheckout(false)} disabled={placingOrder}><X size={14}/> Close</button>
+              <button
+                type="button"
+                className="v-btn v-btn-secondary"
+                onClick={() => setShowCheckout(false)}
+                disabled={placingOrder}
+              >
+                <X size={14} /> Close
+              </button>
             </div>
 
             {orderSuccess ? (
               <div className="stock-order-success">
-                <CheckCircle size={50} color={C.green}/>
-                <div style={{ marginTop:14, fontSize:20, fontWeight:900, color:C.ink }}>Order Placed</div>
-                <div className="stock-order-muted" style={{ marginTop:7 }}>Order #{orderSuccess.id} · {fmtPeso(orderSuccess.total)}</div>
-                <div style={{ marginTop:12, fontSize:11.5, color:C.muted }}>Your supply order has been submitted for processing.</div>
-                <button type="button" className="v-btn v-btn-primary" style={{ marginTop:20, minWidth:120 }} onClick={()=>{setShowCheckout(false);setOrderSuccess(null);}}>Done</button>
+                <CheckCircle size={50} color={C.green} />
+                <div
+                  style={{
+                    marginTop: 14,
+                    fontSize: 20,
+                    fontWeight: 900,
+                    color: C.ink,
+                  }}
+                >
+                  Order Placed
+                </div>
+                <div className="stock-order-muted" style={{ marginTop: 7 }}>
+                  Order #{orderSuccess.id} · {fmtPeso(orderSuccess.total)}
+                </div>
+                <div style={{ marginTop: 12, fontSize: 11.5, color: C.muted }}>
+                  Your supply order has been submitted for processing.
+                </div>
+                <button
+                  type="button"
+                  className="v-btn v-btn-primary"
+                  style={{ marginTop: 20, minWidth: 120 }}
+                  onClick={() => {
+                    setShowCheckout(false);
+                    setOrderSuccess(null);
+                  }}
+                >
+                  Done
+                </button>
               </div>
             ) : (
               <>
-                <div style={{ display:"grid", gridTemplateColumns:"1.25fr .9fr", gap:16, marginTop:18 }}>
-                  <div style={{ border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden" }}>
-                    <div style={{ padding:"10px 14px", background:C.bg, borderBottom:`1px solid ${C.border}`, fontSize:10.5, fontWeight:900, textTransform:"uppercase", letterSpacing:".06em", color:C.muted }}>Order summary</div>
-                    {checkoutItems.map((entry)=>(
-                      <div key={entry.id} style={{ padding:"12px 14px", borderBottom:`1px solid #F0F2EC`, display:"flex", justifyContent:"space-between", gap:12, alignItems:"center" }}>
-                        <div style={{ minWidth:0 }}><div style={{ fontSize:12.5, fontWeight:900, color:C.ink, overflowWrap:"anywhere" }}>{entry.name}</div><div className="stock-order-muted" style={{ marginTop:3 }}>{entry.quantity} × {fmtPeso(entry.price)} / {entry.unit || "unit"}</div></div>
-                        <strong style={{ color:C.greenDk, whiteSpace:"nowrap" }}>{fmtPeso(entry.quantity * entry.price)}</strong>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.25fr .9fr",
+                    gap: 16,
+                    marginTop: 18,
+                  }}
+                >
+                  <div
+                    style={{
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 14,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "10px 14px",
+                        background: C.bg,
+                        borderBottom: `1px solid ${C.border}`,
+                        fontSize: 10.5,
+                        fontWeight: 900,
+                        textTransform: "uppercase",
+                        letterSpacing: ".06em",
+                        color: C.muted,
+                      }}
+                    >
+                      Order summary
+                    </div>
+                    {checkoutItems.map((entry) => (
+                      <div
+                        key={entry.id}
+                        style={{
+                          padding: "12px 14px",
+                          borderBottom: `1px solid #F0F2EC`,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          alignItems: "center",
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontSize: 12.5,
+                              fontWeight: 900,
+                              color: C.ink,
+                              overflowWrap: "anywhere",
+                            }}
+                          >
+                            {entry.name}
+                          </div>
+                          <div
+                            className="stock-order-muted"
+                            style={{ marginTop: 3 }}
+                          >
+                            {entry.quantity} × {fmtPeso(entry.price)} /{" "}
+                            {entry.unit || "unit"}
+                          </div>
+                        </div>
+                        <strong
+                          style={{ color: C.greenDk, whiteSpace: "nowrap" }}
+                        >
+                          {fmtPeso(entry.quantity * entry.price)}
+                        </strong>
                       </div>
                     ))}
-                    <div style={{ padding:"12px 14px", display:"flex", justifyContent:"space-between", alignItems:"center" }}><span style={{ fontWeight:800, color:C.muted }}>Total</span><strong style={{ fontSize:19, color:C.greenDk }}>{fmtPeso(checkoutTotal)}</strong></div>
+                    <div
+                      style={{
+                        padding: "12px 14px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <span style={{ fontWeight: 800, color: C.muted }}>
+                        Total
+                      </span>
+                      <strong style={{ fontSize: 19, color: C.greenDk }}>
+                        {fmtPeso(checkoutTotal)}
+                      </strong>
+                    </div>
                   </div>
 
                   <div>
                     <div className="v-form-group">
                       <label className="v-form-label">Delivery Address</label>
-                      <textarea className="v-form-input" rows={4} value={address} onChange={(e)=>setAddress(e.target.value)} placeholder="Enter the supply delivery address" style={{ resize:"vertical" }}/>
+                      <textarea
+                        className="v-form-input"
+                        rows={4}
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        placeholder="Enter the supply delivery address"
+                        style={{ resize: "vertical" }}
+                      />
                     </div>
                     <div className="v-form-group">
                       <label className="v-form-label">Payment Method</label>
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
-                        <button type="button" className={`v-btn ${paymentMethod === "cod" ? "v-btn-primary" : "v-btn-secondary"}`} onClick={()=>setPaymentMethod("cod")}>Cash on Delivery</button>
-                        <button type="button" className={`v-btn ${paymentMethod === "gcash" ? "v-btn-primary" : "v-btn-secondary"}`} onClick={()=>setPaymentMethod("gcash")}>GCash</button>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: 7,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className={`v-btn ${paymentMethod === "cod" ? "v-btn-primary" : "v-btn-secondary"}`}
+                          onClick={() => setPaymentMethod("cod")}
+                        >
+                          Cash on Delivery
+                        </button>
+                        <button
+                          type="button"
+                          className={`v-btn ${paymentMethod === "gcash" ? "v-btn-primary" : "v-btn-secondary"}`}
+                          onClick={() => setPaymentMethod("gcash")}
+                        >
+                          GCash
+                        </button>
                       </div>
                     </div>
                     {paymentMethod === "gcash" && (
                       <div className="v-form-group">
-                        <label className="v-form-label">GCash Reference Number</label>
-                        <input className="v-form-input" value={gcashRef} onChange={(e)=>setGcashRef(e.target.value)} placeholder="Enter GCash reference number"/>
+                        <label className="v-form-label">
+                          GCash Reference Number
+                        </label>
+                        <input
+                          className="v-form-input"
+                          value={gcashRef}
+                          onChange={(e) => setGcashRef(e.target.value)}
+                          placeholder="Enter GCash reference number"
+                        />
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div style={{ marginTop:16, display:"flex", justifyContent:"flex-end", gap:8 }}>
-                  <button type="button" className="v-btn v-btn-secondary" onClick={()=>setShowCheckout(false)} disabled={placingOrder}>Back</button>
-                  <button type="button" className="v-btn v-btn-primary" style={{ minWidth:170, minHeight:44 }} onClick={submitOrder} disabled={placingOrder}>
+                <div
+                  style={{
+                    marginTop: 16,
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: 8,
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="v-btn v-btn-secondary"
+                    onClick={() => setShowCheckout(false)}
+                    disabled={placingOrder}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    className="v-btn v-btn-primary"
+                    style={{ minWidth: 170, minHeight: 44 }}
+                    onClick={submitOrder}
+                    disabled={placingOrder}
+                  >
                     {placingOrder ? "Placing Order…" : "Place Order"}
                   </button>
                 </div>
@@ -8177,1190 +10654,1333 @@ function ManagerFrStockInventoryContent({ user, brands, onEdit, onDelete, initia
   );
 }
 
-
-function ManagerStockInventoryContent({ user, brands: propBrands = [], initialFocus = null, }) {
-    const normalizedRole = String(user?.role || "")
-        .trim()
-        .toLowerCase();
-    const isSuperAdmin = normalizedRole === "super admin";
-    const isSalesAdmin = normalizedRole === "sales admin";
-    const isOperationsAdmin = normalizedRole === "franchisee operations admin" ||
-        normalizedRole === "franchise operations admin" ||
-        normalizedRole === "franchisor operations admin";
-    const isFranchisee = normalizedRole === "franchisee";
-    const isManager = normalizedRole === "manager";
-    const canViewAllInventory = isSuperAdmin || isSalesAdmin || isOperationsAdmin;
-    const isAdmin = canViewAllInventory;
-    const canEditInventory = isSuperAdmin || isSalesAdmin || isManager;
-    const isReadOnly = isOperationsAdmin || isFranchisee;
-    const userBranch = String(user?.branch || "").trim();
-    const userBrand = String(user?.brand || user?.brand_name || user?.brandName || "").trim();
-    const userName = user?.name || "Unknown";
-    const [savingItem, setSavingItem] = useState(false);
-    const [deletingItem, setDeletingItem] = useState(false);
-    const [restoringId, setRestoringId] = useState(null);
-    const [toast, setToast] = useState(null);
-    const brandList = propBrands.length > 0 ? propBrands : [];
-    const connectedBrandDefs = useMemo(() => BRAND_DEFS.filter((bd) => brandList.some((b) => bd.match((b.name || "").toLowerCase()))).sort((a, b) => a.label.localeCompare(b.label)), [brandList]);
-    const defaultBulkQtyForUnit = (unit) => ["g", "ml"].includes(unit)
-        ? 1000
-        : unit === "liters"
+function ManagerStockInventoryContent({
+  user,
+  brands: propBrands = [],
+  initialFocus = null,
+}) {
+  const normalizedRole = String(user?.role || "")
+    .trim()
+    .toLowerCase();
+  const isSuperAdmin = normalizedRole === "super admin";
+  const isSalesAdmin = normalizedRole === "sales admin";
+  const isOperationsAdmin =
+    normalizedRole === "franchisee operations admin" ||
+    normalizedRole === "franchise operations admin" ||
+    normalizedRole === "franchisor operations admin";
+  const isFranchisee = normalizedRole === "franchisee";
+  const isManager = normalizedRole === "manager";
+  const canViewAllInventory = isSuperAdmin || isSalesAdmin || isOperationsAdmin;
+  const isAdmin = canViewAllInventory;
+  const canEditInventory = isSuperAdmin || isSalesAdmin || isManager;
+  const isReadOnly = isOperationsAdmin || isFranchisee;
+  const userBranch = String(user?.branch || "").trim();
+  const userBrand = String(
+    user?.brand || user?.brand_name || user?.brandName || "",
+  ).trim();
+  const userName = user?.name || "Unknown";
+  const [savingItem, setSavingItem] = useState(false);
+  const [deletingItem, setDeletingItem] = useState(false);
+  const [restoringId, setRestoringId] = useState(null);
+  const [toast, setToast] = useState(null);
+  const brandList = propBrands.length > 0 ? propBrands : [];
+  const connectedBrandDefs = useMemo(
+    () =>
+      BRAND_DEFS.filter((bd) =>
+        brandList.some((b) => bd.match((b.name || "").toLowerCase())),
+      ).sort((a, b) => a.label.localeCompare(b.label)),
+    [brandList],
+  );
+  const defaultBulkQtyForUnit = (unit) =>
+    ["g", "ml"].includes(unit)
+      ? 1000
+      : unit === "liters"
+        ? 200
+        : unit === "kg"
+          ? 50
+          : ["pcs", "bottles"].includes(unit)
+            ? 50
+            : 1;
+  const computeDisplayPrice = (cost, unit, bulkQtyOverride) => {
+    const bulkQty =
+      Number(bulkQtyOverride) > 0
+        ? Number(bulkQtyOverride)
+        : ["g", "ml"].includes(unit)
+          ? 1000
+          : unit === "liters"
             ? 200
             : unit === "kg"
+              ? 50
+              : ["pcs", "bottles"].includes(unit)
                 ? 50
-                : ["pcs", "bottles"].includes(unit)
-                    ? 50
-                    : 1;
-    const computeDisplayPrice = (cost, unit, bulkQtyOverride) => {
-        const bulkQty = Number(bulkQtyOverride) > 0
-            ? Number(bulkQtyOverride)
-            : ["g", "ml"].includes(unit)
-                ? 1000
-                : unit === "liters"
-                    ? 200
-                    : unit === "kg"
-                        ? 50
-                        : ["pcs", "bottles"].includes(unit)
-                            ? 50
-                            : 1;
-        return Math.round(Number(cost || 0) * bulkQty * 1.15 * 100) / 100;
-    };
-    const PACK_NAME_FOR_UNIT = {
-        g: "kg",
-        ml: "liters",
-        liters: "drums",
-        kg: "cylinders",
-        pcs: "packs",
-        bottles: "cases",
-    };
-    const bulkLabelFor = (unit, bulkQtyOverride) => {
-        if (!unit)
-            return "";
-        const qty = Number(bulkQtyOverride) > 0
-            ? Number(bulkQtyOverride)
-            : ["g", "ml"].includes(unit)
-                ? 1000
-                : unit === "liters"
-                    ? 200
-                    : unit === "kg"
-                        ? 50
-                        : ["pcs", "bottles"].includes(unit)
-                            ? 50
-                            : 1;
-        const packName = PACK_NAME_FOR_UNIT[unit] || `${unit} packs`;
-        return `${packName} (${qty}${unit})`;
-    };
-    const markupLabelFor = () => "+ 15%";
-    const ownBrandDef = useMemo(() => {
-        if (isAdmin)
-            return null;
-        // Manager account brand is authoritative.
-        let ownBrandObj = null;
+                : 1;
+    return Math.round(Number(cost || 0) * bulkQty * 1.15 * 100) / 100;
+  };
+  const PACK_NAME_FOR_UNIT = {
+    g: "kg",
+    ml: "liters",
+    liters: "drums",
+    kg: "cylinders",
+    pcs: "packs",
+    bottles: "cases",
+  };
+  const bulkLabelFor = (unit, bulkQtyOverride) => {
+    if (!unit) return "";
+    const qty =
+      Number(bulkQtyOverride) > 0
+        ? Number(bulkQtyOverride)
+        : ["g", "ml"].includes(unit)
+          ? 1000
+          : unit === "liters"
+            ? 200
+            : unit === "kg"
+              ? 50
+              : ["pcs", "bottles"].includes(unit)
+                ? 50
+                : 1;
+    const packName = PACK_NAME_FOR_UNIT[unit] || `${unit} packs`;
+    return `${packName} (${qty}${unit})`;
+  };
+  const markupLabelFor = () => "+ 15%";
+  const ownBrandDef = useMemo(() => {
+    if (isAdmin) return null;
+    // Manager account brand is authoritative.
+    let ownBrandObj = null;
+    if (userBrand) {
+      ownBrandObj = brandList.find(
+        (brandObj) =>
+          String(brandObj?.name || "")
+            .trim()
+            .toLowerCase() === userBrand.toLowerCase(),
+      );
+    }
+    // Only use branch as fallback for older
+    // accounts without a stored brand.
+    if (!ownBrandObj && userBranch) {
+      const matchingBrands = brandList.filter((brandObj) =>
+        (brandObj.branches || []).some((branchObj) => {
+          const branchName =
+            typeof branchObj === "string" ? branchObj : branchObj?.name;
+          return (
+            String(branchName || "")
+              .trim()
+              .toLowerCase() === userBranch.toLowerCase()
+          );
+        }),
+      );
+      // Only infer when the branch belongs
+      // to exactly one brand.
+      if (matchingBrands.length === 1) {
+        ownBrandObj = matchingBrands[0];
+      }
+    }
+    if (!ownBrandObj) return null;
+    return (
+      connectedBrandDefs.find((brandDef) =>
+        brandDef.match(String(ownBrandObj.name || "").toLowerCase()),
+      ) || null
+    );
+  }, [isAdmin, userBrand, userBranch, brandList, connectedBrandDefs]);
+  const visibleBrandDefs = isAdmin
+    ? connectedBrandDefs
+    : ownBrandDef
+      ? [ownBrandDef]
+      : [];
+  const allBranches = useMemo(() => {
+    const out = [];
+    brandList.forEach((b) =>
+      (b.branches || []).forEach((br) => {
+        const name = typeof br === "string" ? br : br.name;
+        if (!out.find((x) => x.branch === name))
+          out.push({ brand: b.name, branch: name });
+      }),
+    );
+    return out;
+  }, [brandList]);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [brand, setBrand] = useState(null);
+  const [branch, setBranch] = useState(null);
+  const [unitFilter, setUnitFilter] = useState("");
+  const [statusFilt, setStatusFilt] = useState("");
+  const [page, setPage] = useState(0);
+  const [sort, setSort] = useState({ col: "name", asc: true });
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState(null);
+  // navigation: null = landing grid; active cards come only from live Brand & Branch records
+  const [activeBrandKey, setActiveBrandKey] = useState(null);
+  const activeBrandDef =
+    connectedBrandDefs.find((b) => b.key === activeBrandKey) || null;
+  const currentBrandName = activeBrandDef
+    ? brandList.find((b) => activeBrandDef.match((b.name || "").toLowerCase()))
+        ?.name || ""
+    : "";
+  const [uiModal, setUiModal] = useState(null);
+  const showUiModal = useCallback((opts) => setUiModal(opts), []);
+  const closeUiModal = useCallback(() => setUiModal(null), []);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importProgress, setImportProgress] = useState({
+    percent: 0,
+    label: "Preparing…",
+    current: 0,
+    total: 0,
+  });
+  const [deleteHistory, setDeleteHistory] = useState([]);
+  const [showDeleteHistory, setShowDeleteHistory] = useState(false);
+  const [deleteHistoryBrandKey, setDeleteHistoryBrandKey] = useState(null);
+  const [activityLog, setActivityLog] = useState([]);
+  const [showActivityLog, setShowActivityLog] = useState(false);
+  const [activeBatchIngredient, setActiveBatchIngredient] = useState(null);
+  const [batches, setBatches] = useState([]);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [showValue, setShowValue] = useState(true);
+  const [receiveTarget, setReceiveTarget] = useState(null);
+  const [focusMutation, setFocusMutation] = useState(null);
+  const [stockRefreshToken, setStockRefreshToken] = useState(0);
+  const excelRef = useRef(null);
+  const emptyForm = useCallback(
+    () => ({
+      name: "",
+      branch: isAdmin ? "" : userBranch,
+      branches: isAdmin ? [] : [userBranch],
+      brand: "",
+      category: "",
+      unit: "pcs",
+      min_stock: 0,
+      cost_per_unit: "",
+      perishable: false,
+      listInShop: false,
+      shopCategory: "",
+      sku: "",
+      bulkQty: "",
+      pcsPerStrip: "",
+      stripsPerBox: "",
+    }),
+    [isAdmin, userBranch],
+  );
+  const [form, setForm] = useState(emptyForm);
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (!isAdmin) {
+        if (userBranch) {
+          params.set("branch", userBranch);
+        }
         if (userBrand) {
-            ownBrandObj = brandList.find((brandObj) => String(brandObj?.name || "")
+          params.set("brand", userBrand);
+        }
+      }
+      const query = params.toString() ? `?${params.toString()}` : "";
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/ingredients${query}`,
+      );
+      const d = await res.json();
+      const rows = Array.isArray(d)
+        ? d.map(normalizeStockItem).filter((item) => {
+            if (isAdmin) {
+              return true;
+            }
+            const sameBranch =
+              !userBranch ||
+              String(item.branch || "")
                 .trim()
-                .toLowerCase() === userBrand.toLowerCase());
-        }
-        // Only use branch as fallback for older
-        // accounts without a stored brand.
-        if (!ownBrandObj && userBranch) {
-            const matchingBrands = brandList.filter((brandObj) => (brandObj.branches || []).some((branchObj) => {
-                const branchName = typeof branchObj === "string" ? branchObj : branchObj?.name;
-                return (String(branchName || "")
-                    .trim()
-                    .toLowerCase() === userBranch.toLowerCase());
-            }));
-            // Only infer when the branch belongs
-            // to exactly one brand.
-            if (matchingBrands.length === 1) {
-                ownBrandObj = matchingBrands[0];
-            }
-        }
-        if (!ownBrandObj)
-            return null;
-        return (connectedBrandDefs.find((brandDef) => brandDef.match(String(ownBrandObj.name || "").toLowerCase())) || null);
-    }, [isAdmin, userBrand, userBranch, brandList, connectedBrandDefs]);
-    const visibleBrandDefs = isAdmin
-        ? connectedBrandDefs
-        : ownBrandDef
-            ? [ownBrandDef]
-            : [];
-    const allBranches = useMemo(() => {
-        const out = [];
-        brandList.forEach((b) => (b.branches || []).forEach((br) => {
-            const name = typeof br === "string" ? br : br.name;
-            if (!out.find((x) => x.branch === name))
-                out.push({ brand: b.name, branch: name });
-        }));
-        return out;
-    }, [brandList]);
-    const [items, setItems] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [search, setSearch] = useState("");
-    const [brand, setBrand] = useState(null);
-    const [branch, setBranch] = useState(null);
-    const [unitFilter, setUnitFilter] = useState("");
-    const [statusFilt, setStatusFilt] = useState("");
-    const [page, setPage] = useState(0);
-    const [sort, setSort] = useState({ col: "name", asc: true });
-    const [showModal, setShowModal] = useState(false);
-    const [editing, setEditing] = useState(null);
-    // navigation: null = landing grid; active cards come only from live Brand & Branch records
-    const [activeBrandKey, setActiveBrandKey] = useState(null);
-    const activeBrandDef = connectedBrandDefs.find((b) => b.key === activeBrandKey) || null;
-    const currentBrandName = activeBrandDef
-        ? brandList.find((b) => activeBrandDef.match((b.name || "").toLowerCase()))
-            ?.name || ""
-        : "";
-    const [uiModal, setUiModal] = useState(null);
-    const showUiModal = useCallback((opts) => setUiModal(opts), []);
-    const closeUiModal = useCallback(() => setUiModal(null), []);
-    const [deleteTarget, setDeleteTarget] = useState(null);
-    const [importLoading, setImportLoading] = useState(false);
-    const [importProgress, setImportProgress] = useState({
-        percent: 0,
-        label: "Preparing…",
-        current: 0,
-        total: 0,
+                .toLowerCase() === userBranch.toLowerCase();
+            const sameBrand =
+              !userBrand ||
+              String(item.brand || "")
+                .trim()
+                .toLowerCase() === userBrand.toLowerCase();
+            return sameBranch && sameBrand;
+          })
+        : [];
+      setItems(rows);
+      return rows;
+    } catch (err) {
+      console.error("Failed to fetch manager stock inventory:", err);
+      setItems([]);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, [isAdmin, userBranch, userBrand]);
+  const fetchDeleteHistory = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/ingredient-delete-history`,
+      );
+      const data = await res.json();
+      setDeleteHistory(
+        Array.isArray(data)
+          ? data.map((row) => ({
+              id: row.id,
+              data: normalizeStockItem(row.ingredient_data ?? row.data ?? {}),
+              deletedAt: row.deleted_at ?? row.deletedAt,
+              deletedBy: row.deleted_by ?? row.deletedBy,
+            }))
+          : [],
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+  const fetchActivityLog = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/ingredient-activity-log`,
+      );
+      const data = await res.json();
+      setActivityLog(
+        Array.isArray(data)
+          ? data.map((row) => ({
+              id: row.id,
+              action: row.action,
+              ingredientName: row.ingredient_name ?? row.ingredientName,
+              branch: row.branch,
+              performedBy: row.performed_by ?? row.performedBy,
+              role: row.role,
+              changes: row.changes,
+              timestamp: row.created_at ?? row.timestamp,
+            }))
+          : [],
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+  useEffect(() => {
+    if (
+      activeBrandKey &&
+      !visibleBrandDefs.some((bd) => bd.key === activeBrandKey)
+    ) {
+      setActiveBrandKey(null);
+    }
+  }, [activeBrandKey, visibleBrandDefs]);
+  useEffect(() => {
+    if (!isAdmin && ownBrandDef && activeBrandKey !== ownBrandDef.key) {
+      setActiveBrandKey(ownBrandDef.key);
+    }
+  }, [isAdmin, ownBrandDef, activeBrandKey]);
+  useEffect(() => {
+    if (!initialFocus?.brand) return;
+    const matchedDef = BRAND_DEFS.find((bd) =>
+      bd.match(initialFocus.brand.toLowerCase()),
+    );
+    if (matchedDef) setActiveBrandKey(matchedDef.key);
+  }, [initialFocus]);
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
+  useEffect(() => {
+    fetchDeleteHistory();
+    fetchActivityLog();
+  }, [fetchDeleteHistory, fetchActivityLog]);
+  useEffect(() => {
+    setPage(0);
+  }, [search, brand, branch, unitFilter, statusFilt]);
+  useEffect(() => {
+    if (!activeBatchIngredient) return;
+    setBatchLoading(true);
+    fetch(
+      `${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${activeBatchIngredient.id}`,
+    )
+      .then((r) => r.json())
+      .then((d) => {
+        setBatches(Array.isArray(d) ? d : []);
+        setBatchLoading(false);
+      });
+  }, [activeBatchIngredient]);
+  const importExcel = (e) => {
+    if (!canEditInventory) {
+      e.target.value = "";
+      showUiModal({
+        type: "error",
+        title: "Read Only Access",
+        message: "Your account cannot import inventory records.",
+      });
+      return;
+    }
+    const file = e.target.files[0];
+    if (!file) return;
+    setImportLoading(true);
+    setImportProgress({
+      percent: 5,
+      label: "Reading file…",
+      current: 0,
+      total: 0,
     });
-    const [deleteHistory, setDeleteHistory] = useState([]);
-    const [showDeleteHistory, setShowDeleteHistory] = useState(false);
-    const [deleteHistoryBrandKey, setDeleteHistoryBrandKey] = useState(null);
-    const [activityLog, setActivityLog] = useState([]);
-    const [showActivityLog, setShowActivityLog] = useState(false);
-    const [activeBatchIngredient, setActiveBatchIngredient] = useState(null);
-    const [batches, setBatches] = useState([]);
-    const [batchLoading, setBatchLoading] = useState(false);
-    const [showValue, setShowValue] = useState(true);
-    const [receiveTarget, setReceiveTarget] = useState(null);
-    const [focusMutation, setFocusMutation] = useState(null);
-    const [stockRefreshToken, setStockRefreshToken] = useState(0);
-    const excelRef = useRef(null);
-    const emptyForm = useCallback(() => ({
-        name: "",
-        branch: isAdmin ? "" : userBranch,
-        branches: isAdmin ? [] : [userBranch],
-        brand: "",
-        category: "",
-        unit: "pcs",
-        min_stock: 0,
-        cost_per_unit: "",
-        perishable: false,
-        listInShop: false,
-        shopCategory: "",
-        sku: "",
-        bulkQty: "",
-        pcsPerStrip: "",
-        stripsPerBox: "",
-    }), [isAdmin, userBranch]);
-    const [form, setForm] = useState(emptyForm);
-    const fetchItems = useCallback(async () => {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams();
-            if (!isAdmin) {
-                if (userBranch) {
-                    params.set("branch", userBranch);
-                }
-                if (userBrand) {
-                    params.set("brand", userBrand);
-                }
-            }
-            const query = params.toString() ? `?${params.toString()}` : "";
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients${query}`);
-            const d = await res.json();
-            const rows = Array.isArray(d)
-                ? d.map(normalizeStockItem).filter((item) => {
-                    if (isAdmin) {
-                        return true;
-                    }
-                    const sameBranch = !userBranch ||
-                        String(item.branch || "")
-                            .trim()
-                            .toLowerCase() === userBranch.toLowerCase();
-                    const sameBrand = !userBrand ||
-                        String(item.brand || "")
-                            .trim()
-                            .toLowerCase() === userBrand.toLowerCase();
-                    return sameBranch && sameBrand;
-                })
-                : [];
-            setItems(rows);
-            return rows;
-        }
-        catch (err) {
-            console.error("Failed to fetch manager stock inventory:", err);
-            setItems([]);
-            return [];
-        }
-        finally {
-            setLoading(false);
-        }
-    }, [isAdmin, userBranch, userBrand]);
-    const fetchDeleteHistory = useCallback(async () => {
-        try {
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history`);
-            const data = await res.json();
-            setDeleteHistory(Array.isArray(data)
-                ? data.map((row) => ({
-                    id: row.id,
-                    data: normalizeStockItem(row.ingredient_data ?? row.data ?? {}),
-                    deletedAt: row.deleted_at ?? row.deletedAt,
-                    deletedBy: row.deleted_by ?? row.deletedBy,
-                }))
-                : []);
-        }
-        catch (err) {
-            console.error(err);
-        }
-    }, []);
-    const fetchActivityLog = useCallback(async () => {
-        try {
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredient-activity-log`);
-            const data = await res.json();
-            setActivityLog(Array.isArray(data)
-                ? data.map((row) => ({
-                    id: row.id,
-                    action: row.action,
-                    ingredientName: row.ingredient_name ?? row.ingredientName,
-                    branch: row.branch,
-                    performedBy: row.performed_by ?? row.performedBy,
-                    role: row.role,
-                    changes: row.changes,
-                    timestamp: row.created_at ?? row.timestamp,
-                }))
-                : []);
-        }
-        catch (err) {
-            console.error(err);
-        }
-    }, []);
-    useEffect(() => {
-        if (activeBrandKey &&
-            !visibleBrandDefs.some((bd) => bd.key === activeBrandKey)) {
-            setActiveBrandKey(null);
-        }
-    }, [activeBrandKey, visibleBrandDefs]);
-    useEffect(() => {
-        if (!isAdmin && ownBrandDef && activeBrandKey !== ownBrandDef.key) {
-            setActiveBrandKey(ownBrandDef.key);
-        }
-    }, [isAdmin, ownBrandDef, activeBrandKey]);
-    useEffect(() => {
-        if (!initialFocus?.brand)
-            return;
-        const matchedDef = BRAND_DEFS.find((bd) => bd.match(initialFocus.brand.toLowerCase()));
-        if (matchedDef)
-            setActiveBrandKey(matchedDef.key);
-    }, [initialFocus]);
-    useEffect(() => {
-        fetchItems();
-    }, [fetchItems]);
-    useEffect(() => {
-        fetchDeleteHistory();
-        fetchActivityLog();
-    }, [fetchDeleteHistory, fetchActivityLog]);
-    useEffect(() => {
-        setPage(0);
-    }, [search, brand, branch, unitFilter, statusFilt]);
-    useEffect(() => {
-        if (!activeBatchIngredient)
-            return;
-        setBatchLoading(true);
-        fetch(`${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${activeBatchIngredient.id}`)
-            .then((r) => r.json())
-            .then((d) => {
-            setBatches(Array.isArray(d) ? d : []);
-            setBatchLoading(false);
-        });
-    }, [activeBatchIngredient]);
-    const importExcel = (e) => {
-        if (!canEditInventory) {
-            e.target.value = "";
-            showUiModal({
-                type: "error",
-                title: "Read Only Access",
-                message: "Your account cannot import inventory records.",
-            });
-            return;
-        }
-        const file = e.target.files[0];
-        if (!file)
-            return;
-        setImportLoading(true);
-        setImportProgress({
-            percent: 5,
-            label: "Reading file…",
-            current: 0,
-            total: 0,
-        });
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-            try {
-                const coords = await getBrowserLocation();
-                setImportProgress({
-                    percent: 15,
-                    label: "Parsing spreadsheet…",
-                    current: 0,
-                    total: 0,
-                });
-                const wb = XLSX.read(ev.target.result, { type: "array" });
-                const rows_to_save = [];
-                wb.SheetNames.forEach((sheetName) => {
-                    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {
-                        defval: "",
-                    });
-                    rows.forEach((row) => {
-                        const name = capitalizeName(String(row.name || row.Name || row["INGREDIENT NAME"] || "").trim());
-                        if (!name)
-                            return;
-                        const rowBranch = String(row.branch || row.Branch || "").trim() || "Unknown";
-                        const alreadyExists = items.some((i) => normalizeName(i.name) === normalizeName(name) &&
-                            i.branch.trim().toLowerCase() === rowBranch.toLowerCase());
-                        if (alreadyExists)
-                            return;
-                        const rawListInShop = row.list_in_shop ?? row["List In Shop"] ?? "";
-                        const listInShop = rawListInShop === 1 ||
-                            rawListInShop === true ||
-                            String(rawListInShop).trim().toLowerCase() === "1" ||
-                            String(rawListInShop).trim().toLowerCase() === "yes" ||
-                            String(rawListInShop).trim().toLowerCase() === "true";
-                        const rowBrand = String(row.brand || row.Brand || "").trim();
-                        const rowCategory = String(row.category || row.Category || "").trim();
-                        rows_to_save.push({
-                            name,
-                            branch: rowBranch,
-                            brand: rowBrand,
-                            category: rowCategory,
-                            unit: String(row.unit || row.Unit || "pcs").trim(),
-                            stock: parseFloat(row.stock || row.Stock || 0) || 0,
-                            min_stock: parseFloat(row.min_stock || row["Min Stock"] || 0) || 0,
-                            cost_per_unit: parseFloat(row.cost_per_unit || row["Cost/Unit"] || 0) || 0,
-                            listInShop,
-                            shopPrice: parseFloat(row.shop_price || row["Shop Price"] || 0) || 0,
-                            shopUnit: String(row.shop_unit || row["Shop Unit"] || "").trim(),
-                            shopCategory: String(row.shop_category || row["Shop Category"] || "Coffee Spot").trim(),
-                        });
-                    });
-                });
-                setImportProgress({
-                    percent: 25,
-                    label: `Found ${rows_to_save.length} rows. Importing…`,
-                    current: 0,
-                    total: rows_to_save.length,
-                });
-                let saved = 0, shopSaved = 0, skipped = 0;
-                const skippedNames = [];
-                for (let idx = 0; idx < rows_to_save.length; idx++) {
-                    const item = rows_to_save[idx];
-                    setImportProgress({
-                        percent: 25 + Math.round(((idx + 1) / rows_to_save.length) * 65),
-                        label: `Saving "${item.name}"…`,
-                        current: idx + 1,
-                        total: rows_to_save.length,
-                    });
-                    try {
-                        const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                                ...item,
-                                performed_by: userName,
-                                latitude: coords?.latitude,
-                                longitude: coords?.longitude,
-                                imported: true,
-                            }),
-                        });
-                        const d = await res.json();
-                        if (d.success) {
-                            saved++;
-                            if (item.listInShop && item.shopPrice > 0) {
-                                try {
-                                    const checkRes = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
-                                    const checkData = await checkRes.json();
-                                    if (!checkData.some((s) => s.name.trim().toLowerCase() ===
-                                        item.name.toLowerCase() &&
-                                        s.shop.trim().toLowerCase() ===
-                                            item.shopCategory.toLowerCase())) {
-                                        const shopRes = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-                                            method: "POST",
-                                            headers: { "Content-Type": "application/json" },
-                                            body: JSON.stringify({
-                                                name: item.name,
-                                                price: item.shopPrice,
-                                                unit: item.shopUnit,
-                                                stock: item.stock,
-                                                shop: item.shopCategory,
-                                                brand: item.brand || "",
-                                                image_url: "...",
-                                                is_visible: true,
-                                                performed_by_role: user?.role || "Unknown",
-                                                latitude: coords?.latitude,
-                                                longitude: coords?.longitude,
-                                            }),
-                                        });
-                                        if ((await shopRes.json()).success)
-                                            shopSaved++;
-                                    }
-                                }
-                                catch { }
-                            }
-                        }
-                        else {
-                            skipped++;
-                            skippedNames.push(item.name);
-                        }
-                    }
-                    catch {
-                        skipped++;
-                        skippedNames.push(item.name);
-                    }
-                }
-                setImportProgress({
-                    percent: 100,
-                    label: "Complete!",
-                    current: rows_to_save.length,
-                    total: rows_to_save.length,
-                });
-                await fetchItems();
-                await fetchActivityLog();
-                const summaryLines = [
-                    { text: `${rows_to_save.length} row(s) parsed from file` },
-                    { text: `${saved} ingredient(s) saved successfully` },
-                    ...(shopSaved > 0
-                        ? [{ text: `${shopSaved} item(s) also added to Mobile Shop` }]
-                        : []),
-                    ...(skipped > 0
-                        ? [
-                            { text: `${skipped} item(s) failed or skipped`, warn: true },
-                            ...skippedNames.map((n) => ({ text: n, warn: true })),
-                        ]
-                        : []),
-                ];
-                setTimeout(() => {
-                    setImportLoading(false);
-                    e.target.value = "";
-                    showUiModal({
-                        type: skipped > 0 ? "info" : "success",
-                        title: "Import Complete",
-                        message: skipped > 0
-                            ? `${saved} ingredient(s) saved. ${skipped} item(s) were skipped.`
-                            : `Successfully imported ${saved} ingredient(s).`,
-                        lines: summaryLines,
-                    });
-                }, 400);
-            }
-            catch {
-                setImportLoading(false);
-                e.target.value = "";
-                showUiModal({
-                    type: "error",
-                    title: "Import Failed",
-                    message: "An error occurred while processing the Excel file.",
-                });
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    };
-    const filtered = useMemo(() => {
-        const q = search.toLowerCase();
-        const now = new Date();
-        now.setHours(0, 0, 0, 0);
-        const warnDate = new Date(now);
-        warnDate.setDate(now.getDate() + SI_EXPIRY_WARN_DAYS);
-        return [...items]
-            .filter((i) => {
-            if (q &&
-                !i.name.toLowerCase().includes(q) &&
-                !(i.branch || "").toLowerCase().includes(q))
-                return false;
-            if (branch && i.branch !== branch)
-                return false;
-            else if (brand && !branch) {
-                const b = brandList.find((x) => x.id === brand);
-                if (b) {
-                    const names = (b.branches || []).map((br) => typeof br === "string" ? br : br.name);
-                    if (!names.includes(i.branch))
-                        return false;
-                }
-            }
-            if (unitFilter && i.unit !== unitFilter)
-                return false;
-            if (statusFilt === "low" && Number(i.stock) >= Number(i.min_stock))
-                return false;
-            if (statusFilt === "ok" && Number(i.stock) < Number(i.min_stock))
-                return false;
-            return true;
-        })
-            .sort((a, b) => {
-            let va = a[sort.col] ?? "", vb = b[sort.col] ?? "";
-            if (typeof va === "string")
-                va = va.toLowerCase();
-            if (typeof vb === "string")
-                vb = vb.toLowerCase();
-            return sort.asc
-                ? va < vb
-                    ? -1
-                    : va > vb
-                        ? 1
-                        : 0
-                : va > vb
-                    ? -1
-                    : va < vb
-                        ? 1
-                        : 0;
-        });
-    }, [items, search, brand, branch, unitFilter, statusFilt, sort, brandList]);
-    const lowCount = items.filter((i) => Number(i.stock) < Number(i.min_stock)).length;
-    const totalValue = items.reduce((s, i) => s + (i.cost_per_unit || 0) * (i.stock || 0), 0);
-    const pageItems = filtered.slice(page * SI_PAGE_SIZE, (page + 1) * SI_PAGE_SIZE);
-    const saveItem = async (e) => {
-        if (!canEditInventory) {
-            showUiModal({
-                type: "error",
-                title: "Read Only Access",
-                message: "Your account can view Stock Inventory but cannot modify it.",
-            });
-            return;
-        }
-        e.preventDefault();
-        const errors = [];
-        if (!form.name || !form.name.trim())
-            errors.push("Ingredient name is required.");
-        if (!form.brand)
-            errors.push("Brand is required.");
-        if (isAdmin) {
-            if (editing) {
-                if (!form.branch)
-                    errors.push("Branch is required.");
-            }
-            else {
-                if (form.branches.length === 0)
-                    errors.push("Select at least one branch.");
-            }
-        }
-        if (isPharmaBrand(form.brand || currentBrandName)) {
-            if (form.unit !== "pcs") {
-                errors.push("iPharma medicines must use pcs as the base inventory unit.");
-            }
-            if (form.pcsPerStrip && Number(form.pcsPerStrip) < 1) {
-                errors.push("Pieces per strip must be at least 1.");
-            }
-            if (form.stripsPerBox && !form.pcsPerStrip) {
-                errors.push("Enter Pieces per Strip before setting Strips per Box.");
-            }
-            if (form.stripsPerBox && Number(form.stripsPerBox) < 1) {
-                errors.push("Strips per box must be at least 1.");
-            }
-        }
-        {
-            const selectedBrandObj = brandList.find((b) => (b.name || "").toLowerCase() === (form.brand || "").toLowerCase());
-            const allowedCategories = getBrandCategories(selectedBrandObj);
-            if (allowedCategories.length > 0) {
-                if (!form.category) {
-                    errors.push(`Category is required for ${form.brand} products.`);
-                }
-                else if (!allowedCategories.some((cat) => cat.toLowerCase() === String(form.category).toLowerCase())) {
-                    errors.push(`"${form.category}" is no longer an active ${form.brand} category. Select a category from Brand & Branch Management.`);
-                }
-            }
-        }
-        if (!form.unit)
-            errors.push("Unit is required.");
-        if (!isPositiveOrZeroNumber(form.min_stock))
-            errors.push("Minimum stock must be a valid number of 0 or more.");
-        if (editing &&
-            form.stock !== undefined &&
-            form.stock !== "" &&
-            !isPositiveOrZeroNumber(form.stock)) {
-            errors.push("Stock must be a valid number of 0 or more.");
-        }
-        if (errors.length > 0) {
-            showUiModal({
-                type: "error",
-                title: "Please fix the following",
-                lines: errors.map((t) => ({ text: t, warn: true })),
-            });
-            return;
-        }
-        setSavingItem(true);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
         const coords = await getBrowserLocation();
-        /* ── EDIT: update the original branch's record, and optionally create the
-       same ingredient in newly-selected additional branches ── */
-        if (editing) {
-            if (form.branches.length === 0 ||
-                !form.branches.includes(editing.branch)) {
-                setSavingItem(false);
-                showUiModal({
-                    type: "error",
-                    title: "Please fix the following",
-                    lines: [{ text: "The current branch can't be removed.", warn: true }],
-                });
-                return;
-            }
-            const payload = {
-                ...form,
-                cost_per_unit: form.cost_per_unit,
-                stock: form.stock ?? 0,
-                branch: editing.branch,
-                name: capitalizeName(form.name.trim()),
-                performed_by: userName,
-                performed_by_role: user?.role || "Unknown",
-                latitude: coords?.latitude,
-                longitude: coords?.longitude,
-                bulk_qty: form.bulkQty || null,
-                extra_fields: {
-                    pcs_per_strip: form.pcsPerStrip || null,
-                    strips_per_box: form.stripsPerBox || null,
-                },
-                ...(!isAdmin ? { cost_per_unit: editing.cost_per_unit } : {}),
-            };
-            let editSucceeded = false;
-            let updatedItem = null;
-            try {
-                const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients/${editing.id}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                });
-                const d = await res.json();
-                if (d.success) {
-                    editSucceeded = true;
-                    if (isDirectProductBrand(payload.brand) && editing.id != null) {
-                        persistStockCategory(editing.id, payload.category);
-                    }
-                    if (form.listInShop && form.cost_per_unit) {
-                        const computedShopPrice = isDirectProductBrand(form.brand)
-                            ? computeDirectSellingPrice(form.cost_per_unit)
-                            : Math.round(parseFloat(form.cost_per_unit) * 1.1 * 100) / 100;
-                        try {
-                            const ingredientId = editing.id;
-                            const shopRes = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
-                            const shopData = await shopRes.json();
-                            const existingShopItem = Array.isArray(shopData)
-                                ? shopData.find((s) => s.ingredient_id === ingredientId)
-                                : null;
-                            const shopBody = {
-                                name: payload.name,
-                                price: computedShopPrice,
-                                unit: form.unit || "",
-                                shop: form.shopCategory,
-                                brand: payload.brand || "",
-                                performed_by: userName,
-                                latitude: payload.latitude,
-                                longitude: payload.longitude,
-                            };
-                            if (existingShopItem) {
-                                await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${existingShopItem.id}`, {
-                                    method: "PUT",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ ...existingShopItem, ...shopBody }),
-                                });
-                            }
-                            else {
-                                await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                        ...shopBody,
-                                        stock: 0,
-                                        image_url: "https://placehold.co/150x150/e8f5e9/2e7d32?text=" +
-                                            encodeURIComponent(payload.name.slice(0, 8)),
-                                        is_visible: true,
-                                        branches: [],
-                                        ingredient_id: ingredientId,
-                                    }),
-                                });
-                            }
-                        }
-                        catch { }
-                    }
-                    updatedItem = normalizeStockItem({
-                        ...(editing || {}),
-                        ...payload,
-                        ...(d.item || {}),
-                        id: d.item?.id ?? editing?.id,
-                        category: d.item?.category ?? payload.category ?? editing?.category ?? "",
-                        brand: d.item?.brand ?? payload.brand ?? editing?.brand ?? "",
-                    });
-                }
-            }
-            catch {
-                // handled below via editSucceeded flag
-            }
-            if (!editSucceeded) {
-                setSavingItem(false);
-                setToast({
-                    type: "error",
-                    title: "Failed to Save",
-                    message: "Failed to update the ingredient. Please check your connection.",
-                });
-                return;
-            }
-            /* Fan out to any newly-checked additional branches */
-            const extraBranches = form.branches.filter((b) => b !== editing.branch);
-            const results = [];
-            for (const branchName of extraBranches) {
-                const extraPayload = {
-                    ...form,
-                    cost_per_unit: 0,
-                    stock: 0,
-                    branch: branchName,
-                    name: capitalizeName(form.name.trim()),
-                    performed_by: userName,
-                    performed_by_role: user?.role || "Unknown",
-                    latitude: coords?.latitude,
-                    longitude: coords?.longitude,
-                    bulk_qty: form.bulkQty || null,
-                    extra_fields: {
-                        pcs_per_strip: form.pcsPerStrip || null,
-                        strips_per_box: form.stripsPerBox || null,
-                    },
-                };
-                const duplicate = items.find((i) => normalizeName(i.name) === normalizeName(extraPayload.name) &&
-                    i.branch.trim().toLowerCase() === branchName.trim().toLowerCase());
-                if (duplicate) {
-                    results.push({
-                        ok: false,
-                        branch: branchName,
-                        reason: "already exists in this branch",
-                    });
-                    continue;
-                }
-                try {
-                    const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(extraPayload),
-                    });
-                    const d = await res.json();
-                    if (d.success) {
-                        if (isDirectProductBrand(extraPayload.brand) &&
-                            d.item?.id != null) {
-                            persistStockCategory(d.item.id, extraPayload.category);
-                        }
-                        results.push({ ok: true, branch: branchName });
-                    }
-                    else {
-                        results.push({
-                            ok: false,
-                            branch: branchName,
-                            reason: d.error || "failed to save",
-                        });
-                    }
-                }
-                catch {
-                    results.push({
-                        ok: false,
-                        branch: branchName,
-                        reason: "connection error",
-                    });
-                }
-            }
-            const freshRows = await fetchItems();
-            await fetchActivityLog();
-            const freshItem = freshRows.find((row) => String(row.id) === String(updatedItem.id)) ||
-                updatedItem;
-            setFocusMutation({ item: freshItem, stamp: Date.now(), reason: "edit" });
-            setStockRefreshToken((v) => v + 1);
-            window.dispatchEvent(new CustomEvent("stock-inventory-updated", {
-                detail: { ingredientId: freshItem.id, brand: freshItem.brand },
-            }));
-            setSavingItem(false);
-            closeModal();
-            const succeeded = results.filter((r) => r.ok);
-            const failed = results.filter((r) => !r.ok);
-            if (extraBranches.length === 0) {
-                setToast({
-                    type: "success",
-                    title: "Ingredient Updated",
-                    message: `"${payload.name}" has been updated.`,
-                });
-            }
-            else if (failed.length === 0) {
-                setToast({
-                    type: "success",
-                    title: "Ingredient Updated",
-                    message: `"${payload.name}" updated, and added to ${succeeded.length} more branch${succeeded.length === 1 ? "" : "es"}.`,
-                });
-            }
-            else {
-                showUiModal({
-                    type: "info",
-                    title: "Updated With Some Skips",
-                    message: `"${payload.name}" was updated. ${succeeded.length} additional branch${succeeded.length === 1 ? "" : "es"} were added, ${failed.length} were skipped.`,
-                    lines: failed.map((f) => ({
-                        text: `${f.branch}: ${f.reason}`,
-                        warn: true,
-                    })),
-                });
-            }
-            return;
-        }
-        const targetBranches = isAdmin ? form.branches : [userBranch];
-        const results = [];
-        let lastCreatedItem = null;
-        for (const branchName of targetBranches) {
-            const payload = {
-                ...form,
-                cost_per_unit: 0,
-                stock: 0,
-                branch: branchName,
-                name: capitalizeName(form.name.trim()),
-                performed_by: userName,
-                performed_by_role: user?.role || "Unknown",
-                latitude: coords?.latitude,
-                longitude: coords?.longitude,
-                bulk_qty: form.bulkQty || null,
-                extra_fields: {
-                    pcs_per_strip: form.pcsPerStrip || null,
-                    strips_per_box: form.stripsPerBox || null,
-                },
-            };
-            const duplicate = items.find((i) => normalizeName(i.name) === normalizeName(payload.name) &&
-                i.branch.trim().toLowerCase() === branchName.trim().toLowerCase());
-            if (duplicate) {
-                results.push({
-                    ok: false,
-                    branch: branchName,
-                    reason: "already exists in this branch",
-                });
-                continue;
-            }
-            try {
-                const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                });
-                const d = await res.json();
-                if (d.success) {
-                    if (isDirectProductBrand(payload.brand) && d.item?.id != null) {
-                        persistStockCategory(d.item.id, payload.category);
-                    }
-                    lastCreatedItem = normalizeStockItem({
-                        ...payload,
-                        ...(d.item || {}),
-                    });
-                    results.push({ ok: true, branch: branchName });
-                }
-                else {
-                    results.push({
-                        ok: false,
-                        branch: branchName,
-                        reason: d.error || "failed to save",
-                    });
-                }
-            }
-            catch {
-                results.push({
-                    ok: false,
-                    branch: branchName,
-                    reason: "connection error",
-                });
-            }
-        }
-        const succeeded = results.filter((r) => r.ok);
-        const failed = results.filter((r) => !r.ok);
-        const freshRows = await fetchItems();
-        await fetchActivityLog();
-        if (lastCreatedItem) {
-            const freshItem = freshRows.find((row) => normalizeName(row.name) === normalizeName(lastCreatedItem.name) &&
-                String(row.branch || "").toLowerCase() ===
-                    String(lastCreatedItem.branch || "").toLowerCase()) || lastCreatedItem;
-            setFocusMutation({ item: freshItem, stamp: Date.now(), reason: "add" });
-            setStockRefreshToken((v) => v + 1);
-            window.dispatchEvent(new CustomEvent("stock-inventory-updated", {
-                detail: { ingredientId: freshItem.id, brand: freshItem.brand },
-            }));
-        }
-        setSavingItem(false);
-        if (succeeded.length > 0 && failed.length === 0) {
-            closeModal();
-            setToast({
-                type: "success",
-                title: "Ingredient Added",
-                message: succeeded.length === 1
-                    ? `"${form.name.trim()}" has been added to ${succeeded[0].branch}.`
-                    : `"${form.name.trim()}" has been added to ${succeeded.length} branches.`,
+        setImportProgress({
+          percent: 15,
+          label: "Parsing spreadsheet…",
+          current: 0,
+          total: 0,
+        });
+        const wb = XLSX.read(ev.target.result, { type: "array" });
+        const rows_to_save = [];
+        wb.SheetNames.forEach((sheetName) => {
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {
+            defval: "",
+          });
+          rows.forEach((row) => {
+            const name = capitalizeName(
+              String(
+                row.name || row.Name || row["INGREDIENT NAME"] || "",
+              ).trim(),
+            );
+            if (!name) return;
+            const rowBranch =
+              String(row.branch || row.Branch || "").trim() || "Unknown";
+            const alreadyExists = items.some(
+              (i) =>
+                normalizeName(i.name) === normalizeName(name) &&
+                i.branch.trim().toLowerCase() === rowBranch.toLowerCase(),
+            );
+            if (alreadyExists) return;
+            const rawListInShop = row.list_in_shop ?? row["List In Shop"] ?? "";
+            const listInShop =
+              rawListInShop === 1 ||
+              rawListInShop === true ||
+              String(rawListInShop).trim().toLowerCase() === "1" ||
+              String(rawListInShop).trim().toLowerCase() === "yes" ||
+              String(rawListInShop).trim().toLowerCase() === "true";
+            const rowBrand = String(row.brand || row.Brand || "").trim();
+            const rowCategory = String(
+              row.category || row.Category || "",
+            ).trim();
+            rows_to_save.push({
+              name,
+              branch: rowBranch,
+              brand: rowBrand,
+              category: rowCategory,
+              unit: String(row.unit || row.Unit || "pcs").trim(),
+              stock: parseFloat(row.stock || row.Stock || 0) || 0,
+              min_stock:
+                parseFloat(row.min_stock || row["Min Stock"] || 0) || 0,
+              cost_per_unit:
+                parseFloat(row.cost_per_unit || row["Cost/Unit"] || 0) || 0,
+              listInShop,
+              shopPrice:
+                parseFloat(row.shop_price || row["Shop Price"] || 0) || 0,
+              shopUnit: String(row.shop_unit || row["Shop Unit"] || "").trim(),
+              shopCategory: String(
+                row.shop_category || row["Shop Category"] || "Coffee Spot",
+              ).trim(),
             });
-        }
-        else if (succeeded.length > 0 && failed.length > 0) {
-            closeModal();
-            showUiModal({
-                type: "info",
-                title: "Added With Some Skips",
-                message: `"${form.name.trim()}" was added to ${succeeded.length} branch${succeeded.length === 1 ? "" : "es"}. ${failed.length} branch${failed.length === 1 ? "" : "es"} were skipped.`,
-                lines: failed.map((f) => ({
-                    text: `${f.branch}: ${f.reason}`,
-                    warn: true,
-                })),
-            });
-        }
-        else {
-            showUiModal({
-                type: "error",
-                title: "Failed to Add Ingredient",
-                message: `Could not add "${form.name.trim()}" to any of the selected branches.`,
-                lines: failed.map((f) => ({
-                    text: `${f.branch}: ${f.reason}`,
-                    warn: true,
-                })),
-            });
-        }
-    };
-    const handleDeleteItem = (item) => setDeleteTarget(item);
-    const confirmDelete = async () => {
-        if (!canEditInventory) {
-            showUiModal({
-                type: "error",
-                title: "Read Only Access",
-                message: "Your account cannot delete inventory records.",
-            });
-            return;
-        }
-        if (!deleteTarget)
-            return;
-        const item = deleteTarget;
-        setDeletingItem(true);
-        try {
-            const coords = await getBrowserLocation();
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients/${item.id}`, {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    deleted_by: userName,
-                    performed_by_role: user?.role || "Unknown",
-                    latitude: coords?.latitude,
-                    longitude: coords?.longitude,
-                }),
-            });
-            const d = await res.json();
-            if (d.success) {
-                await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        ingredient_data: item,
-                        deleted_by: userName,
-                    }),
-                });
-                await fetchItems();
-                await fetchDeleteHistory();
-                await fetchActivityLog();
-                setStockRefreshToken((v) => v + 1);
-                window.dispatchEvent(new CustomEvent("stock-inventory-updated", {
-                    detail: { ingredientId: item.id, brand: item.brand, deleted: true },
-                }));
-                setToast({
-                    type: "success",
-                    title: "Ingredient Deleted",
-                    message: `"${item.name}" moved to Delete History.`,
-                });
-            }
-            else {
-                setToast({
-                    type: "error",
-                    title: "Failed to Delete",
-                    message: d.error || "An unexpected error occurred.",
-                });
-            }
-        }
-        catch {
-            setToast({
-                type: "error",
-                title: "Connection Error",
-                message: "Failed to delete.",
-            });
-        }
-        finally {
-            setDeletingItem(false);
-            setDeleteTarget(null);
-        }
-    };
-    const handleRestore = async (entry) => {
-        setRestoringId(entry.id);
-        try {
-            const d = entry.data;
-            const coords = await getBrowserLocation();
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
+          });
+        });
+        setImportProgress({
+          percent: 25,
+          label: `Found ${rows_to_save.length} rows. Importing…`,
+          current: 0,
+          total: rows_to_save.length,
+        });
+        let saved = 0,
+          shopSaved = 0,
+          skipped = 0;
+        const skippedNames = [];
+        for (let idx = 0; idx < rows_to_save.length; idx++) {
+          const item = rows_to_save[idx];
+          setImportProgress({
+            percent: 25 + Math.round(((idx + 1) / rows_to_save.length) * 65),
+            label: `Saving "${item.name}"…`,
+            current: idx + 1,
+            total: rows_to_save.length,
+          });
+          try {
+            const res = await fetch(
+              `${process.env.REACT_APP_API_URL}/ingredients`,
+              {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    name: d.name,
-                    branch: d.branch,
-                    brand: d.brand,
-                    category: d.category || "",
-                    unit: d.unit,
-                    stock: d.stock,
-                    min_stock: d.min_stock,
-                    cost_per_unit: d.cost_per_unit,
-                    performed_by: userName,
-                    performed_by_role: user?.role || "Unknown",
-                    latitude: coords?.latitude,
-                    longitude: coords?.longitude,
-                    restored: true,
+                  ...item,
+                  performed_by: userName,
+                  latitude: coords?.latitude,
+                  longitude: coords?.longitude,
+                  imported: true,
                 }),
-            });
-            const result = await res.json();
-            if (result.success) {
-                if (result.item?.id != null && d.category) {
-                    persistStockCategory(result.item.id, d.category);
-                }
-                await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history/${entry.id}`, { method: "DELETE" });
-                const freshRows = await fetchItems();
-                await fetchDeleteHistory();
-                await fetchActivityLog();
-                const restoredItem = freshRows.find((row) => normalizeName(row.name) === normalizeName(d.name) &&
-                    String(row.branch || "").toLowerCase() ===
-                        String(d.branch || "").toLowerCase()) || normalizeStockItem(d);
-                setFocusMutation({
-                    item: restoredItem,
-                    stamp: Date.now(),
-                    reason: "restore",
-                });
-                setStockRefreshToken((v) => v + 1);
-                window.dispatchEvent(new CustomEvent("stock-inventory-updated", {
-                    detail: {
-                        ingredientId: restoredItem.id,
-                        brand: restoredItem.brand,
-                        restored: true,
-                    },
-                }));
-                setToast({
-                    type: "success",
-                    title: "Ingredient Restored",
-                    message: `"${d.name}" has been restored.`,
-                });
+              },
+            );
+            const d = await res.json();
+            if (d.success) {
+              saved++;
+              if (item.listInShop && item.shopPrice > 0) {
+                try {
+                  const checkRes = await fetch(
+                    `${process.env.REACT_APP_API_URL}/shop-items`,
+                  );
+                  const checkData = await checkRes.json();
+                  if (
+                    !checkData.some(
+                      (s) =>
+                        s.name.trim().toLowerCase() ===
+                          item.name.toLowerCase() &&
+                        s.shop.trim().toLowerCase() ===
+                          item.shopCategory.toLowerCase(),
+                    )
+                  ) {
+                    const shopRes = await fetch(
+                      `${process.env.REACT_APP_API_URL}/shop-items`,
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          name: item.name,
+                          price: item.shopPrice,
+                          unit: item.shopUnit,
+                          stock: item.stock,
+                          shop: item.shopCategory,
+                          brand: item.brand || "",
+                          image_url: "...",
+                          is_visible: true,
+                          performed_by_role: user?.role || "Unknown",
+                          latitude: coords?.latitude,
+                          longitude: coords?.longitude,
+                        }),
+                      },
+                    );
+                    if ((await shopRes.json()).success) shopSaved++;
+                  }
+                } catch {}
+              }
+            } else {
+              skipped++;
+              skippedNames.push(item.name);
             }
-            else {
-                setToast({
-                    type: "error",
-                    title: "Restore Failed",
-                    message: result.error || "Failed to restore.",
-                });
-            }
+          } catch {
+            skipped++;
+            skippedNames.push(item.name);
+          }
         }
-        catch {
-            setToast({
-                type: "error",
-                title: "Connection Error",
-                message: "Failed to restore.",
-            });
-        }
-        finally {
-            setRestoringId(null);
-        }
-    };
-    const openEdit = async (item) => {
-        setEditing(item);
-        let shopMatch = null;
-        try {
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
-            const data = await res.json();
-            if (Array.isArray(data)) {
-                shopMatch = data.find((s) => s.ingredient_id === item.id) || null;
-            }
-        }
-        catch { }
-        setForm({
-            name: item.name,
-            brand: item.brand || "",
-            branch: item.branch || "",
-            branches: [item.branch || ""],
-            category: item.category || "",
-            unit: item.unit || "pcs",
-            stock: item.stock,
-            min_stock: item.min_stock,
-            cost_per_unit: item.cost_per_unit || "",
-            perishable: !!item.perishable,
-            listInShop: !!shopMatch,
-            shopCategory: shopMatch
-                ? shopMatch.shop || item.brand || "Coffee Spot"
-                : item.brand || "Coffee Spot",
-            sku: item.sku || "",
-            bulkQty: item.bulk_qty || "",
-            pcsPerStrip: item.extra_fields?.pcs_per_strip || "",
-            stripsPerBox: item.extra_fields?.strips_per_box || "",
+        setImportProgress({
+          percent: 100,
+          label: "Complete!",
+          current: rows_to_save.length,
+          total: rows_to_save.length,
         });
-        setShowModal(true);
+        await fetchItems();
+        await fetchActivityLog();
+        const summaryLines = [
+          { text: `${rows_to_save.length} row(s) parsed from file` },
+          { text: `${saved} ingredient(s) saved successfully` },
+          ...(shopSaved > 0
+            ? [{ text: `${shopSaved} item(s) also added to Mobile Shop` }]
+            : []),
+          ...(skipped > 0
+            ? [
+                { text: `${skipped} item(s) failed or skipped`, warn: true },
+                ...skippedNames.map((n) => ({ text: n, warn: true })),
+              ]
+            : []),
+        ];
+        setTimeout(() => {
+          setImportLoading(false);
+          e.target.value = "";
+          showUiModal({
+            type: skipped > 0 ? "info" : "success",
+            title: "Import Complete",
+            message:
+              skipped > 0
+                ? `${saved} ingredient(s) saved. ${skipped} item(s) were skipped.`
+                : `Successfully imported ${saved} ingredient(s).`,
+            lines: summaryLines,
+          });
+        }, 400);
+      } catch {
+        setImportLoading(false);
+        e.target.value = "";
+        showUiModal({
+          type: "error",
+          title: "Import Failed",
+          message: "An error occurred while processing the Excel file.",
+        });
+      }
     };
-    const closeModal = () => {
-        setShowModal(false);
-        setEditing(null);
-        setForm(emptyForm());
-    };
-    const SortTh = ({ col, label, minW, align = "left" }) => {
-        const active = sort.col === col;
-        return (<th onClick={() => {
-                setSort((s) => ({ col, asc: s.col === col ? !s.asc : true }));
-                setPage(0);
-            }} style={{
-                padding: "11px 16px",
-                textAlign: align,
-                fontWeight: 600,
-                fontSize: 12,
-                color: active ? SI_C.green : SI_C.muted,
-                letterSpacing: "0.02em",
-                borderBottom: `1.5px solid ${SI_C.border}`,
-                cursor: "pointer",
-                userSelect: "none",
-                whiteSpace: "nowrap",
-                background: "#fbfcf8",
-                minWidth: minW,
-            }}>
+    reader.readAsArrayBuffer(file);
+  };
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const warnDate = new Date(now);
+    warnDate.setDate(now.getDate() + SI_EXPIRY_WARN_DAYS);
+    return [...items]
+      .filter((i) => {
+        if (
+          q &&
+          !i.name.toLowerCase().includes(q) &&
+          !(i.branch || "").toLowerCase().includes(q)
+        )
+          return false;
+        if (branch && i.branch !== branch) return false;
+        else if (brand && !branch) {
+          const b = brandList.find((x) => x.id === brand);
+          if (b) {
+            const names = (b.branches || []).map((br) =>
+              typeof br === "string" ? br : br.name,
+            );
+            if (!names.includes(i.branch)) return false;
+          }
+        }
+        if (unitFilter && i.unit !== unitFilter) return false;
+        if (statusFilt === "low" && Number(i.stock) >= Number(i.min_stock))
+          return false;
+        if (statusFilt === "ok" && Number(i.stock) < Number(i.min_stock))
+          return false;
+        return true;
+      })
+      .sort((a, b) => {
+        let va = a[sort.col] ?? "",
+          vb = b[sort.col] ?? "";
+        if (typeof va === "string") va = va.toLowerCase();
+        if (typeof vb === "string") vb = vb.toLowerCase();
+        return sort.asc
+          ? va < vb
+            ? -1
+            : va > vb
+              ? 1
+              : 0
+          : va > vb
+            ? -1
+            : va < vb
+              ? 1
+              : 0;
+      });
+  }, [items, search, brand, branch, unitFilter, statusFilt, sort, brandList]);
+  const lowCount = items.filter(
+    (i) => Number(i.stock) < Number(i.min_stock),
+  ).length;
+  const totalValue = items.reduce(
+    (s, i) => s + (i.cost_per_unit || 0) * (i.stock || 0),
+    0,
+  );
+  const pageItems = filtered.slice(
+    page * SI_PAGE_SIZE,
+    (page + 1) * SI_PAGE_SIZE,
+  );
+  const saveItem = async (e) => {
+    if (!canEditInventory) {
+      showUiModal({
+        type: "error",
+        title: "Read Only Access",
+        message: "Your account can view Stock Inventory but cannot modify it.",
+      });
+      return;
+    }
+    e.preventDefault();
+    const errors = [];
+    if (!form.name || !form.name.trim())
+      errors.push("Ingredient name is required.");
+    if (!form.brand) errors.push("Brand is required.");
+    if (isAdmin) {
+      if (editing) {
+        if (!form.branch) errors.push("Branch is required.");
+      } else {
+        if (form.branches.length === 0)
+          errors.push("Select at least one branch.");
+      }
+    }
+    if (isPharmaBrand(form.brand || currentBrandName)) {
+      if (form.unit !== "pcs") {
+        errors.push(
+          "iPharma medicines must use pcs as the base inventory unit.",
+        );
+      }
+      if (form.pcsPerStrip && Number(form.pcsPerStrip) < 1) {
+        errors.push("Pieces per strip must be at least 1.");
+      }
+      if (form.stripsPerBox && !form.pcsPerStrip) {
+        errors.push("Enter Pieces per Strip before setting Strips per Box.");
+      }
+      if (form.stripsPerBox && Number(form.stripsPerBox) < 1) {
+        errors.push("Strips per box must be at least 1.");
+      }
+    }
+    {
+      const selectedBrandObj = brandList.find(
+        (b) =>
+          (b.name || "").toLowerCase() === (form.brand || "").toLowerCase(),
+      );
+      const allowedCategories = getBrandCategories(selectedBrandObj);
+      if (allowedCategories.length > 0) {
+        if (!form.category) {
+          errors.push(`Category is required for ${form.brand} products.`);
+        } else if (
+          !allowedCategories.some(
+            (cat) => cat.toLowerCase() === String(form.category).toLowerCase(),
+          )
+        ) {
+          errors.push(
+            `"${form.category}" is no longer an active ${form.brand} category. Select a category from Brand & Branch Management.`,
+          );
+        }
+      }
+    }
+    if (!form.unit) errors.push("Unit is required.");
+    if (!isPositiveOrZeroNumber(form.min_stock))
+      errors.push("Minimum stock must be a valid number of 0 or more.");
+    if (
+      editing &&
+      form.stock !== undefined &&
+      form.stock !== "" &&
+      !isPositiveOrZeroNumber(form.stock)
+    ) {
+      errors.push("Stock must be a valid number of 0 or more.");
+    }
+    if (errors.length > 0) {
+      showUiModal({
+        type: "error",
+        title: "Please fix the following",
+        lines: errors.map((t) => ({ text: t, warn: true })),
+      });
+      return;
+    }
+    setSavingItem(true);
+    const coords = await getBrowserLocation();
+    /* ── EDIT: update the original branch's record, and optionally create the
+       same ingredient in newly-selected additional branches ── */
+    if (editing) {
+      if (
+        form.branches.length === 0 ||
+        !form.branches.includes(editing.branch)
+      ) {
+        setSavingItem(false);
+        showUiModal({
+          type: "error",
+          title: "Please fix the following",
+          lines: [{ text: "The current branch can't be removed.", warn: true }],
+        });
+        return;
+      }
+      const payload = {
+        ...form,
+        cost_per_unit: form.cost_per_unit,
+        stock: form.stock ?? 0,
+        branch: editing.branch,
+        name: capitalizeName(form.name.trim()),
+        performed_by: userName,
+        performed_by_role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+        bulk_qty: form.bulkQty || null,
+        extra_fields: {
+          pcs_per_strip: form.pcsPerStrip || null,
+          strips_per_box: form.stripsPerBox || null,
+        },
+        ...(!isAdmin ? { cost_per_unit: editing.cost_per_unit } : {}),
+      };
+      let editSucceeded = false;
+      let updatedItem = null;
+      try {
+        const res = await fetch(
+          `${process.env.REACT_APP_API_URL}/ingredients/${editing.id}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          },
+        );
+        const d = await res.json();
+        if (d.success) {
+          editSucceeded = true;
+          if (isDirectProductBrand(payload.brand) && editing.id != null) {
+            persistStockCategory(editing.id, payload.category);
+          }
+          if (form.listInShop && form.cost_per_unit) {
+            const computedShopPrice = isDirectProductBrand(form.brand)
+              ? computeDirectSellingPrice(form.cost_per_unit)
+              : Math.round(parseFloat(form.cost_per_unit) * 1.1 * 100) / 100;
+            try {
+              const ingredientId = editing.id;
+              const shopRes = await fetch(
+                `${process.env.REACT_APP_API_URL}/shop-items`,
+              );
+              const shopData = await shopRes.json();
+              const existingShopItem = Array.isArray(shopData)
+                ? shopData.find((s) => s.ingredient_id === ingredientId)
+                : null;
+              const shopBody = {
+                name: payload.name,
+                price: computedShopPrice,
+                unit: form.unit || "",
+                shop: form.shopCategory,
+                brand: payload.brand || "",
+                performed_by: userName,
+                latitude: payload.latitude,
+                longitude: payload.longitude,
+              };
+              if (existingShopItem) {
+                await fetch(
+                  `${process.env.REACT_APP_API_URL}/shop-items/${existingShopItem.id}`,
+                  {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ ...existingShopItem, ...shopBody }),
+                  },
+                );
+              } else {
+                await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    ...shopBody,
+                    stock: 0,
+                    image_url:
+                      "https://placehold.co/150x150/e8f5e9/2e7d32?text=" +
+                      encodeURIComponent(payload.name.slice(0, 8)),
+                    is_visible: true,
+                    branches: [],
+                    ingredient_id: ingredientId,
+                  }),
+                });
+              }
+            } catch {}
+          }
+          updatedItem = normalizeStockItem({
+            ...(editing || {}),
+            ...payload,
+            ...(d.item || {}),
+            id: d.item?.id ?? editing?.id,
+            category:
+              d.item?.category ?? payload.category ?? editing?.category ?? "",
+            brand: d.item?.brand ?? payload.brand ?? editing?.brand ?? "",
+          });
+        }
+      } catch {
+        // handled below via editSucceeded flag
+      }
+      if (!editSucceeded) {
+        setSavingItem(false);
+        setToast({
+          type: "error",
+          title: "Failed to Save",
+          message:
+            "Failed to update the ingredient. Please check your connection.",
+        });
+        return;
+      }
+      /* Fan out to any newly-checked additional branches */
+      const extraBranches = form.branches.filter((b) => b !== editing.branch);
+      const results = [];
+      for (const branchName of extraBranches) {
+        const extraPayload = {
+          ...form,
+          cost_per_unit: 0,
+          stock: 0,
+          branch: branchName,
+          name: capitalizeName(form.name.trim()),
+          performed_by: userName,
+          performed_by_role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+          bulk_qty: form.bulkQty || null,
+          extra_fields: {
+            pcs_per_strip: form.pcsPerStrip || null,
+            strips_per_box: form.stripsPerBox || null,
+          },
+        };
+        const duplicate = items.find(
+          (i) =>
+            normalizeName(i.name) === normalizeName(extraPayload.name) &&
+            i.branch.trim().toLowerCase() === branchName.trim().toLowerCase(),
+        );
+        if (duplicate) {
+          results.push({
+            ok: false,
+            branch: branchName,
+            reason: "already exists in this branch",
+          });
+          continue;
+        }
+        try {
+          const res = await fetch(
+            `${process.env.REACT_APP_API_URL}/ingredients`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(extraPayload),
+            },
+          );
+          const d = await res.json();
+          if (d.success) {
+            if (
+              isDirectProductBrand(extraPayload.brand) &&
+              d.item?.id != null
+            ) {
+              persistStockCategory(d.item.id, extraPayload.category);
+            }
+            results.push({ ok: true, branch: branchName });
+          } else {
+            results.push({
+              ok: false,
+              branch: branchName,
+              reason: d.error || "failed to save",
+            });
+          }
+        } catch {
+          results.push({
+            ok: false,
+            branch: branchName,
+            reason: "connection error",
+          });
+        }
+      }
+      const freshRows = await fetchItems();
+      await fetchActivityLog();
+      const freshItem =
+        freshRows.find((row) => String(row.id) === String(updatedItem.id)) ||
+        updatedItem;
+      setFocusMutation({ item: freshItem, stamp: Date.now(), reason: "edit" });
+      setStockRefreshToken((v) => v + 1);
+      window.dispatchEvent(
+        new CustomEvent("stock-inventory-updated", {
+          detail: { ingredientId: freshItem.id, brand: freshItem.brand },
+        }),
+      );
+      setSavingItem(false);
+      closeModal();
+      const succeeded = results.filter((r) => r.ok);
+      const failed = results.filter((r) => !r.ok);
+      if (extraBranches.length === 0) {
+        setToast({
+          type: "success",
+          title: "Ingredient Updated",
+          message: `"${payload.name}" has been updated.`,
+        });
+      } else if (failed.length === 0) {
+        setToast({
+          type: "success",
+          title: "Ingredient Updated",
+          message: `"${payload.name}" updated, and added to ${succeeded.length} more branch${succeeded.length === 1 ? "" : "es"}.`,
+        });
+      } else {
+        showUiModal({
+          type: "info",
+          title: "Updated With Some Skips",
+          message: `"${payload.name}" was updated. ${succeeded.length} additional branch${succeeded.length === 1 ? "" : "es"} were added, ${failed.length} were skipped.`,
+          lines: failed.map((f) => ({
+            text: `${f.branch}: ${f.reason}`,
+            warn: true,
+          })),
+        });
+      }
+      return;
+    }
+    const targetBranches = isAdmin ? form.branches : [userBranch];
+    const results = [];
+    let lastCreatedItem = null;
+    for (const branchName of targetBranches) {
+      const payload = {
+        ...form,
+        cost_per_unit: 0,
+        stock: 0,
+        branch: branchName,
+        name: capitalizeName(form.name.trim()),
+        performed_by: userName,
+        performed_by_role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+        bulk_qty: form.bulkQty || null,
+        extra_fields: {
+          pcs_per_strip: form.pcsPerStrip || null,
+          strips_per_box: form.stripsPerBox || null,
+        },
+      };
+      const duplicate = items.find(
+        (i) =>
+          normalizeName(i.name) === normalizeName(payload.name) &&
+          i.branch.trim().toLowerCase() === branchName.trim().toLowerCase(),
+      );
+      if (duplicate) {
+        results.push({
+          ok: false,
+          branch: branchName,
+          reason: "already exists in this branch",
+        });
+        continue;
+      }
+      try {
+        const res = await fetch(
+          `${process.env.REACT_APP_API_URL}/ingredients`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          },
+        );
+        const d = await res.json();
+        if (d.success) {
+          if (isDirectProductBrand(payload.brand) && d.item?.id != null) {
+            persistStockCategory(d.item.id, payload.category);
+          }
+          lastCreatedItem = normalizeStockItem({
+            ...payload,
+            ...(d.item || {}),
+          });
+          results.push({ ok: true, branch: branchName });
+        } else {
+          results.push({
+            ok: false,
+            branch: branchName,
+            reason: d.error || "failed to save",
+          });
+        }
+      } catch {
+        results.push({
+          ok: false,
+          branch: branchName,
+          reason: "connection error",
+        });
+      }
+    }
+    const succeeded = results.filter((r) => r.ok);
+    const failed = results.filter((r) => !r.ok);
+    const freshRows = await fetchItems();
+    await fetchActivityLog();
+    if (lastCreatedItem) {
+      const freshItem =
+        freshRows.find(
+          (row) =>
+            normalizeName(row.name) === normalizeName(lastCreatedItem.name) &&
+            String(row.branch || "").toLowerCase() ===
+              String(lastCreatedItem.branch || "").toLowerCase(),
+        ) || lastCreatedItem;
+      setFocusMutation({ item: freshItem, stamp: Date.now(), reason: "add" });
+      setStockRefreshToken((v) => v + 1);
+      window.dispatchEvent(
+        new CustomEvent("stock-inventory-updated", {
+          detail: { ingredientId: freshItem.id, brand: freshItem.brand },
+        }),
+      );
+    }
+    setSavingItem(false);
+    if (succeeded.length > 0 && failed.length === 0) {
+      closeModal();
+      setToast({
+        type: "success",
+        title: "Ingredient Added",
+        message:
+          succeeded.length === 1
+            ? `"${form.name.trim()}" has been added to ${succeeded[0].branch}.`
+            : `"${form.name.trim()}" has been added to ${succeeded.length} branches.`,
+      });
+    } else if (succeeded.length > 0 && failed.length > 0) {
+      closeModal();
+      showUiModal({
+        type: "info",
+        title: "Added With Some Skips",
+        message: `"${form.name.trim()}" was added to ${succeeded.length} branch${succeeded.length === 1 ? "" : "es"}. ${failed.length} branch${failed.length === 1 ? "" : "es"} were skipped.`,
+        lines: failed.map((f) => ({
+          text: `${f.branch}: ${f.reason}`,
+          warn: true,
+        })),
+      });
+    } else {
+      showUiModal({
+        type: "error",
+        title: "Failed to Add Ingredient",
+        message: `Could not add "${form.name.trim()}" to any of the selected branches.`,
+        lines: failed.map((f) => ({
+          text: `${f.branch}: ${f.reason}`,
+          warn: true,
+        })),
+      });
+    }
+  };
+  const handleDeleteItem = (item) => setDeleteTarget(item);
+  const confirmDelete = async () => {
+    if (!canEditInventory) {
+      showUiModal({
+        type: "error",
+        title: "Read Only Access",
+        message: "Your account cannot delete inventory records.",
+      });
+      return;
+    }
+    if (!deleteTarget) return;
+    const item = deleteTarget;
+    setDeletingItem(true);
+    try {
+      const coords = await getBrowserLocation();
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/ingredients/${item.id}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            deleted_by: userName,
+            performed_by_role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+          }),
+        },
+      );
+      const d = await res.json();
+      if (d.success) {
+        await fetch(
+          `${process.env.REACT_APP_API_URL}/ingredient-delete-history`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ingredient_data: item,
+              deleted_by: userName,
+            }),
+          },
+        );
+        await fetchItems();
+        await fetchDeleteHistory();
+        await fetchActivityLog();
+        setStockRefreshToken((v) => v + 1);
+        window.dispatchEvent(
+          new CustomEvent("stock-inventory-updated", {
+            detail: { ingredientId: item.id, brand: item.brand, deleted: true },
+          }),
+        );
+        setToast({
+          type: "success",
+          title: "Ingredient Deleted",
+          message: `"${item.name}" moved to Delete History.`,
+        });
+      } else {
+        setToast({
+          type: "error",
+          title: "Failed to Delete",
+          message: d.error || "An unexpected error occurred.",
+        });
+      }
+    } catch {
+      setToast({
+        type: "error",
+        title: "Connection Error",
+        message: "Failed to delete.",
+      });
+    } finally {
+      setDeletingItem(false);
+      setDeleteTarget(null);
+    }
+  };
+  const handleRestore = async (entry) => {
+    setRestoringId(entry.id);
+    try {
+      const d = entry.data;
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: d.name,
+          branch: d.branch,
+          brand: d.brand,
+          category: d.category || "",
+          unit: d.unit,
+          stock: d.stock,
+          min_stock: d.min_stock,
+          cost_per_unit: d.cost_per_unit,
+          performed_by: userName,
+          performed_by_role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+          restored: true,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        if (result.item?.id != null && d.category) {
+          persistStockCategory(result.item.id, d.category);
+        }
+        await fetch(
+          `${process.env.REACT_APP_API_URL}/ingredient-delete-history/${entry.id}`,
+          { method: "DELETE" },
+        );
+        const freshRows = await fetchItems();
+        await fetchDeleteHistory();
+        await fetchActivityLog();
+        const restoredItem =
+          freshRows.find(
+            (row) =>
+              normalizeName(row.name) === normalizeName(d.name) &&
+              String(row.branch || "").toLowerCase() ===
+                String(d.branch || "").toLowerCase(),
+          ) || normalizeStockItem(d);
+        setFocusMutation({
+          item: restoredItem,
+          stamp: Date.now(),
+          reason: "restore",
+        });
+        setStockRefreshToken((v) => v + 1);
+        window.dispatchEvent(
+          new CustomEvent("stock-inventory-updated", {
+            detail: {
+              ingredientId: restoredItem.id,
+              brand: restoredItem.brand,
+              restored: true,
+            },
+          }),
+        );
+        setToast({
+          type: "success",
+          title: "Ingredient Restored",
+          message: `"${d.name}" has been restored.`,
+        });
+      } else {
+        setToast({
+          type: "error",
+          title: "Restore Failed",
+          message: result.error || "Failed to restore.",
+        });
+      }
+    } catch {
+      setToast({
+        type: "error",
+        title: "Connection Error",
+        message: "Failed to restore.",
+      });
+    } finally {
+      setRestoringId(null);
+    }
+  };
+  const openEdit = async (item) => {
+    setEditing(item);
+    let shopMatch = null;
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        shopMatch = data.find((s) => s.ingredient_id === item.id) || null;
+      }
+    } catch {}
+    setForm({
+      name: item.name,
+      brand: item.brand || "",
+      branch: item.branch || "",
+      branches: [item.branch || ""],
+      category: item.category || "",
+      unit: item.unit || "pcs",
+      stock: item.stock,
+      min_stock: item.min_stock,
+      cost_per_unit: item.cost_per_unit || "",
+      perishable: !!item.perishable,
+      listInShop: !!shopMatch,
+      shopCategory: shopMatch
+        ? shopMatch.shop || item.brand || "Coffee Spot"
+        : item.brand || "Coffee Spot",
+      sku: item.sku || "",
+      bulkQty: item.bulk_qty || "",
+      pcsPerStrip: item.extra_fields?.pcs_per_strip || "",
+      stripsPerBox: item.extra_fields?.strips_per_box || "",
+    });
+    setShowModal(true);
+  };
+  const closeModal = () => {
+    setShowModal(false);
+    setEditing(null);
+    setForm(emptyForm());
+  };
+  const SortTh = ({ col, label, minW, align = "left" }) => {
+    const active = sort.col === col;
+    return (
+      <th
+        onClick={() => {
+          setSort((s) => ({ col, asc: s.col === col ? !s.asc : true }));
+          setPage(0);
+        }}
+        style={{
+          padding: "11px 16px",
+          textAlign: align,
+          fontWeight: 600,
+          fontSize: 12,
+          color: active ? SI_C.green : SI_C.muted,
+          letterSpacing: "0.02em",
+          borderBottom: `1.5px solid ${SI_C.border}`,
+          cursor: "pointer",
+          userSelect: "none",
+          whiteSpace: "nowrap",
+          background: "#fbfcf8",
+          minWidth: minW,
+        }}
+      >
         <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
           {label}
-          {active ? (sort.asc ? (<SI_SortAscIcon />) : (<SI_SortDescIcon />)) : (<span style={{ opacity: 0.22 }}>
+          {active ? (
+            sort.asc ? (
+              <SI_SortAscIcon />
+            ) : (
               <SI_SortDescIcon />
-            </span>)}
+            )
+          ) : (
+            <span style={{ opacity: 0.22 }}>
+              <SI_SortDescIcon />
+            </span>
+          )}
         </span>
-      </th>);
-    };
-    const brandItemsFor = (brandDef) => {
-        const brandObj = brandList.find((b) => brandDef.match((b.name || "").toLowerCase()));
-        return items
-            .filter((i) => itemBelongsToBrand(i, brandDef, brandObj))
-            .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
-    };
-    const deleteHistoryForBrand = (brandDef) => {
-        if (!brandDef)
-            return [];
-        const brandObj = brandList.find((b) => brandDef.match((b.name || "").toLowerCase()));
-        return deleteHistory
-            .filter((entry) => itemBelongsToBrand(entry?.data || {}, brandDef, brandObj))
-            .sort((a, b) => {
-            const byProduct = String(a?.data?.name || "").localeCompare(String(b?.data?.name || ""));
-            if (byProduct !== 0)
-                return byProduct;
-            return new Date(b?.deletedAt || 0) - new Date(a?.deletedAt || 0);
-        });
-    };
-    const previewShopPrice = isDirectProductBrand(form.brand || currentBrandName)
-        ? computeDirectSellingPrice(form.cost_per_unit)
-        : computeDisplayPrice(form.cost_per_unit, form.unit, form.bulkQty);
-    const pharmaPcPrice = computeDirectSellingPrice(form.cost_per_unit);
-    const pharmaStripPrice = Number(form.pcsPerStrip) > 0
-        ? computeDirectSellingPrice(Number(form.cost_per_unit) * Number(form.pcsPerStrip))
-        : 0;
-    const pharmaBoxPcs = Number(form.pcsPerStrip || 0) * Number(form.stripsPerBox || 0);
-    const pharmaBoxPrice = pharmaBoxPcs > 0
-        ? computeDirectSellingPrice(Number(form.cost_per_unit) * pharmaBoxPcs)
-        : 0;
-    const effectiveFormBranch = editing
-        ? editing.branch
-        : !isAdmin
-            ? userBranch
-            : form.branches.length === 1
-                ? form.branches[0]
-                : "";
-    const canListInShop = isHeadOfficeBranch(effectiveFormBranch);
-    useEffect(() => {
-        if (!canListInShop && form.listInShop) {
-            setForm((f) => ({ ...f, listInShop: false }));
-        }
-    }, [canListInShop]); // eslint-disable-line react-hooks/exhaustive-deps
-    return (<div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: SI_C.ink }}>
+      </th>
+    );
+  };
+  const brandItemsFor = (brandDef) => {
+    const brandObj = brandList.find((b) =>
+      brandDef.match((b.name || "").toLowerCase()),
+    );
+    return items
+      .filter((i) => itemBelongsToBrand(i, brandDef, brandObj))
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  };
+  const deleteHistoryForBrand = (brandDef) => {
+    if (!brandDef) return [];
+    const brandObj = brandList.find((b) =>
+      brandDef.match((b.name || "").toLowerCase()),
+    );
+    return deleteHistory
+      .filter((entry) =>
+        itemBelongsToBrand(entry?.data || {}, brandDef, brandObj),
+      )
+      .sort((a, b) => {
+        const byProduct = String(a?.data?.name || "").localeCompare(
+          String(b?.data?.name || ""),
+        );
+        if (byProduct !== 0) return byProduct;
+        return new Date(b?.deletedAt || 0) - new Date(a?.deletedAt || 0);
+      });
+  };
+  const previewShopPrice = isDirectProductBrand(form.brand || currentBrandName)
+    ? computeDirectSellingPrice(form.cost_per_unit)
+    : computeDisplayPrice(form.cost_per_unit, form.unit, form.bulkQty);
+  const pharmaPcPrice = computeDirectSellingPrice(form.cost_per_unit);
+  const pharmaStripPrice =
+    Number(form.pcsPerStrip) > 0
+      ? computeDirectSellingPrice(
+          Number(form.cost_per_unit) * Number(form.pcsPerStrip),
+        )
+      : 0;
+  const pharmaBoxPcs =
+    Number(form.pcsPerStrip || 0) * Number(form.stripsPerBox || 0);
+  const pharmaBoxPrice =
+    pharmaBoxPcs > 0
+      ? computeDirectSellingPrice(Number(form.cost_per_unit) * pharmaBoxPcs)
+      : 0;
+  const effectiveFormBranch = editing
+    ? editing.branch
+    : !isAdmin
+      ? userBranch
+      : form.branches.length === 1
+        ? form.branches[0]
+        : "";
+  const canListInShop = isHeadOfficeBranch(effectiveFormBranch);
+  useEffect(() => {
+    if (!canListInShop && form.listInShop) {
+      setForm((f) => ({ ...f, listInShop: false }));
+    }
+  }, [canListInShop]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div
+      style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: SI_C.ink }}
+    >
       <ManagerFrStockInventoryContent
         user={user}
         brands={brandList}
@@ -9370,63 +11990,122 @@ function ManagerStockInventoryContent({ user, brands: propBrands = [], initialFo
       />
 
       {/* ADD / EDIT MODAL */}
-      {showModal && (<div style={{
-                position: "fixed",
-                inset: 0,
-                background: "rgba(0,0,0,0.3)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                zIndex: 1000,
-            }} onClick={(e) => {
-                if (e.target === e.currentTarget)
-                    closeModal();
-            }}>
-          <div style={{
-                background: SI_C.white,
-                borderRadius: 18,
-                padding: "26px 26px 20px",
-                width: 540,
-                maxWidth: "95vw",
-                maxHeight: "93vh",
-                overflowY: "auto",
-                boxShadow: "0 12px 48px rgba(0,0,0,0.16)",
-            }}>
-            <div style={{
+      {showModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeModal();
+          }}
+        >
+          <div
+            style={{
+              background: SI_C.white,
+              borderRadius: 18,
+              padding: "26px 26px 20px",
+              width: 540,
+              maxWidth: "95vw",
+              maxHeight: "93vh",
+              overflowY: "auto",
+              boxShadow: "0 12px 48px rgba(0,0,0,0.16)",
+            }}
+          >
+            <div
+              style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
                 marginBottom: 20,
-            }}>
-              <h2 style={{
-                margin: 0,
-                fontSize: 16,
-                fontWeight: 800,
-                color: SI_C.ink,
-            }}>
+              }}
+            >
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: 16,
+                  fontWeight: 800,
+                  color: SI_C.ink,
+                }}
+              >
                 {editing ? "Edit Stock" : "Add Stock"}
               </h2>
-              <button onClick={closeModal} style={{
-                background: "none",
-                border: "none",
-                color: SI_C.muted,
-                padding: 4,
-            }}>
-                <SI_XIcon size={18}/>
+              <button
+                onClick={closeModal}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: SI_C.muted,
+                  padding: 4,
+                }}
+              >
+                <SI_XIcon size={18} />
               </button>
             </div>
-            <form noValidate onSubmit={saveItem} style={{ display: "grid", gap: 14 }}>
+            <form
+              noValidate
+              onSubmit={saveItem}
+              style={{ display: "grid", gap: 14 }}
+            >
               <div>
                 <label style={invLabelSt}>Ingredient Name *</label>
-                <input style={SI_invInputSt} value={form.name} onChange={(e) => setForm((f) => ({
-                ...f,
-                name: e.target.value.replace(/\b\w/g, (c) => c.toUpperCase()),
-            }))} required placeholder="e.g. Coffee Beans"/>
+                <input
+                  style={SI_invInputSt}
+                  value={form.name}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      name: e.target.value.replace(/\b\w/g, (c) =>
+                        c.toUpperCase(),
+                      ),
+                    }))
+                  }
+                  required
+                  placeholder="e.g. Coffee Beans"
+                />
               </div>
 
-              {editing && form.sku && (<div>
+              {editing && form.sku && (
+                <div>
                   <label style={invLabelSt}>SKU</label>
-                  <div style={{
+                  <div
+                    style={{
+                      ...SI_invInputSt,
+                      height: "auto",
+                      padding: "9px 12px",
+                      background: "#f5f5f5",
+                      color: SI_C.muted,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {form.sku}
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: SI_C.muted,
+                        fontWeight: 400,
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      (auto-generated)
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label style={invLabelSt}>Brand</label>
+                <div
+                  style={{
                     ...SI_invInputSt,
                     height: "auto",
                     padding: "9px 12px",
@@ -9435,65 +12114,56 @@ function ManagerStockInventoryContent({ user, brands: propBrands = [], initialFo
                     fontWeight: 700,
                     display: "flex",
                     alignItems: "center",
-                    gap: 6,
-                    fontFamily: "monospace",
-                }}>
-                    {form.sku}
-                    <span style={{
-                    fontSize: 10,
-                    color: SI_C.muted,
-                    fontWeight: 400,
-                    fontFamily: "inherit",
-                }}>
-                      (auto-generated)
-                    </span>
-                  </div>
-                </div>)}
-
-              <div>
-                <label style={invLabelSt}>Brand</label>
-                <div style={{
-                ...SI_invInputSt,
-                height: "auto",
-                padding: "9px 12px",
-                background: "#f5f5f5",
-                color: SI_C.muted,
-                fontWeight: 700,
-                display: "flex",
-                alignItems: "center",
-            }}>
+                  }}
+                >
                   {form.brand || currentBrandName || "—"}
                 </div>
               </div>
 
               {(() => {
-                const selectedBrandObj = brandList.find((b) => (b.name || "").toLowerCase() ===
-                    String(form.brand || currentBrandName).toLowerCase());
+                const selectedBrandObj = brandList.find(
+                  (b) =>
+                    (b.name || "").toLowerCase() ===
+                    String(form.brand || currentBrandName).toLowerCase(),
+                );
                 const categoryOptions = getBrandCategories(selectedBrandObj);
-                if (categoryOptions.length === 0)
-                    return null;
-                return (<div>
+                if (categoryOptions.length === 0) return null;
+                return (
+                  <div>
                     <label style={invLabelSt}>Category *</label>
-                    <select style={SI_invInputSt} value={form.category || ""} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} required>
+                    <select
+                      style={SI_invInputSt}
+                      value={form.category || ""}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, category: e.target.value }))
+                      }
+                      required
+                    >
                       <option value="">Select category…</option>
-                      {categoryOptions.map((cat) => (<option key={cat} value={cat}>
+                      {categoryOptions.map((cat) => (
+                        <option key={cat} value={cat}>
                           {cat}
-                        </option>))}
+                        </option>
+                      ))}
                     </select>
-                    <div style={{
+                    <div
+                      style={{
                         fontSize: 10.5,
                         color: SI_C.muted,
                         marginTop: 5,
                         lineHeight: 1.45,
-                    }}>
+                      }}
+                    >
                       Categories are synced from{" "}
                       <strong>Brand &amp; Branch Management</strong>. Add,
                       rename, or remove categories there.
                     </div>
-                  </div>);
-            })()}
+                  </div>
+                );
+              })()}
 
-              {isAdmin ? (<div>
+              {isAdmin ? (
+                <div>
                   <label style={invLabelSt}>
                     Branches *{" "}
                     <span style={{ fontWeight: 400, color: SI_C.muted }}>
@@ -9501,46 +12171,64 @@ function ManagerStockInventoryContent({ user, brands: propBrands = [], initialFo
                     </span>
                   </label>
                   {(() => {
-                    const selectedBrandObj = brandList.find((b) => b.name === form.brand);
+                    const selectedBrandObj = brandList.find(
+                      (b) => b.name === form.brand,
+                    );
                     const filteredBranches = selectedBrandObj
-                        ? (selectedBrandObj.branches || []).map((br) => typeof br === "string" ? br : br.name)
-                        : [];
+                      ? (selectedBrandObj.branches || []).map((br) =>
+                          typeof br === "string" ? br : br.name,
+                        )
+                      : [];
                     if (!form.brand) {
-                        return (<div style={{
-                                ...SI_invInputSt,
-                                height: "auto",
-                                padding: "9px 12px",
-                                background: "#f5f5f5",
-                                color: SI_C.muted,
-                                display: "flex",
-                                alignItems: "center",
-                            }}>
+                      return (
+                        <div
+                          style={{
+                            ...SI_invInputSt,
+                            height: "auto",
+                            padding: "9px 12px",
+                            background: "#f5f5f5",
+                            color: SI_C.muted,
+                            display: "flex",
+                            alignItems: "center",
+                          }}
+                        >
                           Select a brand first…
-                        </div>);
+                        </div>
+                      );
                     }
                     if (filteredBranches.length === 0) {
-                        return (<div style={{
-                                ...SI_invInputSt,
-                                height: "auto",
-                                padding: "9px 12px",
-                                background: "#f5f5f5",
-                                color: SI_C.muted,
-                                display: "flex",
-                                alignItems: "center",
-                            }}>
+                      return (
+                        <div
+                          style={{
+                            ...SI_invInputSt,
+                            height: "auto",
+                            padding: "9px 12px",
+                            background: "#f5f5f5",
+                            color: SI_C.muted,
+                            display: "flex",
+                            alignItems: "center",
+                          }}
+                        >
                           No branches found for this brand.
-                        </div>);
+                        </div>
+                      );
                     }
                     const lockedBranch = editing ? editing.branch : null;
-                    const allSelected = filteredBranches.every((br) => form.branches.includes(br));
-                    return (<div style={{
-                            border: `1.5px solid ${SI_C.border}`,
-                            borderRadius: 11,
-                            padding: "8px 4px",
-                            maxHeight: 180,
-                            overflowY: "auto",
-                        }}>
-                        <label style={{
+                    const allSelected = filteredBranches.every((br) =>
+                      form.branches.includes(br),
+                    );
+                    return (
+                      <div
+                        style={{
+                          border: `1.5px solid ${SI_C.border}`,
+                          borderRadius: 11,
+                          padding: "8px 4px",
+                          maxHeight: 180,
+                          overflowY: "auto",
+                        }}
+                      >
+                        <label
+                          style={{
                             display: "flex",
                             alignItems: "center",
                             gap: 8,
@@ -9551,328 +12239,462 @@ function ManagerStockInventoryContent({ user, brands: propBrands = [], initialFo
                             color: SI_C.greenDk,
                             borderBottom: `1px solid ${SI_C.border}`,
                             marginBottom: 4,
-                        }}>
-                          <input type="checkbox" checked={allSelected} onChange={(e) => setForm((f) => ({
-                            ...f,
-                            branches: e.target.checked
-                                ? filteredBranches
-                                : lockedBranch
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                branches: e.target.checked
+                                  ? filteredBranches
+                                  : lockedBranch
                                     ? [lockedBranch]
                                     : [],
-                        }))}/>
+                              }))
+                            }
+                          />
                           Select all branches
                         </label>
                         {filteredBranches.map((br) => {
-                            const locked = br === lockedBranch;
-                            return (<label key={br} style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 8,
-                                    padding: "6px 10px",
-                                    cursor: locked ? "default" : "pointer",
-                                    fontSize: 13,
-                                    color: SI_C.ink,
-                                    opacity: locked ? 0.75 : 1,
-                                }}>
-                              <input type="checkbox" checked={form.branches.includes(br)} disabled={locked} onChange={(e) => setForm((f) => ({
+                          const locked = br === lockedBranch;
+                          return (
+                            <label
+                              key={br}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                padding: "6px 10px",
+                                cursor: locked ? "default" : "pointer",
+                                fontSize: 13,
+                                color: SI_C.ink,
+                                opacity: locked ? 0.75 : 1,
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={form.branches.includes(br)}
+                                disabled={locked}
+                                onChange={(e) =>
+                                  setForm((f) => ({
                                     ...f,
                                     branches: e.target.checked
-                                        ? [...f.branches, br]
-                                        : f.branches.filter((x) => x !== br),
-                                }))}/>
+                                      ? [...f.branches, br]
+                                      : f.branches.filter((x) => x !== br),
+                                  }))
+                                }
+                              />
                               {br}
-                              {locked && (<span style={{
-                                        fontSize: 10.5,
-                                        fontWeight: 700,
-                                        color: SI_C.greenDk,
-                                    }}>
+                              {locked && (
+                                <span
+                                  style={{
+                                    fontSize: 10.5,
+                                    fontWeight: 700,
+                                    color: SI_C.greenDk,
+                                  }}
+                                >
                                   (current — can't remove)
-                                </span>)}
-                            </label>);
+                                </span>
+                              )}
+                            </label>
+                          );
                         })}
-                      </div>);
-                })()}
-                  {form.branches.length > 0 && (<div style={{ fontSize: 11, color: SI_C.muted, marginTop: 5 }}>
+                      </div>
+                    );
+                  })()}
+                  {form.branches.length > 0 && (
+                    <div
+                      style={{ fontSize: 11, color: SI_C.muted, marginTop: 5 }}
+                    >
                       {editing
                         ? form.branches.length === 1
-                            ? "Only updating the current branch."
-                            : `Updating "${editing.branch}" and adding this ingredient to ${form.branches.length - 1} more branch${form.branches.length - 1 === 1 ? "" : "es"}: ${form.branches.filter((b) => b !== editing.branch).join(", ")}`
+                          ? "Only updating the current branch."
+                          : `Updating "${editing.branch}" and adding this ingredient to ${form.branches.length - 1} more branch${form.branches.length - 1 === 1 ? "" : "es"}: ${form.branches.filter((b) => b !== editing.branch).join(", ")}`
                         : `Will add this ingredient to ${form.branches.length} branch${form.branches.length === 1 ? "" : "es"}: ${form.branches.join(", ")}`}
-                    </div>)}
-                </div>) : (<div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
                   <label style={invLabelSt}>Branch</label>
-                  <div style={{
-                    ...SI_invInputSt,
-                    height: "auto",
-                    padding: "9px 12px",
-                    background: "#f5f5f5",
-                    color: SI_C.muted,
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                }}>
+                  <div
+                    style={{
+                      ...SI_invInputSt,
+                      height: "auto",
+                      padding: "9px 12px",
+                      background: "#f5f5f5",
+                      color: SI_C.muted,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
                     {userBranch || "—"}
                   </div>
-                </div>)}
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 12,
-            }}>
+                </div>
+              )}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 12,
+                }}
+              >
                 <div>
                   <label style={invLabelSt}>
                     {isPharmaBrand(form.brand || currentBrandName)
-                ? "Base Inventory Unit *"
-                : "Unit *"}
+                      ? "Base Inventory Unit *"
+                      : "Unit *"}
                   </label>
 
-                  {isPharmaBrand(form.brand || currentBrandName) ? (<>
-                      <input style={{
-                    ...SI_invInputSt,
-                    background: SI_C.bg,
-                    cursor: "not-allowed",
-                }} value="pcs" readOnly/>
+                  {isPharmaBrand(form.brand || currentBrandName) ? (
+                    <>
+                      <input
+                        style={{
+                          ...SI_invInputSt,
+                          background: SI_C.bg,
+                          cursor: "not-allowed",
+                        }}
+                        value="pcs"
+                        readOnly
+                      />
 
-                      <div style={{
-                    fontSize: 10,
-                    color: SI_C.muted,
-                    marginTop: 4,
-                    lineHeight: 1.4,
-                }}>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: SI_C.muted,
+                          marginTop: 4,
+                          lineHeight: 1.4,
+                        }}
+                      >
                         iPharma stock is tracked in individual pieces. Strip and
                         Box are derived from the packaging setup below.
                       </div>
-                    </>) : (<select style={SI_invInputSt} value={form.unit} onChange={(e) => setForm((f) => ({
-                    ...f,
-                    unit: e.target.value,
-                }))} required>
-                      {SI_UNITS.map((u) => (<option key={u} value={u}>
+                    </>
+                  ) : (
+                    <select
+                      style={SI_invInputSt}
+                      value={form.unit}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          unit: e.target.value,
+                        }))
+                      }
+                      required
+                    >
+                      {SI_UNITS.map((u) => (
+                        <option key={u} value={u}>
                           {u}
-                        </option>))}
-                    </select>)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label style={invLabelSt}>Cost per Unit (₱)</label>
-                  <div style={{
-                ...SI_invInputSt,
-                height: "auto",
-                padding: "9px 12px",
-                background: "#f5f5f5",
-                color: SI_C.muted,
-                fontWeight: 700,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-            }}>
+                  <div
+                    style={{
+                      ...SI_invInputSt,
+                      height: "auto",
+                      padding: "9px 12px",
+                      background: "#f5f5f5",
+                      color: SI_C.muted,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
                     ₱
                     {Number(form.cost_per_unit || 0).toLocaleString("en-PH", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-            })}
-                    <span style={{
-                fontSize: 10,
-                color: SI_C.muted,
-                fontWeight: 400,
-                marginLeft: 4,
-            }}>
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: SI_C.muted,
+                        fontWeight: 400,
+                        marginLeft: 4,
+                      }}
+                    >
                       {editing
-                ? "(from next-out batch)"
-                : "(set when you receive stock)"}
+                        ? "(from next-out batch)"
+                        : "(set when you receive stock)"}
                     </span>
                   </div>
-                  {!editing && (<div style={{
-                    fontSize: 11,
-                    color: "#1e40af",
-                    marginTop: 5,
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 5,
-                }}>
-                      <Info size={14} style={{ flexShrink: 0, marginTop: 1 }}/>
+                  {!editing && (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "#1e40af",
+                        marginTop: 5,
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 5,
+                      }}
+                    >
+                      <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                       <span>
                         Cost starts at ₱0.00. Use <strong>Receive Stock</strong>{" "}
                         after saving this item to log a batch.
                       </span>
-                    </div>)}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {isDirectProductBrand(form.brand || currentBrandName) && (<div style={{
+              {isDirectProductBrand(form.brand || currentBrandName) && (
+                <div
+                  style={{
                     padding: "12px 14px",
                     borderRadius: 11,
                     background: SI_C.greenLt,
                     border: `1px solid ${SI_C.greenMid}`,
-                }}>
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                }}>
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                    }}
+                  >
                     <div>
-                      <div style={{
-                    fontSize: 11,
-                    fontWeight: 800,
-                    color: SI_C.greenDk,
-                    textTransform: "uppercase",
-                    letterSpacing: ".05em",
-                }}>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          color: SI_C.greenDk,
+                          textTransform: "uppercase",
+                          letterSpacing: ".05em",
+                        }}
+                      >
                         Auto Selling Price
                       </div>
-                      <div style={{ fontSize: 10.5, color: SI_C.muted, marginTop: 3 }}>
+                      <div
+                        style={{
+                          fontSize: 10.5,
+                          color: SI_C.muted,
+                          marginTop: 3,
+                        }}
+                      >
                         Cost ÷ 0.35 — 35% product, 45% ops, 20% profit
                       </div>
                     </div>
-                    <div style={{
-                    fontSize: 20,
-                    fontWeight: 900,
-                    color: SI_C.greenDk,
-                }}>
+                    <div
+                      style={{
+                        fontSize: 20,
+                        fontWeight: 900,
+                        color: SI_C.greenDk,
+                      }}
+                    >
                       ₱
-                      {computeDirectSellingPrice(form.cost_per_unit).toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                })}
+                      {computeDirectSellingPrice(
+                        form.cost_per_unit,
+                      ).toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                     </div>
                   </div>
-                </div>)}
-
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "10px 12px",
-                borderRadius: 9,
-                background: form.perishable ? SI_C.greenLt : "#f7f7f7",
-                border: `1px solid ${form.perishable ? SI_C.greenMid : SI_C.border}`,
-            }}>
-                <div onClick={() => setForm((f) => ({ ...f, perishable: !f.perishable }))} style={{
-                width: 40,
-                height: 22,
-                borderRadius: 11,
-                cursor: "pointer",
-                position: "relative",
-                background: form.perishable
-                    ? `linear-gradient(135deg,${SI_C.teal},${SI_C.green})`
-                    : "#e0e0e0",
-                transition: "background .2s",
-                flexShrink: 0,
-            }}>
-                  <div style={{
-                position: "absolute",
-                top: 3,
-                left: form.perishable ? 21 : 3,
-                width: 16,
-                height: 16,
-                borderRadius: "50%",
-                background: "#fff",
-                boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
-                transition: "left .2s",
-            }}/>
                 </div>
-                <label style={{
-                ...invLabelSt,
-                marginBottom: 0,
-                cursor: "pointer",
-                flex: 1,
-            }} onClick={() => setForm((f) => ({ ...f, perishable: !f.perishable }))}>
+              )}
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderRadius: 9,
+                  background: form.perishable ? SI_C.greenLt : "#f7f7f7",
+                  border: `1px solid ${form.perishable ? SI_C.greenMid : SI_C.border}`,
+                }}
+              >
+                <div
+                  onClick={() =>
+                    setForm((f) => ({ ...f, perishable: !f.perishable }))
+                  }
+                  style={{
+                    width: 40,
+                    height: 22,
+                    borderRadius: 11,
+                    cursor: "pointer",
+                    position: "relative",
+                    background: form.perishable
+                      ? `linear-gradient(135deg,${SI_C.teal},${SI_C.green})`
+                      : "#e0e0e0",
+                    transition: "background .2s",
+                    flexShrink: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 3,
+                      left: form.perishable ? 21 : 3,
+                      width: 16,
+                      height: 16,
+                      borderRadius: "50%",
+                      background: "#fff",
+                      boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+                      transition: "left .2s",
+                    }}
+                  />
+                </div>
+                <label
+                  style={{
+                    ...invLabelSt,
+                    marginBottom: 0,
+                    cursor: "pointer",
+                    flex: 1,
+                  }}
+                  onClick={() =>
+                    setForm((f) => ({ ...f, perishable: !f.perishable }))
+                  }
+                >
                   {isPharmaBrand(form.brand || currentBrandName)
-                ? "Medicine (perishable)"
-                : "Perishable (e.g. dairy, fresh items)"}
-                  <span style={{
-                fontWeight: 400,
-                color: SI_C.muted,
-                display: "block",
-                fontSize: 10.5,
-                marginTop: 2,
-            }}>
+                    ? "Medicine (perishable)"
+                    : "Perishable (e.g. dairy, fresh items)"}
+                  <span
+                    style={{
+                      fontWeight: 400,
+                      color: SI_C.muted,
+                      display: "block",
+                      fontSize: 10.5,
+                      marginTop: 2,
+                    }}
+                  >
                     {isPharmaBrand(form.brand || currentBrandName)
-                ? form.perishable
-                    ? "Uses FEFO queuing and shows pharmacy fields (LOT, NDC, dosage, controlled substance) when receiving stock."
-                    : "Off = medical supply (e.g. bandages, gauze) — uses FIFO queuing, no dosage/LOT fields shown."
-                : "Uses FEFO (earliest expiry first) instead of FIFO for its batch queue."}
+                      ? form.perishable
+                        ? "Uses FEFO queuing and shows pharmacy fields (LOT, NDC, dosage, controlled substance) when receiving stock."
+                        : "Off = medical supply (e.g. bandages, gauze) — uses FIFO queuing, no dosage/LOT fields shown."
+                      : "Uses FEFO (earliest expiry first) instead of FIFO for its batch queue."}
                   </span>
                 </label>
               </div>
 
               {/* Minimum stock remains stored for compatibility but is not shown in the UI. */}
 
-
-              {isPharmaBrand(form.brand || currentBrandName) && (<div style={{
+              {isPharmaBrand(form.brand || currentBrandName) && (
+                <div
+                  style={{
                     padding: 16,
                     border: `1px solid ${SI_C.border}`,
                     borderRadius: 14,
                     background: SI_C.bg,
                     marginTop: 12,
-                }}>
-                  <div style={{
-                    fontSize: 13,
-                    fontWeight: 800,
-                    color: SI_C.greenDk,
-                    marginBottom: 4,
-                }}>
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 800,
+                      color: SI_C.greenDk,
+                      marginBottom: 4,
+                    }}
+                  >
                     Medicine Packaging
                   </div>
 
-                  <div style={{
-                    fontSize: 11,
-                    color: SI_C.muted,
-                    marginBottom: 14,
-                }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: SI_C.muted,
+                      marginBottom: 14,
+                    }}
+                  >
                     Configure how individual pieces are grouped into strips and
                     boxes. Stock will remain recorded in pieces.
                   </div>
 
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 12,
-                }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 12,
+                    }}
+                  >
                     <div>
                       <label style={invLabelSt}>Pieces per Strip</label>
 
-                      <input type="number" min="1" step="1" style={SI_invInputSt} value={form.pcsPerStrip} placeholder="e.g. 10" onChange={(e) => setForm((f) => ({
-                    ...f,
-                    pcsPerStrip: e.target.value,
-                }))}/>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        style={SI_invInputSt}
+                        value={form.pcsPerStrip}
+                        placeholder="e.g. 10"
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            pcsPerStrip: e.target.value,
+                          }))
+                        }
+                      />
                     </div>
 
                     <div>
                       <label style={invLabelSt}>Strips per Box</label>
 
-                      <input type="number" min="1" step="1" style={SI_invInputSt} value={form.stripsPerBox} placeholder="e.g. 10" onChange={(e) => setForm((f) => ({
-                    ...f,
-                    stripsPerBox: e.target.value,
-                }))}/>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        style={SI_invInputSt}
+                        value={form.stripsPerBox}
+                        placeholder="e.g. 10"
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            stripsPerBox: e.target.value,
+                          }))
+                        }
+                      />
                     </div>
                   </div>
-                </div>)}
+                </div>
+              )}
 
               {isPharmaBrand(form.brand || currentBrandName) &&
-                Number(form.cost_per_unit) > 0 && (<div style={{
-                    marginTop: 12,
-                    border: `1px solid ${SI_C.border}`,
-                    borderRadius: 12,
-                    overflow: "hidden",
-                }}>
-                    <div style={{
-                    padding: "9px 12px",
-                    background: SI_C.bg,
-                    fontSize: 11,
-                    fontWeight: 800,
-                    color: SI_C.greenDk,
-                }}>
+                Number(form.cost_per_unit) > 0 && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      border: `1px solid ${SI_C.border}`,
+                      borderRadius: 12,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "9px 12px",
+                        background: SI_C.bg,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        color: SI_C.greenDk,
+                      }}
+                    >
                       POS Selling Prices
                     </div>
 
-                    <div style={{
-                    padding: 12,
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, 1fr)",
-                    gap: 10,
-                }}>
+                    <div
+                      style={{
+                        padding: 12,
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3, 1fr)",
+                        gap: 10,
+                      }}
+                    >
                       <div>
-                        <div style={{ fontSize: 10, color: SI_C.muted }}>Pc</div>
+                        <div style={{ fontSize: 10, color: SI_C.muted }}>
+                          Pc
+                        </div>
                         <strong>₱{pharmaPcPrice.toFixed(2)}</strong>
                       </div>
 
@@ -9882,44 +12704,55 @@ function ManagerStockInventoryContent({ user, brands: propBrands = [], initialFo
                         </div>
                         <strong>
                           {form.pcsPerStrip
-                    ? `₱${pharmaStripPrice.toFixed(2)}`
-                    : "—"}
+                            ? `₱${pharmaStripPrice.toFixed(2)}`
+                            : "—"}
                         </strong>
                       </div>
 
                       <div>
-                        <div style={{ fontSize: 10, color: SI_C.muted }}>Box</div>
+                        <div style={{ fontSize: 10, color: SI_C.muted }}>
+                          Box
+                        </div>
                         <strong>
                           {pharmaBoxPcs ? `₱${pharmaBoxPrice.toFixed(2)}` : "—"}
                         </strong>
                       </div>
                     </div>
-                  </div>)}
+                  </div>
+                )}
 
               {isPharmaBrand(form.brand || currentBrandName) &&
-                Number(form.pcsPerStrip) > 0 && (<div style={{
-                    marginTop: 12,
-                    padding: "10px 12px",
-                    borderRadius: 10,
-                    background: SI_C.greenLt,
-                    border: `1px solid ${SI_C.greenMid}`,
-                    fontSize: 11,
-                    color: SI_C.greenDk,
-                    lineHeight: 1.7,
-                }}>
+                Number(form.pcsPerStrip) > 0 && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      background: SI_C.greenLt,
+                      border: `1px solid ${SI_C.greenMid}`,
+                      fontSize: 11,
+                      color: SI_C.greenDk,
+                      lineHeight: 1.7,
+                    }}
+                  >
                     <strong>Packaging breakdown</strong>
                     <div>1 Pc = 1 piece</div>
 
                     <div>1 Strip = {Number(form.pcsPerStrip)} pieces</div>
 
-                    {Number(form.stripsPerBox) > 0 && (<div>
+                    {Number(form.stripsPerBox) > 0 && (
+                      <div>
                         1 Box ={" "}
                         {Number(form.pcsPerStrip) * Number(form.stripsPerBox)}{" "}
                         pieces
-                      </div>)}
-                  </div>)}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-              {!editing && (<div style={{
+              {!editing && (
+                <div
+                  style={{
                     background: "#eff6ff",
                     border: "1px solid #bfdbfe",
                     borderRadius: 9,
@@ -9929,54 +12762,78 @@ function ManagerStockInventoryContent({ user, brands: propBrands = [], initialFo
                     display: "flex",
                     alignItems: "flex-start",
                     gap: 8,
-                }}>
+                  }}
+                >
                   <span>
                     Stock starts at <strong>0</strong> and is automatically
                     calculated from batches. Use <strong>Receive Stock</strong>{" "}
                     on the ingredient row to add stock.
                   </span>
-                </div>)}
-              {canListInShop && (<div style={{ borderTop: `1px solid ${SI_C.border}`, paddingTop: 14 }}>
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    marginBottom: form.listInShop ? 14 : 0,
-                }}>
-                    <div onClick={() => setForm((f) => ({ ...f, listInShop: !f.listInShop }))} style={{
-                    width: 40,
-                    height: 22,
-                    borderRadius: 11,
-                    cursor: "pointer",
-                    position: "relative",
-                    background: form.listInShop
-                        ? `linear-gradient(135deg,${SI_C.teal},${SI_C.green})`
-                        : "#e0e0e0",
-                    transition: "background .2s",
-                    flexShrink: 0,
-                }}>
-                      <div style={{
-                    position: "absolute",
-                    top: 3,
-                    left: form.listInShop ? 21 : 3,
-                    width: 16,
-                    height: 16,
-                    borderRadius: "50%",
-                    background: "#fff",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
-                    transition: "left .2s",
-                }}/>
+                </div>
+              )}
+              {canListInShop && (
+                <div
+                  style={{
+                    borderTop: `1px solid ${SI_C.border}`,
+                    paddingTop: 14,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      marginBottom: form.listInShop ? 14 : 0,
+                    }}
+                  >
+                    <div
+                      onClick={() =>
+                        setForm((f) => ({ ...f, listInShop: !f.listInShop }))
+                      }
+                      style={{
+                        width: 40,
+                        height: 22,
+                        borderRadius: 11,
+                        cursor: "pointer",
+                        position: "relative",
+                        background: form.listInShop
+                          ? `linear-gradient(135deg,${SI_C.teal},${SI_C.green})`
+                          : "#e0e0e0",
+                        transition: "background .2s",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 3,
+                          left: form.listInShop ? 21 : 3,
+                          width: 16,
+                          height: 16,
+                          borderRadius: "50%",
+                          background: "#fff",
+                          boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+                          transition: "left .2s",
+                        }}
+                      />
                     </div>
 
-                    <label style={{
-                    ...invLabelSt,
-                    marginBottom: 0,
-                    cursor: "pointer",
-                }} onClick={() => setForm((f) => ({ ...f, listInShop: !f.listInShop }))}>
+                    <label
+                      style={{
+                        ...invLabelSt,
+                        marginBottom: 0,
+                        cursor: "pointer",
+                      }}
+                      onClick={() =>
+                        setForm((f) => ({ ...f, listInShop: !f.listInShop }))
+                      }
+                    >
                       Also list in Mobile Shop Supplies
                     </label>
                   </div>
-                  {form.listInShop && (<div style={{
+                  {form.listInShop && (
+                    <div
+                      style={{
                         display: "grid",
                         gap: 12,
                         marginTop: 14,
@@ -9984,29 +12841,46 @@ function ManagerStockInventoryContent({ user, brands: propBrands = [], initialFo
                         background: SI_C.bg,
                         borderRadius: 10,
                         border: `1px solid ${SI_C.border}`,
-                    }}>
+                      }}
+                    >
                       <p style={{ fontSize: 11, color: SI_C.muted, margin: 0 }}>
                         Shop price and unit are synced automatically from this
                         ingredient's cost and unit.
                       </p>
-                      <div style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr 1fr",
-                        gap: 12,
-                    }}>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr 1fr",
+                          gap: 12,
+                        }}
+                      >
                         <div>
                           <label style={invLabelSt}>
                             Bulk Qty per Shop Item
                           </label>
-                          <input type="number" min="0" step="1" style={SI_invInputSt} value={form.bulkQty} placeholder={String(defaultBulkQtyForUnit(form.unit))} onChange={(e) => setForm((f) => ({
-                        ...f,
-                        bulkQty: e.target.value,
-                    }))}/>
-                          <div style={{
-                        fontSize: 10,
-                        color: SI_C.muted,
-                        marginTop: 4,
-                    }}>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            style={SI_invInputSt}
+                            value={form.bulkQty}
+                            placeholder={String(
+                              defaultBulkQtyForUnit(form.unit),
+                            )}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                bulkQty: e.target.value,
+                              }))
+                            }
+                          />
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: SI_C.muted,
+                              marginTop: 4,
+                            }}
+                          >
                             How many {form.unit} go into one shop item (e.g.
                             1000g per shop-size bag). Leave blank to use the
                             default for this unit.
@@ -10014,41 +12888,47 @@ function ManagerStockInventoryContent({ user, brands: propBrands = [], initialFo
                         </div>
                         <div>
                           <label style={invLabelSt}>Shop Price (₱)</label>
-                          <div style={{
-                        ...SI_invInputSt,
-                        height: "auto",
-                        padding: "9px 12px",
-                        background: "#f5f5f5",
-                        color: SI_C.muted,
-                        fontWeight: 700,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                    }}>
+                          <div
+                            style={{
+                              ...SI_invInputSt,
+                              height: "auto",
+                              padding: "9px 12px",
+                              background: "#f5f5f5",
+                              color: SI_C.muted,
+                              fontWeight: 700,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
                             {form.cost_per_unit
-                        ? `₱${previewShopPrice.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                        : "—"}
-                            <span style={{
-                        fontSize: 10,
-                        color: SI_C.muted,
-                        fontWeight: 400,
-                    }}>
+                              ? `₱${previewShopPrice.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : "—"}
+                            <span
+                              style={{
+                                fontSize: 10,
+                                color: SI_C.muted,
+                                fontWeight: 400,
+                              }}
+                            >
                               (cost × bulk qty + 15%)
                             </span>
                           </div>
                         </div>
                         <div>
                           <label style={invLabelSt}>Shop Unit</label>
-                          <div style={{
-                        ...SI_invInputSt,
-                        height: "auto",
-                        padding: "9px 12px",
-                        background: "#f5f5f5",
-                        color: SI_C.muted,
-                        fontWeight: 700,
-                        display: "flex",
-                        alignItems: "center",
-                    }}>
+                          <div
+                            style={{
+                              ...SI_invInputSt,
+                              height: "auto",
+                              padding: "9px 12px",
+                              background: "#f5f5f5",
+                              color: SI_C.muted,
+                              fontWeight: 700,
+                              display: "flex",
+                              alignItems: "center",
+                            }}
+                          >
                             {form.unit || "—"}
                           </div>
                         </div>
@@ -10056,92 +12936,168 @@ function ManagerStockInventoryContent({ user, brands: propBrands = [], initialFo
 
                       <div>
                         <label style={invLabelSt}>Shop Category</label>
-                        <select style={SI_invInputSt} value={form.shopCategory} onChange={(e) => setForm((f) => ({
-                        ...f,
-                        shopCategory: e.target.value,
-                    }))}>
+                        <select
+                          style={SI_invInputSt}
+                          value={form.shopCategory}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              shopCategory: e.target.value,
+                            }))
+                          }
+                        >
                           <option value="">Select category…</option>
-                          {brandList.map((b) => (<option key={b.id} value={b.name}>
+                          {brandList.map((b) => (
+                            <option key={b.id} value={b.name}>
                               {b.name}
-                            </option>))}
+                            </option>
+                          ))}
                         </select>
                       </div>
-                    </div>)}
-                </div>)}
-              <div style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 8,
-                paddingTop: 14,
-                borderTop: `1px solid ${SI_C.border}`,
-            }}>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 8,
+                  paddingTop: 14,
+                  borderTop: `1px solid ${SI_C.border}`,
+                }}
+              >
                 <button type="button" onClick={closeModal} style={SI_btnSt}>
                   Cancel
                 </button>
-                <button type="submit" disabled={savingItem} style={{
-                ...btnPrimarySt,
-                opacity: savingItem ? 0.6 : 1,
-                cursor: savingItem ? "not-allowed" : "pointer",
-            }}>
+                <button
+                  type="submit"
+                  disabled={savingItem}
+                  style={{
+                    ...btnPrimarySt,
+                    opacity: savingItem ? 0.6 : 1,
+                    cursor: savingItem ? "not-allowed" : "pointer",
+                  }}
+                >
                   {savingItem ? "Saving…" : "Save"}
                 </button>
               </div>
             </form>
           </div>
-        </div>)}
+        </div>
+      )}
 
       {/* ── RECEIVE STOCK MODAL ── */}
-      {receiveTarget && canEditInventory && (<ReceiveStockModal brandDef={receiveTarget.brandDef} brandItems={brandItemsFor(receiveTarget.brandDef)} initialProduct={receiveTarget.product} apiUrl={process.env.REACT_APP_API_URL} userName={userName} userRole={user?.role} onClose={() => setReceiveTarget(null)} onDone={async (receivedProduct) => {
-                const freshRows = await fetchItems();
-                await fetchActivityLog();
-                const freshItem = freshRows.find((row) => String(row.id) === String(receivedProduct?.id)) || receivedProduct;
-                if (freshItem)
-                    setFocusMutation({
-                        item: freshItem,
-                        stamp: Date.now(),
-                        reason: "receive",
-                    });
-                setStockRefreshToken((v) => v + 1);
-                setReceiveTarget(null);
-            }} showUiModal={showUiModal} setToast={setToast}/>)}
+      {receiveTarget && canEditInventory && (
+        <ReceiveStockModal
+          brandDef={receiveTarget.brandDef}
+          brandItems={brandItemsFor(receiveTarget.brandDef)}
+          initialProduct={receiveTarget.product}
+          apiUrl={process.env.REACT_APP_API_URL}
+          userName={userName}
+          userRole={user?.role}
+          onClose={() => setReceiveTarget(null)}
+          onDone={async (receivedProduct) => {
+            const freshRows = await fetchItems();
+            await fetchActivityLog();
+            const freshItem =
+              freshRows.find(
+                (row) => String(row.id) === String(receivedProduct?.id),
+              ) || receivedProduct;
+            if (freshItem)
+              setFocusMutation({
+                item: freshItem,
+                stamp: Date.now(),
+                reason: "receive",
+              });
+            setStockRefreshToken((v) => v + 1);
+            setReceiveTarget(null);
+          }}
+          showUiModal={showUiModal}
+          setToast={setToast}
+        />
+      )}
 
       {/* ── MANAGE BATCHES MODAL (edit expiry / delete queuing entries) ── */}
-      {activeBatchIngredient && (<BatchesModal ingredient={activeBatchIngredient} batches={batches} loading={batchLoading} apiUrl={process.env.REACT_APP_API_URL} userName={userName} userRole={user?.role} showUiModal={showUiModal} setToast={setToast} readOnly={isReadOnly} onRefresh={() => {
-                setBatchLoading(true);
-                fetch(`${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${activeBatchIngredient.id}`)
-                    .then((r) => r.json())
-                    .then((d) => {
-                    setBatches(Array.isArray(d) ? d : []);
-                    setBatchLoading(false);
-                });
-                fetchItems();
-            }} onClose={() => setActiveBatchIngredient(null)}/>)}
+      {activeBatchIngredient && (
+        <BatchesModal
+          ingredient={activeBatchIngredient}
+          batches={batches}
+          loading={batchLoading}
+          apiUrl={process.env.REACT_APP_API_URL}
+          userName={userName}
+          userRole={user?.role}
+          showUiModal={showUiModal}
+          setToast={setToast}
+          readOnly={isReadOnly}
+          onRefresh={() => {
+            setBatchLoading(true);
+            fetch(
+              `${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${activeBatchIngredient.id}`,
+            )
+              .then((r) => r.json())
+              .then((d) => {
+                setBatches(Array.isArray(d) ? d : []);
+                setBatchLoading(false);
+              });
+            fetchItems();
+          }}
+          onClose={() => setActiveBatchIngredient(null)}
+        />
+      )}
 
-      <SI_Toast toast={toast} onClose={() => setToast(null)}/>
+      <SI_Toast toast={toast} onClose={() => setToast(null)} />
 
       {/* ── DELETE CONFIRM MODAL ── */}
-      <DeleteConfirmModal item={deleteTarget} deleting={deletingItem} onConfirm={confirmDelete} onCancel={() => {
-            if (!deletingItem)
-                setDeleteTarget(null);
-        }}/>
+      <DeleteConfirmModal
+        item={deleteTarget}
+        deleting={deletingItem}
+        onConfirm={confirmDelete}
+        onCancel={() => {
+          if (!deletingItem) setDeleteTarget(null);
+        }}
+      />
 
       {/* ── IMPORT LOADING MODAL ── */}
-      <ImportLoadingModal visible={importLoading} progress={importProgress}/>
-      <UIModal modal={uiModal} onClose={closeUiModal} onConfirm={() => {
-            if (uiModal?.onConfirm)
-                uiModal.onConfirm();
-            closeUiModal();
-        }}/>
-      {showDeleteHistory && (<DeleteHistoryPanel history={deleteHistoryForBrand(BRAND_DEFS.find((bd) => bd.key === deleteHistoryBrandKey) ||
-                activeBrandDef)} restoringId={restoringId} onRestore={handleRestore} onClose={() => {
-                setShowDeleteHistory(false);
-                setDeleteHistoryBrandKey(null);
-            }}/>)}
-      {showActivityLog && (<ActivityLogPanel log={activityLog} onClose={() => setShowActivityLog(false)} title="Stock Activity Log"/>)}
-    </div>);
+      <ImportLoadingModal visible={importLoading} progress={importProgress} />
+      <UIModal
+        modal={uiModal}
+        onClose={closeUiModal}
+        onConfirm={() => {
+          if (uiModal?.onConfirm) uiModal.onConfirm();
+          closeUiModal();
+        }}
+      />
+      {showDeleteHistory && (
+        <DeleteHistoryPanel
+          history={deleteHistoryForBrand(
+            BRAND_DEFS.find((bd) => bd.key === deleteHistoryBrandKey) ||
+              activeBrandDef,
+          )}
+          restoringId={restoringId}
+          onRestore={handleRestore}
+          onClose={() => {
+            setShowDeleteHistory(false);
+            setDeleteHistoryBrandKey(null);
+          }}
+        />
+      )}
+      {showActivityLog && (
+        <ActivityLogPanel
+          log={activityLog}
+          onClose={() => setShowActivityLog(false)}
+          title="Stock Activity Log"
+        />
+      )}
+    </div>
+  );
 }
 
-export default function ManagerDashboard({ user: userProp, onLogout, onUserUpdate }) {
+export default function ManagerDashboard({
+  user: userProp,
+  onLogout,
+  onUserUpdate,
+}) {
   useEffect(() => {
     const fontId = "fr-plus-jakarta-sans";
     if (!document.getElementById(fontId)) {
@@ -10161,6 +13117,7 @@ export default function ManagerDashboard({ user: userProp, onLogout, onUserUpdat
       "dashboard",
       "menuInventory",
       "stockInventory",
+      "pos",
       "reports",
       "staff",
       "communication",
@@ -10274,7 +13231,10 @@ export default function ManagerDashboard({ user: userProp, onLogout, onUserUpdat
       setManagerNotifError("");
 
       const brand = String(
-        currentUser?.brand || currentUser?.brand_name || currentUser?.brandName || "",
+        currentUser?.brand ||
+          currentUser?.brand_name ||
+          currentUser?.brandName ||
+          "",
       ).trim();
       const branch = String(currentUser?.branch || "").trim();
 
@@ -10302,14 +13262,18 @@ export default function ManagerDashboard({ user: userProp, onLogout, onUserUpdat
 
         const recorded = await notificationResponse.json();
         const items = [];
-        const normalize = (value) => String(value || "").trim().toLowerCase();
+        const normalize = (value) =>
+          String(value || "")
+            .trim()
+            .toLowerCase();
 
         (Array.isArray(recorded) ? recorded : [])
-          .filter((n) =>
-            String(n.user_id) === String(currentUser.id) &&
-            !n.is_read &&
-            (!n.brand || normalize(n.brand) === normalize(brand)) &&
-            (!n.branch || normalize(n.branch) === normalize(branch)),
+          .filter(
+            (n) =>
+              String(n.user_id) === String(currentUser.id) &&
+              !n.is_read &&
+              (!n.brand || normalize(n.brand) === normalize(brand)) &&
+              (!n.branch || normalize(n.branch) === normalize(branch)),
           )
           .forEach((n) => {
             items.push({
@@ -10325,12 +13289,11 @@ export default function ManagerDashboard({ user: userProp, onLogout, onUserUpdat
                   : String(n.type || "").includes("order")
                     ? "dashboard"
                     : "stockInventory",
-              icon:
-                String(n.type || "").includes("order")
-                  ? ShoppingCart
-                  : n.type === "announcement"
-                    ? Megaphone
-                    : Bell,
+              icon: String(n.type || "").includes("order")
+                ? ShoppingCart
+                : n.type === "announcement"
+                  ? Megaphone
+                  : Bell,
             });
           });
 
@@ -10358,7 +13321,9 @@ export default function ManagerDashboard({ user: userProp, onLogout, onUserUpdat
               message: `${branch || "Your branch"}: ${low
                 .slice(0, 3)
                 .map((item) => item.name)
-                .join(", ")}${low.length > 3 ? ` and ${low.length - 3} more` : ""}. Open Stock Inventory to review quantities.`,
+                .join(
+                  ", ",
+                )}${low.length > 3 ? ` and ${low.length - 3} more` : ""}. Open Stock Inventory to review quantities.`,
               count: low.length,
               type: "low_stock",
               module: "stockInventory",
@@ -10390,7 +13355,14 @@ export default function ManagerDashboard({ user: userProp, onLogout, onUserUpdat
       clearInterval(timer);
       window.removeEventListener("focus", refresh);
     };
-  }, [user?.id, user?.brand, user?.brand_name, user?.brandName, user?.branch, user]);
+  }, [
+    user?.id,
+    user?.brand,
+    user?.brand_name,
+    user?.brandName,
+    user?.branch,
+    user,
+  ]);
 
   useEffect(() => {
     if (userProp) setUser(userProp);
@@ -10461,6 +13433,11 @@ export default function ManagerDashboard({ user: userProp, onLogout, onUserUpdat
       id: "stockInventory",
       label: "Stock Inventory",
       icon: <Layers size={20} />,
+    },
+    {
+      id: "pos",
+      label: "Point of Sale",
+      icon: <ShoppingCart size={20} />,
     },
     // { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
     { id: "reports", label: "Sales & Reports", icon: <BarChart2 size={20} /> },
@@ -10655,7 +13632,7 @@ export default function ManagerDashboard({ user: userProp, onLogout, onUserUpdat
         </button>
         <nav className="fr-nav">
           {!sidebarCollapsed && <div className="fr-nav-section">Main Menu</div>}
-          {navigation.slice(0, 6).map((item) => (
+          {navigation.slice(0, 7).map((item) => (
             <button
               type="button"
               aria-label={item.label}
@@ -10678,7 +13655,7 @@ export default function ManagerDashboard({ user: userProp, onLogout, onUserUpdat
               Account
             </div>
           )}
-          {navigation.slice(6).map((item) => (
+          {navigation.slice(7).map((item) => (
             <button
               type="button"
               aria-label={item.label}
@@ -10773,7 +13750,7 @@ export default function ManagerDashboard({ user: userProp, onLogout, onUserUpdat
             {activeModule === "stockInventory" && (
               <ManagerStockInventoryContent user={user} brands={brands} />
             )}
-            {/*activeModule === 'pos'            && <FrPOSContent user={user} brands={brands} />*/}
+            {activeModule === "pos" && <POSContent user={user} />}
             {activeModule === "receipts" && <Receipts />}
             {activeModule === "reports" && (
               <FrReportsContent user={user} transactions={transactions} />
@@ -10896,8 +13873,13 @@ export default function ManagerDashboard({ user: userProp, onLogout, onUserUpdat
   );
 }
 
-
-function NotificationBell({ notifications, loading, error, onRefresh, onNavigate }) {
+function NotificationBell({
+  notifications,
+  loading,
+  error,
+  onRefresh,
+  onNavigate,
+}) {
   const [open, setOpen] = useState(false);
   const [permission, setPermission] = useState(
     typeof window !== "undefined" && "Notification" in window
@@ -10913,7 +13895,8 @@ function NotificationBell({ notifications, loading, error, onRefresh, onNavigate
   useEffect(() => {
     if (!open) return undefined;
     const close = (event) => {
-      if (wrapRef.current && !wrapRef.current.contains(event.target)) setOpen(false);
+      if (wrapRef.current && !wrapRef.current.contains(event.target))
+        setOpen(false);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
@@ -10936,13 +13919,20 @@ function NotificationBell({ notifications, loading, error, onRefresh, onNavigate
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => setLiveNotif(null), 5000);
 
-    if (permission === "granted" && typeof window !== "undefined" && "Notification" in window) {
+    if (
+      permission === "granted" &&
+      typeof window !== "undefined" &&
+      "Notification" in window
+    ) {
       try {
-        const nativeNotification = new window.Notification(newest.title || "FranchiSync notification", {
-          body: newest.message || "You have a new notification.",
-          tag: `franchisync-${newest.id}`,
-          icon: "/favicon.ico",
-        });
+        const nativeNotification = new window.Notification(
+          newest.title || "FranchiSync notification",
+          {
+            body: newest.message || "You have a new notification.",
+            tag: `franchisync-${newest.id}`,
+            icon: "/favicon.ico",
+          },
+        );
         nativeNotification.onclick = () => {
           window.focus();
           nativeNotification.close();
@@ -10954,9 +13944,12 @@ function NotificationBell({ notifications, loading, error, onRefresh, onNavigate
     }
   }, [notifications, permission, onNavigate]);
 
-  useEffect(() => () => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    },
+    [],
+  );
 
   const enablePush = async () => {
     if (!(typeof window !== "undefined" && "Notification" in window)) {
@@ -10971,8 +13964,13 @@ function NotificationBell({ notifications, loading, error, onRefresh, onNavigate
     }
   };
 
-  const list = (Array.isArray(notifications) ? notifications : []).filter(Boolean);
-  const unreadCount = list.reduce((sum, n) => sum + Math.max(1, Number(n.count || 1)), 0);
+  const list = (Array.isArray(notifications) ? notifications : []).filter(
+    Boolean,
+  );
+  const unreadCount = list.reduce(
+    (sum, n) => sum + Math.max(1, Number(n.count || 1)),
+    0,
+  );
 
   return (
     <>
@@ -11002,18 +14000,85 @@ function NotificationBell({ notifications, loading, error, onRefresh, onNavigate
             animation: "managerNotifIn .25s ease-out",
           }}
         >
-          <div style={{ width: 36, height: 36, borderRadius: 9, background: "#edf7ef", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            {React.createElement(liveNotif.icon || Bell, { size: 17, color: "#3b791e" })}
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 9,
+              background: "#edf7ef",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            {React.createElement(liveNotif.icon || Bell, {
+              size: 17,
+              color: "#3b791e",
+            })}
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: "#3b791e", textTransform: "uppercase", marginBottom: 3 }}>New notification</div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#12241B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{liveNotif.title}</div>
-            <div style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.45, color: "#5C6B60" }}>{liveNotif.message}</div>
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 800,
+                color: "#3b791e",
+                textTransform: "uppercase",
+                marginBottom: 3,
+              }}
+            >
+              New notification
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 800,
+                color: "#12241B",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {liveNotif.title}
+            </div>
+            <div
+              style={{
+                marginTop: 4,
+                fontSize: 11.5,
+                lineHeight: 1.45,
+                color: "#5C6B60",
+              }}
+            >
+              {liveNotif.message}
+            </div>
           </div>
-          <button type="button" onClick={(e) => { e.stopPropagation(); setLiveNotif(null); }} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#6B7A65", padding: 2 }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLiveNotif(null);
+            }}
+            style={{
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              color: "#6B7A65",
+              padding: 2,
+            }}
+          >
             <X size={15} />
           </button>
-          <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 3, background: "#3b791e", animation: "managerNotifProgress 5s linear forwards" }} />
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 3,
+              background: "#3b791e",
+              animation: "managerNotifProgress 5s linear forwards",
+            }}
+          />
         </div>
       )}
 
@@ -11040,73 +14105,322 @@ function NotificationBell({ notifications, loading, error, onRefresh, onNavigate
         >
           <Bell size={19} />
           {unreadCount > 0 && (
-            <span style={{ position: "absolute", top: -5, right: -5, minWidth: 19, height: 19, padding: "0 4px", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: "#dc2626", color: "#fff", border: "2px solid #fff", fontSize: 10, fontWeight: 800 }}>
+            <span
+              style={{
+                position: "absolute",
+                top: -5,
+                right: -5,
+                minWidth: 19,
+                height: 19,
+                padding: "0 4px",
+                borderRadius: 10,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "#dc2626",
+                color: "#fff",
+                border: "2px solid #fff",
+                fontSize: 10,
+                fontWeight: 800,
+              }}
+            >
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}
         </button>
 
         {open && (
-          <div style={{ position: "absolute", top: "calc(100% + 10px)", right: 0, width: 370, maxWidth: "calc(100vw - 24px)", background: "#fff", border: "1px solid #c7e0cb", borderRadius: 14, boxShadow: "0 18px 45px rgba(15,23,42,.15)", overflow: "hidden", zIndex: 3000 }}>
-            <div style={{ padding: "14px 16px", background: "linear-gradient(135deg,#256529,#2e7d32)", color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 10px)",
+              right: 0,
+              width: 370,
+              maxWidth: "calc(100vw - 24px)",
+              background: "#fff",
+              border: "1px solid #c7e0cb",
+              borderRadius: 14,
+              boxShadow: "0 18px 45px rgba(15,23,42,.15)",
+              overflow: "hidden",
+              zIndex: 3000,
+            }}
+          >
+            <div
+              style={{
+                padding: "14px 16px",
+                background: "linear-gradient(135deg,#256529,#2e7d32)",
+                color: "#fff",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
               <div>
-                <div style={{ fontSize: 14, fontWeight: 800 }}>Notifications</div>
-                <div style={{ fontSize: 10.5, opacity: .8, marginTop: 2 }}>
-                  {unreadCount ? `${unreadCount} alert${unreadCount === 1 ? "" : "s"}` : "You're all caught up"}
+                <div style={{ fontSize: 14, fontWeight: 800 }}>
+                  Notifications
+                </div>
+                <div style={{ fontSize: 10.5, opacity: 0.8, marginTop: 2 }}>
+                  {unreadCount
+                    ? `${unreadCount} alert${unreadCount === 1 ? "" : "s"}`
+                    : "You're all caught up"}
                 </div>
               </div>
-              <button type="button" onClick={(e) => { e.stopPropagation(); onRefresh?.(); }} title="Refresh" style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(255,255,255,.4)", background: "rgba(255,255,255,.13)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <RefreshCw size={13} style={{ animation: loading ? "managerNotifSpin .8s linear infinite" : "none" }} />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRefresh?.();
+                }}
+                title="Refresh"
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,.4)",
+                  background: "rgba(255,255,255,.13)",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                }}
+              >
+                <RefreshCw
+                  size={13}
+                  style={{
+                    animation: loading
+                      ? "managerNotifSpin .8s linear infinite"
+                      : "none",
+                  }}
+                />
               </button>
             </div>
 
-            <div style={{ padding: "10px 12px", borderBottom: "1px solid #eef3ef", background: "#fbfdf9" }}>
+            <div
+              style={{
+                padding: "10px 12px",
+                borderBottom: "1px solid #eef3ef",
+                background: "#fbfdf9",
+              }}
+            >
               {permission === "default" && (
-                <button type="button" onClick={enablePush} style={{ width: "100%", minHeight: 34, borderRadius: 9, border: "1px solid #c9dba0", background: "#f0f7ec", color: "#2c5c16", fontSize: 11.5, fontWeight: 800, cursor: "pointer" }}>
+                <button
+                  type="button"
+                  onClick={enablePush}
+                  style={{
+                    width: "100%",
+                    minHeight: 34,
+                    borderRadius: 9,
+                    border: "1px solid #c9dba0",
+                    background: "#f0f7ec",
+                    color: "#2c5c16",
+                    fontSize: 11.5,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
                   <Bell size={13} /> Enable browser push notifications
                 </button>
               )}
               {permission === "granted" && (
-                <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 10.5, fontWeight: 700, color: "#3b791e" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 7,
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    color: "#3b791e",
+                  }}
+                >
                   <CheckCircle2 size={13} /> Browser notifications are enabled
                 </div>
               )}
               {permission === "denied" && (
-                <div style={{ fontSize: 10.5, color: "#9a3412", lineHeight: 1.4 }}>
-                  Browser notifications are blocked. Allow notifications for this site in your browser settings.
+                <div
+                  style={{ fontSize: 10.5, color: "#9a3412", lineHeight: 1.4 }}
+                >
+                  Browser notifications are blocked. Allow notifications for
+                  this site in your browser settings.
                 </div>
               )}
               {permission === "unsupported" && (
-                <div style={{ fontSize: 10.5, color: "#6B7A65" }}>This browser does not support notifications.</div>
+                <div style={{ fontSize: 10.5, color: "#6B7A65" }}>
+                  This browser does not support notifications.
+                </div>
               )}
             </div>
 
-            {error && <div style={{ padding: "9px 12px", fontSize: 10.5, color: "#b45309", background: "#fff8eb", borderBottom: "1px solid #f7dfb4" }}>{error}</div>}
+            {error && (
+              <div
+                style={{
+                  padding: "9px 12px",
+                  fontSize: 10.5,
+                  color: "#b45309",
+                  background: "#fff8eb",
+                  borderBottom: "1px solid #f7dfb4",
+                }}
+              >
+                {error}
+              </div>
+            )}
 
             <div style={{ maxHeight: 340, overflowY: "auto" }}>
               {loading && !list.length ? (
-                <div style={{ padding: "42px 20px", textAlign: "center", color: "#6B7A65", fontSize: 12 }}><RefreshCw size={18} style={{ animation: "managerNotifSpin .8s linear infinite", marginBottom: 7 }} /><div>Loading notifications…</div></div>
+                <div
+                  style={{
+                    padding: "42px 20px",
+                    textAlign: "center",
+                    color: "#6B7A65",
+                    fontSize: 12,
+                  }}
+                >
+                  <RefreshCw
+                    size={18}
+                    style={{
+                      animation: "managerNotifSpin .8s linear infinite",
+                      marginBottom: 7,
+                    }}
+                  />
+                  <div>Loading notifications…</div>
+                </div>
               ) : !list.length ? (
-                <div style={{ padding: "42px 20px", textAlign: "center", color: "#6B7A65" }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 10, background: "#edf7ef", margin: "0 auto 10px", display: "flex", alignItems: "center", justifyContent: "center" }}><Check size={20} color="#3b791e" /></div>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: "#243128" }}>Nothing needs your attention</div>
-                  <div style={{ fontSize: 10.5, marginTop: 4 }}>New alerts will appear here.</div>
-                </div>
-              ) : list.map((n, index) => (
-                <div key={String(n.id)} onClick={() => { onNavigate?.(n); setOpen(false); }} style={{ display: "flex", gap: 10, padding: "12px 14px", borderBottom: index === list.length - 1 ? "none" : "1px solid #eef3ef", cursor: "pointer", background: "#fff" }}>
-                  <div style={{ width: 35, height: 35, borderRadius: 9, background: n.type === "low_stock" ? "#fff4f2" : "#edf7ef", border: `1px solid ${n.type === "low_stock" ? "#fecaca" : "#b9ddbf"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    {React.createElement(n.icon || Bell, { size: 16, color: n.type === "low_stock" ? "#dc2626" : "#3b791e" })}
+                <div
+                  style={{
+                    padding: "42px 20px",
+                    textAlign: "center",
+                    color: "#6B7A65",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      background: "#edf7ef",
+                      margin: "0 auto 10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Check size={20} color="#3b791e" />
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 7 }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: "#243128", lineHeight: 1.35 }}>{n.title}</div>
-                      {Number(n.count || 0) > 1 && <span style={{ minWidth: 20, height: 20, padding: "0 5px", borderRadius: 6, background: "#edf7ef", color: "#2e7d32", border: "1px solid #b9ddbf", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, fontWeight: 800 }}>{Number(n.count) > 99 ? "99+" : n.count}</span>}
+                  <div
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      color: "#243128",
+                    }}
+                  >
+                    Nothing needs your attention
+                  </div>
+                  <div style={{ fontSize: 10.5, marginTop: 4 }}>
+                    New alerts will appear here.
+                  </div>
+                </div>
+              ) : (
+                list.map((n, index) => (
+                  <div
+                    key={String(n.id)}
+                    onClick={() => {
+                      onNavigate?.(n);
+                      setOpen(false);
+                    }}
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      padding: "12px 14px",
+                      borderBottom:
+                        index === list.length - 1
+                          ? "none"
+                          : "1px solid #eef3ef",
+                      cursor: "pointer",
+                      background: "#fff",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 35,
+                        height: 35,
+                        borderRadius: 9,
+                        background:
+                          n.type === "low_stock" ? "#fff4f2" : "#edf7ef",
+                        border: `1px solid ${n.type === "low_stock" ? "#fecaca" : "#b9ddbf"}`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {React.createElement(n.icon || Bell, {
+                        size: 16,
+                        color: n.type === "low_stock" ? "#dc2626" : "#3b791e",
+                      })}
                     </div>
-                    <div style={{ fontSize: 10.75, color: "#65736a", marginTop: 3, lineHeight: 1.45 }}>{n.message}</div>
-                    <div style={{ fontSize: 9.5, color: "#3b791e", fontWeight: 700, marginTop: 5 }}>Click to view</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 7,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 800,
+                            color: "#243128",
+                            lineHeight: 1.35,
+                          }}
+                        >
+                          {n.title}
+                        </div>
+                        {Number(n.count || 0) > 1 && (
+                          <span
+                            style={{
+                              minWidth: 20,
+                              height: 20,
+                              padding: "0 5px",
+                              borderRadius: 6,
+                              background: "#edf7ef",
+                              color: "#2e7d32",
+                              border: "1px solid #b9ddbf",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 9.5,
+                              fontWeight: 800,
+                            }}
+                          >
+                            {Number(n.count) > 99 ? "99+" : n.count}
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 10.75,
+                          color: "#65736a",
+                          marginTop: 3,
+                          lineHeight: 1.45,
+                        }}
+                      >
+                        {n.message}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 9.5,
+                          color: "#3b791e",
+                          fontWeight: 700,
+                          marginTop: 5,
+                        }}
+                      >
+                        Click to view
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         )}
@@ -11859,7 +15173,8 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
           >
             <path d="M21 12a9 9 0 1 1-6.219-8.56" />
           </svg>
-          Sending {normalizeTransactions(transactions).length} transactions to Groq…
+          Sending {normalizeTransactions(transactions).length} transactions to
+          Groq…
         </div>
       )}
 
@@ -13730,7 +17045,8 @@ function PrescriptiveSection({
                           fontFamily: FONT,
                         }}
                       >
-                        Sending {normalizeTransactions(transactions).length} transactions to Groq…
+                        Sending {normalizeTransactions(transactions).length}{" "}
+                        transactions to Groq…
                       </span>
                     </div>
                   )}
@@ -17183,7 +20499,6 @@ body.fr-admin-ui .franchisee-root .fr-inventory-row[aria-pressed="true"] { borde
 @media(prefers-reduced-motion:reduce) { .fr-inventory-workspace .fr-inventory-detail-content { animation:none; } }
 `;
 
-
 function FrMenuInventoryContent({ user, brands }) {
   const userBranch = String(user?.branch || "").trim();
   const userBrand = String(user?.brand || user?.brand_name || "").trim();
@@ -17293,7 +20608,8 @@ function FrMenuInventoryContent({ user, brands }) {
       },
     )
       .then((r) => {
-        if (!r.ok) throw new Error(`Unable to load product ingredients (${r.status}).`);
+        if (!r.ok)
+          throw new Error(`Unable to load product ingredients (${r.status}).`);
         return r.json();
       })
       .then((d) => {

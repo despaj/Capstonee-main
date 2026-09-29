@@ -7,9 +7,91 @@ const {
   enforceQueryScope,
   requireResourceScope,
 } = require("../middleware/resourceScope");
-router.use(authenticate);
 const pool = require("../db");
 const { syncIngredientFromBatches } = require("../utils/inventoryAutomation");
+
+router.post("/verify-manager-password", async (req, res) => {
+  try {
+    const { branch, password } = req.body || {};
+
+    console.log("VERIFY MANAGER REQUEST:", {
+      branch,
+      hasPassword: !!password,
+    });
+
+    if (!branch || !password) {
+      return res.status(400).json({
+        valid: false,
+        error: "Branch and manager password are required.",
+      });
+    }
+
+    const result = await pool.query(
+      `
+  SELECT id, name, email, role, branch, password
+  FROM users
+  WHERE LOWER(TRIM(branch::text)) = LOWER(TRIM($1::text))
+    AND LOWER(TRIM(role::text)) = 'manager'
+  `,
+      [branch],
+    );
+
+    console.log(
+      "MANAGERS FOUND:",
+      result.rows.map((manager) => ({
+        id: manager.id,
+        name: manager.name,
+        role: manager.role,
+        branch: manager.branch,
+      })),
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        valid: false,
+        error: `No manager account found for branch: ${branch}`,
+      });
+    }
+
+    const manager = result.rows.find(
+      (row) =>
+        String(row.password || "").trim() === String(password || "").trim(),
+    );
+
+    if (!manager) {
+      return res.status(401).json({
+        valid: false,
+        error: "Incorrect manager password.",
+      });
+    }
+
+    console.log("MANAGER VERIFIED:", {
+      id: manager.id,
+      name: manager.name,
+      branch: manager.branch,
+    });
+
+    return res.status(200).json({
+      valid: true,
+      manager: {
+        id: manager.id,
+        name: manager.name,
+        email: manager.email,
+        role: manager.role,
+        branch: manager.branch,
+      },
+    });
+  } catch (err) {
+    console.error("POST /verify-manager-password error:", err);
+
+    return res.status(500).json({
+      valid: false,
+      error: "Failed to verify manager password.",
+    });
+  }
+});
+
+router.use(authenticate);
 
 router.get(
   "/transactions",

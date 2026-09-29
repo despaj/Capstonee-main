@@ -86,6 +86,11 @@ setInterval(cleanupExpiredData, CLEANUP_INTERVAL);
 
 app.use("/", require("./routes/auth"));
 
+// POS payment routes must be registered before the other application routers.
+app.use("/", require("./routes/paymongo"));
+
+app.use("/", require("./routes/transactions"));
+
 app.use("/", require("./routes/users"));
 
 app.use("/", require("./routes/applications"));
@@ -97,8 +102,6 @@ app.use("/", require("./routes/ingredients"));
 app.use("/", require("./routes/receipts"));
 
 app.use("/", require("./routes/orders"));
-
-app.use("/", require("./routes/transactions"));
 
 app.use("/", require("./routes/brands"));
 
@@ -115,8 +118,6 @@ app.use("/", require("./routes/dashboard"));
 app.use("/", require("./routes/b2bDashboard"));
 
 app.use("/", require("./routes/activityLogs"));
-
-app.use("/", require("./routes/paymongo"));
 
 app.use("/", require("./routes/psgc"));
 

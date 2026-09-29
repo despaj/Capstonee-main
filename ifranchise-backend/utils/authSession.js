@@ -84,6 +84,7 @@ async function revokeSession(req, res) {
   res.clearCookie(SESSION_COOKIE, cookieOptions(req));
   res.clearCookie(CHALLENGE_COOKIE, cookieOptions(req));
 }
+
 function loadSession(allowedOrigins) {
   const allowed = new Set(allowedOrigins);
   return async (req, res, next) => {
@@ -91,9 +92,16 @@ function loadSession(allowedOrigins) {
     const origin = req.headers.origin;
     const unsafe = !["GET", "HEAD", "OPTIONS"].includes(req.method);
     if (unsafe && origin && !allowed.has(origin)) {
-      return res
-        .status(403)
-        .json({ error: "This website is not allowed to send this request." });
+      console.log("BLOCKED BY LOAD SESSION:", {
+        method: req.method,
+        path: req.path,
+        origin,
+        allowedOrigins: [...allowed],
+      });
+
+      return res.status(403).json({
+        error: "This website is not allowed to send this request.",
+      });
     }
     const token = tokenFrom(req, SESSION_COOKIE);
     if (!token) return next();
@@ -110,20 +118,19 @@ function loadSession(allowedOrigins) {
         res.clearCookie(SESSION_COOKIE, cookieOptions(req));
         return next();
       }
-      // Role/branch are read from the database on every authenticated request.
       const { password, password_fingerprint, ...safeUser } = user;
       req.user = safeUser;
+
       return next();
     } catch (err) {
       console.error("Session lookup failed:", err.message);
-      return res
-        .status(503)
-        .json({
-          error: "Unable to verify your session. Please try again shortly.",
-        });
+      return res.status(503).json({
+        error: "Unable to verify your session. Please try again shortly.",
+      });
     }
   };
 }
+
 module.exports = {
   startLoginChallenge,
   issueSession,

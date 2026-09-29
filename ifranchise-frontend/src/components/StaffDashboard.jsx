@@ -1,5 +1,3 @@
-//copy and align franchisync design here. all. even the font it should be plus jakarta, colors, etc
-
 import React, {
   useState,
   useEffect,
@@ -55,9 +53,7 @@ const generateTxnId = () =>
   "TXN-" + Math.random().toString(36).toUpperCase().slice(2, 10);
 
 const VAT_RATE = 0.12;
-const MANAGER_PASSWORD = "Admin123"; // same as admin POS
 
-// ─── FranchiSync shared design tokens (matches AdminDashboard) ───────────────
 const C = {
   green: "#3b791e",
   greenDk: "#2c5c16",
@@ -1463,11 +1459,13 @@ function VoidModal({ show, tx, branch, onClose, onConfirm }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POS CONTENT  — staff-fixed branch, all admin features included
-// ─────────────────────────────────────────────────────────────────────────────
 export function POSContent({ user }) {
   const userBranch = (user?.branch || "").trim();
+
+  const requiresManagerAuthorization =
+    String(user?.role || "")
+      .trim()
+      .toLowerCase() === "staff";
 
   // ── State ─────────────────────────────────────────────────────────────────
   const [menuItems, setMenuItems] = useState([]);
@@ -1483,7 +1481,7 @@ export function POSContent({ user }) {
   const [cashReceived, setCashReceived] = useState("");
   const [discountPct, setDiscountPct] = useState(0);
   const [discountType, setDiscountType] = useState("None");
-  const [vatEnabled, setVatEnabled] = useState(false);
+  const [vatEnabled, setVatEnabled] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [txPage, setTxPage] = useState(0);
   const [noteInput, setNoteInput] = useState("");
@@ -1510,6 +1508,14 @@ export function POSContent({ user }) {
   const [discountAuthErr, setDiscountAuthErr] = useState("");
   const [customDiscountInput, setCustomDiscountInput] = useState("");
   const [discountVerifying, setDiscountVerifying] = useState(false);
+  const [showDiscountPw, setShowDiscountPw] = useState(false);
+
+  // VAT disable authorization
+  const [showVatAuth, setShowVatAuth] = useState(false);
+  const [vatAuthInput, setVatAuthInput] = useState("");
+  const [vatAuthErr, setVatAuthErr] = useState("");
+  const [vatVerifying, setVatVerifying] = useState(false);
+  const [showVatPw, setShowVatPw] = useState(false);
 
   // Modals
   const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -1979,24 +1985,115 @@ export function POSContent({ user }) {
     setPendingDiscount(null);
     setDiscountAuthInput("");
     setCustomDiscountInput("");
+    setVatEnabled(true);
+    setShowVatAuth(false);
+    setVatAuthInput("");
+    setVatAuthErr("");
+    setVatVerifying(false);
+    setShowVatPw(false);
   };
 
-  const confirmDiscountAuth = async () => {
-    if (!discountAuthInput) {
-      setDiscountAuthErr("Please enter the manager password.");
+  const confirmVatDisable = async () => {
+    if (!vatAuthInput) {
+      setVatAuthErr("Please enter the manager password.");
       return;
     }
 
+    setVatVerifying(true);
+    setVatAuthErr("");
+
+    try {
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/verify-manager-password`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            branch: userBranch,
+            password: vatAuthInput,
+          }),
+        },
+      );
+
+      const data = await res.json();
+
+      if (!data.valid) {
+        setVatAuthErr(data.error || "Incorrect manager password.");
+        return;
+      }
+
+      setVatEnabled(false);
+      setShowVatAuth(false);
+      setVatAuthInput("");
+      setVatAuthErr("");
+      setShowVatPw(false);
+    } catch {
+      setVatAuthErr("Could not verify password. Check your connection.");
+    } finally {
+      setVatVerifying(false);
+    }
+  };
+  const handleVatToggle = () => {
+    if (vatEnabled) {
+      // Manager and Franchisee can disable VAT directly.
+      if (!requiresManagerAuthorization) {
+        setVatEnabled(false);
+        return;
+      }
+
+      // Staff requires manager authorization.
+      setVatAuthInput("");
+      setVatAuthErr("");
+      setShowVatPw(false);
+      setShowVatAuth(true);
+      return;
+    }
+
+    // Turning VAT back ON never requires authorization.
+    setVatEnabled(true);
+  };
+
+  const confirmDiscountAuth = async () => {
+    if (!pendingDiscount) return;
+
+    // Validate custom percentage for Others
     if (pendingDiscount.label === "Others") {
       const pct = parseFloat(customDiscountInput);
-      if (!pct || pct <= 0 || pct > 100) {
+
+      if (isNaN(pct) || pct <= 0 || pct > 100) {
         setDiscountAuthErr("Enter a valid discount % (1–100).");
         return;
       }
     }
 
+    // Manager / Franchisee — NO PASSWORD REQUIRED
+    if (!requiresManagerAuthorization) {
+      if (pendingDiscount.label === "Others") {
+        setDiscountPct(parseFloat(customDiscountInput));
+        setDiscountType("Others");
+      } else {
+        setDiscountPct(pendingDiscount.pct);
+        setDiscountType(pendingDiscount.label);
+      }
+
+      setShowDiscountAuth(false);
+      setPendingDiscount(null);
+      setDiscountAuthInput("");
+      setDiscountAuthErr("");
+      setCustomDiscountInput("");
+      setShowDiscountPw(false);
+      return;
+    }
+
+    // Staff only — Manager password required
+    if (!discountAuthInput.trim()) {
+      setDiscountAuthErr("Please enter the manager password.");
+      return;
+    }
+
     setDiscountVerifying(true);
     setDiscountAuthErr("");
+
     try {
       const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/verify-manager-password`,
@@ -2009,10 +2106,11 @@ export function POSContent({ user }) {
           }),
         },
       );
+
       const data = await res.json();
+
       if (!data.valid) {
         setDiscountAuthErr(data.error || "Incorrect manager password.");
-        setDiscountVerifying(false);
         return;
       }
 
@@ -2023,24 +2121,35 @@ export function POSContent({ user }) {
         setDiscountPct(pendingDiscount.pct);
         setDiscountType(pendingDiscount.label);
       }
+
       setShowDiscountAuth(false);
+      setPendingDiscount(null);
       setDiscountAuthInput("");
       setDiscountAuthErr("");
       setCustomDiscountInput("");
-      setPendingDiscount(null);
+      setShowDiscountPw(false);
     } catch {
       setDiscountAuthErr("Could not verify password. Check your connection.");
     } finally {
       setDiscountVerifying(false);
     }
   };
-
   // ── Totals ────────────────────────────────────────────────────────────────
   const subtotal = cart.reduce((s, c) => s + (c.price || 0) * c.qty, 0);
-  const discountAmt = subtotal * (discountPct / 100);
-  const discounted = subtotal - discountAmt;
-  const vatAmt = vatEnabled ? discounted * VAT_RATE : 0;
-  const totalAmt = discounted + vatAmt;
+
+  // VAT is computed from the subtotal when enabled.
+  const vatAmt = vatEnabled ? subtotal * VAT_RATE : 0;
+
+  // PWD/Senior discount includes VAT in its discount base.
+  // Example: subtotal ₱100 + VAT ₱12 = ₱112; 20% discount = ₱22.40.
+  const isPwdSeniorDiscount = discountType === "PWD/Senior";
+  const discountBase = isPwdSeniorDiscount ? subtotal + vatAmt : subtotal;
+  const discountAmt = discountBase * (discountPct / 100);
+
+  // PWD/Senior: subtotal + VAT - discount.
+  // Other discounts retain the same subtotal-based discount amount,
+  // with VAT added separately.
+  const totalAmt = subtotal + vatAmt - discountAmt;
   const changeDue =
     paymentMethod === "Cash"
       ? Math.max(0, parseFloat(cashReceived || 0) - totalAmt)
@@ -2432,143 +2541,534 @@ export function POSContent({ user }) {
         />
       )}
 
-      {/* ── Discount Auth Modal ── */}
-      {showDiscountAuth && pendingDiscount && (
+      {/* ── VAT Disable Manager Authorization ── */}
+      {showVatAuth && (
         <div
-          onClick={() => setShowDiscountAuth(false)}
+          onClick={() => {
+            if (!vatVerifying) {
+              setShowVatAuth(false);
+              setVatAuthInput("");
+              setVatAuthErr("");
+              setShowVatPw(false);
+            }
+          }}
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(18,36,27,0.45)",
+            background: "rgba(18,36,27,0.55)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 3000,
+            zIndex: 4000,
+            padding: 20,
+            backdropFilter: "blur(4px)",
           }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
               background: C.white,
-              borderRadius: 18,
-              padding: "26px 28px",
-              width: 340,
-              maxWidth: "95vw",
-              boxShadow: "0 16px 48px rgba(18,36,27,0.22)",
+              borderRadius: 20,
+              width: "100%",
+              maxWidth: 440,
+              boxShadow: "0 24px 64px rgba(18,36,27,0.2)",
+              overflow: "hidden",
               fontFamily: FONT,
             }}
           >
             <div
               style={{
-                fontWeight: 800,
-                fontSize: 16,
-                color: C.ink,
-                marginBottom: 4,
+                background: `linear-gradient(135deg,#e7a23b,${C.warn})`,
+                padding: "16px 22px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
               }}
             >
-              {pendingDiscount.label} Discount
+              <div
+                style={{
+                  fontFamily: FONT,
+                  fontWeight: 800,
+                  fontSize: 15,
+                  color: "#fff",
+                }}
+              >
+                Disable VAT
+              </div>
+              <button
+                type="button"
+                disabled={vatVerifying}
+                onClick={() => {
+                  setShowVatAuth(false);
+                  setVatAuthInput("");
+                  setVatAuthErr("");
+                  setShowVatPw(false);
+                }}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: "50%",
+                  border: "1.5px solid rgba(255,255,255,0.4)",
+                  background: "rgba(255,255,255,0.15)",
+                  cursor: vatVerifying ? "not-allowed" : "pointer",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <X size={14} />
+              </button>
             </div>
-            <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-              Manager authorization required.
-            </div>
-            {pendingDiscount.label === "Others" && (
-              <div style={{ marginBottom: 12 }}>
+
+            <div style={{ padding: 24 }}>
+              <div
+                style={{
+                  padding: "12px 14px",
+                  background: C.warnBg,
+                  borderRadius: 10,
+                  border: `1px solid ${C.warnBorder}`,
+                  marginBottom: 18,
+                  fontSize: 13,
+                }}
+              >
+                <div style={{ fontWeight: 700, color: C.ink }}>
+                  {requiresManagerAuthorization
+                    ? "Manager authorization required"
+                    : "Apply Discount"}
+                </div>
+
                 <div
                   style={{
+                    color: C.muted,
+                    fontSize: 12,
+                    marginTop: 2,
+                  }}
+                >
+                  {requiresManagerAuthorization
+                    ? `Enter the manager password to apply the ${pendingDiscount.label} discount to this sale.`
+                    : pendingDiscount.label === "Others"
+                      ? "Enter the custom discount percentage to apply to this sale."
+                      : `Apply the ${pendingDiscount.label} discount to this sale.`}
+                </div>
+                <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>
+                  VAT is enabled by default. Enter the manager password to turn
+                  VAT off for this sale.
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label
+                  style={{
+                    display: "block",
                     fontSize: 11,
                     fontWeight: 800,
                     color: C.muted,
                     textTransform: "uppercase",
                     letterSpacing: "0.07em",
-                    marginBottom: 5,
+                    marginBottom: 6,
                   }}
                 >
-                  Custom Discount %
+                  Manager Password
+                </label>
+
+                <div style={{ position: "relative" }}>
+                  <input
+                    type={showVatPw ? "text" : "password"}
+                    value={vatAuthInput}
+                    disabled={vatVerifying}
+                    onChange={(e) => {
+                      setVatAuthInput(e.target.value);
+                      setVatAuthErr("");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") confirmVatDisable();
+                    }}
+                    placeholder="Enter manager password to authorize"
+                    autoFocus
+                    style={{
+                      ...invInputSt,
+                      padding: "10px 40px 10px 13px",
+                      border: `1.5px solid ${
+                        vatAuthErr ? C.redBorder : C.border
+                      }`,
+                      background: vatVerifying ? "#f3f4f6" : "#fff",
+                      opacity: vatVerifying ? 0.7 : 1,
+                      cursor: vatVerifying ? "not-allowed" : "text",
+                    }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowVatPw((v) => !v)}
+                    disabled={vatVerifying}
+                    tabIndex={-1}
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      cursor: vatVerifying ? "not-allowed" : "pointer",
+                      padding: 4,
+                      color: C.muted,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {showVatPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  placeholder="e.g. 15"
-                  value={customDiscountInput}
-                  onChange={(e) => setCustomDiscountInput(e.target.value)}
-                  style={inp}
-                />
+
+                {vatAuthErr && (
+                  <div
+                    style={{
+                      color: C.red,
+                      fontSize: 12,
+                      marginTop: 5,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {vatAuthErr}
+                  </div>
+                )}
               </div>
-            )}
-            <div style={{ marginBottom: 16 }}>
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 800,
-                  color: C.muted,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.07em",
-                  marginBottom: 5,
-                }}
-              >
-                Manager Password
-              </div>
-              <input
-                type="password"
-                placeholder="Enter password…"
-                value={discountAuthInput}
-                onChange={(e) => {
-                  setDiscountAuthInput(e.target.value);
-                  setDiscountAuthErr("");
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") confirmDiscountAuth();
-                }}
-                autoFocus
-                style={inp}
-              />
-              {discountAuthErr && (
-                <div
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  type="button"
+                  disabled={vatVerifying}
+                  onClick={() => {
+                    setShowVatAuth(false);
+                    setVatAuthInput("");
+                    setVatAuthErr("");
+                    setShowVatPw(false);
+                  }}
                   style={{
-                    marginTop: 5,
-                    fontSize: 12,
-                    color: C.red,
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 5,
+                    flex: 1,
+                    ...btnSt,
+                    justifyContent: "center",
+                    cursor: vatVerifying ? "not-allowed" : "pointer",
+                    opacity: vatVerifying ? 0.6 : 1,
                   }}
                 >
-                  <AlertTriangle size={12} /> {discountAuthErr}
-                </div>
-              )}
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => setShowDiscountAuth(false)}
-                style={{
-                  ...smallBtn,
-                  flex: 1,
-                  height: 38,
-                  fontSize: 13,
-                  justifyContent: "center",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDiscountAuth}
-                style={{
-                  flex: 1,
-                  height: 38,
-                  ...btnPrimarySt,
-                  justifyContent: "center",
-                  fontSize: 13,
-                }}
-              >
-                Apply Discount
-              </button>
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={confirmVatDisable}
+                  disabled={vatVerifying}
+                  style={{
+                    flex: 1,
+                    ...btnPrimarySt,
+                    justifyContent: "center",
+                    background: `linear-gradient(135deg,#e7a23b,${C.warn})`,
+                    cursor: vatVerifying ? "not-allowed" : "pointer",
+                    opacity: vatVerifying ? 0.7 : 1,
+                  }}
+                >
+                  {vatVerifying ? "Verifying..." : "Disable VAT"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
+      {/* ── Discount Manager Authorization ── */}
+      {showDiscountAuth && pendingDiscount && (
+        <div
+          onClick={() => {
+            if (!discountVerifying) {
+              setShowDiscountAuth(false);
+              setDiscountAuthInput("");
+              setDiscountAuthErr("");
+              setCustomDiscountInput("");
+              setShowDiscountPw(false);
+            }
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(18,36,27,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 4000,
+            padding: 20,
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: C.white,
+              borderRadius: 20,
+              width: "100%",
+              maxWidth: 440,
+              boxShadow: "0 24px 64px rgba(18,36,27,0.2)",
+              overflow: "hidden",
+              fontFamily: FONT,
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                background: `linear-gradient(135deg,#e7a23b,${C.warn})`,
+                padding: "16px 22px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: FONT,
+                  fontWeight: 800,
+                  fontSize: 15,
+                  color: "#fff",
+                }}
+              >
+                {pendingDiscount.label} Discount
+              </div>
+
+              <button
+                type="button"
+                disabled={discountVerifying}
+                onClick={() => {
+                  setShowDiscountAuth(false);
+                  setDiscountAuthInput("");
+                  setDiscountAuthErr("");
+                  setCustomDiscountInput("");
+                  setShowDiscountPw(false);
+                }}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: "50%",
+                  border: "1.5px solid rgba(255,255,255,0.4)",
+                  background: "rgba(255,255,255,0.15)",
+                  cursor: discountVerifying ? "not-allowed" : "pointer",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div style={{ padding: 24 }}>
+              {/* Authorization notice */}
+              <div style={{ fontWeight: 700, color: C.ink }}>
+                {requiresManagerAuthorization
+                  ? "Manager authorization required"
+                  : "Apply Discount"}
+              </div>
+
+              <div
+                style={{
+                  color: C.muted,
+                  fontSize: 12,
+                  marginTop: 2,
+                }}
+              >
+                {requiresManagerAuthorization
+                  ? `Enter the manager password to apply the ${pendingDiscount.label} discount to this sale.`
+                  : pendingDiscount.label === "Others"
+                    ? "Enter the custom discount percentage to apply to this sale."
+                    : `Apply the ${pendingDiscount.label} discount to this sale.`}
+              </div>
+
+              {/* Custom discount percentage */}
+              {pendingDiscount.label === "Others" && (
+                <div style={{ marginBottom: 16 }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: C.muted,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.07em",
+                      marginBottom: 6,
+                    }}
+                  >
+                    Custom Discount %
+                  </label>
+
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    placeholder="e.g. 15"
+                    value={customDiscountInput}
+                    disabled={discountVerifying}
+                    onChange={(e) => {
+                      setCustomDiscountInput(e.target.value);
+                      setDiscountAuthErr("");
+                    }}
+                    style={{
+                      ...invInputSt,
+                      padding: "10px 13px",
+                      background: discountVerifying ? "#f3f4f6" : "#fff",
+                      opacity: discountVerifying ? 0.7 : 1,
+                      cursor: discountVerifying ? "not-allowed" : "text",
+                    }}
+                  />
+
+                  {!requiresManagerAuthorization && discountAuthErr && (
+                    <div
+                      style={{
+                        color: C.red,
+                        fontSize: 12,
+                        marginTop: 5,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {discountAuthErr}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Manager password */}
+              {requiresManagerAuthorization && (
+                <div style={{ marginBottom: 16 }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: C.muted,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.07em",
+                      marginBottom: 6,
+                    }}
+                  >
+                    Manager Password
+                  </label>
+
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type={showDiscountPw ? "text" : "password"}
+                      value={discountAuthInput}
+                      disabled={discountVerifying}
+                      onChange={(e) => {
+                        setDiscountAuthInput(e.target.value);
+                        setDiscountAuthErr("");
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !discountVerifying) {
+                          confirmDiscountAuth();
+                        }
+                      }}
+                      placeholder="Enter manager password to authorize"
+                      autoFocus
+                      style={{
+                        ...invInputSt,
+                        padding: "10px 40px 10px 13px",
+                        border: `1.5px solid ${
+                          discountAuthErr ? C.redBorder : C.border
+                        }`,
+                        background: discountVerifying ? "#f3f4f6" : "#fff",
+                        opacity: discountVerifying ? 0.7 : 1,
+                        cursor: discountVerifying ? "not-allowed" : "text",
+                      }}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setShowDiscountPw((v) => !v)}
+                      disabled={discountVerifying}
+                      tabIndex={-1}
+                      style={{
+                        position: "absolute",
+                        right: 10,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: "none",
+                        border: "none",
+                        cursor: discountVerifying ? "not-allowed" : "pointer",
+                        padding: 4,
+                        color: C.muted,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {showDiscountPw ? (
+                        <EyeOff size={16} />
+                      ) : (
+                        <Eye size={16} />
+                      )}
+                    </button>
+                  </div>
+
+                  {discountAuthErr && (
+                    <div
+                      style={{
+                        color: C.red,
+                        fontSize: 12,
+                        marginTop: 5,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {discountAuthErr}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Actions */}
+
+              {/* Actions */}
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  type="button"
+                  disabled={discountVerifying}
+                  onClick={() => {
+                    setShowDiscountAuth(false);
+                    setDiscountAuthInput("");
+                    setDiscountAuthErr("");
+                    setCustomDiscountInput("");
+                    setShowDiscountPw(false);
+                  }}
+                  style={{
+                    flex: 1,
+                    ...btnSt,
+                    justifyContent: "center",
+                    cursor: discountVerifying ? "not-allowed" : "pointer",
+                    opacity: discountVerifying ? 0.6 : 1,
+                  }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={confirmDiscountAuth}
+                  disabled={discountVerifying}
+                  style={{
+                    flex: 1,
+                    ...btnPrimarySt,
+                    justifyContent: "center",
+                    background: `linear-gradient(135deg,#e7a23b,${C.warn})`,
+                    cursor: discountVerifying ? "not-allowed" : "pointer",
+                    opacity: discountVerifying ? 0.7 : 1,
+                  }}
+                >
+                  {discountVerifying ? "Verifying..." : "Apply Discount"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* ── Stat cards ── */}
       <div
         style={{
@@ -3173,7 +3673,7 @@ export function POSContent({ user }) {
                     VAT (12%)
                   </label>
                   <div
-                    onClick={() => setVatEnabled((v) => !v)}
+                    onClick={handleVatToggle}
                     style={{
                       width: 42,
                       height: 22,
@@ -3232,12 +3732,37 @@ export function POSContent({ user }) {
                               setDiscountPct(0);
                               setDiscountType("None");
                               setShowDiscountAuth(false);
+                              setPendingDiscount(null);
                               setCustomDiscountInput("");
-                            } else {
+                              return;
+                            }
+
+                            // Staff requires manager authorization.
+                            if (requiresManagerAuthorization) {
                               setPendingDiscount(d);
                               setDiscountAuthInput("");
                               setDiscountAuthErr("");
                               setCustomDiscountInput("");
+                              setShowDiscountPw(false);
+                              setShowDiscountAuth(true);
+                              return;
+                            }
+
+                            // Manager / Franchisee can apply directly.
+                            if (d.label === "PWD/Senior") {
+                              setDiscountPct(d.pct);
+                              setDiscountType(d.label);
+                              setShowDiscountAuth(false);
+                              setPendingDiscount(null);
+                              return;
+                            }
+
+                            if (d.label === "Others") {
+                              setPendingDiscount(d);
+                              setDiscountAuthInput("");
+                              setDiscountAuthErr("");
+                              setCustomDiscountInput("");
+                              setShowDiscountPw(false);
                               setShowDiscountAuth(true);
                             }
                           }}
@@ -3431,6 +3956,7 @@ export function POSContent({ user }) {
                   {/* Normal payment buttons */}
                   {!isSplitPayment && (
                     <div
+                      className="pos-payment-methods"
                       style={{
                         display: "flex",
                         flexDirection: "column",
@@ -3449,14 +3975,10 @@ export function POSContent({ user }) {
                           icon: <QrCode size={15} />,
                           sub: "PayMongo QR",
                         },
-                        {
-                          id: "Others",
-                          label: "Others",
-                          icon: <CreditCard size={15} />,
-                        },
                       ].map((m) => (
                         <button
                           key={m.id}
+                          className="pos-payment-btn"
                           onClick={() => {
                             setPaymentMethod(m.id);
                             if (m.id !== "GCash") setGcashRefNumber("");
@@ -3479,18 +4001,41 @@ export function POSContent({ user }) {
                             transition: "all .15s",
                           }}
                         >
-                          {m.icon} <span>{m.label}</span>
-                          {m.sub && (
-                            <span
+                          <div
+                            style={{
+                              position: "relative",
+                              width: "100%",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <div
                               style={{
-                                marginLeft: "auto",
-                                fontSize: 11,
-                                opacity: 0.75,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: 8,
                               }}
                             >
-                              {m.sub}
-                            </span>
-                          )}
+                              {m.icon}
+                              <span>{m.label}</span>
+                            </div>
+
+                            {m.sub && (
+                              <span
+                                style={{
+                                  position: "absolute",
+                                  right: 0,
+                                  fontSize: 11,
+                                  fontWeight: 500,
+                                  color: C.muted,
+                                }}
+                              >
+                                {m.sub}
+                              </span>
+                            )}
+                          </div>
                         </button>
                       ))}
                     </div>

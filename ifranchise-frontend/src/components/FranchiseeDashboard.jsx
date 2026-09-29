@@ -14,6 +14,9 @@ import Receipts from "./Receipts";
 import jsPDF from "jspdf";
 import ifranchisejpg from "../assets/ifranchisejpg.jpg";
 import franchisync from "../assets/franchisyncjpg.jpg";
+import { createPortal } from "react-dom";
+import { FACommunicationContent } from "./FranchiseAdminDashboard";
+import { POSContent } from "./StaffDashboard";
 import {
   Home,
   Box,
@@ -69,6 +72,7 @@ import {
   ChevronRight,
   Lock,
   Unlock,
+  ImageOff,
   CheckCircle2,
   Zap,
   Target,
@@ -85,20 +89,7 @@ import {
   Save,
   Receipt,
 } from "lucide-react";
-
-async function adminModuleFetch(input, options) {
-  const response = await fetch(input, options);
-  const method = String(
-    options?.method ||
-      (typeof Request !== "undefined" && input instanceof Request
-        ? input.method
-        : "GET"),
-  ).toUpperCase();
-  if (response.ok && !["GET", "HEAD", "OPTIONS"].includes(method)) {
-    window.dispatchEvent(new Event("franchisync:data-changed"));
-  }
-  return response;
-}
+import { adminModuleFetch } from "../utils/adminModuleFetch";
 
 const VIBE_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -941,6 +932,7 @@ export default function FranchiseeDashboard({
       "dashboard",
       "menuInventory",
       "stockInventory",
+      "pos",
       "reports",
       "staff",
       "communication",
@@ -1072,7 +1064,7 @@ export default function FranchiseeDashboard({
         localStorage.getItem("user") || sessionStorage.getItem("user");
       const userId = stored ? JSON.parse(stored)?.id : null;
 
-      await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
@@ -1104,6 +1096,11 @@ export default function FranchiseeDashboard({
       id: "stockInventory",
       label: "Stock Inventory",
       icon: <Layers size={20} />,
+    },
+    {
+      id: "pos",
+      label: "Point of Sale",
+      icon: <ShoppingCart size={20} />,
     },
     // { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
     { id: "reports", label: "Sales & Reports", icon: <BarChart2 size={20} /> },
@@ -1298,7 +1295,7 @@ export default function FranchiseeDashboard({
         </button>
         <nav className="fr-nav">
           {!sidebarCollapsed && <div className="fr-nav-section">Main Menu</div>}
-          {navigation.slice(0, 6).map((item) => (
+          {navigation.slice(0, 7).map((item) => (
             <button
               type="button"
               aria-label={item.label}
@@ -1321,7 +1318,7 @@ export default function FranchiseeDashboard({
               Account
             </div>
           )}
-          {navigation.slice(6).map((item) => (
+          {navigation.slice(7).map((item) => (
             <button
               type="button"
               aria-label={item.label}
@@ -1343,7 +1340,7 @@ export default function FranchiseeDashboard({
 
       {/* Main */}
       <main className="fr-main">
-        <div className="fr-topbar">
+        <div id="franchisee-topbar" className="fr-topbar">
           <div className="fr-topbar-heading">
             <button
               type="button"
@@ -1382,8 +1379,19 @@ export default function FranchiseeDashboard({
           </div>
         </div>
 
-        <div id="fr-workspace" tabIndex={-1} className="fr-content">
-          <div key={activeModule} className="fr-page-enter">
+        <div
+          id="fr-workspace"
+          tabIndex={-1}
+          className={`fr-content ${
+            activeModule === "communication" ? "fr-content-communication" : ""
+          }`}
+        >
+          <div
+            key={activeModule}
+            className={`fr-page-enter ${
+              activeModule === "communication" ? "fr-communication-page" : ""
+            }`}
+          >
             {activeModule === "dashboard" && (
               <FrDashboardContent
                 transactions={transactions}
@@ -1397,7 +1405,7 @@ export default function FranchiseeDashboard({
             {activeModule === "stockInventory" && (
               <FrStockInventoryContent user={user} brands={brands} />
             )}
-            {/*activeModule === 'pos'            && <FrPOSContent user={user} brands={brands} />*/}
+            {activeModule === "pos" && <POSContent user={user} />}
             {activeModule === "receipts" && <Receipts />}
             {activeModule === "reports" && (
               <FrReportsContent user={user} transactions={transactions} />
@@ -1405,7 +1413,9 @@ export default function FranchiseeDashboard({
             {activeModule === "staff" && (
               <FrStaffManagementContent user={user} />
             )}
-            {activeModule === "communication" && <FrCommunicationContent />}
+            {activeModule === "communication" && (
+              <FrCommunicationContent user={user} brands={brands} />
+            )}
             {activeModule === "profile" && (
               <FrProfileContent
                 user={user}
@@ -1579,7 +1589,7 @@ function ProductAnalyticsPanel({
       if (filterBranch) {
         params.set("branch", filterBranch);
       }
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`,
       );
       const json = await res.json();
@@ -2015,7 +2025,7 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`,
         {
           method: "POST",
@@ -3778,7 +3788,7 @@ function PrescriptiveSection({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`,
         {
           method: "POST",
@@ -4541,7 +4551,7 @@ function SalesVsStockSection({
         );
         if (names.length) params.set("branches", names.join(","));
       }
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`,
       );
       const json = await res.json();
@@ -5549,7 +5559,7 @@ function FrDashboardContent({ transactions, brands, user }) {
       params.set("branch", userBranch.trim());
       if (!userBranch) return;
 
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`,
       );
       const data = await res.json();
@@ -9382,7 +9392,7 @@ function FrStockInventoryContent({ user, brands }) {
       async () => {
         lastLookupRef.current = Date.now();
         try {
-          const response = await fetch(
+          const response = await adminModuleFetch(
             `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`,
             { headers: { Accept: "application/json" } },
           );
@@ -11792,7 +11802,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
   const fetchProducts = useCallback(async () => {
     if (!userBranch) return;
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/inventory?branch=${encodeURIComponent(userBranch)}`,
       );
       const d = await res.json();
@@ -11806,7 +11816,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
     if (!userBranch) return;
     setLoadingTx(true);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/transactions?branch=${encodeURIComponent(userBranch)}`,
       );
       const d = await res.json();
@@ -11924,11 +11934,14 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
           subtotal: c.price * c.qty,
         })),
       };
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/transactions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
       const d = await res.json();
       if (d.success) {
         setLastReceipt({
@@ -13385,8 +13398,12 @@ function FrReportsContent({ user, transactions = [] }) {
     const fetchSavedReports = async () => {
       try {
         const [savedRes, liveRes] = await Promise.all([
-          fetch(`${process.env.REACT_APP_API_URL}/generated-reports`),
-          fetch(`${process.env.REACT_APP_API_URL}/reports?branch=${branch}`),
+          adminModuleFetch(
+            `${process.env.REACT_APP_API_URL}/generated-reports`,
+          ),
+          adminModuleFetch(
+            `${process.env.REACT_APP_API_URL}/reports?branch=${branch}`,
+          ),
         ]);
 
         const savedData = await savedRes.json();
@@ -13433,7 +13450,7 @@ function FrReportsContent({ user, transactions = [] }) {
     setKpiLoading(true);
     try {
       const params = new URLSearchParams({ from, to, branch });
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`,
       );
       const data = await res.json();
@@ -13447,7 +13464,7 @@ function FrReportsContent({ user, transactions = [] }) {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await fetch(
+        const res = await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/reports/history?branch=${branch}`,
         );
         const data = await res.json();
@@ -13490,7 +13507,7 @@ function FrReportsContent({ user, transactions = [] }) {
     const fetchDeletedReports = async () => {
       if (!branch) return;
       try {
-        const res = await fetch(
+        const res = await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/reports/deleted?branch=${branch}`,
         );
         const data = await res.json();
@@ -13669,14 +13686,17 @@ ${topItems}
       ═══════════════════════════════════════════════════════════════
       `.trim();
 
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/ai/report`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          max_tokens: 4000,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/ai/report`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            max_tokens: 4000,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        },
+      );
 
       const data = await res.json();
       const reportText =
@@ -13707,7 +13727,7 @@ ${topItems}
       const cleanReportText = sanitizeReport(reportText);
       setAiReport(cleanReportText);
 
-      const submitRes = await fetch(
+      const submitRes = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports`,
         {
           method: "POST",
@@ -13771,7 +13791,7 @@ ${topItems}
 
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports/${report.id}/soft-delete`,
         {
           method: "POST",
@@ -13833,7 +13853,7 @@ ${topItems}
     setRetrieving(report.id);
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports/${report.id}/retrieve`,
         {
           method: "POST",
@@ -14120,7 +14140,7 @@ ${topItems}
     }
     setSavingId(report.id);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports/${report.id}/save`,
         {
           method: "POST",
@@ -14161,7 +14181,7 @@ ${topItems}
     setSubmitting(report.id);
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports/submit`,
         {
           method: "POST",
@@ -15541,7 +15561,7 @@ function FrStaffManagementContent({ user }) {
 
   const fetchStaff = async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users?branch=${encodeURIComponent(franchiseeBranch)}`,
       );
       const d = await res.json();
@@ -15579,11 +15599,14 @@ function FrStaffManagementContent({ user }) {
       return;
     }
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, branch: franchiseeBranch }),
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/users`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...form, branch: franchiseeBranch }),
+        },
+      );
       const d = await res.json();
       if (d.success) {
         await fetchStaff();
@@ -15603,7 +15626,7 @@ function FrStaffManagementContent({ user }) {
       return;
     }
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users/${editingStaff.id}`,
         {
           method: "PUT",
@@ -15636,9 +15659,12 @@ function FrStaffManagementContent({ user }) {
       return;
     }
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/users/${id}`, {
-        method: "DELETE",
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/users/${id}`,
+        {
+          method: "DELETE",
+        },
+      );
       const d = await res.json();
       if (d.success) {
         await fetchStaff();
@@ -15947,1223 +15973,78 @@ function FrStaffManagementContent({ user }) {
   );
 }
 
-function FrCommunicationContent() {
-  const [announcements, setAnnouncements] = useState([]);
-  const [pinnedIds, setPinnedIds] = useState(new Set());
-  const [fetching, setFetching] = useState(true);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [selectedTab, setSelectedTab] = useState("all");
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [searchVisible, setSearchVisible] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [viewingItem, setViewingItem] = useState(null);
-
-  // Load user from localStorage (mirrors AsyncStorage.getItem("user"))
-  const [commUser, setCommUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("user"));
-    } catch {
-      return null;
-    }
-  });
-
-  const C = {
-    border: "rgba(59,121,30,0.12)",
-    greenMid: "rgba(59,121,30,0.1)",
-  };
-
-  const bmLabel = {
-    display: "block",
-    fontSize: 11.5,
-    fontWeight: 700,
-    color: "#5C6B60",
-    textTransform: "uppercase",
-    letterSpacing: "0.07em",
-    fontFamily: "Plus Jakarta Sans,sans-serif",
-    marginBottom: 4,
-  };
-
-  const bmInput = {
-    width: "100%",
-    padding: "10px 13px",
-    border: "1.5px solid rgba(59,121,30,0.18)",
-    borderRadius: 11,
-    fontSize: 13.5,
-    fontFamily: "Plus Jakarta Sans,sans-serif",
-    color: "#12241B",
-    background: "#ffffff",
-    outline: "none",
-    display: "block",
-  };
-
-  const isAdminUser = (u) => u?.role?.toLowerCase() === "administrator";
-
-  const PIN_KEY = "announcement_pins";
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(PIN_KEY);
-      if (raw) setPinnedIds(new Set(JSON.parse(raw)));
-    } catch {}
-  }, []);
-
-  const persistPins = (newSet) => {
-    try {
-      localStorage.setItem(PIN_KEY, JSON.stringify([...newSet]));
-    } catch {}
-  };
-
-  // ── Fetch announcements ──
-  const fetchAnnouncements = async () => {
-    setFetching(true);
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/announcements`);
-      const data = await res.json();
-      setAnnouncements(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Fetch error:", err);
-      setAnnouncements([]);
-    } finally {
-      setFetching(false);
-    }
-  };
-  useEffect(() => {
-    fetchAnnouncements();
-  }, []);
-
-  // Merge server list with local pin state
-  const mergedAnnouncements = announcements.map((a) => ({
-    ...a,
-    pinned: pinnedIds.has(String(a.id)),
-  }));
-
-  // ── Toggle pin — ADMIN ONLY ──
-  const handlePin = (item) => {
-    if (!isAdminUser(commUser)) return;
-    const id = String(item.id);
-    setPinnedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      persistPins(next);
-      return next;
-    });
-    setViewingItem((prev) =>
-      prev && String(prev.id) === id ? { ...prev, pinned: !prev.pinned } : prev,
-    );
-  };
-
-  // ── Save (create / update) — ADMIN ONLY ──
-  const handleSave = async (e) => {
-    e.preventDefault();
-    if (!isAdminUser(commUser)) {
-      alert("Only administrators can post announcements.");
-      return;
-    }
-    if (!title.trim() || !content.trim()) {
-      alert("Please fill in all fields.");
-      return;
-    }
-    try {
-      const url = editing
-        ? `${process.env.REACT_APP_API_URL}/announcements/${editing.id}`
-        : `${process.env.REACT_APP_API_URL}/announcements`;
-      const method = editing ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          content,
-          userId: commUser.id,
-          role: commUser.role,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || "Failed to save.");
-        return;
-      }
-      setModalVisible(false);
-      setEditing(null);
-      setTitle("");
-      setContent("");
-      fetchAnnouncements();
-    } catch (err) {
-      console.error("Save error:", err);
-    }
-  };
-
-  // ── Delete — ADMIN ONLY ──
-  const handleDelete = async (id) => {
-    if (!isAdminUser(commUser)) return;
-    if (!window.confirm("Delete this announcement?")) return;
-    try {
-      const res = await fetch(
-        `${process.env.REACT_APP_API_URL}/announcements/${id}`,
-        {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: commUser.id, role: commUser.role }),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || "Delete failed.");
-        return;
-      }
-      const strId = String(id);
-      if (pinnedIds.has(strId)) {
-        setPinnedIds((prev) => {
-          const next = new Set(prev);
-          next.delete(strId);
-          persistPins(next);
-          return next;
-        });
-      }
-      if (viewingItem?.id === id) setViewingItem(null);
-      fetchAnnouncements();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // ── Edit — ADMIN ONLY ──
-  const handleEdit = (item) => {
-    if (!isAdminUser(commUser)) return;
-    setEditing(item);
-    setTitle(item.title);
-    setContent(item.content);
-    setModalVisible(true);
-  };
-
-  // ── Tab filtering ──
-  const now = new Date();
-  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-
-  const tabFiltered = (() => {
-    let list;
-    switch (selectedTab) {
-      case "recent":
-        list = mergedAnnouncements.filter(
-          (a) => new Date(a.created_at) >= sevenDaysAgo,
-        );
-        break;
-      case "pinned":
-        list = mergedAnnouncements.filter((a) => a.pinned);
-        break;
-      case "deleteHistory":
-        list = [];
-        break;
-      default:
-        list = mergedAnnouncements;
-    }
-    return [...list].sort((a, b) => {
-      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-      return new Date(b.created_at) - new Date(a.created_at);
-    });
-  })();
-
-  const filtered = searchQuery.trim()
-    ? tabFiltered.filter(
-        (a) =>
-          a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          a.content.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    : tabFiltered;
-
-  const tabBadge = {
-    all: mergedAnnouncements.length,
-    recent: mergedAnnouncements.filter(
-      (a) => new Date(a.created_at) >= sevenDaysAgo,
-    ).length,
-    pinned: pinnedIds.size,
-  };
-
-  // ── Helpers ──
-  const getInitials = (t = "") =>
-    t
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() ?? "")
-      .join("");
-
-  const isRecent = (item) =>
-    new Date() - new Date(item.created_at) < 7 * 24 * 60 * 60 * 1000;
-
-  // ── Styles (inline, consistent with dashboard tokens) ──
-  const commStyles = {
-    root: {
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      display: "flex",
-      flexDirection: "column",
-      minHeight: 620,
-      background: "#fff",
-      border: "1px solid #E1E6D8",
-      borderRadius: 18,
-      overflow: "hidden",
-      boxShadow: "0 2px 14px rgba(50,109,32,.06)",
-    },
-    header: {
-      background: "linear-gradient(135deg,#509820,#3b791e)",
-      padding: "20px 24px 28px",
-      borderRadius: "18px 18px 0 0",
-      position: "relative",
-      overflow: "hidden",
-    },
-    headerTop: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      marginBottom: 4,
-    },
-    eyebrow: {
-      fontSize: 9,
-      fontWeight: 800,
-      color: "rgba(255,255,255,0.6)",
-      letterSpacing: "0.25em",
-      marginBottom: 4,
-    },
-    headerTitle: {
-      fontSize: 22,
-      fontWeight: 900,
-      color: "#fff",
-      letterSpacing: "-0.4px",
-    },
-    liveChip: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 7,
-      background: C.greenLt,
-      borderRadius: 20,
-      padding: "5px 11px",
-      border: "1px solid rgba(255,255,255,0.3)",
-    },
-    liveDot: {
-      width: 7,
-      height: 7,
-      borderRadius: "50%",
-      background: "#bdd43c",
-      boxShadow: "0 0 0 3px rgba(212,223,51,0.3)",
-    },
-    liveTxt: {
-      fontSize: 9,
-      fontWeight: 800,
-      color: "#bdd43c",
-      letterSpacing: "0.15em",
-    },
-    searchBarWrap: {
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      background: C.greenLt,
-      borderRadius: 12,
-      padding: "9px 13px",
-      marginTop: 12,
-      border: "1px solid rgba(255,255,255,0.25)",
-    },
-    searchInput: {
-      flex: 1,
-      background: "none",
-      border: "none",
-      outline: "none",
-      color: "#fff",
-      fontSize: 13,
-      fontFamily: "inherit",
-    },
-    tabsRow: {
-      display: "flex",
-      gap: 7,
-      padding: "14px 20px",
-      background: "#fff",
-      borderBottom: `1px solid ${C.border}`,
-      flexWrap: "wrap",
-    },
-    tabBase: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 5,
-      padding: "6px 13px",
-      borderRadius: 20,
-      fontSize: 11.5,
-      fontWeight: 600,
-      cursor: "pointer",
-      fontFamily: "inherit",
-      border: "none",
-      transition: "all .15s",
-    },
-    badge: {
-      padding: "1px 7px",
-      borderRadius: 10,
-      fontSize: 10,
-      fontWeight: 800,
-    },
-    listArea: {
-      flex: 1,
-      overflowY: "auto",
-      padding: "20px 20px 24px",
-      background: "#F6F7F1",
-    },
-    sectionLabel: {
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      marginBottom: 14,
-    },
-    labelAccent: {
-      width: 4,
-      height: 16,
-      borderRadius: 2,
-      background: "linear-gradient(135deg,#3b791e,#509820)",
-      flexShrink: 0,
-    },
-    labelTxt: {
-      fontSize: 11,
-      fontWeight: 800,
-      color: "#12241B",
-      letterSpacing: "0.08em",
-      textTransform: "uppercase",
-    },
-    card: (pinned) => ({
-      display: "flex",
-      background: "#fff",
-      borderRadius: 18,
-      marginBottom: 10,
-      border: `1px solid ${pinned ? "#FFE082" : C.border}`,
-      boxShadow: pinned
-        ? "0 3px 14px rgba(249,168,37,0.18)"
-        : "0 2px 10px rgba(59,121,30,0.07)",
-      overflow: "hidden",
-      cursor: "pointer",
-      transition: "transform .15s, box-shadow .15s",
-    }),
-    cardAccentBar: (pinned) => ({
-      width: 4,
-      flexShrink: 0,
-      background: pinned
-        ? "linear-gradient(180deg,#F9A825,#FFC107)"
-        : "linear-gradient(180deg,#509820,#3b791e)",
-    }),
-    cardBody: { flex: 1, padding: "13px 15px 11px" },
-    cardHeaderRow: { display: "flex", alignItems: "flex-start", gap: 10 },
-    initialsChip: (pinned) => ({
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      flexShrink: 0,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      background: pinned
-        ? "linear-gradient(135deg,#F9A825,#E65100)"
-        : "linear-gradient(135deg,#3b791e,#3b791e)",
-      fontSize: 13,
-      fontWeight: 900,
-      color: "#fff",
-    }),
-    cardMeta: { flex: 1, minWidth: 0 },
-    cardTitleRow: {
-      display: "flex",
-      alignItems: "center",
-      gap: 5,
-      flexWrap: "wrap",
-      marginBottom: 3,
-    },
-    cardTitle: { fontSize: 14, fontWeight: 800, color: "#12241B" },
-    cardDate: { fontSize: 10, color: "#7A8878", fontFamily: "monospace" },
-    cardContent: {
-      fontSize: 12.5,
-      color: "#5C6B60",
-      lineHeight: 1.65,
-      marginTop: 9,
-      display: "-webkit-box",
-      WebkitLineClamp: 2,
-      WebkitBoxOrient: "vertical",
-      overflow: "hidden",
-    },
-    tapHint: {
-      display: "flex",
-      alignItems: "center",
-      gap: 3,
-      marginTop: 7,
-      fontSize: 10,
-      color: "#7A8878",
-    },
-    pinnedBadge: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 3,
-      background: "#FFF8E1",
-      borderRadius: 6,
-      padding: "2px 6px",
-      border: "1px solid #FFE082",
-      fontSize: 8,
-      fontWeight: 800,
-      color: "#F9A825",
-    },
-    recentBadge: {
-      background: "#E0F2F1",
-      borderRadius: 6,
-      padding: "2px 6px",
-      border: "1px solid #B2DFDB",
-      fontSize: 8,
-      fontWeight: 800,
-      color: "#2c5c16",
-    },
-    cardActions: {
-      display: "flex",
-      gap: 5,
-      flexShrink: 0,
-      alignItems: "flex-start",
-    },
-    actionBtn: (variant) => ({
-      width: 28,
-      height: 28,
-      borderRadius: 8,
-      border: `1px solid ${C.border}`,
-      background: "#F6F7F1",
-      cursor: "pointer",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      flexShrink: 0,
-      color:
-        variant === "delete"
-          ? "#e53935"
-          : variant === "pin"
-            ? "#F9A825"
-            : "#2c5c16",
-    }),
-    emptyState: {
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      padding: "60px 0 40px",
-      gap: 10,
-      textAlign: "center",
-    },
-    emptyIcon: { fontSize: 40, marginBottom: 4 },
-    emptyTitle: { fontSize: 15, fontWeight: 800, color: "#12241B" },
-    emptySub: {
-      fontSize: 12,
-      color: "#7A8878",
-      maxWidth: 260,
-      lineHeight: 1.6,
-    },
-  };
-
-  const EmptyIcon =
-    selectedTab === "pinned"
-      ? Pin
-      : selectedTab === "recent"
-        ? Clock
-        : Megaphone;
-  const emptyTitle = searchQuery
-    ? "No results found"
-    : selectedTab === "pinned"
-      ? "Nothing pinned yet"
-      : selectedTab === "recent"
-        ? "No recent announcements"
-        : "No announcements yet";
-  const emptySub = searchQuery
-    ? "Try a different search term."
-    : selectedTab === "pinned"
-      ? "Administrators can pin important announcements."
-      : selectedTab === "recent"
-        ? "Announcements from the last 7 days appear here."
-        : "Check back later.";
-
+function FrCommunicationContent({ user, brands = [] }) {
   return (
-    <div style={commStyles.root}>
+    <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        .comm-card:hover { box-shadow: 0 8px 22px rgba(59,121,30,0.10) !important; }
-        .comm-action-btn:hover { opacity: 0.78; }
-        .comm-tab:hover { background: #f0f5e8 !important; color: #2c5c16 !important; }
+        /* ================================
+           FRANCHISEE ANNOUNCEMENT TOOLBAR
+           ================================ */
+
+        /* Make the whole toolbar shorter */
+        .fa-communications-readonly .fa-compact-toolbar {
+          min-height: 0 !important;
+          height: 48px !important;
+          padding: 7px 20px !important;
+          margin: 0 !important;
+          align-items: center !important;
+          flex-wrap: nowrap !important;
+          box-sizing: border-box !important;
+        }
+
+        /* All / Recent / Pinned */
+        .fa-communications-readonly button.comm-tab {
+          height: 30px !important;
+          min-height: 30px !important;
+          width: auto !important;
+          min-width: 0 !important;
+
+          padding: 0 14px !important;
+
+          font-size: 11px !important;
+          line-height: 1 !important;
+          gap: 5px !important;
+
+          border-radius: 18px !important;
+          box-sizing: border-box !important;
+        }
+
+        /* Number badge inside tabs */
+        .fa-communications-readonly button.comm-tab span {
+          font-size: 10px !important;
+          line-height: 1 !important;
+        }
+
+        /* Right side */
+        .fa-communications-readonly .fa-toolbar-actions {
+          margin-left: auto !important;
+          gap: 6px !important;
+          align-items: center !important;
+        }
+
+        /* Refresh + Search */
+        .fa-communications-readonly .fa-toolbar-actions button {
+          width: 36px !important;
+          min-width: 36px !important;
+          height: 30px !important;
+          min-height: 30px !important;
+
+          padding: 0 !important;
+          border-radius: 8px !important;
+
+          display: grid !important;
+          place-items: center !important;
+          box-sizing: border-box !important;
+        }
+
+        .fa-communications-readonly .fa-toolbar-actions button svg {
+          width: 14px !important;
+          height: 14px !important;
+        }
       `}</style>
 
-      {/* ── HEADER ── */}
-      <div style={commStyles.header}>
-        {/* subtle wave decoration */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 40,
-            opacity: 0.15,
-            background:
-              "radial-gradient(ellipse at 30% 100%, #fff 0%, transparent 60%)",
-            pointerEvents: "none",
-          }}
-        />
-
-        <div style={commStyles.headerTop}>
-          <div>
-            <div style={commStyles.eyebrow}>IFRANCHISE</div>
-            <div
-              style={{
-                ...commStyles.headerTitle,
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-              }}
-            >
-              <Megaphone size={21} /> Announcements
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={commStyles.liveChip}>
-              <div style={commStyles.liveDot} />
-              <span style={commStyles.liveTxt}>LIVE</span>
-            </div>
-            <button
-              onClick={() => {
-                setSearchVisible((v) => !v);
-                setSearchQuery("");
-              }}
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.3)",
-                background: searchVisible
-                  ? "rgba(255,255,255,0.3)"
-                  : "rgba(255,255,255,0.18)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                fontSize: 16,
-              }}
-            >
-              {searchVisible ? (
-                <X size={16} color="#fff" />
-              ) : (
-                <Search size={16} color="#fff" />
-              )}
-            </button>
-            {isAdminUser(commUser) && (
-              <button
-                onClick={() => {
-                  setEditing(null);
-                  setTitle("");
-                  setContent("");
-                  setModalVisible(true);
-                }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 7,
-                  padding: "8px 16px",
-                  borderRadius: 10,
-                  border: "1.5px solid rgba(255,255,255,0.4)",
-                  background: C.greenLt,
-                  color: "#fff",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                <Plus size={14} /> New
-              </button>
-            )}
-          </div>
-        </div>
-
-        {searchVisible && (
-          <div style={commStyles.searchBarWrap}>
-            <Search size={14} color="rgba(255,255,255,0.7)" />
-            <input
-              autoFocus
-              type="text"
-              placeholder="Search announcements…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={commStyles.searchInput}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "rgba(255,255,255,0.7)",
-                  fontSize: 16,
-                  lineHeight: 1,
-                }}
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── TABS ── */}
-      <div style={commStyles.tabsRow}>
-        {["all", "recent", "pinned"].map((tab) => {
-          const active = selectedTab === tab;
-          return (
-            <button
-              key={tab}
-              className={active ? "" : "comm-tab"}
-              onClick={() => setSelectedTab(tab)}
-              style={{
-                ...commStyles.tabBase,
-                background: active
-                  ? "linear-gradient(135deg,#3b791e,#3b791e)"
-                  : "#f0f5e8",
-                color: active ? "#fff" : "#5C6B60",
-                border: active ? "none" : `1px solid ${C.border}`,
-                boxShadow: active ? "0 2px 8px rgba(59,121,30,0.28)" : "none",
-              }}
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              {tabBadge[tab] > 0 && (
-                <span
-                  style={{
-                    ...commStyles.badge,
-                    background: active ? "rgba(255,255,255,0.28)" : C.greenMid,
-                    color: active ? "#fff" : "#3b791e",
-                  }}
-                >
-                  {tabBadge[tab]}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── LIST ── */}
-      <div style={commStyles.listArea}>
-        <div style={commStyles.sectionLabel}>
-          <div style={commStyles.labelAccent} />
-          <span style={commStyles.labelTxt}>
-            {searchQuery
-              ? `${filtered.length} result${filtered.length !== 1 ? "s" : ""} for "${searchQuery}"`
-              : selectedTab === "recent"
-                ? "Last 7 Days"
-                : selectedTab === "pinned"
-                  ? "Pinned Announcements"
-                  : "All Announcements"}
-          </span>
-        </div>
-
-        {fetching ? (
-          <div
-            style={{
-              padding: "48px 0",
-              textAlign: "center",
-              color: "#5C6B60",
-              fontSize: 13,
-              fontStyle: "italic",
-            }}
-          >
-            Loading announcements…
-          </div>
-        ) : filtered.length === 0 ? (
-          <div style={commStyles.emptyState}>
-            <div
-              style={{
-                ...commStyles.emptyIcon,
-                color: "#3b791e",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <EmptyIcon size={34} />
-            </div>
-            <div style={commStyles.emptyTitle}>{emptyTitle}</div>
-            <div style={commStyles.emptySub}>{emptySub}</div>
-          </div>
-        ) : (
-          filtered.map((item) => {
-            const pinned = !!item.pinned;
-            const recent = isRecent(item);
-            return (
-              <div
-                key={item.id}
-                className="comm-card"
-                style={commStyles.card(pinned)}
-                onClick={() =>
-                  setViewingItem((prev) => (prev?.id === item.id ? null : item))
-                }
-              >
-                <div style={commStyles.cardAccentBar(pinned)} />
-                <div style={commStyles.cardBody}>
-                  <div style={commStyles.cardHeaderRow}>
-                    <div style={commStyles.initialsChip(pinned)}>
-                      {getInitials(item.title)}
-                    </div>
-                    <div style={commStyles.cardMeta}>
-                      <div style={commStyles.cardTitleRow}>
-                        <span style={commStyles.cardTitle}>{item.title}</span>
-                        {pinned && (
-                          <span style={commStyles.pinnedBadge}>
-                            <Pin size={9} /> PINNED
-                          </span>
-                        )}
-                        {recent && !pinned && (
-                          <span style={commStyles.recentBadge}>NEW</span>
-                        )}
-                      </div>
-                      <div style={commStyles.cardDate}>
-                        {new Date(item.created_at).toLocaleString()}
-                      </div>
-                    </div>
-                    {isAdminUser(commUser) && (
-                      <div
-                        style={commStyles.cardActions}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          className="comm-action-btn"
-                          style={commStyles.actionBtn("pin")}
-                          onClick={() => handlePin(item)}
-                          title={pinned ? "Unpin" : "Pin"}
-                        >
-                          <Pin
-                            size={12}
-                            fill={pinned ? "currentColor" : "none"}
-                          />
-                        </button>
-                        <button
-                          className="comm-action-btn"
-                          style={commStyles.actionBtn("edit")}
-                          onClick={() => {
-                            handleEdit(item);
-                          }}
-                          title="Edit"
-                        >
-                          <Pencil size={12} />
-                        </button>
-                        <button
-                          className="comm-action-btn"
-                          style={commStyles.actionBtn("delete")}
-                          onClick={() => handleDelete(item.id)}
-                          title="Delete"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <div style={commStyles.cardContent}>{item.content}</div>
-                  <div style={commStyles.tapHint}>
-                    <span>Tap to read full announcement</span>
-                    <span style={{ fontSize: 10 }}>›</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* ── FULL VIEW PANEL ── */}
-      {viewingItem && (
-        <div
-          onClick={() => setViewingItem(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(13,43,30,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2000,
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff",
-              borderRadius: 20,
-              width: "100%",
-              maxWidth: 580,
-              boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-              border: "1px solid rgba(59,121,30,0.15)",
-              maxHeight: "90vh",
-              overflowY: "auto",
-            }}
-          >
-            {/* gradient header */}
-            <div
-              style={{
-                background: viewingItem.pinned
-                  ? "linear-gradient(135deg,#F9A825,#E65100)"
-                  : "linear-gradient(135deg,#3b791e,#3b791e)",
-                borderRadius: "20px 20px 0 0",
-                padding: "20px 22px 28px",
-                position: "relative",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  height: 40,
-                  opacity: 0.12,
-                  background:
-                    "radial-gradient(ellipse at 50% 100%, #fff 0%, transparent 70%)",
-                }}
-              />
-              <button
-                onClick={() => setViewingItem(null)}
-                style={{
-                  position: "absolute",
-                  top: 14,
-                  right: 14,
-                  width: 32,
-                  height: 32,
-                  borderRadius: 10,
-                  border: "1.5px solid rgba(255,255,255,0.4)",
-                  background: "rgba(255,255,255,0.2)",
-                  cursor: "pointer",
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <X size={15} />
-              </button>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 14,
-                  paddingRight: 40,
-                }}
-              >
-                <div
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 16,
-                    background: "rgba(255,255,255,0.25)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 18,
-                    fontWeight: 900,
-                    color: "#fff",
-                    flexShrink: 0,
-                    border: "1.5px solid rgba(255,255,255,0.35)",
-                  }}
-                >
-                  {getInitials(viewingItem.title)}
-                </div>
-                <div>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 6,
-                      marginBottom: 6,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {viewingItem.pinned && (
-                      <span
-                        style={{
-                          background: "rgba(255,255,255,0.25)",
-                          padding: "2px 8px",
-                          borderRadius: 8,
-                          fontSize: 9,
-                          fontWeight: 900,
-                          color: "#fff",
-                          letterSpacing: "0.08em",
-                        }}
-                      >
-                        <Pin size={9} /> PINNED
-                      </span>
-                    )}
-                    {isRecent(viewingItem) && (
-                      <span
-                        style={{
-                          background: "rgba(255,255,255,0.2)",
-                          padding: "2px 8px",
-                          borderRadius: 8,
-                          fontSize: 9,
-                          fontWeight: 900,
-                          color: "#fff",
-                        }}
-                      >
-                        NEW
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 19,
-                      fontWeight: 900,
-                      color: "#fff",
-                      lineHeight: 1.3,
-                      letterSpacing: "-0.3px",
-                    }}
-                  >
-                    {viewingItem.title}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: "rgba(255,255,255,0.65)",
-                      marginTop: 4,
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {new Date(viewingItem.created_at).toLocaleString()}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* body */}
-            <div style={{ padding: "22px 24px 28px" }}>
-              <p
-                style={{
-                  fontSize: 14.5,
-                  color: "#1A3A2A",
-                  lineHeight: 1.75,
-                  margin: 0,
-                }}
-              >
-                {viewingItem.content}
-              </p>
-
-              {/* Admin actions */}
-              {isAdminUser(commUser) && (
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    marginTop: 28,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <button
-                    onClick={() => handlePin(viewingItem)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 7,
-                      padding: "9px 18px",
-                      borderRadius: 11,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                      border: viewingItem.pinned
-                        ? "none"
-                        : "1.5px solid #FFE082",
-                      background: viewingItem.pinned ? "#F9A825" : "#FFF8E1",
-                      color: viewingItem.pinned ? "#fff" : "#F9A825",
-                    }}
-                  >
-                    <>
-                      <Pin
-                        size={13}
-                        fill={viewingItem.pinned ? "currentColor" : "none"}
-                      />{" "}
-                      {viewingItem.pinned ? "Unpin" : "Pin"}
-                    </>
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleEdit(viewingItem);
-                      setViewingItem(null);
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 7,
-                      padding: "9px 18px",
-                      borderRadius: 11,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                      border: "none",
-                      background: "linear-gradient(135deg,#509820,#3b791e)",
-                      color: "#fff",
-                    }}
-                  >
-                    <Pencil size={13} /> Edit
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleDelete(viewingItem.id);
-                      setViewingItem(null);
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 7,
-                      padding: "9px 18px",
-                      borderRadius: 11,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                      border: "1.5px solid #fecaca",
-                      background: "#fee2e2",
-                      color: "#dc2626",
-                    }}
-                  >
-                    <Trash2 size={13} /> Delete
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── CREATE / EDIT MODAL — Admin only ── */}
-      {isAdminUser(commUser) && modalVisible && (
-        <div
-          onClick={() => setModalVisible(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(13,43,30,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2500,
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff",
-              borderRadius: 20,
-              width: "100%",
-              maxWidth: 500,
-              boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-              border: "1px solid rgba(59,121,30,0.15)",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                background: "linear-gradient(135deg,#509820,#3b791e)",
-                padding: "16px 22px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <span style={{ fontWeight: 900, fontSize: 15, color: "#fff" }}>
-                {editing ? "Edit Announcement" : "New Announcement"}
-              </span>
-              <button
-                onClick={() => setModalVisible(false)}
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 10,
-                  border: "1.5px solid rgba(255,255,255,0.4)",
-                  background: C.greenLt,
-                  cursor: "pointer",
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <X size={14} />
-              </button>
-            </div>
-            <form onSubmit={handleSave} style={{ padding: "22px 24px" }}>
-              <div style={{ marginBottom: 16 }}>
-                <label style={bmLabel}>Title</label>
-                <input
-                  type="text"
-                  placeholder="Announcement title…"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  required
-                  style={{ ...bmInput, marginTop: 4 }}
-                />
-              </div>
-              <div style={{ marginBottom: 20 }}>
-                <label style={bmLabel}>Content</label>
-                <textarea
-                  placeholder="Write your announcement…"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  required
-                  rows={5}
-                  style={{
-                    ...bmInput,
-                    marginTop: 4,
-                    resize: "vertical",
-                    lineHeight: 1.65,
-                  }}
-                />
-              </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => setModalVisible(false)}
-                  style={{
-                    flex: 1,
-                    padding: "10px 0",
-                    borderRadius: 10,
-                    border: "1.5px solid #D4DBC8",
-                    background: "#F6F7F1",
-                    color: "#5C6B60",
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                    padding: "10px 0",
-                    borderRadius: 10,
-                    border: "none",
-                    background: "linear-gradient(135deg,#509820,#3b791e)",
-                    color: "#fff",
-                    fontSize: 13,
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    boxShadow: "0 2px 10px rgba(59,121,30,0.35)",
-                  }}
-                >
-                  <Check size={14} /> Save Announcement
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
+      <FACommunicationContent user={user} brands={brands} readOnly />
+    </>
   );
 }
 
@@ -17359,7 +16240,7 @@ function FrProfileContent({ user }) {
     try {
       setOtpError("");
       const emailToVerify = formData.personalEmail || formData.email;
-      const response = await fetch(
+      const response = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users/${user.id}/password`,
         {
           method: "PUT",

@@ -24404,42 +24404,73 @@ function CreateAccountModal({
   );
 }
 
-
-// Replace your existing FACommunicationContent function with the function below.
-// The toolbar is fixed outside dashboard scroll/transform containers.
-function FACommunicationContent({ user, brands: propBrands = [] }) {
+export function FACommunicationContent({
+  user,
+  brands: propBrands = [],
+  readOnly = false,
+}) {
   const announcementRootRef = useRef(null);
   const announcementToolbarSlotRef = useRef(null);
   const announcementToolbarRef = useRef(null);
   const [announcementToolbarDock, setAnnouncementToolbarDock] = useState(null);
-  const [announcementToolbarHeight, setAnnouncementToolbarHeight] = useState(64);
+  const [announcementToolbarHeight, setAnnouncementToolbarHeight] =
+    useState(64);
 
   useEffect(() => {
     const root = announcementRootRef.current;
     const slot = announcementToolbarSlotRef.current;
     const host = root?.parentElement;
     if (!root || !slot || !host) return undefined;
+
     let frame = 0;
     let active = true;
+
     const align = () => {
+      if (readOnly) {
+        root.style.setProperty("--fa-host-left", "0px");
+        root.style.setProperty("--fa-host-right", "0px");
+        root.style.setProperty("--fa-host-top", "0px");
+        return;
+      }
+
       const hostStyle = window.getComputedStyle(host);
+
       root.style.setProperty("--fa-host-left", hostStyle.paddingLeft || "0px");
-      root.style.setProperty("--fa-host-right", hostStyle.paddingRight || "0px");
+
+      root.style.setProperty(
+        "--fa-host-right",
+        hostStyle.paddingRight || "0px",
+      );
+
       root.style.setProperty("--fa-host-top", hostStyle.paddingTop || "0px");
     };
     align();
     const initial = slot.getBoundingClientRect();
-    // Capture the header's lower edge once; vertical scrolling never changes it.
-    const fixedTop = Math.max(0, initial.top);
+
+    const franchiseeTopbar = readOnly
+      ? document.getElementById("franchisee-topbar")
+      : null;
+
+    const fixedTop =
+      readOnly && franchiseeTopbar
+        ? franchiseeTopbar.getBoundingClientRect().bottom
+        : Math.max(0, initial.top);
+
     const measure = () => {
       if (!active) return;
       align();
       const bounds = slot.getBoundingClientRect();
       const left = Math.max(0, bounds.left);
-      const width = Math.max(0, Math.min(bounds.right, document.documentElement.clientWidth) - left);
-      setAnnouncementToolbarDock((previous) => {
-        if (previous && previous.left === left && previous.width === width && previous.top === fixedTop) return previous;
-        return { left, width, top: fixedTop };
+      const width = Math.max(
+        0,
+        Math.min(bounds.right, document.documentElement.clientWidth) - left,
+      );
+      const topbarRect = franchiseeTopbar?.getBoundingClientRect();
+
+      setAnnouncementToolbarDock({
+        top: readOnly && topbarRect ? topbarRect.bottom : fixedTop,
+        left: readOnly && topbarRect ? topbarRect.left : left,
+        width: readOnly && topbarRect ? topbarRect.width : width,
       });
     };
     const schedule = () => {
@@ -24447,7 +24478,10 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
       frame = requestAnimationFrame(measure);
     };
     measure();
-    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : null;
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(schedule)
+        : null;
     observer?.observe(host);
     observer?.observe(slot);
     window.addEventListener("resize", schedule);
@@ -24460,19 +24494,28 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
       window.removeEventListener("resize", schedule);
       window.removeEventListener("scroll", schedule, true);
     };
-  }, []);
+  }, [readOnly]);
 
   const announcementToolbarMounted = announcementToolbarDock !== null;
   useEffect(() => {
     if (!announcementToolbarMounted) return undefined;
     const toolbar = announcementToolbarRef.current;
     if (!toolbar) return undefined;
-    const measure = () => setAnnouncementToolbarHeight(Math.ceil(toolbar.getBoundingClientRect().height));
+    const measure = () =>
+      setAnnouncementToolbarHeight(
+        Math.ceil(toolbar.getBoundingClientRect().height),
+      );
     measure();
-    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measure)
+        : null;
     observer?.observe(toolbar);
     window.addEventListener("resize", measure);
-    return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, [announcementToolbarMounted]);
 
   const C = { border: "#E1E6D8", muted: "#5C6B60", greenMid: "#c9dba0" };
@@ -24519,10 +24562,20 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
   const normalizePhotos = (item) => {
     let values = item?.image_urls ?? item?.imageUrls;
     if (typeof values === "string") {
-      try { values = JSON.parse(values); } catch { values = null; }
+      try {
+        values = JSON.parse(values);
+      } catch {
+        values = null;
+      }
     }
     if (!Array.isArray(values)) values = [normalizePhoto(item)];
-    return [...new Set(values.map((value) => normalizePhoto({ image_url: value })).filter(Boolean))];
+    return [
+      ...new Set(
+        values
+          .map((value) => normalizePhoto({ image_url: value }))
+          .filter(Boolean),
+      ),
+    ];
   };
   const normalizeAnnouncement = (item) => ({
     ...item,
@@ -24531,27 +24584,53 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     image_url: normalizePhotos(item)[0] || "",
     image_urls: normalizePhotos(item),
   });
-  const openGallery = (photos, index, alt) => setLightbox({
-    photos, index, src: photos[index], alt,
-  });
-  const movePhoto = (direction) => setLightbox((current) => {
-    if (!current?.photos?.length) return current;
-    const index = (current.index + direction + current.photos.length) % current.photos.length;
-    return { ...current, index, src: current.photos[index] };
-  });
+  const openGallery = (photos, index, alt) =>
+    setLightbox({
+      photos,
+      index,
+      src: photos[index],
+      alt,
+    });
+  const movePhoto = (direction) =>
+    setLightbox((current) => {
+      if (!current?.photos?.length) return current;
+      const index =
+        (current.index + direction + current.photos.length) %
+        current.photos.length;
+      return { ...current, index, src: current.photos[index] };
+    });
   const renderGallery = (item) => {
     const photos = normalizePhotos(item);
     if (!photos.length) return null;
     return (
       <div className={`fa-collage fa-collage-${Math.min(photos.length, 5)}`}>
         {photos.slice(0, 5).map((src, index) => (
-          <button type="button" key={src} className="fa-collage-tile"
+          <button
+            type="button"
+            key={src}
+            className="fa-collage-tile"
             aria-label={`View photo ${index + 1} of ${photos.length}`}
-            onClick={() => openGallery(photos, index, item.title || "Announcement photo")}>
-            {failedImages.has(src) ? <span className="fa-image-fallback"><ImageOff size={22} /> Photo unavailable</span> :
-              <img src={src} alt={`${item.title || "Announcement"} — photo ${index + 1}`} loading="lazy"
-                onError={() => setFailedImages((previous) => new Set(previous).add(src))} />}
-            {index === 4 && photos.length > 5 && <span className="fa-more-photos">+{photos.length - 5}</span>}
+            onClick={() =>
+              openGallery(photos, index, item.title || "Announcement photo")
+            }
+          >
+            {failedImages.has(src) ? (
+              <span className="fa-image-fallback">
+                <ImageOff size={22} /> Photo unavailable
+              </span>
+            ) : (
+              <img
+                src={src}
+                alt={`${item.title || "Announcement"} — photo ${index + 1}`}
+                loading="lazy"
+                onError={() =>
+                  setFailedImages((previous) => new Set(previous).add(src))
+                }
+              />
+            )}
+            {index === 4 && photos.length > 5 && (
+              <span className="fa-more-photos">+{photos.length - 5}</span>
+            )}
           </button>
         ))}
       </div>
@@ -24597,7 +24676,13 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
       showAlert("You can attach up to 10 photos to one announcement.", "error");
       return;
     }
-    if (files.some((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024)) {
+    if (
+      files.some(
+        (file) =>
+          !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+          file.size > 10 * 1024 * 1024,
+      )
+    ) {
       showAlert("Choose JPG, PNG, or WebP photos up to 10 MB each.", "error");
       return;
     }
@@ -24611,7 +24696,8 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
           const photo = await new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => resolve(img);
-            img.onerror = () => reject(new Error(`Could not open ${file.name}.`));
+            img.onerror = () =>
+              reject(new Error(`Could not open ${file.name}.`));
             img.src = objectUrl;
           });
           const canvas = document.createElement("canvas");
@@ -24621,7 +24707,10 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
             canvas.width = Math.max(1, Math.round(photo.width * scale));
             canvas.height = Math.max(1, Math.round(photo.height * scale));
             const ctx = canvas.getContext("2d");
-            if (!ctx) throw new Error("Photo processing is unavailable in this browser.");
+            if (!ctx)
+              throw new Error(
+                "Photo processing is unavailable in this browser.",
+              );
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(photo, 0, 0, canvas.width, canvas.height);
@@ -24629,11 +24718,15 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
             if (encoded.length <= 70000) break;
             scale *= 0.75;
           }
-          if (encoded.length > 70000) throw new Error(`Please choose a smaller photo: ${file.name}.`);
+          if (encoded.length > 70000)
+            throw new Error(`Please choose a smaller photo: ${file.name}.`);
           selected.push(encoded);
-        } finally { URL.revokeObjectURL(objectUrl); }
+        } finally {
+          URL.revokeObjectURL(objectUrl);
+        }
       }
-      if (task === imageTask.current) setImageUrls((previous) => [...new Set([...previous, ...selected])]);
+      if (task === imageTask.current)
+        setImageUrls((previous) => [...new Set([...previous, ...selected])]);
     } catch (error) {
       if (task === imageTask.current) showAlert(error.message, "error");
     } finally {
@@ -24694,8 +24787,16 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
   };
   useEffect(() => {
     const handleKey = (event) => {
-      if (lightbox && event.key === "ArrowLeft") { event.preventDefault(); movePhoto(-1); return; }
-      if (lightbox && event.key === "ArrowRight") { event.preventDefault(); movePhoto(1); return; }
+      if (lightbox && event.key === "ArrowLeft") {
+        event.preventDefault();
+        movePhoto(-1);
+        return;
+      }
+      if (lightbox && event.key === "ArrowRight") {
+        event.preventDefault();
+        movePhoto(1);
+        return;
+      }
       if (event.key !== "Escape" || saving || imageLoading || actionBusy)
         return;
       if (lightbox) setLightbox(null);
@@ -24721,8 +24822,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     Boolean(lightbox),
   ]);
 
-  // This component retains the existing FA screen access; the API enforces authorization.
-  const isAdminUser = (u) => Boolean(u?.id);
+  const isAdminUser = (u) => !readOnly && Boolean(u?.id);
 
   const PIN_KEY = "fa_announcement_pins";
   useEffect(() => {
@@ -24785,9 +24885,12 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
   useEffect(() => {
     fetchAnnouncements();
-    fetchDeleteHistory();
-    fetchActivityLog();
-  }, [fetchActivityLog]);
+
+    if (!readOnly) {
+      fetchDeleteHistory();
+      fetchActivityLog();
+    }
+  }, [fetchActivityLog, readOnly]);
 
   const fetchAnnouncements = async () => {
     setFetching(true);
@@ -24895,7 +24998,10 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
         (item) => savedId != null && String(item.id) === String(savedId),
       );
       // Never claim an image is saved based only on a temporary browser preview.
-      if (!persisted || normalizePhotos(persisted).length !== imageUrls.length) {
+      if (
+        !persisted ||
+        normalizePhotos(persisted).length !== imageUrls.length
+      ) {
         if (savedId != null) setEditing({ ...savedRecord, id: savedId });
         showAlert(
           "The announcement was saved, but its photos could not be verified. Your selection is still here. The announcements API must save and return every image in image_urls, including photo removals. Please do not create a duplicate post.",
@@ -24976,7 +25082,13 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
   const handleRestore = async (entry) => {
     if (restoringEntries.current.has(entry.id)) return;
-    if (unverifiedRestores.current.has(entry.id)) { showAlert("Check the restored post and API photo support before retrying. The history record has been retained.", "error"); return; }
+    if (unverifiedRestores.current.has(entry.id)) {
+      showAlert(
+        "Check the restored post and API photo support before retrying. The history record has been retained.",
+        "error",
+      );
+      return;
+    }
     restoringEntries.current.add(entry.id);
     try {
       if (!restoredEntries.current.has(entry.id)) {
@@ -25001,12 +25113,22 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
         const restoredId = (data.announcement || data.data || data)?.id;
         const refreshed = await fetchAnnouncements();
-        const restored = refreshed?.find((item) => restoredId != null && String(item.id) === String(restoredId));
-        if (!restored || normalizePhotos(restored).length !== normalizePhotos(entry.data).length) {
+        const restored = refreshed?.find(
+          (item) =>
+            restoredId != null && String(item.id) === String(restoredId),
+        );
+        if (
+          !restored ||
+          normalizePhotos(restored).length !==
+            normalizePhotos(entry.data).length
+        ) {
           // Keep the history record and prevent duplicate creation in this session.
           unverifiedRestores.current.add(entry.id);
           restoredEntries.current.add(entry.id);
-          showAlert("The post was restored, but its photos could not be verified. Delete history was retained. Check the API before removing that history record.", "error");
+          showAlert(
+            "The post was restored, but its photos could not be verified. Delete history was retained. Check the API before removing that history record.",
+            "error",
+          );
           return;
         }
         restoredEntries.current.add(entry.id);
@@ -25115,7 +25237,8 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
   // ── Styles ──
   const commStyles = {
     root: {
-      width: "calc(100% + var(--fa-host-left, 0px) + var(--fa-host-right, 0px))",
+      width:
+        "calc(100% + var(--fa-host-left, 0px) + var(--fa-host-right, 0px))",
       marginLeft: "calc(0px - var(--fa-host-left, 0px))",
       marginRight: "calc(0px - var(--fa-host-right, 0px))",
       marginTop: "calc(0px - var(--fa-host-top, 0px))",
@@ -25402,7 +25525,11 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
         : "Check back later.";
 
   return (
-    <div ref={announcementRootRef} className="fa-communications" style={commStyles.root}>
+    <div
+      ref={announcementRootRef}
+      className="fa-communications"
+      style={commStyles.root}
+    >
       <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
@@ -25472,6 +25599,29 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
           .fa-communications .fa-photo-drop { display:flex; flex-direction:column; align-items:center; gap:8px; width:100%; padding:22px 16px; margin-top:10px; box-sizing:border-box; border:2px dashed #b7cda7; border-radius:16px; background:#f6f9f0; color:#3b791e; cursor:pointer; }
           .fa-communications .fa-photo-drop:hover, .fa-communications .fa-photo-drop.dragging { background:#edf5e2; border-color:#3b791e; }
           .fa-photo-drop strong { font-size:13px; }
+          .fa-communications .fa-collage-tile {
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  background: #f0f5e8 !important;
+}
+.fa-communications .fa-text-action {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  padding: 6px 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+}
+.fa-communications .fa-post-menu-items button,
+.fa-communications .fa-compose-photos {
+  border-radius: 0 !important;
+}
+.fa-communications .fa-post-menu-items button:hover {
+  border-radius: 8px !important;
+}
           .fa-photo-drop small { font-size:11px; color:#5C6B60; overflow-wrap:anywhere; }
           .fa-upload-icon { display:grid; place-items:center; width:42px; height:42px; border-radius:13px; background:#e1ecd2; }
           .fa-communications .fa-photo-view { position:relative; display:block; width:100%; padding:0; background:#f6f7f1; border:1px solid #E1E6D8; border-radius:14px; overflow:hidden; cursor:zoom-in; margin-bottom:14px; }
@@ -25487,81 +25637,158 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
         `}</style>
 
       {/* ── TABS ── */}
-      <div ref={announcementToolbarSlotRef} aria-hidden="true" style={{ height: announcementToolbarHeight, flexShrink: 0, width: "100%" }} />
-      {announcementToolbarDock && createAnnouncementToolbarPortal(
-        <div className="fa-communications" style={{
-          position: "fixed", top: announcementToolbarDock.top,
-          left: announcementToolbarDock.left, width: announcementToolbarDock.width,
-          zIndex: 1000, fontFamily: "'Plus Jakarta Sans', sans-serif",
-          background: "#fff", boxSizing: "border-box",
-        }}>
-<div ref={announcementToolbarRef} className="fa-compact-toolbar" style={{
-          ...commStyles.tabsRow, width: "100%", margin: 0, padding: "12px 20px",
-          background: "#fff", borderRadius: 0, boxSizing: "border-box",
-          position: "relative", top: "auto",
-        }}>
-        {[
-          { key: "all", label: "All" },
-          { key: "recent", label: "Recent" },
-          { key: "pinned", label: "Pinned" },
-          ...(isAdminUser(user)
-            ? [{ key: "deleteHistory", label: "Delete History" }]
-            : []),
-        ].map(({ key, label }) => {
-          const active = selectedTab === key;
-          const isDelTab = key === "deleteHistory";
-          return (
-            <button
-              key={key}
-              className={active ? "" : "comm-tab"}
-              onClick={() => setSelectedTab(key)}
+      <div
+        ref={announcementToolbarSlotRef}
+        aria-hidden="true"
+        style={{
+          height: announcementToolbarHeight,
+          flexShrink: 0,
+          width: "100%",
+        }}
+      />
+      {announcementToolbarDock &&
+        createAnnouncementToolbarPortal(
+          <div
+            className={`fa-communications ${
+              readOnly ? "fa-communications-readonly" : ""
+            }`}
+            style={{
+              position: "fixed",
+              top: announcementToolbarDock.top,
+              left: announcementToolbarDock.left,
+              width: announcementToolbarDock.width,
+              zIndex: 1000,
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              background: "#fff",
+              boxSizing: "border-box",
+            }}
+          >
+            <div
+              ref={announcementToolbarRef}
+              className="fa-compact-toolbar"
               style={{
-                ...commStyles.tabBase,
-                background: active
-                  ? isDelTab
-                    ? "linear-gradient(135deg,#c0392b,#c0392b)"
-                    : "linear-gradient(135deg,#3b791e,#3b791e)"
-                  : isDelTab
-                    ? "#fdf1f0"
-                    : "#f0f5e8",
-                color: active ? "#fff" : isDelTab ? "#c0392b" : "#5C6B60",
-                border: active
-                  ? "none"
-                  : `1px solid ${isDelTab ? "#f2c9c4" : C.border}`,
-                boxShadow: active
-                  ? isDelTab
-                    ? "0 2px 8px rgba(220,38,38,0.28)"
-                    : "0 2px 8px rgba(0,180,90,0.28)"
-                  : "none",
+                ...commStyles.tabsRow,
+                width: "100%",
+                margin: 0,
+                padding: "12px 20px",
+                background: "#fff",
+                borderRadius: 0,
+                boxSizing: "border-box",
+                position: "relative",
+                top: "auto",
               }}
             >
-              {label}
-              {tabBadge[key] > 0 && (
-                <span
-                  style={{
-                    ...commStyles.badge,
-                    background: active
-                      ? "rgba(255,255,255,0.28)"
-                      : isDelTab
-                        ? "#f2c9c4"
-                        : C.greenMid,
-                    color: active ? "#fff" : isDelTab ? "#c0392b" : "#3b791e",
+              {[
+                { key: "all", label: "All" },
+                { key: "recent", label: "Recent" },
+                { key: "pinned", label: "Pinned" },
+                ...(!readOnly && isAdminUser(user)
+                  ? [{ key: "deleteHistory", label: "Delete History" }]
+                  : []),
+              ].map(({ key, label }) => {
+                const active = selectedTab === key;
+                const isDelTab = key === "deleteHistory";
+                return (
+                  <button
+                    key={key}
+                    className={active ? "" : "comm-tab"}
+                    onClick={() => setSelectedTab(key)}
+                    style={{
+                      ...commStyles.tabBase,
+                      background: active
+                        ? isDelTab
+                          ? "linear-gradient(135deg,#c0392b,#c0392b)"
+                          : "linear-gradient(135deg,#3b791e,#3b791e)"
+                        : isDelTab
+                          ? "#fdf1f0"
+                          : "#f0f5e8",
+                      color: active ? "#fff" : isDelTab ? "#c0392b" : "#5C6B60",
+                      border: active
+                        ? "none"
+                        : `1px solid ${isDelTab ? "#f2c9c4" : C.border}`,
+                      boxShadow: active
+                        ? isDelTab
+                          ? "0 2px 8px rgba(220,38,38,0.28)"
+                          : "0 2px 8px rgba(0,180,90,0.28)"
+                        : "none",
+                    }}
+                  >
+                    {label}
+                    {tabBadge[key] > 0 && (
+                      <span
+                        style={{
+                          ...commStyles.badge,
+                          background: active
+                            ? "rgba(255,255,255,0.28)"
+                            : isDelTab
+                              ? "#f2c9c4"
+                              : C.greenMid,
+                          color: active
+                            ? "#fff"
+                            : isDelTab
+                              ? "#c0392b"
+                              : "#3b791e",
+                        }}
+                      >
+                        {tabBadge[key]}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              <div className="fa-toolbar-actions">
+                <button
+                  type="button"
+                  aria-label="Refresh announcements"
+                  disabled={fetching}
+                  onClick={() => {
+                    fetchAnnouncements();
+
+                    if (!readOnly) {
+                      fetchDeleteHistory();
+                    }
                   }}
                 >
-                  {tabBadge[key]}
-                </span>
+                  <RefreshCw size={15} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Search announcements"
+                  aria-expanded={searchVisible}
+                  onClick={() => {
+                    setSearchVisible((visible) => !visible);
+                    setSearchQuery("");
+                  }}
+                >
+                  <Search size={15} />
+                </button>
+              </div>
+              {searchVisible && (
+                <div className="fa-compact-search">
+                  <Search size={14} />
+                  <input
+                    autoFocus
+                    aria-label="Search announcements"
+                    placeholder="Search announcements…"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Close search"
+                    onClick={() => {
+                      setSearchVisible(false);
+                      setSearchQuery("");
+                    }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               )}
-            </button>
-          );
-        })}
-        <div className="fa-toolbar-actions">
-          <button type="button" aria-label="Refresh announcements" disabled={fetching} onClick={() => { fetchAnnouncements(); fetchDeleteHistory(); }}><RefreshCw size={15} /></button>
-          <button type="button" aria-label="Search announcements" aria-expanded={searchVisible} onClick={() => { setSearchVisible((visible) => !visible); setSearchQuery(""); }}><Search size={15} /></button>
-        </div>
-        {searchVisible && <div className="fa-compact-search"><Search size={14} /><input autoFocus aria-label="Search announcements" placeholder="Search announcements…" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /><button type="button" aria-label="Close search" onClick={() => { setSearchVisible(false); setSearchQuery(""); }}><X size={14} /></button></div>}
-      </div>
-        </div>, document.body,
-      )}
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* ── LIST / DELETE HISTORY ── */}
       <div style={commStyles.listArea}>
@@ -25766,13 +25993,33 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
             {isAdminUser(user) && (
               <div className="fa-composer">
                 <div className="fa-composer-row">
-                  <img className="fa-admin-avatar" src={logoIfranchise} alt="iFranchise logo" />
-                  <button type="button" className="fa-compose-prompt" onClick={openComposer}>Write an announcement, FranchiSync Admin…</button>
+                  <img
+                    className="fa-admin-avatar"
+                    src={logoIfranchise}
+                    alt="iFranchise logo"
+                  />
+                  <button
+                    type="button"
+                    className="fa-compose-prompt"
+                    onClick={openComposer}
+                  >
+                    Write an announcement, FranchiSync Admin…
+                  </button>
                 </div>
-                <button type="button" className="fa-compose-photos" onClick={openComposer}><ImagePlus size={19} /> Add photos</button>
+                <button
+                  type="button"
+                  className="fa-compose-photos"
+                  onClick={openComposer}
+                >
+                  <ImagePlus size={19} /> Add photos
+                </button>
               </div>
             )}
-            {searchQuery.trim() && <div className="fa-search-count" role="status">{filtered.length} result{filtered.length === 1 ? "" : "s"}</div>}
+            {searchQuery.trim() && (
+              <div className="fa-search-count" role="status">
+                {filtered.length} result{filtered.length === 1 ? "" : "s"}
+              </div>
+            )}
 
             {fetching ? (
               <div
@@ -25797,33 +26044,94 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                 {filtered.map((item) => (
                   <article key={item.id} className="fa-post">
                     <header className="fa-post-header">
-                      <img className="fa-admin-avatar" src={logoIfranchise} alt="iFranchise logo" />
+                      <img
+                        className="fa-admin-avatar"
+                        src={logoIfranchise}
+                        alt="iFranchise logo"
+                      />
                       <div className="fa-post-author">
                         <strong>FranchiSync Admin</strong>
                         <span>{fmt(item.created_at)}</span>
                       </div>
-                      {item.pinned && <span style={commStyles.pinnedBadge}><Pin size={11} /> PINNED</span>}
-                      {isRecent(item) && !item.pinned && <span style={commStyles.recentBadge}>NEW</span>}
+                      {item.pinned && (
+                        <span style={commStyles.pinnedBadge}>
+                          <Pin size={11} /> PINNED
+                        </span>
+                      )}
+                      {isRecent(item) && !item.pinned && (
+                        <span style={commStyles.recentBadge}>NEW</span>
+                      )}
                       {isAdminUser(user) && (
                         <details className="fa-post-menu">
-                          <summary aria-label="Announcement actions">•••</summary>
+                          <summary aria-label="Announcement actions">
+                            •••
+                          </summary>
                           <div className="fa-post-menu-items">
-                            <button type="button" onClick={(event) => { event.currentTarget.closest("details").open = false; handlePin(item); }}><Pin size={14} /> {item.pinned ? "Unpin" : "Pin"}</button>
-                            <button type="button" onClick={(event) => { event.currentTarget.closest("details").open = false; handleEdit(item); }}><Pencil size={14} /> Edit</button>
-                            <button type="button" onClick={(event) => { event.currentTarget.closest("details").open = false; handleDelete(item); }}><Trash2 size={14} /> Delete</button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.currentTarget.closest("details").open =
+                                  false;
+                                handlePin(item);
+                              }}
+                            >
+                              <Pin size={14} /> {item.pinned ? "Unpin" : "Pin"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.currentTarget.closest("details").open =
+                                  false;
+                                handleEdit(item);
+                              }}
+                            >
+                              <Pencil size={14} /> Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.currentTarget.closest("details").open =
+                                  false;
+                                handleDelete(item);
+                              }}
+                            >
+                              <Trash2 size={14} /> Delete
+                            </button>
                           </div>
                         </details>
                       )}
                     </header>
                     <div className="fa-post-copy">
                       <h3>{item.title}</h3>
-                      <p>{item.content.length > 280 ? `${item.content.slice(0, 280)}…` : item.content}</p>
-                      {item.content.length > 280 && <button type="button" className="fa-text-action" onClick={() => setViewingItem(item)}>See more</button>}
+                      <p>
+                        {item.content.length > 280
+                          ? `${item.content.slice(0, 280)}…`
+                          : item.content}
+                      </p>
+                      {item.content.length > 280 && (
+                        <button
+                          type="button"
+                          className="fa-text-action"
+                          onClick={() => setViewingItem(item)}
+                        >
+                          See more
+                        </button>
+                      )}
                     </div>
                     {renderGallery(item)}
                     <footer className="fa-post-footer">
-                      <span>{normalizePhotos(item).length ? `${normalizePhotos(item).length} photo${normalizePhotos(item).length === 1 ? "" : "s"}` : "Announcement"}</span>
-                      <button type="button" className="fa-text-action" onClick={() => setViewingItem(item)}>View announcement</button>
+                      <span>
+                        {normalizePhotos(item).length
+                          ? `${normalizePhotos(item).length} photo${normalizePhotos(item).length === 1 ? "" : "s"}`
+                          : "Announcement"}
+                      </span>
+                      <button
+                        type="button"
+                        className="fa-text-action"
+                        onClick={() => setViewingItem(item)}
+                      >
+                        View announcement
+                      </button>
                     </footer>
                   </article>
                 ))}
@@ -25929,7 +26237,11 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                     border: "1.5px solid rgba(255,255,255,0.35)",
                   }}
                 >
-                  <img className="fa-admin-avatar" src={logoIfranchise} alt="iFranchise logo" />
+                  <img
+                    className="fa-admin-avatar"
+                    src={logoIfranchise}
+                    alt="iFranchise logo"
+                  />
                 </div>
                 <div>
                   <div
@@ -25981,7 +26293,9 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                   >
                     {viewingItem.title}
                   </div>
-                  <div style={{ color: "#fff", fontSize: 12, marginTop: 8 }}>FranchiSync Admin</div>
+                  <div style={{ color: "#fff", fontSize: 12, marginTop: 8 }}>
+                    FranchiSync Admin
+                  </div>
                   <div
                     style={{
                       fontSize: 10,
@@ -26161,7 +26475,14 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
               </button>
             </div>
             <form onSubmit={handleSave} style={{ padding: "22px 24px" }}>
-              <div className="fa-editor-author"><img className="fa-admin-avatar" src={logoIfranchise} alt="iFranchise logo" /><strong>FranchiSync Admin</strong></div>
+              <div className="fa-editor-author">
+                <img
+                  className="fa-admin-avatar"
+                  src={logoIfranchise}
+                  alt="iFranchise logo"
+                />
+                <strong>FranchiSync Admin</strong>
+              </div>
               {/* Title */}
               <div style={{ marginBottom: 16 }}>
                 <label style={bmLabel}>Title</label>
@@ -26194,28 +26515,70 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
               </div>
 
               <div style={{ marginBottom: 20 }}>
-                <label style={bmLabel}>Photos (Optional) · {imageUrls.length}/10</label>
-                <input ref={photoInput} type="file" multiple accept="image/jpeg,image/png,image/webp"
-                  aria-label="Choose announcement photos" disabled={imageLoading || saving}
-                  onChange={handlePhotoPick} style={{ display: "none" }} />
-                <button type="button" className={`fa-photo-drop ${draggingPhoto ? "dragging" : ""}`}
+                <label style={bmLabel}>
+                  Photos (Optional) · {imageUrls.length}/10
+                </label>
+                <input
+                  ref={photoInput}
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp"
+                  aria-label="Choose announcement photos"
+                  disabled={imageLoading || saving}
+                  onChange={handlePhotoPick}
+                  style={{ display: "none" }}
+                />
+                <button
+                  type="button"
+                  className={`fa-photo-drop ${draggingPhoto ? "dragging" : ""}`}
                   disabled={imageLoading || saving || imageUrls.length >= 10}
                   onClick={() => photoInput.current?.click()}
-                  onDragOver={(event) => { event.preventDefault(); if (!saving && !imageLoading) setDraggingPhoto(true); }}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (!saving && !imageLoading) setDraggingPhoto(true);
+                  }}
                   onDragLeave={() => setDraggingPhoto(false)}
-                  onDrop={(event) => { event.preventDefault(); setDraggingPhoto(false); handlePhotoPick({ target: { files: event.dataTransfer.files, value: "" } }); }}>
-                  <span className="fa-upload-icon"><UploadCloud size={23} /></span>
-                  <strong>{imageLoading ? "Preparing photos…" : "Add photos"}</strong>
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setDraggingPhoto(false);
+                    handlePhotoPick({
+                      target: { files: event.dataTransfer.files, value: "" },
+                    });
+                  }}
+                >
+                  <span className="fa-upload-icon">
+                    <UploadCloud size={23} />
+                  </span>
+                  <strong>
+                    {imageLoading ? "Preparing photos…" : "Add photos"}
+                  </strong>
                   <small>Select multiple photos or drag and drop here</small>
-                  <small>JPG, PNG or WebP · Up to 10 MB each · 10 photos per post</small>
+                  <small>
+                    JPG, PNG or WebP · Up to 10 MB each · 10 photos per post
+                  </small>
                 </button>
-                <p aria-live="polite" style={{ fontSize: 11, color: C.muted }}>{imageUrls.length} photo{imageUrls.length === 1 ? "" : "s"} selected</p>
+                <p aria-live="polite" style={{ fontSize: 11, color: C.muted }}>
+                  {imageUrls.length} photo{imageUrls.length === 1 ? "" : "s"}{" "}
+                  selected
+                </p>
                 <div className="fa-photo-previews">
                   {imageUrls.map((src, index) => (
                     <div className="fa-photo-preview" key={src}>
                       <img src={src} alt={`Selected photo ${index + 1}`} />
-                      <button type="button" aria-label={`Remove photo ${index + 1}`} disabled={imageLoading || saving}
-                        onClick={() => setImageUrls((previous) => previous.filter((_, photoIndex) => photoIndex !== index))}><X size={15} /></button>
+                      <button
+                        type="button"
+                        aria-label={`Remove photo ${index + 1}`}
+                        disabled={imageLoading || saving}
+                        onClick={() =>
+                          setImageUrls((previous) =>
+                            previous.filter(
+                              (_, photoIndex) => photoIndex !== index,
+                            ),
+                          )
+                        }
+                      >
+                        <X size={15} />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -26313,10 +26676,27 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
             <X size={20} />
           </button>
           {lightbox.photos?.length > 1 && (
-            <div className="fa-gallery-controls" onClick={(event) => event.stopPropagation()}>
-              <button type="button" aria-label="Previous photo" onClick={() => movePhoto(-1)}>‹</button>
-              <span>{lightbox.index + 1} / {lightbox.photos.length}</span>
-              <button type="button" aria-label="Next photo" onClick={() => movePhoto(1)}>›</button>
+            <div
+              className="fa-gallery-controls"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                aria-label="Previous photo"
+                onClick={() => movePhoto(-1)}
+              >
+                ‹
+              </button>
+              <span>
+                {lightbox.index + 1} / {lightbox.photos.length}
+              </span>
+              <button
+                type="button"
+                aria-label="Next photo"
+                onClick={() => movePhoto(1)}
+              >
+                ›
+              </button>
             </div>
           )}
           <img
@@ -26469,11 +26849,6 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     </div>
   );
 }
-
-
-
-
- 
 
 function BrandFormFields({ form, setForm }) {
   const [catInput, setCatInput] = useState("");
