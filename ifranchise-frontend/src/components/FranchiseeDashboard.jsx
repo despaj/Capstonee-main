@@ -916,7 +916,11 @@ const getUserFromStorage = () => {
   }
 };
 
-export default function FranchiseeDashboard({ user: userProp, onLogout, onUserUpdate }) {
+export default function FranchiseeDashboard({
+  user: userProp,
+  onLogout,
+  onUserUpdate,
+}) {
   useEffect(() => {
     const fontId = "fr-plus-jakarta-sans";
     if (!document.getElementById(fontId)) {
@@ -2264,7 +2268,8 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
           >
             <path d="M21 12a9 9 0 1 1-6.219-8.56" />
           </svg>
-          Sending {normalizeTransactions(transactions).length} transactions to Groq…
+          Sending {normalizeTransactions(transactions).length} transactions to
+          Groq…
         </div>
       )}
 
@@ -4135,7 +4140,8 @@ function PrescriptiveSection({
                           fontFamily: FONT,
                         }}
                       >
-                        Sending {normalizeTransactions(transactions).length} transactions to Groq…
+                        Sending {normalizeTransactions(transactions).length}{" "}
+                        transactions to Groq…
                       </span>
                     </div>
                   )}
@@ -7616,7 +7622,6 @@ body.fr-admin-ui .franchisee-root .fr-inventory-row[aria-pressed="true"] { borde
 @media(prefers-reduced-motion:reduce) { .fr-inventory-workspace .fr-inventory-detail-content { animation:none; } }
 `;
 
-
 function FrMenuInventoryContent({ user, brands }) {
   const userBranch = String(user?.branch || "").trim();
   const userBrand = String(user?.brand || user?.brand_name || "").trim();
@@ -7726,7 +7731,8 @@ function FrMenuInventoryContent({ user, brands }) {
       },
     )
       .then((r) => {
-        if (!r.ok) throw new Error(`Unable to load product ingredients (${r.status}).`);
+        if (!r.ok)
+          throw new Error(`Unable to load product ingredients (${r.status}).`);
         return r.json();
       })
       .then((d) => {
@@ -8402,7 +8408,11 @@ function FrFifoQueue({ product, batches, loading, lowStock = false }) {
                       {frStockQuantity(totalStock, product.unit)}
                     </span>
                   </div>
-                  <FrMiniBar pct={stockPct} color={lowStock ? C.red : C.green} track={lowStock ? "#fbe5e3" : "#eef6f1"} />
+                  <FrMiniBar
+                    pct={stockPct}
+                    color={lowStock ? C.red : C.green}
+                    track={lowStock ? "#fbe5e3" : "#eef6f1"}
+                  />
                 </div>
 
                 {isPharmaBrand(product.brand) &&
@@ -8537,11 +8547,9 @@ function FrFifoQueue({ product, batches, loading, lowStock = false }) {
   );
 }
 
-/* Read-only Stock Inventory UI for franchisees. */
-/* ── MAIN COMPONENT — read-only two-panel stock inventory for franchisees ── */
-
 function FrStockInventoryContent({ user, brands }) {
-  const isLowStock = (item) => Number(item.stock || 0) <= Number(item.min_stock || 0);
+  const isLowStock = (item) =>
+    Number(item.stock || 0) <= Number(item.min_stock || 0);
   const userBranch = String(user?.branch || "").trim();
   const userBrand = String(user?.brand || user?.brand_name || "").trim();
   const CART_KEY = "@franchisee_supply_cart";
@@ -8579,7 +8587,10 @@ function FrStockInventoryContent({ user, brands }) {
   const hasExpiry = extraFields.some((f) => f.key === "exp_date");
 
   const normalize = useCallback(
-    (value) => String(value || "").trim().toLowerCase(),
+    (value) =>
+      String(value || "")
+        .trim()
+        .toLowerCase(),
     [],
   );
 
@@ -8661,7 +8672,9 @@ function FrStockInventoryContent({ user, brands }) {
       );
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data?.error || `Unable to load supply items (${res.status}).`);
+        throw new Error(
+          data?.error || `Unable to load supply items (${res.status}).`,
+        );
       }
 
       const rows = Array.isArray(data) ? data : [];
@@ -8690,7 +8703,9 @@ function FrStockInventoryContent({ user, brands }) {
   const fetchOrders = useCallback(async () => {
     if (!userBranch && !user?.id) {
       setOrders([]);
-      setOrdersError("Your account information is not available for loading orders.");
+      setOrdersError(
+        "Your account information is not available for loading orders.",
+      );
       return;
     }
 
@@ -8709,7 +8724,9 @@ function FrStockInventoryContent({ user, brands }) {
       );
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data?.error || `Unable to load orders (${res.status}).`);
+        throw new Error(
+          data?.error || `Unable to load orders (${res.status}).`,
+        );
       }
 
       const raw = Array.isArray(data)
@@ -8739,8 +8756,12 @@ function FrStockInventoryContent({ user, brands }) {
           return sameUser && sameBranch && sameBrand;
         })
         .sort((a, b) => {
-          const da = new Date(a?.created_at || a?.createdAt || a?.date || 0).getTime();
-          const db = new Date(b?.created_at || b?.createdAt || b?.date || 0).getTime();
+          const da = new Date(
+            a?.created_at || a?.createdAt || a?.date || 0,
+          ).getTime();
+          const db = new Date(
+            b?.created_at || b?.createdAt || b?.date || 0,
+          ).getTime();
           return db - da;
         });
 
@@ -8780,17 +8801,14 @@ function FrStockInventoryContent({ user, brands }) {
     setAddress((prev) => prev || String(user.address).trim());
   }, [user?.address]);
 
-  const saveCart = useCallback(
-    (next) => {
-      setCart(next);
-      try {
-        localStorage.setItem(CART_KEY, JSON.stringify(next));
-      } catch (error) {
-        console.warn("Failed to save franchisee supply cart:", error);
-      }
-    },
-    [],
-  );
+  const saveCart = useCallback((next) => {
+    setCart(next);
+    try {
+      localStorage.setItem(CART_KEY, JSON.stringify(next));
+    } catch (error) {
+      console.warn("Failed to save franchisee supply cart:", error);
+    }
+  }, []);
 
   const categoryOptions = useMemo(
     () =>
@@ -8808,9 +8826,15 @@ function FrStockInventoryContent({ user, brands }) {
       .filter((i) => {
         if (
           q &&
-          !String(i.name || "").toLowerCase().includes(q) &&
-          !String(i.category || "").toLowerCase().includes(q) &&
-          !String(i.sku || "").toLowerCase().includes(q)
+          !String(i.name || "")
+            .toLowerCase()
+            .includes(q) &&
+          !String(i.category || "")
+            .toLowerCase()
+            .includes(q) &&
+          !String(i.sku || "")
+            .toLowerCase()
+            .includes(q)
         )
           return false;
         if (categoryF && String(i.category || "") !== categoryF) return false;
@@ -8847,7 +8871,9 @@ function FrStockInventoryContent({ user, brands }) {
   // each row reflects its actual relative stock level: low stock = short bar,
   // mid-range stock = mid-length bar, highest stock = full bar.
   const maxBarStock = useMemo(() => {
-    const values = items.map((item) => Number(item?.stock ?? 0)).filter((n) => Number.isFinite(n) && n > 0);
+    const values = items
+      .map((item) => Number(item?.stock ?? 0))
+      .filter((n) => Number.isFinite(n) && n > 0);
     return Math.max(1, ...values);
   }, [items]);
 
@@ -8862,7 +8888,8 @@ function FrStockInventoryContent({ user, brands }) {
         ) ||
         shopItems.find(
           (shopItem) =>
-            normalize(shopItem?.brand) === normalize(inventoryItem?.brand || userBrand) &&
+            normalize(shopItem?.brand) ===
+              normalize(inventoryItem?.brand || userBrand) &&
             normalize(shopItem?.name) === normalize(inventoryItem?.name),
         ) ||
         null
@@ -8874,17 +8901,22 @@ function FrStockInventoryContent({ user, brands }) {
   const selectedShopItem = getShopListingFor(selected);
   const selectedSupplyAvailable = Number(selectedShopItem?.stock || 0);
   const selectedCurrentStock = Number(selected?.stock || 0);
-  const selectedPrice = selectedShopItem ? Number(selectedShopItem.price || 0) : 0;
+  const selectedPrice = selectedShopItem
+    ? Number(selectedShopItem.price || 0)
+    : 0;
   const selectedUnit = selectedShopItem?.unit || selected?.unit || "unit";
   const selectedCartQty = selectedShopItem
-    ? Number(cart.find((entry) => entry.id === selectedShopItem.id)?.quantity || 0)
+    ? Number(
+        cart.find((entry) => entry.id === selectedShopItem.id)?.quantity || 0,
+      )
     : 0;
   const cartItemCount = cart.reduce(
     (sum, entry) => sum + Number(entry.quantity || 0),
     0,
   );
   const cartTotal = cart.reduce(
-    (sum, entry) => sum + Number(entry.price || 0) * Number(entry.quantity || 0),
+    (sum, entry) =>
+      sum + Number(entry.price || 0) * Number(entry.quantity || 0),
     0,
   );
 
@@ -8947,17 +8979,49 @@ function FrStockInventoryContent({ user, brands }) {
     const next = cart
       .map((entry) => {
         if (entry.id !== id) return entry;
-        const max = liveItem ? Number(liveItem.stock || 0) : Number(entry.quantity || 0);
+        const max = liveItem
+          ? Number(liveItem.stock || 0)
+          : Number(entry.quantity || 0);
         return {
           ...entry,
           quantity: Math.min(
             max,
             Math.max(0, Number(entry.quantity || 0) + delta),
           ),
-          price: liveItem ? Number(liveItem.price || 0) : Number(entry.price || 0),
+          price: liveItem
+            ? Number(liveItem.price || 0)
+            : Number(entry.price || 0),
         };
       })
       .filter((entry) => entry.quantity > 0);
+    saveCart(next);
+  };
+
+  const setCartQuantity = (id, value) => {
+    const liveItem = shopItems.find((item) => item.id === id);
+    if (!liveItem) return;
+
+    const max = Math.max(0, Number(liveItem.stock || 0));
+
+    let quantity = parseInt(value, 10);
+
+    if (Number.isNaN(quantity)) {
+      quantity = 1;
+    }
+
+    quantity = Math.min(max, Math.max(1, quantity));
+
+    const next = cart.map((entry) =>
+      entry.id === id
+        ? {
+            ...entry,
+            quantity,
+            price: Number(liveItem.price || 0),
+            unit: liveItem.unit || entry.unit,
+          }
+        : entry,
+    );
+
     saveCart(next);
   };
 
@@ -8986,7 +9050,9 @@ function FrStockInventoryContent({ user, brands }) {
         return;
       }
       if (requestedQty > available) {
-        problems.push(`${entry.name}: only ${available} ${live.unit || "unit(s)"} available`);
+        problems.push(
+          `${entry.name}: only ${available} ${live.unit || "unit(s)"} available`,
+        );
         return;
       }
       liveItems.push({
@@ -9010,7 +9076,11 @@ function FrStockInventoryContent({ user, brands }) {
       cart.map((entry) => {
         const live = shopItems.find((item) => item.id === entry.id);
         return live
-          ? { ...entry, price: Number(live.price || 0), unit: live.unit || entry.unit }
+          ? {
+              ...entry,
+              price: Number(live.price || 0),
+              unit: live.unit || entry.unit,
+            }
           : entry;
       }),
     );
@@ -9026,15 +9096,23 @@ function FrStockInventoryContent({ user, brands }) {
       window.alert("This item is not currently available for supply ordering.");
       return;
     }
+
     if (selectedSupplyAvailable <= 0) {
       window.alert("This supply item is currently out of stock.");
       return;
     }
-    prepareCheckout([createCartEntry(selectedShopItem, selected, 1)], true);
+
+    const quantity = selectedCartQty > 0 ? selectedCartQty : 1;
+
+    prepareCheckout(
+      [createCartEntry(selectedShopItem, selected, quantity)],
+      true,
+    );
   };
 
   const checkoutTotal = checkoutItems.reduce(
-    (sum, entry) => sum + Number(entry.price || 0) * Number(entry.quantity || 0),
+    (sum, entry) =>
+      sum + Number(entry.price || 0) * Number(entry.quantity || 0),
     0,
   );
 
@@ -9061,7 +9139,9 @@ function FrStockInventoryContent({ user, brands }) {
       );
       const latestData = await latestResponse.json();
       if (!latestResponse.ok) {
-        throw new Error(latestData?.error || "Unable to verify supply availability.");
+        throw new Error(
+          latestData?.error || "Unable to verify supply availability.",
+        );
       }
 
       const latestEligible = (Array.isArray(latestData) ? latestData : [])
@@ -9076,7 +9156,8 @@ function FrStockInventoryContent({ user, brands }) {
 
       const validatedItems = checkoutItems.map((entry) => {
         const live = latestEligible.find((item) => item.id === entry.id);
-        if (!live) throw new Error(`${entry.name} is no longer available for ordering.`);
+        if (!live)
+          throw new Error(`${entry.name} is no longer available for ordering.`);
         if (Number(entry.quantity) > Number(live.stock)) {
           throw new Error(
             `${entry.name} now has only ${Number(live.stock)} ${live.unit || entry.unit || "unit(s)"} available.`,
@@ -9106,6 +9187,7 @@ function FrStockInventoryContent({ user, brands }) {
         longitude: null,
         total_amount: validatedTotal,
         payment_method: paymentMethod,
+        order_source: "Web",
         items: validatedItems.map((entry) => ({
           shop_item_id: entry.id,
           quantity: Number(entry.quantity),
@@ -9140,7 +9222,9 @@ function FrStockInventoryContent({ user, brands }) {
       await Promise.all([fetchItems(), fetchShopItems()]);
     } catch (error) {
       console.error("Supply order error:", error);
-      window.alert(error.message || "Something went wrong while placing the order.");
+      window.alert(
+        error.message || "Something went wrong while placing the order.",
+      );
     } finally {
       setPlacingOrder(false);
     }
@@ -9206,7 +9290,9 @@ function FrStockInventoryContent({ user, brands }) {
   });
 
   const cartHasStockIssues = cartLineItems.some(
-    (entry) => entry.stock <= 0 || Number(entry.quantity || 0) > Number(entry.stock || 0),
+    (entry) =>
+      entry.stock <= 0 ||
+      Number(entry.quantity || 0) > Number(entry.stock || 0),
   );
 
   const formatOrderDate = (value) => {
@@ -9223,14 +9309,28 @@ function FrStockInventoryContent({ user, brands }) {
   };
 
   const orderStatusMeta = (status) => {
-    const raw = String(status || "pending").trim().toLowerCase();
-    if (["completed", "complete", "delivered", "fulfilled", "approved"].includes(raw)) {
+    const raw = String(status || "pending")
+      .trim()
+      .toLowerCase();
+    if (
+      ["completed", "complete", "delivered", "fulfilled", "approved"].includes(
+        raw,
+      )
+    ) {
       return { label: status || "Completed", cls: "completed" };
     }
     if (["cancelled", "canceled", "rejected", "failed"].includes(raw)) {
       return { label: status || "Cancelled", cls: "cancelled" };
     }
-    if (["processing", "preparing", "packed", "shipped", "out_for_delivery"].includes(raw)) {
+    if (
+      [
+        "processing",
+        "preparing",
+        "packed",
+        "shipped",
+        "out_for_delivery",
+      ].includes(raw)
+    ) {
       return { label: status || "Processing", cls: "processing" };
     }
     return { label: status || "Pending", cls: "pending" };
@@ -9244,7 +9344,8 @@ function FrStockInventoryContent({ user, brands }) {
         : [];
     return source.map((item, index) => ({
       ...item,
-      _key: item?.id ?? item?.shop_item_id ?? `${order?.id || "order"}-${index}`,
+      _key:
+        item?.id ?? item?.shop_item_id ?? `${order?.id || "order"}-${index}`,
       _name:
         item?.name ||
         item?.item_name ||
@@ -9258,13 +9359,28 @@ function FrStockInventoryContent({ user, brands }) {
   };
 
   const orderCounts = useMemo(() => {
-    const counts = { total: orders.length, pending: 0, processing: 0, completed: 0 };
+    const counts = {
+      total: orders.length,
+      totalAmount: 0,
+      pending: 0,
+      processing: 0,
+      completed: 0,
+    };
+
     orders.forEach((order) => {
+      counts.totalAmount += Number(order?.total_amount || 0);
+
       const meta = orderStatusMeta(order?.status);
-      if (meta.cls === "completed") counts.completed += 1;
-      else if (meta.cls === "processing") counts.processing += 1;
-      else counts.pending += 1;
+
+      if (meta.cls === "completed") {
+        counts.completed += 1;
+      } else if (meta.cls === "processing") {
+        counts.processing += 1;
+      } else {
+        counts.pending += 1;
+      }
     });
+
     return counts;
   }, [orders]);
 
@@ -9307,7 +9423,39 @@ function FrStockInventoryContent({ user, brands }) {
         .fr-stock-order-shell .stock-order-availability.out { color:${C.red}; background:${C.redBg}; border-color:#f2c9c4; }
         .fr-stock-order-shell .stock-order-stepper { display:flex; align-items:center; gap:7px; margin-top:13px; }
         .fr-stock-order-shell .stock-order-stepper button { width:32px; height:32px; min-width:32px; padding:0; border:1px solid ${C.border}; border-radius:10px; background:${C.white}; color:${C.greenDk}; font-size:18px; font-weight:800; cursor:pointer; }
-        .fr-stock-order-shell .stock-order-stepper strong { min-width:34px; text-align:center; font-size:14px; }
+.fr-stock-order-shell .stock-order-stepper-input {
+  width:60px;
+  height:32px;
+  padding:0 5px;
+  border:1px solid ${C.border};
+  border-radius:8px;
+  background:#fff;
+  color:${C.ink};
+  text-align:center;
+  font-size:14px;
+  font-weight:800;
+  outline:none;
+  box-sizing:border-box;
+}
+
+.fr-stock-order-shell .stock-order-stepper-input:focus {
+  border-color:${C.green};
+}
+
+/* Remove Chrome, Edge, Safari number arrows */
+.fr-stock-order-shell
+  .stock-order-stepper-input::-webkit-inner-spin-button,
+.fr-stock-order-shell
+  .stock-order-stepper-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Remove Firefox number arrows */
+.fr-stock-order-shell .stock-order-stepper-input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
         .fr-stock-order-shell .stock-order-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:10px; }
         .stock-order-actions .v-btn { min-height:32px !important; padding:6px 11px !important; font-size:11px !important; border-radius:8px !important; }
         .fr-stock-order-shell .stock-order-unavailable { margin-top:12px; padding:10px 12px; border-radius:10px; background:${C.bg}; color:${C.muted}; font-size:11px; line-height:1.45; }
@@ -9338,7 +9486,28 @@ function FrStockInventoryContent({ user, brands }) {
         .fr-stock-order-shell .stock-cart-qty { display:flex; align-items:center; gap:6px; padding:4px; border:1px solid ${C.border}; border-radius:10px; background:#FBFCF8; }
         .fr-stock-order-shell .stock-cart-qty button { width:28px; height:28px; border:1px solid ${C.border}; border-radius:7px; background:#fff; color:${C.greenDk}; font-weight:900; cursor:pointer; }
         .fr-stock-order-shell .stock-cart-qty button:disabled { opacity:.4; cursor:not-allowed; }
-        .fr-stock-order-shell .stock-cart-qty strong { min-width:28px; text-align:center; font-size:12px; color:${C.ink}; }
+        .fr-stock-order-shell .stock-cart-qty-input {
+          width:52px;
+          height:28px;
+          border:1px solid ${C.border};
+          border-radius:7px;
+          background:#fff;
+          text-align:center;
+          font-size:12px;
+          font-weight:800;
+          color:${C.ink};
+          outline:none;
+          box-sizing:border-box;
+        }
+
+        .fr-stock-order-shell .stock-cart-qty-input:focus {
+          border-color:${C.green};
+        }
+
+        .fr-stock-order-shell .stock-cart-qty-input::-webkit-inner-spin-button,
+        .fr-stock-order-shell .stock-cart-qty-input::-webkit-outer-spin-button {
+          margin:0;
+        }
         .fr-stock-order-shell .stock-cart-line-total { min-width:86px; text-align:right; }
         .fr-stock-order-shell .stock-cart-remove { margin-top:5px; border:0; background:transparent; color:#9B2C2C; font-size:9.5px; font-weight:800; cursor:pointer; padding:0; }
         .fr-stock-order-shell .stock-order-count-badge { min-width:21px; height:21px; padding:0 6px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#EEF4E7; color:${C.greenDk}; font-size:9.5px; font-weight:900; }
@@ -9390,34 +9559,78 @@ function FrStockInventoryContent({ user, brands }) {
         }
       `}</style>
 
-      <div className="stock-surface" style={{
-        background: C.white,
-        border: `1px solid ${C.border}`,
-        borderRadius: 18,
-        overflow: "hidden",
-        boxShadow: "0 2px 10px rgba(50,109,32,.05)",
-        display: "flex",
-        flexDirection: "column",
-      }}>
-        <div className="stock-order-header" style={{
-          padding: "14px 18px 14px 22px",
-          background: "#fbfcf8",
-          borderBottom: `1px solid ${C.border}`,
-          color: C.ink,
-        }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
-            <div style={{ width:34, height:34, borderRadius:10, background:C.greenLt, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+      <div
+        className="stock-surface"
+        style={{
+          background: C.white,
+          border: `1px solid ${C.border}`,
+          borderRadius: 18,
+          overflow: "hidden",
+          boxShadow: "0 2px 10px rgba(50,109,32,.05)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div
+          className="stock-order-header"
+          style={{
+            padding: "14px 18px 14px 22px",
+            background: "#fbfcf8",
+            borderBottom: `1px solid ${C.border}`,
+            color: C.ink,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              minWidth: 0,
+            }}
+          >
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: C.greenLt,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
               <Layers size={16} color={C.green} />
             </div>
-            <div style={{ minWidth:0 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                <span style={{ fontWeight:900, fontSize:15 }}>{userBrand || "Stock Inventory"}</span>
-                <span style={{ padding:"4px 8px", borderRadius:999, background:C.white, border:`1px solid ${C.border}`, color:C.muted, fontSize:10, fontWeight:800 }}>
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                <span style={{ fontWeight: 900, fontSize: 15 }}>
+                  {userBrand || "Stock Inventory"}
+                </span>
+                <span
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 999,
+                    background: C.white,
+                    border: `1px solid ${C.border}`,
+                    color: C.muted,
+                    fontSize: 10,
+                    fontWeight: 800,
+                  }}
+                >
                   {userBranch || "No branch assigned"}
                 </span>
               </div>
-              <div style={{ marginTop:4, fontSize:11, color:C.muted }}>
-                Monitor branch stock and order approved supplies without leaving this screen.
+              <div style={{ marginTop: 4, fontSize: 11, color: C.muted }}>
+                Monitor branch stock and order approved supplies without leaving
+                this screen.
               </div>
             </div>
           </div>
@@ -9425,11 +9638,16 @@ function FrStockInventoryContent({ user, brands }) {
             <button
               type="button"
               className="v-btn v-btn-secondary stock-order-orders-btn"
-              onClick={() => { setShowOrders(true); fetchOrders(); }}
+              onClick={() => {
+                setShowOrders(true);
+                fetchOrders();
+              }}
             >
               <History size={14} />
               View Orders
-              <span className="stock-order-count-badge">{orderCounts.total}</span>
+              <span className="stock-order-count-badge">
+                {orderCounts.total}
+              </span>
             </button>
             <button
               type="button"
@@ -9439,30 +9657,96 @@ function FrStockInventoryContent({ user, brands }) {
               <ShoppingCart size={15} />
               Cart
               <span className="stock-cart-count">{cartItemCount}</span>
-              <span style={{ opacity:.92 }}>{fmtPeso(cartTotal)}</span>
+              <span style={{ opacity: 0.92 }}>{fmtPeso(cartTotal)}</span>
             </button>
           </div>
         </div>
 
-        <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:6, flexWrap:"wrap", background:"#fbfcf8" }}>
-          <div style={{ position:"relative", flex:"1 1 190px", minWidth:130 }}>
-            <div style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={11} /></div>
-            <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search item, category, SKU…" style={{ ...invInputSt, height:32, fontSize:12, paddingLeft:25 }} />
+        <div
+          style={{
+            padding: "12px 18px",
+            borderBottom: `1px solid ${C.border}`,
+            display: "flex",
+            gap: 6,
+            flexWrap: "wrap",
+            background: "#fbfcf8",
+          }}
+        >
+          <div
+            style={{ position: "relative", flex: "1 1 190px", minWidth: 130 }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                left: 8,
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: C.muted,
+              }}
+            >
+              <SearchIcon size={11} />
+            </div>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search item, category, SKU…"
+              style={{
+                ...invInputSt,
+                height: 32,
+                fontSize: 12,
+                paddingLeft: 25,
+              }}
+            />
           </div>
-          <div style={{ ...invInputSt, height:32, minWidth:150, fontSize:11, padding:"6px 10px", background:C.bg, color:C.ink, fontWeight:700, display:"flex", alignItems:"center", gap:6 }}>
-            <StoreIcon size={12} color={C.green} /> {userBranch || "Assigned Branch"}
+          <div
+            style={{
+              ...invInputSt,
+              height: 32,
+              minWidth: 150,
+              fontSize: 11,
+              padding: "6px 10px",
+              background: C.bg,
+              color: C.ink,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <StoreIcon size={12} color={C.green} />{" "}
+            {userBranch || "Assigned Branch"}
           </div>
           {categoryOptions.length > 0 && (
-            <select value={categoryF} onChange={(e)=>setCategoryF(e.target.value)} style={{ ...invInputSt, height:32, fontSize:11, width:150 }}>
+            <select
+              value={categoryF}
+              onChange={(e) => setCategoryF(e.target.value)}
+              style={{ ...invInputSt, height: 32, fontSize: 11, width: 150 }}
+            >
               <option value="">All Categories</option>
-              {categoryOptions.map((cat)=><option key={cat} value={cat}>{cat}</option>)}
+              {categoryOptions.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
             </select>
           )}
-          <select value={unitF} onChange={(e)=>setUnitF(e.target.value)} style={{ ...invInputSt, height:32, fontSize:11, width:100 }}>
+          <select
+            value={unitF}
+            onChange={(e) => setUnitF(e.target.value)}
+            style={{ ...invInputSt, height: 32, fontSize: 11, width: 100 }}
+          >
             <option value="">All Units</option>
-            {UNITS.map((u)=><option key={u} value={u}>{u}</option>)}
+            {UNITS.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
           </select>
-          <select value={statusF} onChange={(e)=>setStatusF(e.target.value)} style={{ ...invInputSt, height:32, fontSize:11, width:118 }}>
+          <select
+            value={statusF}
+            onChange={(e) => setStatusF(e.target.value)}
+            style={{ ...invInputSt, height: 32, fontSize: 11, width: 118 }}
+          >
             <option value="">All Status</option>
             <option value="low">Low Stock</option>
             <option value="ok">In Stock</option>
@@ -9470,18 +9754,54 @@ function FrStockInventoryContent({ user, brands }) {
             {hasExpiry && <option value="expired">Expired</option>}
           </select>
           {(search || categoryF || unitF || statusF) && (
-            <button type="button" className="v-btn v-btn-secondary" style={{ minHeight:32, padding:"6px 11px", fontSize:11 }} onClick={()=>{setSearch("");setCategoryF("");setUnitF("");setStatusF("");}}>
+            <button
+              type="button"
+              className="v-btn v-btn-secondary"
+              style={{ minHeight: 32, padding: "6px 11px", fontSize: 11 }}
+              onClick={() => {
+                setSearch("");
+                setCategoryF("");
+                setUnitF("");
+                setStatusF("");
+              }}
+            >
               Clear
             </button>
           )}
-          <button type="button" className="v-btn v-btn-secondary" style={{ minHeight:32, padding:"6px 11px", fontSize:11 }} onClick={()=>{fetchItems();fetchShopItems();}} disabled={loading || shopLoading}>
-            <RefreshCw size={13} className={loading || shopLoading ? "fr-spin" : ""} />
+          <button
+            type="button"
+            className="v-btn v-btn-secondary"
+            style={{ minHeight: 32, padding: "6px 11px", fontSize: 11 }}
+            onClick={() => {
+              fetchItems();
+              fetchShopItems();
+            }}
+            disabled={loading || shopLoading}
+          >
+            <RefreshCw
+              size={13}
+              className={loading || shopLoading ? "fr-spin" : ""}
+            />
             Refresh
           </button>
         </div>
 
         {(inventoryError || shopError) && (
-          <div role="alert" style={{ margin:"12px 18px 0", padding:"10px 12px", border:"1px solid #f2c9c4", borderRadius:10, background:C.redBg, color:C.red, fontSize:11, display:"flex", gap:8, alignItems:"center" }}>
+          <div
+            role="alert"
+            style={{
+              margin: "12px 18px 0",
+              padding: "10px 12px",
+              border: "1px solid #f2c9c4",
+              borderRadius: 10,
+              background: C.redBg,
+              color: C.red,
+              fontSize: 11,
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+            }}
+          >
             <AlertTriangle size={14} />
             {inventoryError || shopError}
           </div>
@@ -9490,32 +9810,71 @@ function FrStockInventoryContent({ user, brands }) {
         <div className="stock-order-layout" aria-busy={loading || shopLoading}>
           <div className="stock-order-list" aria-label="Branch inventory items">
             {loading ? (
-              <div style={{ padding:"50px 20px", textAlign:"center", color:C.muted }}>
+              <div
+                style={{
+                  padding: "50px 20px",
+                  textAlign: "center",
+                  color: C.muted,
+                }}
+              >
                 <RefreshCw size={20} className="fr-spin" />
-                <div style={{ marginTop:10, fontSize:12 }}>Loading inventory…</div>
+                <div style={{ marginTop: 10, fontSize: 12 }}>
+                  Loading inventory…
+                </div>
               </div>
             ) : filtered.length === 0 ? (
-              <div style={{ padding:"44px 20px", textAlign:"center", color:C.muted }}>
+              <div
+                style={{
+                  padding: "44px 20px",
+                  textAlign: "center",
+                  color: C.muted,
+                }}
+              >
                 <Package size={26} />
-                <div style={{ marginTop:10, fontSize:12, fontWeight:800 }}>{items.length ? "No items match your filters." : "No items found for your assigned brand and branch."}</div>
+                <div style={{ marginTop: 10, fontSize: 12, fontWeight: 800 }}>
+                  {items.length
+                    ? "No items match your filters."
+                    : "No items found for your assigned brand and branch."}
+                </div>
               </div>
             ) : (
               filtered.map((item) => {
                 const active = item.id === selectedId;
                 const stockValue = Math.max(0, Number(item.stock ?? 0));
                 const low = isLowStock(item);
-                const stockPercent = maxBarStock > 0
-                  ? Math.min(100, Math.max(0, Math.round((stockValue / maxBarStock) * 100)))
-                  : 0;
+                const stockPercent =
+                  maxBarStock > 0
+                    ? Math.min(
+                        100,
+                        Math.max(
+                          0,
+                          Math.round((stockValue / maxBarStock) * 100),
+                        ),
+                      )
+                    : 0;
                 const stockBarLabel = low
                   ? `Low stock: ${frStockQuantity(item.stock, item.unit)} (${stockPercent}% of highest stock)`
                   : `Stock okay: ${frStockQuantity(item.stock, item.unit)} (${stockPercent}% of highest stock)`;
                 return (
-                  <button type="button" key={item.id} className={`stock-order-row${active ? " active" : ""}`} aria-pressed={active} onClick={()=>selectItem(item)}>
+                  <button
+                    type="button"
+                    key={item.id}
+                    className={`stock-order-row${active ? " active" : ""}`}
+                    aria-pressed={active}
+                    onClick={() => selectItem(item)}
+                  >
                     <span className="stock-order-row-top">
                       <span className="stock-order-row-name">{item.name}</span>
-                      <span className="stock-order-row-meta">{[item.sku || "No SKU", item.branch || userBranch].filter(Boolean).join("  •  ")}</span>
-                      <span className="stock-order-row-submeta">{[item.name, item.branch || userBranch].filter(Boolean).join("  •  ")}</span>
+                      <span className="stock-order-row-meta">
+                        {[item.sku || "No SKU", item.branch || userBranch]
+                          .filter(Boolean)
+                          .join("  •  ")}
+                      </span>
+                      <span className="stock-order-row-submeta">
+                        {[item.name, item.branch || userBranch]
+                          .filter(Boolean)
+                          .join("  •  ")}
+                      </span>
                     </span>
                     <span
                       className={`stock-order-stock-line${low ? " low-track" : ""}`}
@@ -9537,7 +9896,11 @@ function FrStockInventoryContent({ user, brands }) {
             )}
           </div>
 
-          <section id="fr-stock-order-detail" className="stock-order-detail" aria-label="Stock details and supply ordering">
+          <section
+            id="fr-stock-order-detail"
+            className="stock-order-detail"
+            aria-label="Stock details and supply ordering"
+          >
             {selected ? (
               <div>
                 <div className="stock-order-queue-panel">
@@ -9555,55 +9918,244 @@ function FrStockInventoryContent({ user, brands }) {
 
                 <div className="stock-order-detail-panel">
                   <div className="stock-order-hero">
-                    <div style={{ display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-start" }}>
-                      <div style={{ minWidth:0 }}>
-                        <div style={{ fontSize:9.5, fontWeight:800, letterSpacing:".08em", textTransform:"uppercase", color:C.muted }}>Supply Details</div>
-                        <h2 style={{ margin:"4px 0 0", fontSize:18, lineHeight:1.2, color:C.ink, overflowWrap:"anywhere" }}>{selected.name}</h2>
-                        <div style={{ marginTop:5, color:C.muted, fontSize:10.5 }}>
-                          {[selected.brand || userBrand, selected.branch || userBranch, selected.sku].filter(Boolean).join(" · ")}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 9.5,
+                            fontWeight: 800,
+                            letterSpacing: ".08em",
+                            textTransform: "uppercase",
+                            color: C.muted,
+                          }}
+                        >
+                          Supply Details
+                        </div>
+                        <h2
+                          style={{
+                            margin: "4px 0 0",
+                            fontSize: 18,
+                            lineHeight: 1.2,
+                            color: C.ink,
+                            overflowWrap: "anywhere",
+                          }}
+                        >
+                          {selected.name}
+                        </h2>
+                        <div
+                          style={{
+                            marginTop: 5,
+                            color: C.muted,
+                            fontSize: 10.5,
+                          }}
+                        >
+                          {[
+                            selected.brand || userBrand,
+                            selected.branch || userBranch,
+                            selected.sku,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </div>
                       </div>
-                      {isLowStock(selected) && <span className="v-badge v-badge-red" style={{ fontSize:9.5, padding:"3px 9px" }}>Low Stock</span>}
+                      {isLowStock(selected) && (
+                        <span
+                          className="v-badge v-badge-red"
+                          style={{ fontSize: 9.5, padding: "3px 9px" }}
+                        >
+                          Low Stock
+                        </span>
+                      )}
                     </div>
                   </div>
 
                   <div className="stock-order-facts">
-                    <div className="stock-order-fact"><div className="stock-order-fact-label">Your Stock</div><div className="stock-order-fact-value">{frStockQuantity(selectedCurrentStock, selected.unit)}</div></div>
-                    <div className="stock-order-fact"><div className="stock-order-fact-label">Category</div><div className="stock-order-fact-value">{selected.category || "—"}</div></div>
-                    <div className="stock-order-fact"><div className="stock-order-fact-label">Supply Available</div><div className="stock-order-fact-value">{selectedShopItem ? `${selectedSupplyAvailable} ${selectedUnit}` : "—"}</div></div>
-                    <div className="stock-order-fact"><div className="stock-order-fact-label">Unit Price</div><div className="stock-order-fact-value">{selectedShopItem ? fmtPeso(selectedPrice) : "—"}</div></div>
+                    <div className="stock-order-fact">
+                      <div className="stock-order-fact-label">Your Stock</div>
+                      <div className="stock-order-fact-value">
+                        {frStockQuantity(selectedCurrentStock, selected.unit)}
+                      </div>
+                    </div>
+                    <div className="stock-order-fact">
+                      <div className="stock-order-fact-label">Category</div>
+                      <div className="stock-order-fact-value">
+                        {selected.category || "—"}
+                      </div>
+                    </div>
+                    <div className="stock-order-fact">
+                      <div className="stock-order-fact-label">
+                        Supply Available
+                      </div>
+                      <div className="stock-order-fact-value">
+                        {selectedShopItem
+                          ? `${selectedSupplyAvailable} ${selectedUnit}`
+                          : "—"}
+                      </div>
+                    </div>
+                    <div className="stock-order-fact">
+                      <div className="stock-order-fact-label">Unit Price</div>
+                      <div className="stock-order-fact-value">
+                        {selectedShopItem ? fmtPeso(selectedPrice) : "—"}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="stock-order-purchase">
                     <div className="stock-order-purchase-top">
                       <div>
-                        <div className="stock-order-price-big">{selectedShopItem ? fmtPeso(selectedPrice) : "Not Listed"}</div>
-                        <div className="stock-order-price-unit">{selectedShopItem ? `per ${selectedUnit}` : "This item is not currently configured for ordering"}</div>
+                        <div className="stock-order-price-big">
+                          {selectedShopItem
+                            ? fmtPeso(selectedPrice)
+                            : "Not Listed"}
+                        </div>
+                        <div className="stock-order-price-unit">
+                          {selectedShopItem
+                            ? `per ${selectedUnit}`
+                            : "This item is not currently configured for ordering"}
+                        </div>
                       </div>
-                      <span className={`stock-order-availability${!selectedShopItem || selectedSupplyAvailable <= 0 ? " out" : ""}`}>
-                        {shopLoading ? "Checking…" : selectedShopItem ? (selectedSupplyAvailable > 0 ? `${selectedSupplyAvailable} available` : "Out of stock") : "Not orderable"}
+                      <span
+                        className={`stock-order-availability${!selectedShopItem || selectedSupplyAvailable <= 0 ? " out" : ""}`}
+                      >
+                        {shopLoading
+                          ? "Checking…"
+                          : selectedShopItem
+                            ? selectedSupplyAvailable > 0
+                              ? `${selectedSupplyAvailable} available`
+                              : "Out of stock"
+                            : "Not orderable"}
                       </span>
                     </div>
 
                     {selectedShopItem && selectedSupplyAvailable > 0 ? (
                       <>
                         <div className="stock-order-stepper">
-                          <button type="button" aria-label="Decrease quantity" onClick={()=>updateCartQuantity(selectedShopItem.id,-1)} disabled={selectedCartQty<=0}>−</button>
-                          <strong>{selectedCartQty || 1}</strong>
-                          <button type="button" aria-label="Increase quantity" onClick={()=>addToCart(selectedShopItem, selected, 1)} disabled={selectedCartQty>=selectedSupplyAvailable}>+</button>
-                          <span style={{ marginLeft:2, color:C.muted, fontSize:9.5 }}>in cart</span>
+                          <button
+                            type="button"
+                            aria-label="Decrease quantity"
+                            onClick={() =>
+                              updateCartQuantity(selectedShopItem.id, -1)
+                            }
+                            disabled={selectedCartQty <= 0}
+                          >
+                            −
+                          </button>
+
+                          <input
+                            type="number"
+                            min="1"
+                            max={selectedSupplyAvailable}
+                            value={selectedCartQty || 1}
+                            onChange={(e) => {
+                              const value = e.target.value;
+
+                              if (value === "") return;
+
+                              const quantity = Math.max(
+                                1,
+                                Math.min(
+                                  Number(value),
+                                  selectedSupplyAvailable,
+                                ),
+                              );
+
+                              const existing = cart.find(
+                                (entry) => entry.id === selectedShopItem.id,
+                              );
+
+                              let next;
+
+                              if (existing) {
+                                next = cart.map((entry) =>
+                                  entry.id === selectedShopItem.id
+                                    ? { ...entry, quantity }
+                                    : entry,
+                                );
+                              } else {
+                                next = [
+                                  ...cart,
+                                  createCartEntry(
+                                    selectedShopItem,
+                                    selected,
+                                    quantity,
+                                  ),
+                                ];
+                              }
+
+                              saveCart(next);
+                            }}
+                            className="stock-order-stepper-input"
+                            aria-label="Cart quantity"
+                          />
+
+                          <button
+                            type="button"
+                            aria-label="Increase quantity"
+                            onClick={() =>
+                              addToCart(selectedShopItem, selected, 1)
+                            }
+                            disabled={
+                              selectedCartQty >= selectedSupplyAvailable
+                            }
+                          >
+                            +
+                          </button>
+
+                          <span
+                            style={{
+                              marginLeft: 2,
+                              color: C.muted,
+                              fontSize: 9.5,
+                            }}
+                          >
+                            in cart
+                          </span>
                         </div>
                         <div className="stock-order-actions">
-                          <button type="button" className="v-btn v-btn-secondary" onClick={()=>addToCart(selectedShopItem, selected, 1)} disabled={selectedCartQty>=selectedSupplyAvailable}>
+                          <button
+                            type="button"
+                            className="v-btn v-btn-secondary"
+                            onClick={() =>
+                              addToCart(selectedShopItem, selected, 1)
+                            }
+                            disabled={
+                              selectedCartQty >= selectedSupplyAvailable
+                            }
+                          >
                             <ShoppingCart size={13} /> Add to Cart
                           </button>
-                          <button type="button" className="v-btn v-btn-primary" onClick={buyNow} disabled={!selectedShopItem || selectedSupplyAvailable<=0}>
+                          <button
+                            type="button"
+                            className="v-btn v-btn-primary"
+                            onClick={buyNow}
+                            disabled={
+                              !selectedShopItem || selectedSupplyAvailable <= 0
+                            }
+                          >
                             Buy Now
                           </button>
                         </div>
                         {selectedCartQty > 0 && (
-                          <div style={{ marginTop:8, padding:"7px 9px", borderRadius:8, background:C.white, border:`1px solid ${C.border}`, fontSize:10, color:C.muted }}>
-                            {selectedCartQty} {selectedUnit} in cart · {fmtPeso(selectedCartQty * selectedPrice)}
+                          <div
+                            style={{
+                              marginTop: 8,
+                              padding: "7px 9px",
+                              borderRadius: 8,
+                              background: C.white,
+                              border: `1px solid ${C.border}`,
+                              fontSize: 10,
+                              color: C.muted,
+                            }}
+                          >
+                            {selectedCartQty} {selectedUnit} in cart ·{" "}
+                            {fmtPeso(selectedCartQty * selectedPrice)}
                           </div>
                         )}
                       </>
@@ -9618,11 +10170,46 @@ function FrStockInventoryContent({ user, brands }) {
                 </div>
               </div>
             ) : (
-              <div className="stock-order-detail-card" style={{ minHeight:430, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                <div style={{ textAlign:"center", padding:30, color:C.muted }}>
-                  <div style={{ width:48, height:48, borderRadius:13, background:C.greenLt, margin:"0 auto 12px", display:"flex", alignItems:"center", justifyContent:"center" }}><Layers size={22} color={C.green} /></div>
-                  <div style={{ fontSize:14, fontWeight:900, color:C.ink }}>Select an inventory item</div>
-                  <div style={{ marginTop:5, maxWidth:290, fontSize:10.5, lineHeight:1.6 }}>View the stock rotation queue first, then review supply details and order quantity.</div>
+              <div
+                className="stock-order-detail-card"
+                style={{
+                  minHeight: 430,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <div
+                  style={{ textAlign: "center", padding: 30, color: C.muted }}
+                >
+                  <div
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 13,
+                      background: C.greenLt,
+                      margin: "0 auto 12px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Layers size={22} color={C.green} />
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: C.ink }}>
+                    Select an inventory item
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 5,
+                      maxWidth: 290,
+                      fontSize: 10.5,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    View the stock rotation queue first, then review supply
+                    details and order quantity.
+                  </div>
                 </div>
               </div>
             )}
@@ -9631,17 +10218,28 @@ function FrStockInventoryContent({ user, brands }) {
       </div>
 
       {showCart && (
-        <div className="v-modal-overlay" onMouseDown={()=>setShowCart(false)}>
-          <div className="v-modal stock-order-cart-modal" onMouseDown={(e)=>e.stopPropagation()}>
+        <div className="v-modal-overlay" onMouseDown={() => setShowCart(false)}>
+          <div
+            className="v-modal stock-order-cart-modal"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <div className="stock-cart-modal-head">
               <div className="stock-modal-title-row">
-                <div style={{ minWidth:0 }}>
+                <div style={{ minWidth: 0 }}>
                   <div className="stock-modal-eyebrow">Supply Ordering</div>
                   <div className="stock-modal-title">Your Supply Cart</div>
-                  <div className="stock-modal-subtitle">{userBrand || "Assigned Brand"} · {userBranch || "Assigned Branch"}</div>
+                  <div className="stock-modal-subtitle">
+                    {userBrand || "Assigned Brand"} ·{" "}
+                    {userBranch || "Assigned Branch"}
+                  </div>
                 </div>
-                <button type="button" className="v-btn v-btn-secondary" onClick={()=>setShowCart(false)} style={{ minHeight:34, padding:"7px 11px", fontSize:10.5 }}>
-                  <X size={13}/> Close
+                <button
+                  type="button"
+                  className="v-btn v-btn-secondary"
+                  onClick={() => setShowCart(false)}
+                  style={{ minHeight: 34, padding: "7px 11px", fontSize: 10.5 }}
+                >
+                  <X size={13} /> Close
                 </button>
               </div>
             </div>
@@ -9650,28 +10248,113 @@ function FrStockInventoryContent({ user, brands }) {
               <>
                 <div className="stock-modal-scroll">
                   {cartLineItems.map((entry) => {
-                    const hasIssue = entry.stock <= 0 || Number(entry.quantity || 0) > Number(entry.stock || 0);
+                    const hasIssue =
+                      entry.stock <= 0 ||
+                      Number(entry.quantity || 0) > Number(entry.stock || 0);
                     return (
                       <div key={entry.id} className="stock-order-cart-row">
                         <div className="stock-cart-item-main">
-                          <div className="stock-cart-item-title">{entry.name}</div>
-                          <div className="stock-cart-item-meta">{entry.unit || "unit"} · {fmtPeso(entry.price)} each</div>
-                          <div className={`stock-cart-stock-note${hasIssue ? " low" : ""}`}>
+                          <div className="stock-cart-item-title">
+                            {entry.name}
+                          </div>
+                          <div className="stock-cart-item-meta">
+                            {entry.unit || "unit"} · {fmtPeso(entry.price)} each
+                          </div>
+                          <div
+                            className={`stock-cart-stock-note${hasIssue ? " low" : ""}`}
+                          >
                             {entry.stock <= 0
                               ? "No longer available"
                               : `${entry.stock} ${entry.unit || "unit(s)"} available`}
                           </div>
                         </div>
 
-                        <div className="stock-cart-qty" aria-label={`Quantity for ${entry.name}`}>
-                          <button type="button" onClick={()=>updateCartQuantity(entry.id,-1)} aria-label={`Decrease ${entry.name}`}>−</button>
-                          <strong>{entry.quantity}</strong>
-                          <button type="button" onClick={()=>updateCartQuantity(entry.id,1)} disabled={entry.quantity>=entry.stock} aria-label={`Increase ${entry.name}`}>+</button>
+                        <div className="stock-cart-qty">
+                          <button
+                            type="button"
+                            onClick={() => updateCartQuantity(entry.id, -1)}
+                          >
+                            −
+                          </button>
+
+                          <input
+                            type="number"
+                            value={entry.quantity}
+                            min="1"
+                            max={entry.stock}
+                            onChange={(e) => {
+                              const value = e.target.value;
+
+                              if (value === "") {
+                                const next = cart.map((item) =>
+                                  item.id === entry.id
+                                    ? { ...item, quantity: "" }
+                                    : item,
+                                );
+                                setCart(next);
+                                return;
+                              }
+
+                              const quantity = Number(value);
+
+                              if (
+                                quantity >= 1 &&
+                                quantity <= Number(entry.stock)
+                              ) {
+                                const next = cart.map((item) =>
+                                  item.id === entry.id
+                                    ? { ...item, quantity }
+                                    : item,
+                                );
+                                saveCart(next);
+                              }
+                            }}
+                            onBlur={(e) => {
+                              if (
+                                e.target.value === "" ||
+                                Number(e.target.value) < 1
+                              ) {
+                                setCartQuantity(entry.id, 1);
+                              } else if (
+                                Number(e.target.value) > Number(entry.stock)
+                              ) {
+                                setCartQuantity(entry.id, entry.stock);
+                              }
+                            }}
+                            className="stock-cart-qty-input"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => updateCartQuantity(entry.id, 1)}
+                            disabled={
+                              Number(entry.quantity) >= Number(entry.stock)
+                            }
+                          >
+                            +
+                          </button>
                         </div>
 
                         <div className="stock-cart-line-total">
-                          <strong style={{ color: hasIssue ? C.red : C.greenDk, fontSize:13 }}>{fmtPeso(entry.price * entry.quantity)}</strong>
-                          <button type="button" className="stock-cart-remove" onClick={()=>removeFromCart(entry.id)}><Trash2 size={10} style={{ verticalAlign:"-2px", marginRight:3 }}/>Remove</button>
+                          <strong
+                            style={{
+                              color: hasIssue ? C.red : C.greenDk,
+                              fontSize: 13,
+                            }}
+                          >
+                            {fmtPeso(entry.price * entry.quantity)}
+                          </strong>
+                          <button
+                            type="button"
+                            className="stock-cart-remove"
+                            onClick={() => removeFromCart(entry.id)}
+                          >
+                            <Trash2
+                              size={10}
+                              style={{ verticalAlign: "-2px", marginRight: 3 }}
+                            />
+                            Remove
+                          </button>
                         </div>
                       </div>
                     );
@@ -9680,31 +10363,110 @@ function FrStockInventoryContent({ user, brands }) {
 
                 <div className="stock-modal-footer">
                   {cartHasStockIssues && (
-                    <div style={{ display:"flex", alignItems:"center", gap:7, padding:"8px 10px", marginBottom:9, border:"1px solid #F0C9C3", borderRadius:9, background:C.redBg, color:C.red, fontSize:9.5, lineHeight:1.4 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 7,
+                        padding: "8px 10px",
+                        marginBottom: 9,
+                        border: "1px solid #F0C9C3",
+                        borderRadius: 9,
+                        background: C.redBg,
+                        color: C.red,
+                        fontSize: 9.5,
+                        lineHeight: 1.4,
+                      }}
+                    >
                       <AlertTriangle size={13} />
-                      Some cart items are unavailable or exceed the latest supply stock. Update the quantities before checkout.
+                      Some cart items are unavailable or exceed the latest
+                      supply stock. Update the quantities before checkout.
                     </div>
                   )}
-                  <div style={{ display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-end" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      alignItems: "flex-end",
+                    }}
+                  >
                     <div>
-                      <div style={{ fontSize:9.5, color:C.muted, fontWeight:800, textTransform:"uppercase", letterSpacing:".06em" }}>{cartItemCount} total unit{cartItemCount === 1 ? "" : "s"}</div>
-                      <div style={{ marginTop:2, fontSize:11, color:C.muted }}>Estimated order total</div>
+                      <div
+                        style={{
+                          fontSize: 9.5,
+                          color: C.muted,
+                          fontWeight: 800,
+                          textTransform: "uppercase",
+                          letterSpacing: ".06em",
+                        }}
+                      >
+                        {cartItemCount} total unit
+                        {cartItemCount === 1 ? "" : "s"}
+                      </div>
+                      <div
+                        style={{ marginTop: 2, fontSize: 11, color: C.muted }}
+                      >
+                        Estimated order total
+                      </div>
                     </div>
-                    <strong style={{ fontSize:22, lineHeight:1, color:C.greenDk }}>{fmtPeso(cartTotal)}</strong>
+                    <strong
+                      style={{ fontSize: 22, lineHeight: 1, color: C.greenDk }}
+                    >
+                      {fmtPeso(cartTotal)}
+                    </strong>
                   </div>
-                  <button type="button" className="v-btn v-btn-primary" style={{ width:"100%", minHeight:43, marginTop:12, borderRadius:9 }} onClick={()=>prepareCheckout(cartLineItems,false)} disabled={!cartLineItems.length || cartHasStockIssues}>
+                  <button
+                    type="button"
+                    className="v-btn v-btn-primary"
+                    style={{
+                      width: "100%",
+                      minHeight: 43,
+                      marginTop: 12,
+                      borderRadius: 9,
+                    }}
+                    onClick={() => prepareCheckout(cartLineItems, false)}
+                    disabled={!cartLineItems.length || cartHasStockIssues}
+                  >
                     <CreditCard size={14} /> Proceed to Checkout
                   </button>
                 </div>
               </>
             ) : (
               <div className="stock-order-empty">
-                <div style={{ width:54, height:54, borderRadius:15, background:C.greenLt, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 13px", color:C.green }}>
-                  <ShoppingCart size={24}/>
+                <div
+                  style={{
+                    width: 54,
+                    height: 54,
+                    borderRadius: 15,
+                    background: C.greenLt,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    margin: "0 auto 13px",
+                    color: C.green,
+                  }}
+                >
+                  <ShoppingCart size={24} />
                 </div>
-                <div style={{ fontSize:14, fontWeight:900, color:C.ink }}>Your cart is empty</div>
-                <div style={{ marginTop:6, fontSize:10.5, lineHeight:1.5 }}>Select an inventory item and add an approved supply to begin your order.</div>
-                <button type="button" className="v-btn v-btn-secondary" style={{ marginTop:14, minHeight:34, padding:"7px 12px", fontSize:10.5 }} onClick={()=>setShowCart(false)}>
+                <div style={{ fontSize: 14, fontWeight: 900, color: C.ink }}>
+                  Your cart is empty
+                </div>
+                <div style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.5 }}>
+                  Select an inventory item and add an approved supply to begin
+                  your order.
+                </div>
+                <button
+                  type="button"
+                  className="v-btn v-btn-secondary"
+                  style={{
+                    marginTop: 14,
+                    minHeight: 34,
+                    padding: "7px 12px",
+                    fontSize: 10.5,
+                  }}
+                  onClick={() => setShowCart(false)}
+                >
                   Continue Browsing
                 </button>
               </div>
@@ -9714,95 +10476,244 @@ function FrStockInventoryContent({ user, brands }) {
       )}
 
       {showOrders && (
-        <div className="v-modal-overlay" onMouseDown={()=>setShowOrders(false)}>
-          <div className="v-modal stock-order-orders-modal" onMouseDown={(e)=>e.stopPropagation()}>
+        <div
+          className="v-modal-overlay"
+          onMouseDown={() => setShowOrders(false)}
+        >
+          <div
+            className="v-modal stock-order-orders-modal"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <div className="stock-orders-modal-head">
               <div className="stock-modal-title-row">
-                <div style={{ minWidth:0 }}>
+                <div style={{ minWidth: 0 }}>
                   <div className="stock-modal-eyebrow">Order History</div>
                   <div className="stock-modal-title">My Supply Orders</div>
-                  <div className="stock-modal-subtitle">Orders placed for {userBrand || "your assigned brand"} · {userBranch || "your assigned branch"}</div>
+                  <div className="stock-modal-subtitle">
+                    Orders placed for {userBrand || "your assigned brand"} ·{" "}
+                    {userBranch || "your assigned branch"}
+                  </div>
                 </div>
-                <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                  <button type="button" className="v-btn v-btn-secondary" onClick={fetchOrders} disabled={ordersLoading} style={{ minHeight:34, padding:"7px 10px", fontSize:10.5 }}>
-                    <RefreshCw size={12} className={ordersLoading ? "fr-spin" : ""}/> Refresh
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    className="v-btn v-btn-secondary"
+                    onClick={fetchOrders}
+                    disabled={ordersLoading}
+                    style={{
+                      minHeight: 34,
+                      padding: "7px 10px",
+                      fontSize: 10.5,
+                    }}
+                  >
+                    <RefreshCw
+                      size={12}
+                      className={ordersLoading ? "fr-spin" : ""}
+                    />{" "}
+                    Refresh
                   </button>
-                  <button type="button" className="v-btn v-btn-secondary" onClick={()=>setShowOrders(false)} style={{ minHeight:34, padding:"7px 10px", fontSize:10.5 }}>
-                    <X size={13}/> Close
+                  <button
+                    type="button"
+                    className="v-btn v-btn-secondary"
+                    onClick={() => setShowOrders(false)}
+                    style={{
+                      minHeight: 34,
+                      padding: "7px 10px",
+                      fontSize: 10.5,
+                    }}
+                  >
+                    <X size={13} /> Close
                   </button>
                 </div>
               </div>
             </div>
 
             <div className="stock-orders-summary">
-              <div className="stock-orders-stat"><strong>{orderCounts.total}</strong> Total</div>
-              <div className="stock-orders-stat"><strong>{orderCounts.pending}</strong> Pending</div>
-              <div className="stock-orders-stat"><strong>{orderCounts.processing}</strong> Processing</div>
-              <div className="stock-orders-stat"><strong>{orderCounts.completed}</strong> Completed</div>
+              <div className="stock-orders-stat">
+                <strong>{orderCounts.total}</strong> Total
+              </div>
+              <div className="stock-orders-stat">
+                <strong>{orderCounts.pending}</strong> Pending
+              </div>
+              <div className="stock-orders-stat">
+                <strong>{orderCounts.processing}</strong> Processing
+              </div>
+              <div className="stock-orders-stat">
+                <strong>{orderCounts.completed}</strong> Completed
+              </div>
             </div>
 
             {ordersError && (
-              <div role="alert" style={{ margin:"12px 20px 0", padding:"9px 11px", border:"1px solid #f0c9c3", borderRadius:9, background:C.redBg, color:C.red, fontSize:10.5, display:"flex", gap:7, alignItems:"center" }}>
-                <AlertTriangle size={13}/>{ordersError}
+              <div
+                role="alert"
+                style={{
+                  margin: "12px 20px 0",
+                  padding: "9px 11px",
+                  border: "1px solid #f0c9c3",
+                  borderRadius: 9,
+                  background: C.redBg,
+                  color: C.red,
+                  fontSize: 10.5,
+                  display: "flex",
+                  gap: 7,
+                  alignItems: "center",
+                }}
+              >
+                <AlertTriangle size={13} />
+                {ordersError}
               </div>
             )}
 
-            <div className="stock-modal-scroll" style={{ maxHeight:"min(62vh,560px)", padding:"2px 0 10px" }}>
+            <div
+              className="stock-modal-scroll"
+              style={{ maxHeight: "min(62vh,560px)", padding: "2px 0 10px" }}
+            >
               {ordersLoading && !orders.length ? (
                 <div className="stock-order-empty">
                   <RefreshCw size={24} className="fr-spin" color={C.green} />
-                  <div style={{ marginTop:10, fontSize:12, fontWeight:900, color:C.ink }}>Loading your orders…</div>
+                  <div
+                    style={{
+                      marginTop: 10,
+                      fontSize: 12,
+                      fontWeight: 900,
+                      color: C.ink,
+                    }}
+                  >
+                    Loading your orders…
+                  </div>
                 </div>
               ) : orders.length ? (
                 orders.map((order) => {
-                  const orderId = order?.id ?? order?.order_id ?? order?.reference ?? "—";
+                  const orderId =
+                    order?.id ?? order?.order_id ?? order?.reference ?? "—";
                   const status = orderStatusMeta(order?.status);
                   const items = orderItemList(order);
-                  const total = Number(order?.total_amount ?? order?.total ?? 0);
-                  const created = order?.created_at || order?.createdAt || order?.date || order?.ordered_at;
+                  const total = Number(
+                    order?.total_amount ?? order?.total ?? 0,
+                  );
+                  const created =
+                    order?.created_at ||
+                    order?.createdAt ||
+                    order?.date ||
+                    order?.ordered_at;
                   const expanded = String(expandedOrderId) === String(orderId);
                   return (
-                    <div key={String(orderId)} className="stock-order-history-card">
+                    <div
+                      key={String(orderId)}
+                      className="stock-order-history-card"
+                    >
                       <button
                         type="button"
                         className="stock-order-history-head"
-                        style={{ width:"100%", border:0, background:"transparent", textAlign:"left" }}
-                        onClick={()=>setExpandedOrderId(expanded ? null : orderId)}
+                        style={{
+                          width: "100%",
+                          border: 0,
+                          background: "transparent",
+                          textAlign: "left",
+                        }}
+                        onClick={() =>
+                          setExpandedOrderId(expanded ? null : orderId)
+                        }
                         aria-expanded={expanded}
                       >
-                        <div style={{ minWidth:0 }}>
-                          <div className="stock-order-history-id">Order #{orderId}</div>
-                          <div className="stock-order-history-date">{formatOrderDate(created)}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <div className="stock-order-history-id">
+                            Order #{orderId}
+                          </div>
+                          <div className="stock-order-history-date">
+                            {formatOrderDate(created)}
+                          </div>
                         </div>
-                        <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-                          <span className={`stock-order-status ${status.cls}`}>{status.label}</span>
-                          <ChevronDown size={14} color={C.muted} style={{ transform:expanded ? "rotate(180deg)" : "none", transition:"transform .15s ease" }}/>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            flexShrink: 0,
+                          }}
+                        >
+                          <span className={`stock-order-status ${status.cls}`}>
+                            {status.label}
+                          </span>
+                          <ChevronDown
+                            size={14}
+                            color={C.muted}
+                            style={{
+                              transform: expanded ? "rotate(180deg)" : "none",
+                              transition: "transform .15s ease",
+                            }}
+                          />
                         </div>
                       </button>
                       <div className="stock-order-history-meta">
-                        <span>{items.length || Number(order?.item_count || 0)} item{(items.length || Number(order?.item_count || 0)) === 1 ? "" : "s"}</span>
-                        <span>{String(order?.payment_method || order?.payment || "COD").toUpperCase()}</span>
-                        <span className="stock-order-history-total">{fmtPeso(total)}</span>
+                        <span>
+                          {items.reduce(
+                            (sum, item) => sum + Number(item._quantity || 0),
+                            0,
+                          )}{" "}
+                          item
+                          {items.reduce(
+                            (sum, item) => sum + Number(item._quantity || 0),
+                            0,
+                          ) === 1
+                            ? ""
+                            : "s"}
+                        </span>
+                        <span>
+                          {String(
+                            order?.payment_method || order?.payment || "COD",
+                          ).toUpperCase()}
+                        </span>
+                        <span className="stock-order-history-total">
+                          {fmtPeso(total)}
+                        </span>
                       </div>
 
                       {expanded && (
                         <div className="stock-order-history-details">
-                          {items.length ? items.map((item) => (
-                            <div key={String(item._key)} className="stock-order-history-item">
-                              <div style={{ minWidth:0 }}>
-                                <div className="stock-order-history-item-name">{item._name}</div>
-                                <div className="stock-order-history-item-meta">{item._quantity} × {fmtPeso(item._price)} · {item._unit}</div>
+                          {items.length ? (
+                            items.map((item) => (
+                              <div
+                                key={String(item._key)}
+                                className="stock-order-history-item"
+                              >
+                                <div style={{ minWidth: 0 }}>
+                                  <div className="stock-order-history-item-name">
+                                    {item._name}
+                                  </div>
+                                  <div className="stock-order-history-item-meta">
+                                    {item._quantity} × {fmtPeso(item._price)} ·{" "}
+                                    {item._unit}
+                                  </div>
+                                </div>
+                                <strong
+                                  style={{
+                                    color: C.greenDk,
+                                    fontSize: 10.5,
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {fmtPeso(item._quantity * item._price)}
+                                </strong>
                               </div>
-                              <strong style={{ color:C.greenDk, fontSize:10.5, whiteSpace:"nowrap" }}>{fmtPeso(item._quantity * item._price)}</strong>
+                            ))
+                          ) : (
+                            <div style={{ fontSize: 9.5, color: C.muted }}>
+                              Item details are not included in the order
+                              response.
                             </div>
-                          )) : (
-                            <div style={{ fontSize:9.5, color:C.muted }}>Item details are not included in the order response.</div>
                           )}
                           {(order?.address || order?.delivery_address) && (
-                            <div className="stock-order-history-address"><strong>Delivery:</strong> {order.address || order.delivery_address}</div>
+                            <div className="stock-order-history-address">
+                              <strong>Delivery:</strong>{" "}
+                              {order.address || order.delivery_address}
+                            </div>
                           )}
                           {order?.gcash_ref && (
-                            <div className="stock-order-history-address"><strong>GCash reference:</strong> {order.gcash_ref}</div>
+                            <div className="stock-order-history-address">
+                              <strong>GCash reference:</strong>{" "}
+                              {order.gcash_ref}
+                            </div>
                           )}
                         </div>
                       )}
@@ -9811,11 +10722,29 @@ function FrStockInventoryContent({ user, brands }) {
                 })
               ) : (
                 <div className="stock-order-empty">
-                  <div style={{ width:54, height:54, borderRadius:15, background:C.greenLt, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 13px", color:C.green }}>
-                    <History size={24}/>
+                  <div
+                    style={{
+                      width: 54,
+                      height: 54,
+                      borderRadius: 15,
+                      background: C.greenLt,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      margin: "0 auto 13px",
+                      color: C.green,
+                    }}
+                  >
+                    <History size={24} />
                   </div>
-                  <div style={{ fontSize:14, fontWeight:900, color:C.ink }}>No supply orders yet</div>
-                  <div style={{ marginTop:6, fontSize:10.5, lineHeight:1.5 }}>Orders you place from Stock Inventory will appear here.</div>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: C.ink }}>
+                    No supply orders yet
+                  </div>
+                  <div
+                    style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.5 }}
+                  >
+                    Orders you place from Stock Inventory will appear here.
+                  </div>
                 </div>
               )}
             </div>
@@ -9824,62 +10753,231 @@ function FrStockInventoryContent({ user, brands }) {
       )}
 
       {showCheckout && (
-        <div className="v-modal-overlay" onMouseDown={()=>!placingOrder && setShowCheckout(false)}>
-          <div className="v-modal stock-order-checkout-modal" onMouseDown={(e)=>e.stopPropagation()}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12 }}>
+        <div
+          className="v-modal-overlay"
+          onMouseDown={() => !placingOrder && setShowCheckout(false)}
+        >
+          <div
+            className="v-modal stock-order-checkout-modal"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
               <div>
                 <div className="v-modal-title">Checkout Supply Order</div>
-                <div className="stock-order-muted" style={{ marginTop:4 }}>{userBrand} · {userBranch}</div>
+                <div className="stock-order-muted" style={{ marginTop: 4 }}>
+                  {userBrand} · {userBranch}
+                </div>
               </div>
-              <button type="button" className="v-btn v-btn-secondary" onClick={()=>setShowCheckout(false)} disabled={placingOrder}><X size={14}/> Close</button>
+              <button
+                type="button"
+                className="v-btn v-btn-secondary"
+                onClick={() => setShowCheckout(false)}
+                disabled={placingOrder}
+              >
+                <X size={14} /> Close
+              </button>
             </div>
 
             {orderSuccess ? (
               <div className="stock-order-success">
-                <CheckCircle size={50} color={C.green}/>
-                <div style={{ marginTop:14, fontSize:20, fontWeight:900, color:C.ink }}>Order Placed</div>
-                <div className="stock-order-muted" style={{ marginTop:7 }}>Order #{orderSuccess.id} · {fmtPeso(orderSuccess.total)}</div>
-                <div style={{ marginTop:12, fontSize:11.5, color:C.muted }}>Your supply order has been submitted for processing.</div>
-                <button type="button" className="v-btn v-btn-primary" style={{ marginTop:20, minWidth:120 }} onClick={()=>{setShowCheckout(false);setOrderSuccess(null);}}>Done</button>
+                <CheckCircle size={50} color={C.green} />
+                <div
+                  style={{
+                    marginTop: 14,
+                    fontSize: 20,
+                    fontWeight: 900,
+                    color: C.ink,
+                  }}
+                >
+                  Order Placed
+                </div>
+                <div className="stock-order-muted" style={{ marginTop: 7 }}>
+                  Order #{orderSuccess.id} · {fmtPeso(orderSuccess.total)}
+                </div>
+                <div style={{ marginTop: 12, fontSize: 11.5, color: C.muted }}>
+                  Your supply order has been submitted for processing.
+                </div>
+                <button
+                  type="button"
+                  className="v-btn v-btn-primary"
+                  style={{ marginTop: 20, minWidth: 120 }}
+                  onClick={() => {
+                    setShowCheckout(false);
+                    setOrderSuccess(null);
+                  }}
+                >
+                  Done
+                </button>
               </div>
             ) : (
               <>
-                <div style={{ display:"grid", gridTemplateColumns:"1.25fr .9fr", gap:16, marginTop:18 }}>
-                  <div style={{ border:`1px solid ${C.border}`, borderRadius:14, overflow:"hidden" }}>
-                    <div style={{ padding:"10px 14px", background:C.bg, borderBottom:`1px solid ${C.border}`, fontSize:10.5, fontWeight:900, textTransform:"uppercase", letterSpacing:".06em", color:C.muted }}>Order summary</div>
-                    {checkoutItems.map((entry)=>(
-                      <div key={entry.id} style={{ padding:"12px 14px", borderBottom:`1px solid #F0F2EC`, display:"flex", justifyContent:"space-between", gap:12, alignItems:"center" }}>
-                        <div style={{ minWidth:0 }}><div style={{ fontSize:12.5, fontWeight:900, color:C.ink, overflowWrap:"anywhere" }}>{entry.name}</div><div className="stock-order-muted" style={{ marginTop:3 }}>{entry.quantity} × {fmtPeso(entry.price)} / {entry.unit || "unit"}</div></div>
-                        <strong style={{ color:C.greenDk, whiteSpace:"nowrap" }}>{fmtPeso(entry.quantity * entry.price)}</strong>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.25fr .9fr",
+                    gap: 16,
+                    marginTop: 18,
+                  }}
+                >
+                  <div
+                    style={{
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 14,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "10px 14px",
+                        background: C.bg,
+                        borderBottom: `1px solid ${C.border}`,
+                        fontSize: 10.5,
+                        fontWeight: 900,
+                        textTransform: "uppercase",
+                        letterSpacing: ".06em",
+                        color: C.muted,
+                      }}
+                    >
+                      Order summary
+                    </div>
+                    {checkoutItems.map((entry) => (
+                      <div
+                        key={entry.id}
+                        style={{
+                          padding: "12px 14px",
+                          borderBottom: `1px solid #F0F2EC`,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          alignItems: "center",
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontSize: 12.5,
+                              fontWeight: 900,
+                              color: C.ink,
+                              overflowWrap: "anywhere",
+                            }}
+                          >
+                            {entry.name}
+                          </div>
+                          <div
+                            className="stock-order-muted"
+                            style={{ marginTop: 3 }}
+                          >
+                            {entry.quantity} × {fmtPeso(entry.price)} /{" "}
+                            {entry.unit || "unit"}
+                          </div>
+                        </div>
+                        <strong
+                          style={{ color: C.greenDk, whiteSpace: "nowrap" }}
+                        >
+                          {fmtPeso(entry.quantity * entry.price)}
+                        </strong>
                       </div>
                     ))}
-                    <div style={{ padding:"12px 14px", display:"flex", justifyContent:"space-between", alignItems:"center" }}><span style={{ fontWeight:800, color:C.muted }}>Total</span><strong style={{ fontSize:19, color:C.greenDk }}>{fmtPeso(checkoutTotal)}</strong></div>
+                    <div
+                      style={{
+                        padding: "12px 14px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <span style={{ fontWeight: 800, color: C.muted }}>
+                        Total
+                      </span>
+                      <strong style={{ fontSize: 19, color: C.greenDk }}>
+                        {fmtPeso(checkoutTotal)}
+                      </strong>
+                    </div>
                   </div>
 
                   <div>
                     <div className="v-form-group">
                       <label className="v-form-label">Delivery Address</label>
-                      <textarea className="v-form-input" rows={4} value={address} onChange={(e)=>setAddress(e.target.value)} placeholder="Enter the supply delivery address" style={{ resize:"vertical" }}/>
+                      <textarea
+                        className="v-form-input"
+                        rows={4}
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        placeholder="Enter the supply delivery address"
+                        style={{ resize: "vertical" }}
+                      />
                     </div>
                     <div className="v-form-group">
                       <label className="v-form-label">Payment Method</label>
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
-                        <button type="button" className={`v-btn ${paymentMethod === "cod" ? "v-btn-primary" : "v-btn-secondary"}`} onClick={()=>setPaymentMethod("cod")}>Cash on Delivery</button>
-                        <button type="button" className={`v-btn ${paymentMethod === "gcash" ? "v-btn-primary" : "v-btn-secondary"}`} onClick={()=>setPaymentMethod("gcash")}>GCash</button>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: 7,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className={`v-btn ${paymentMethod === "cod" ? "v-btn-primary" : "v-btn-secondary"}`}
+                          onClick={() => setPaymentMethod("cod")}
+                        >
+                          Cash on Delivery
+                        </button>
+                        <button
+                          type="button"
+                          className={`v-btn ${paymentMethod === "gcash" ? "v-btn-primary" : "v-btn-secondary"}`}
+                          onClick={() => setPaymentMethod("gcash")}
+                        >
+                          GCash
+                        </button>
                       </div>
                     </div>
                     {paymentMethod === "gcash" && (
                       <div className="v-form-group">
-                        <label className="v-form-label">GCash Reference Number</label>
-                        <input className="v-form-input" value={gcashRef} onChange={(e)=>setGcashRef(e.target.value)} placeholder="Enter GCash reference number"/>
+                        <label className="v-form-label">
+                          GCash Reference Number
+                        </label>
+                        <input
+                          className="v-form-input"
+                          value={gcashRef}
+                          onChange={(e) => setGcashRef(e.target.value)}
+                          placeholder="Enter GCash reference number"
+                        />
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div style={{ marginTop:16, display:"flex", justifyContent:"flex-end", gap:8 }}>
-                  <button type="button" className="v-btn v-btn-secondary" onClick={()=>setShowCheckout(false)} disabled={placingOrder}>Back</button>
-                  <button type="button" className="v-btn v-btn-primary" style={{ minWidth:170, minHeight:44 }} onClick={submitOrder} disabled={placingOrder}>
+                <div
+                  style={{
+                    marginTop: 16,
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: 8,
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="v-btn v-btn-secondary"
+                    onClick={() => setShowCheckout(false)}
+                    disabled={placingOrder}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    className="v-btn v-btn-primary"
+                    style={{ minWidth: 170, minHeight: 44 }}
+                    onClick={submitOrder}
+                    disabled={placingOrder}
+                  >
                     {placingOrder ? "Placing Order…" : "Place Order"}
                   </button>
                 </div>

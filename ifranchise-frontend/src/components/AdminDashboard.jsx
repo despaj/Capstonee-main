@@ -32822,10 +32822,21 @@ const normalizeName = (str) =>
   (str || "").trim().toLowerCase().replace(/s$/i, "");
 
 function normalizeOrder(o) {
+  const rawSource = String(o.order_source || "")
+    .trim()
+    .toLowerCase();
+
+  const source =
+    rawSource === "mobile"
+      ? "Mobile"
+      : rawSource === "website" || rawSource === "web"
+        ? "Web"
+        : "Unknown";
+
   return {
     id: `ORD-${String(o.id).padStart(4, "0")}`,
     _dbId: o.id,
-    source: o.order_source === "website" ? "Website" : "Mobile",
+    source,
     paymentMethod: o.payment_method ?? null,
     gcashRef: o.gcash_ref ?? null,
     customer: o.user_name ?? `User #${o.user_id}`,

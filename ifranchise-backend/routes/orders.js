@@ -27,40 +27,94 @@ const FRANCHISEE_ROLES = ["Franchisee", "Manager", "Staff"];
 // Mount this router AFTER session / token verification; never trust a body user_id.
 async function websiteAccount(req, res, next) {
   try {
-    const authenticatedId = req.user?.id || req.session?.user?.id || req.session?.userId;
-    if (!authenticatedId) return res.status(401).json({ error: "Please sign in again to order supplies." });
-    const result = await pool.query("SELECT * FROM users WHERE id=$1", [authenticatedId]);
+    const authenticatedId =
+      req.user?.id || req.session?.user?.id || req.session?.userId;
+    if (!authenticatedId)
+      return res
+        .status(401)
+        .json({ error: "Please sign in again to order supplies." });
+    const result = await pool.query("SELECT * FROM users WHERE id=$1", [
+      authenticatedId,
+    ]);
     const account = result.rows[0];
-    if (!account || !["franchisee", "manager"].includes(String(account.role || "").trim().toLowerCase())) {
-      return res.status(403).json({ error: "Supply ordering is available to franchisees and managers." });
+    if (
+      !account ||
+      !["franchisee", "manager"].includes(
+        String(account.role || "")
+          .trim()
+          .toLowerCase(),
+      )
+    ) {
+      return res.status(403).json({
+        error: "Supply ordering is available to franchisees and managers.",
+      });
     }
-    if (!account.brand || !account.branch || account.branch === HEAD_OFFICE_BRANCH) {
-      return res.status(403).json({ error: "Your account must have an assigned brand and receiving branch." });
+    if (
+      !account.brand ||
+      !account.branch ||
+      account.branch === HEAD_OFFICE_BRANCH
+    ) {
+      return res.status(403).json({
+        error: "Your account must have an assigned brand and receiving branch.",
+      });
     }
     req.websiteAccount = account;
     next();
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 }
 
 function websiteUnit(value) {
-  const raw = String(value || "").trim().toLowerCase().replace(/\./g, "");
-  const aliases = { liters:"l", liter:"l", litres:"l", litre:"l", kilograms:"kg", kilogram:"kg", grams:"g", gram:"g", milliliters:"ml", milliliter:"ml", pieces:"pcs", piece:"pcs", pc:"pcs", bottles:"bottle", packs:"pack", boxes:"box", units:"unit" };
+  const raw = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\./g, "");
+  const aliases = {
+    liters: "l",
+    liter: "l",
+    litres: "l",
+    litre: "l",
+    kilograms: "kg",
+    kilogram: "kg",
+    grams: "g",
+    gram: "g",
+    milliliters: "ml",
+    milliliter: "ml",
+    pieces: "pcs",
+    piece: "pcs",
+    pc: "pcs",
+    bottles: "bottle",
+    packs: "pack",
+    boxes: "box",
+    units: "unit",
+  };
   return aliases[raw] || raw;
 }
 // Convert measured units only. Unknown package sizes must never be guessed.
 function unitFactor(from, to) {
-  const a=websiteUnit(from), b=websiteUnit(to);
-  if(!a||!b)return null;
-  if(a===b)return 1;
-  const units={l:["volume",1000],ml:["volume",1],kg:["mass",1000],g:["mass",1]};
-  return units[a]&&units[b]&&units[a][0]===units[b][0]?units[a][1]/units[b][1]:null;
+  const a = websiteUnit(from),
+    b = websiteUnit(to);
+  if (!a || !b) return null;
+  if (a === b) return 1;
+  const units = {
+    l: ["volume", 1000],
+    ml: ["volume", 1],
+    kg: ["mass", 1000],
+    g: ["mass", 1],
+  };
+  return units[a] && units[b] && units[a][0] === units[b][0]
+    ? units[a][1] / units[b][1]
+    : null;
 }
-const stockRound = value => Math.round(Number(value)*1e6)/1e6;
+const stockRound = (value) => Math.round(Number(value) * 1e6) / 1e6;
 function websitePriceCents(value) {
   const number = Number(value);
-  if (value == null || value === "" || !Number.isFinite(number) || number < 0) throw new Error("Invalid supply price.");
+  if (value == null || value === "" || !Number.isFinite(number) || number < 0)
+    throw new Error("Invalid supply price.");
   const cents = Math.round(number * 100);
-  if (!Number.isSafeInteger(cents)) throw new Error("Supply price exceeds the supported limit.");
+  if (!Number.isSafeInteger(cents))
+    throw new Error("Supply price exceeds the supported limit.");
   return cents;
 }
 const WEBSITE_SUPPLY_SQL = `SELECT si.id AS shop_item_id, si.name, si.price, si.unit,
@@ -82,154 +136,426 @@ const DIRECT_SUPPLY_SQL = `SELECT h.id AS shop_item_id, h.id AS ingredient_id,
  JOIN ingredients h ON h.id=l.source_ingredient_id
  JOIN ingredients b ON b.id=l.branch_ingredient_id
  WHERE h.branch=$1 AND LOWER(TRIM(b.brand))=LOWER(TRIM($2)) AND b.branch=$3`;
-const excludedFromWebsiteOrdering = name => String(name || "").trim().toLowerCase() === "condensed milk";
+const excludedFromWebsiteOrdering = (name) =>
+  String(name || "")
+    .trim()
+    .toLowerCase() === "condensed milk";
 function bulkSupply(row) {
- const bulk=Number(row.bulk_source_quantity);
- const conversion=Number(row.branch_units_per_source_unit);
- const validUnits=websiteUnit(row.stock_unit)===websiteUnit(row.mapped_source_unit)&&
-   websiteUnit(row.destination_unit)===websiteUnit(row.mapped_branch_unit);
- const validBulk=Number.isFinite(bulk)&&bulk>0;
- const validConversion=Number.isFinite(conversion)&&conversion>0&&validUnits;
- // Preserve configured supply selling price, divided by its configured source
- // quantity, then multiplied by the bulk size; no visible listing is required.
- const rawPrice=row.configured_source_price ?? row.cost_per_unit;
- const basePrice=Number(rawPrice);
- const validPrice=rawPrice!=null&&Number.isFinite(basePrice)&&basePrice>=0;
- return {...row,unit:`bulk (${validBulk?bulk:0} ${row.stock_unit})`,
-   price:validPrice&&validBulk?Math.round(basePrice*bulk*100)/100:null,
-   inventory_per_order_unit:bulk,orderable:validBulk&&validConversion&&validPrice,
-   unavailable_reason:!validConversion?`${row.name}: confirm how many ${row.destination_unit} are in one ${row.stock_unit} at San Juan.`:
-     !validBulk?"Set a positive bulk quantity for this item.":!validPrice?"The item needs a valid supply price.":""};
+  const bulk = Number(row.bulk_source_quantity);
+  const conversion = Number(row.branch_units_per_source_unit);
+  const validUnits =
+    websiteUnit(row.stock_unit) === websiteUnit(row.mapped_source_unit) &&
+    websiteUnit(row.destination_unit) === websiteUnit(row.mapped_branch_unit);
+  const validBulk = Number.isFinite(bulk) && bulk > 0;
+  const validConversion =
+    Number.isFinite(conversion) && conversion > 0 && validUnits;
+  // Preserve configured supply selling price, divided by its configured source
+  // quantity, then multiplied by the bulk size; no visible listing is required.
+  const rawPrice = row.configured_source_price ?? row.cost_per_unit;
+  const basePrice = Number(rawPrice);
+  const validPrice =
+    rawPrice != null && Number.isFinite(basePrice) && basePrice >= 0;
+  return {
+    ...row,
+    unit: `bulk (${validBulk ? bulk : 0} ${row.stock_unit})`,
+    price:
+      validPrice && validBulk ? Math.round(basePrice * bulk * 100) / 100 : null,
+    inventory_per_order_unit: bulk,
+    orderable: validBulk && validConversion && validPrice,
+    unavailable_reason: !validConversion
+      ? `${row.name}: confirm how many ${row.destination_unit} are in one ${row.stock_unit} at San Juan.`
+      : !validBulk
+        ? "Set a positive bulk quantity for this item."
+        : !validPrice
+          ? "The item needs a valid supply price."
+          : "",
+  };
 }
-async function assignedSupplies(db,account,sourceIds=null,lock=false){
- let sql=DIRECT_SUPPLY_SQL;const args=[HEAD_OFFICE_BRANCH,account.brand,account.branch];
- if(sourceIds){sql+=" AND h.id=ANY($4::bigint[])";args.push(sourceIds);}
- if(lock)sql+=" FOR SHARE OF h,b,l";
- const {rows}=await db.query(sql,args);
- return rows.map(bulkSupply);
+async function assignedSupplies(db, account, sourceIds = null, lock = false) {
+  let sql = DIRECT_SUPPLY_SQL;
+  const args = [HEAD_OFFICE_BRANCH, account.brand, account.branch];
+  if (sourceIds) {
+    sql += " AND h.id=ANY($4::bigint[])";
+    args.push(sourceIds);
+  }
+  if (lock) sql += " FOR SHARE OF h,b,l";
+  const { rows } = await db.query(sql, args);
+  return rows.map(bulkSupply);
 }
-router.get("/website-order-supplies",websiteAccount,async(req,res)=>{
- try{
-   const rows=await assignedSupplies(pool,req.websiteAccount);
-   const results=[];
-   for(const row of rows){
-     if(excludedFromWebsiteOrdering(row.name))continue;
-     const available=Number(await getAllocatableStock(pool,row.ingredient_id))||0;
-     results.push({...row,source_ingredient_id:row.ingredient_id,
-       stock:row.inventory_per_order_unit>0?Math.max(0,Math.floor(stockRound(available/row.inventory_per_order_unit))):0,
-       inventory_stock:available,branch_ingredient_ids:[row.destination_ingredient_id],
-       bulk_contents:`${row.inventory_per_order_unit} ${row.stock_unit}`,
-       branch_quantity_per_bulk:row.orderable?stockRound(row.inventory_per_order_unit*Number(row.branch_units_per_source_unit)):null});
-   }
-   res.json(results);
- }catch(err){console.error("Website supplies:",err);res.status(500).json({error:"Unable to load bulk supplies. Install the latest inventory mapping SQL and restart the backend."});}
+router.get("/website-order-supplies", websiteAccount, async (req, res) => {
+  try {
+    const rows = await assignedSupplies(pool, req.websiteAccount);
+    const results = [];
+    for (const row of rows) {
+      if (excludedFromWebsiteOrdering(row.name)) continue;
+      const available =
+        Number(await getAllocatableStock(pool, row.ingredient_id)) || 0;
+      results.push({
+        ...row,
+        source_ingredient_id: row.ingredient_id,
+        stock:
+          row.inventory_per_order_unit > 0
+            ? Math.max(
+                0,
+                Math.floor(
+                  stockRound(available / row.inventory_per_order_unit),
+                ),
+              )
+            : 0,
+        inventory_stock: available,
+        branch_ingredient_ids: [row.destination_ingredient_id],
+        bulk_contents: `${row.inventory_per_order_unit} ${row.stock_unit}`,
+        branch_quantity_per_bulk: row.orderable
+          ? stockRound(
+              row.inventory_per_order_unit *
+                Number(row.branch_units_per_source_unit),
+            )
+          : null,
+      });
+    }
+    res.json(results);
+  } catch (err) {
+    console.error("Website supplies:", err);
+    res.status(500).json({
+      error:
+        "Unable to load bulk supplies. Install the latest inventory mapping SQL and restart the backend.",
+    });
+  }
 });
-router.get("/website-reorder-plan",websiteAccount,async(req,res)=>{
- try{
-   const rows=await assignedSupplies(pool,req.websiteAccount);
-   res.json(rows.map(row=>{
-     const factor=Number(row.branch_units_per_source_unit);
-     const threshold=factor>0&&websiteUnit(row.stock_unit)===websiteUnit(row.mapped_source_unit)&&websiteUnit(row.destination_unit)===websiteUnit(row.mapped_branch_unit)
-       ?stockRound(Number(row.min_stock||0)*factor):null;
-     return {id:row.destination_ingredient_id,reorder_level:threshold,
-       current_stock:Number(row.branch_stock)||0,source_ingredient_id:row.ingredient_id,
-       low_stock:threshold!=null&&Number(row.branch_stock)<=threshold};
-   }));
- }catch(err){console.error("Reorder plan:",err);res.status(500).json({error:"Unable to load San Juan minimum stock."});}
+router.get("/website-reorder-plan", websiteAccount, async (req, res) => {
+  try {
+    const rows = await assignedSupplies(pool, req.websiteAccount);
+    res.json(
+      rows.map((row) => {
+        const factor = Number(row.branch_units_per_source_unit);
+        const threshold =
+          factor > 0 &&
+          websiteUnit(row.stock_unit) === websiteUnit(row.mapped_source_unit) &&
+          websiteUnit(row.destination_unit) ===
+            websiteUnit(row.mapped_branch_unit)
+            ? stockRound(Number(row.min_stock || 0) * factor)
+            : null;
+        return {
+          id: row.destination_ingredient_id,
+          reorder_level: threshold,
+          current_stock: Number(row.branch_stock) || 0,
+          source_ingredient_id: row.ingredient_id,
+          low_stock: threshold != null && Number(row.branch_stock) <= threshold,
+        };
+      }),
+    );
+  } catch (err) {
+    console.error("Reorder plan:", err);
+    res.status(500).json({ error: "Unable to load San Juan minimum stock." });
+  }
 });
-router.put("/website-reorder-plan/:id", websiteAccount, (req,res)=>
-  res.status(405).json({error:"Reorder levels follow San Juan minimum stock and cannot be edited here."}));
+router.put("/website-reorder-plan/:id", websiteAccount, (req, res) =>
+  res.status(405).json({
+    error:
+      "Reorder levels follow San Juan minimum stock and cannot be edited here.",
+  }),
+);
 
 router.get("/website-orders", websiteAccount, async (req, res) => {
   try {
-    const result = await pool.query(`SELECT o.*, u.name AS user_name,
+    const result = await pool.query(
+      `SELECT o.*, u.name AS user_name,
       COALESCE((SELECT json_agg(json_build_object('shop_item_id',oi.shop_item_id,'name',COALESCE(oi.item_name,si.name),'quantity',oi.quantity,'price',oi.price,'unit',COALESCE(oi.item_unit,si.unit)) ORDER BY oi.id)
       FROM order_items oi LEFT JOIN shop_items si ON si.id=oi.shop_item_id WHERE oi.order_id=o.id),'[]'::json) AS order_lines
       FROM orders o LEFT JOIN users u ON u.id=o.user_id
       WHERE o.branch=$1 AND LOWER(TRIM(o.brand))=LOWER(TRIM($2)) ORDER BY o.created_at DESC LIMIT 100`,
-      [req.websiteAccount.branch,req.websiteAccount.brand]);
+      [req.websiteAccount.branch, req.websiteAccount.brand],
+    );
     res.json(result.rows);
-  } catch (err) { console.error("Website order history:",err); res.status(500).json({error:"Unable to load branch orders."}); }
+  } catch (err) {
+    console.error("Website order history:", err);
+    res.status(500).json({ error: "Unable to load branch orders." });
+  }
 });
 
 router.post("/website-orders", websiteAccount, async (req, res) => {
   const account = req.websiteAccount;
-  const {items, phone, address, client_request_id} = req.body;
-  if (!Array.isArray(items) || !items.length || items.length > 100) return res.status(400).json({error:"Select between 1 and 100 supplies."});
-  if (typeof phone !== "string" || !/^[+\d\s()-]{7,25}$/.test(phone.trim()) || phone.replace(/\D/g,"").length < 7) return res.status(400).json({error:"Enter a valid contact number."});
-  if (typeof address !== "string" || address.trim().length < 5 || address.length > 1000) return res.status(400).json({error:"Enter the complete delivery address."});
-  if (typeof client_request_id !== "string" || !/^[a-zA-Z0-9-]{16,100}$/.test(client_request_id)) return res.status(400).json({error:"Invalid checkout reference. Reopen checkout and try again."});
-  const paymentMethod = req.body.payment_method == null ? "cod" : req.body.payment_method;
-  if (!["cod","gcash"].includes(paymentMethod)) return res.status(400).json({error:"Choose Cash on Delivery or GCash."});
-  const gcashRef = paymentMethod === "gcash" && typeof req.body.gcash_ref === "string" ? req.body.gcash_ref.trim() : null;
-  if (paymentMethod === "gcash" && (!gcashRef || !/^[A-Za-z0-9-]{6,100}$/.test(gcashRef))) return res.status(400).json({error:"Enter a valid GCash transfer reference."});
+  const { items, phone, address, client_request_id } = req.body;
+  if (!Array.isArray(items) || !items.length || items.length > 100)
+    return res
+      .status(400)
+      .json({ error: "Select between 1 and 100 supplies." });
+  if (
+    typeof phone !== "string" ||
+    !/^[+\d\s()-]{7,25}$/.test(phone.trim()) ||
+    phone.replace(/\D/g, "").length < 7
+  )
+    return res.status(400).json({ error: "Enter a valid contact number." });
+  if (
+    typeof address !== "string" ||
+    address.trim().length < 5 ||
+    address.length > 1000
+  )
+    return res
+      .status(400)
+      .json({ error: "Enter the complete delivery address." });
+  if (
+    typeof client_request_id !== "string" ||
+    !/^[a-zA-Z0-9-]{16,100}$/.test(client_request_id)
+  )
+    return res.status(400).json({
+      error: "Invalid checkout reference. Reopen checkout and try again.",
+    });
+  const paymentMethod =
+    req.body.payment_method == null ? "cod" : req.body.payment_method;
+  if (!["cod", "gcash"].includes(paymentMethod))
+    return res.status(400).json({ error: "Choose Cash on Delivery or GCash." });
+  const gcashRef =
+    paymentMethod === "gcash" && typeof req.body.gcash_ref === "string"
+      ? req.body.gcash_ref.trim()
+      : null;
+  if (
+    paymentMethod === "gcash" &&
+    (!gcashRef || !/^[A-Za-z0-9-]{6,100}$/.test(gcashRef))
+  )
+    return res
+      .status(400)
+      .json({ error: "Enter a valid GCash transfer reference." });
   // Client references are recorded for manual review, never treated as proof of payment.
-  const direct=items.every(item=>item.source_ingredient_id!=null);
-  if(!direct&&items.some(item=>item.source_ingredient_id!=null))return res.status(400).json({error:"Refresh your cart before checkout."});
+  const direct = items.every((item) => item.source_ingredient_id != null);
+  if (!direct && items.some((item) => item.source_ingredient_id != null))
+    return res
+      .status(400)
+      .json({ error: "Refresh your cart before checkout." });
   const quantities = new Map();
   for (const item of items) {
-    const id=String((direct?item.source_ingredient_id:item.shop_item_id) || ""); const qty=Number(item.quantity);
-    if (!/^\d+$/.test(id) || !Number.isSafeInteger(qty) || qty<1 || qty>1000000) return res.status(400).json({error:"Use a whole-number quantity between 1 and 1,000,000."});
-    quantities.set(id,(quantities.get(id)||0)+qty);
-    if(quantities.get(id)>1000000)return res.status(400).json({error:"Quantity exceeds the supported limit."});
+    const id = String(
+      (direct ? item.source_ingredient_id : item.shop_item_id) || "",
+    );
+    const qty = Number(item.quantity);
+    if (
+      !/^\d+$/.test(id) ||
+      !Number.isSafeInteger(qty) ||
+      qty < 1 ||
+      qty > 1000000
+    )
+      return res.status(400).json({
+        error: "Use a whole-number quantity between 1 and 1,000,000.",
+      });
+    quantities.set(id, (quantities.get(id) || 0) + qty);
+    if (quantities.get(id) > 1000000)
+      return res
+        .status(400)
+        .json({ error: "Quantity exceeds the supported limit." });
   }
-  const requested=[...quantities].sort((a,b)=>a[0].localeCompare(b[0]));
-  const fingerprint=require("crypto").createHash("sha256").update(JSON.stringify({items:requested,...(direct?{source:"inventory"}:{}),phone:phone.trim(),address:address.trim(),payment_method:paymentMethod,gcash_ref:gcashRef})).digest("hex");
+  const requested = [...quantities].sort((a, b) => a[0].localeCompare(b[0]));
+  const fingerprint = require("crypto")
+    .createHash("sha256")
+    .update(
+      JSON.stringify({
+        items: requested,
+        ...(direct ? { source: "inventory" } : {}),
+        phone: phone.trim(),
+        address: address.trim(),
+        payment_method: paymentMethod,
+        gcash_ref: gcashRef,
+      }),
+    )
+    .digest("hex");
   let client;
   try {
-    client=await pool.connect();
+    client = await pool.connect();
     await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))",[String(account.id),client_request_id]);
-    const existing=await client.query("SELECT * FROM orders WHERE user_id=$1 AND website_request_id=$2",[account.id,client_request_id]);
-    if(existing.rows.length){
-      const order=existing.rows[0];
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))",
+      [String(account.id), client_request_id],
+    );
+    const existing = await client.query(
+      "SELECT * FROM orders WHERE user_id=$1 AND website_request_id=$2",
+      [account.id, client_request_id],
+    );
+    if (existing.rows.length) {
+      const order = existing.rows[0];
       await client.query("ROLLBACK");
-      if(order.website_request_hash!==fingerprint)return res.status(409).json({error:"This checkout reference was already used. Start a new checkout."});
-      return res.json({success:true,order,replayed:true});
+      if (order.website_request_hash !== fingerprint)
+        return res.status(409).json({
+          error:
+            "This checkout reference was already used. Start a new checkout.",
+        });
+      return res.json({ success: true, order, replayed: true });
     }
-    if(direct&&req.body.quantity_mode!=="bulk_v1")throw Object.assign(new Error("This checkout uses the previous single-unit format. Reopen the bulk cart and review your quantities."),{status:409});
-    const supplies=direct
-      ?{rows:await assignedSupplies(client,account,requested.map(([id])=>id),true)}
-      :await client.query(WEBSITE_SUPPLY_SQL+" AND si.id=ANY($3::int[]) FOR SHARE OF si,i",[HEAD_OFFICE_BRANCH,account.brand,requested.map(([id])=>id)]);
-    const lines=[];const needed=new Map();let totalCents=0;
-    for(const [id,quantity] of requested){
-      const supply=supplies.rows.find(row=>String(row.shop_item_id)===id);
-      if(!supply)throw Object.assign(new Error("A selected San Juan item is unavailable or belongs to another brand."),{status:409});
-      if(excludedFromWebsiteOrdering(supply.name))throw Object.assign(new Error("Condensed Milk is no longer available for website ordering. Remove it from your cart."),{status:409});
-      if(direct&&supplies.rows.filter(row=>String(row.shop_item_id)===id).length!==1)
-        throw Object.assign(new Error("Multiple branch assignments match this source. Resolve the duplicate assignment before ordering."),{status:409});
-      if(direct&&!supply.orderable)throw Object.assign(new Error(supply.unavailable_reason),{status:409});
-      const factor=direct?supply.inventory_per_order_unit:unitFactor(supply.unit,supply.stock_unit);
-      if(!(factor>0))throw Object.assign(new Error("The supply quantity conversion is not configured."),{status:409});
-      const cents=websitePriceCents(supply.price);
-      const submitted=items.find(item=>String(direct?item.source_ingredient_id:item.shop_item_id)===id);
-      if(submitted.price!=null && websitePriceCents(submitted.price)!==cents)throw Object.assign(new Error(`${supply.name}: the price changed. Refresh supplies and review checkout.`),{status:409});
-      totalCents+=cents*quantity;
-      if(!Number.isSafeInteger(totalCents))throw Object.assign(new Error("Order total exceeds the supported limit."),{status:400});
-      needed.set(supply.ingredient_id,stockRound((needed.get(supply.ingredient_id)||0)+quantity*factor));
-      lines.push({shop_item_id:direct?null:id,item_name:supply.name,item_unit:supply.unit,quantity,price:cents/100,inventory_quantity:stockRound(quantity*factor),inventory_unit:supply.stock_unit,source_ingredient_id:supply.ingredient_id,destination_ingredient_id:direct?supply.destination_ingredient_id:null,destination_unit:direct?supply.destination_unit:null,branch_units_per_source_unit:direct?supply.branch_units_per_source_unit:null});
+    if (direct && req.body.quantity_mode !== "bulk_v1")
+      throw Object.assign(
+        new Error(
+          "This checkout uses the previous single-unit format. Reopen the bulk cart and review your quantities.",
+        ),
+        { status: 409 },
+      );
+    const supplies = direct
+      ? {
+          rows: await assignedSupplies(
+            client,
+            account,
+            requested.map(([id]) => id),
+            true,
+          ),
+        }
+      : await client.query(
+          WEBSITE_SUPPLY_SQL + " AND si.id=ANY($3::int[]) FOR SHARE OF si,i",
+          [HEAD_OFFICE_BRANCH, account.brand, requested.map(([id]) => id)],
+        );
+    const lines = [];
+    const needed = new Map();
+    let totalCents = 0;
+    for (const [id, quantity] of requested) {
+      const supply = supplies.rows.find(
+        (row) => String(row.shop_item_id) === id,
+      );
+      if (!supply)
+        throw Object.assign(
+          new Error(
+            "A selected San Juan item is unavailable or belongs to another brand.",
+          ),
+          { status: 409 },
+        );
+      if (excludedFromWebsiteOrdering(supply.name))
+        throw Object.assign(
+          new Error(
+            "Condensed Milk is no longer available for website ordering. Remove it from your cart.",
+          ),
+          { status: 409 },
+        );
+      if (
+        direct &&
+        supplies.rows.filter((row) => String(row.shop_item_id) === id)
+          .length !== 1
+      )
+        throw Object.assign(
+          new Error(
+            "Multiple branch assignments match this source. Resolve the duplicate assignment before ordering.",
+          ),
+          { status: 409 },
+        );
+      if (direct && !supply.orderable)
+        throw Object.assign(new Error(supply.unavailable_reason), {
+          status: 409,
+        });
+      const factor = direct
+        ? supply.inventory_per_order_unit
+        : unitFactor(supply.unit, supply.stock_unit);
+      if (!(factor > 0))
+        throw Object.assign(
+          new Error("The supply quantity conversion is not configured."),
+          { status: 409 },
+        );
+      const cents = websitePriceCents(supply.price);
+      const submitted = items.find(
+        (item) =>
+          String(direct ? item.source_ingredient_id : item.shop_item_id) === id,
+      );
+      if (
+        submitted.price != null &&
+        websitePriceCents(submitted.price) !== cents
+      )
+        throw Object.assign(
+          new Error(
+            `${supply.name}: the price changed. Refresh supplies and review checkout.`,
+          ),
+          { status: 409 },
+        );
+      totalCents += cents * quantity;
+      if (!Number.isSafeInteger(totalCents))
+        throw Object.assign(
+          new Error("Order total exceeds the supported limit."),
+          { status: 400 },
+        );
+      needed.set(
+        supply.ingredient_id,
+        stockRound((needed.get(supply.ingredient_id) || 0) + quantity * factor),
+      );
+      lines.push({
+        shop_item_id: direct ? null : id,
+        item_name: supply.name,
+        item_unit: supply.unit,
+        quantity,
+        price: cents / 100,
+        inventory_quantity: stockRound(quantity * factor),
+        inventory_unit: supply.stock_unit,
+        source_ingredient_id: supply.ingredient_id,
+        destination_ingredient_id: direct
+          ? supply.destination_ingredient_id
+          : null,
+        destination_unit: direct ? supply.destination_unit : null,
+        branch_units_per_source_unit: direct
+          ? supply.branch_units_per_source_unit
+          : null,
+      });
     }
-    for(const [id,quantity] of needed){
-      const available=await getAllocatableStock(client,id);
-      if(quantity>available)throw Object.assign(new Error("A selected quantity exceeds available Head Office stock. Refresh supplies and adjust your order."),{status:409});
+    for (const [id, quantity] of needed) {
+      const available = await getAllocatableStock(client, id);
+      if (quantity > available)
+        throw Object.assign(
+          new Error(
+            "A selected quantity exceeds available Head Office stock. Refresh supplies and adjust your order.",
+          ),
+          { status: 409 },
+        );
     }
-    const result=await client.query(`INSERT INTO orders(user_id,phone,brand,branch,total_amount,status,address,order_source,website_request_id,website_request_hash,payment_method,gcash_ref)
-      VALUES($1,$2,$3,$4,$5,'pending',$6,'website',$7,$8,$9,$10) RETURNING *`,[account.id,phone.trim(),account.brand,account.branch,totalCents/100,address.trim(),client_request_id,fingerprint,paymentMethod,gcashRef]);
-    const order=result.rows[0];
-    for(const line of lines)await client.query("INSERT INTO order_items(order_id,shop_item_id,quantity,price,inventory_quantity,inventory_unit,source_ingredient_id,item_name,item_unit,destination_ingredient_id,destination_unit,branch_units_per_source_unit) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",[order.id,line.shop_item_id,line.quantity,line.price,line.inventory_quantity,line.inventory_unit,line.source_ingredient_id,line.item_name,line.item_unit,line.destination_ingredient_id,line.destination_unit,line.branch_units_per_source_unit]);
+    const result = await client.query(
+      `INSERT INTO orders(user_id,phone,brand,branch,total_amount,status,address,order_source,website_request_id,website_request_hash,payment_method,gcash_ref)
+      VALUES($1,$2,$3,$4,$5,'pending',$6,'website',$7,$8,$9,$10) RETURNING *`,
+      [
+        account.id,
+        phone.trim(),
+        account.brand,
+        account.branch,
+        totalCents / 100,
+        address.trim(),
+        client_request_id,
+        fingerprint,
+        paymentMethod,
+        gcashRef,
+      ],
+    );
+    const order = result.rows[0];
+    for (const line of lines)
+      await client.query(
+        "INSERT INTO order_items(order_id,shop_item_id,quantity,price,inventory_quantity,inventory_unit,source_ingredient_id,item_name,item_unit,destination_ingredient_id,destination_unit,branch_units_per_source_unit) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
+        [
+          order.id,
+          line.shop_item_id,
+          line.quantity,
+          line.price,
+          line.inventory_quantity,
+          line.inventory_unit,
+          line.source_ingredient_id,
+          line.item_name,
+          line.item_unit,
+          line.destination_ingredient_id,
+          line.destination_unit,
+          line.branch_units_per_source_unit,
+        ],
+      );
     await client.query("COMMIT");
-    res.status(201).json({success:true,order});
-  }catch(err){if(client)await client.query("ROLLBACK");console.error("Website checkout:",err);res.status(err.status||500).json({error:err.status ? err.message : "Unable to place order. Retry this checkout to check whether it was saved."});}
-  finally{client?.release();}
+    res.status(201).json({ success: true, order });
+  } catch (err) {
+    if (client) await client.query("ROLLBACK");
+    console.error("Website checkout:", err);
+    res.status(err.status || 500).json({
+      error: err.status
+        ? err.message
+        : "Unable to place order. Retry this checkout to check whether it was saved.",
+    });
+  } finally {
+    client?.release();
+  }
 });
 
 // Reuse the same transfer, notification and status-transition code as mobile.
-router.put("/website-orders/:id/received", websiteAccount, (req,res) => {
-  req.body={status:"received",performed_by:req.websiteAccount.name,performed_by_role:req.websiteAccount.role};
-  req.verifiedWebsiteReceipt=true;
-  return updateOrderStatus(req,res);
+router.put("/website-orders/:id/received", websiteAccount, (req, res) => {
+  req.body = {
+    status: "received",
+    performed_by: req.websiteAccount.name,
+    performed_by_role: req.websiteAccount.role,
+  };
+  req.verifiedWebsiteReceipt = true;
+  return updateOrderStatus(req, res);
 });
-
 
 router.get("/orders", async (req, res) => {
   const { userId, branch, brand, role } = req.query;
@@ -427,8 +753,22 @@ router.get("/orders/:id", async (req, res) => {
 
 router.post("/orders", async (req, res) => {
   const client = await pool.connect();
-  const { user_id, phone, brand, branch, items, total_amount, address } =
-    req.body;
+  const {
+    user_id,
+    phone,
+    brand,
+    branch,
+    items,
+    total_amount,
+    address,
+    order_source,
+  } = req.body;
+
+  const orderSource =
+    String(order_source || "").toLowerCase() === "mobile"
+      ? "mobile"
+      : "website";
+
   if (!items || !Array.isArray(items) || items.length === 0) {
     client.release();
     return res
@@ -438,8 +778,19 @@ router.post("/orders", async (req, res) => {
   try {
     await client.query("BEGIN");
     const orderRes = await client.query(
-      `INSERT INTO orders (user_id, phone, brand, branch, total_amount, status, address) VALUES ($1,$2,$3,$4,$5,'pending',$6) RETURNING *`,
-      [user_id, phone, brand, branch, total_amount, address],
+      `INSERT INTO orders (
+    user_id,
+    phone,
+    brand,
+    branch,
+    total_amount,
+    status,
+    address,
+    order_source
+  )
+  VALUES ($1,$2,$3,$4,$5,'pending',$6,$7)
+  RETURNING *`,
+      [user_id, phone, brand, branch, total_amount, address, orderSource],
     );
     const order = orderRes.rows[0];
     for (const item of items) {
@@ -487,22 +838,56 @@ async function updateOrderStatus(req, res) {
     }
     const currentOrder = currentRes.rows[0];
     if (currentOrder.order_source === "website") {
-      const signedId=req.user?.id || req.session?.user?.id || req.session?.userId;
-      if (!signedId) { await client.query("ROLLBACK"); return res.status(401).json({error:"Sign in to update website orders."}); }
-      const verified=await client.query("SELECT * FROM users WHERE id=$1",[signedId]);
-      const actor=verified.rows[0];
-      const isHQ=["Super Admin","Franchisee Operations Admin"].includes(actor?.role);
-      const isReceiver=["Franchisee","Manager"].includes(actor?.role) && actor.branch===currentOrder.branch && String(actor.brand).trim().toLowerCase()===String(currentOrder.brand).trim().toLowerCase();
-      if ((status==="received" && !isReceiver) || (status!=="received" && !isHQ)) { await client.query("ROLLBACK"); return res.status(403).json({error:"Your account cannot perform this order action."}); }
-      performed_by=actor.name; performed_by_role=actor.role;
-      if(status==="received")req.websiteAccount=actor;
+      const signedId =
+        req.user?.id || req.session?.user?.id || req.session?.userId;
+      if (!signedId) {
+        await client.query("ROLLBACK");
+        return res
+          .status(401)
+          .json({ error: "Sign in to update website orders." });
+      }
+      const verified = await client.query("SELECT * FROM users WHERE id=$1", [
+        signedId,
+      ]);
+      const actor = verified.rows[0];
+      const isHQ = ["Super Admin", "Franchisee Operations Admin"].includes(
+        actor?.role,
+      );
+      const isReceiver =
+        ["Franchisee", "Manager"].includes(actor?.role) &&
+        actor.branch === currentOrder.branch &&
+        String(actor.brand).trim().toLowerCase() ===
+          String(currentOrder.brand).trim().toLowerCase();
+      if (
+        (status === "received" && !isReceiver) ||
+        (status !== "received" && !isHQ)
+      ) {
+        await client.query("ROLLBACK");
+        return res
+          .status(403)
+          .json({ error: "Your account cannot perform this order action." });
+      }
+      performed_by = actor.name;
+      performed_by_role = actor.role;
+      if (status === "received") req.websiteAccount = actor;
     }
     // Website receipt always comes from a verified signed-in branch account.
-    if (req.verifiedWebsiteReceipt || (currentOrder.order_source === "website" && status === "received")) {
+    if (
+      req.verifiedWebsiteReceipt ||
+      (currentOrder.order_source === "website" && status === "received")
+    ) {
       const account = req.websiteAccount;
-      if (!account || account.branch !== currentOrder.branch || String(account.brand).trim().toLowerCase() !== String(currentOrder.brand).trim().toLowerCase()) {
+      if (
+        !account ||
+        account.branch !== currentOrder.branch ||
+        String(account.brand).trim().toLowerCase() !==
+          String(currentOrder.brand).trim().toLowerCase()
+      ) {
         await client.query("ROLLBACK");
-        return res.status(403).json({error:"Sign in to the receiving branch and confirm delivery from Supply Orders."});
+        return res.status(403).json({
+          error:
+            "Sign in to the receiving branch and confirm delivery from Supply Orders.",
+        });
       }
     }
     const currentStatus = currentOrder.status;
@@ -558,15 +943,30 @@ async function updateOrderStatus(req, res) {
         });
       }
 
-      for(const row of itemsRes.rows){
-        row.requiredQuantity=Number(row.quantity);
-        if(currentOrder.order_source==="website"){
-          if(row.inventory_quantity!=null){
-            if(String(row.source_ingredient_id)!==String(row.ingredient_id)||websiteUnit(row.inventory_unit)!==websiteUnit(row.stock_unit))
-              throw Object.assign(new Error("A supply's inventory link or unit changed after checkout. Restore its original configuration before accepting."),{status:409});
-            row.requiredQuantity=Number(row.inventory_quantity);
-          }else if(websiteUnit(row.sale_unit)!==websiteUnit(row.stock_unit)){
-            throw Object.assign(new Error("This older order has no unit conversion snapshot. Reject it and ask the branch to reorder."),{status:409});
+      for (const row of itemsRes.rows) {
+        row.requiredQuantity = Number(row.quantity);
+        if (currentOrder.order_source === "website") {
+          if (row.inventory_quantity != null) {
+            if (
+              String(row.source_ingredient_id) !== String(row.ingredient_id) ||
+              websiteUnit(row.inventory_unit) !== websiteUnit(row.stock_unit)
+            )
+              throw Object.assign(
+                new Error(
+                  "A supply's inventory link or unit changed after checkout. Restore its original configuration before accepting.",
+                ),
+                { status: 409 },
+              );
+            row.requiredQuantity = Number(row.inventory_quantity);
+          } else if (
+            websiteUnit(row.sale_unit) !== websiteUnit(row.stock_unit)
+          ) {
+            throw Object.assign(
+              new Error(
+                "This older order has no unit conversion snapshot. Reject it and ask the branch to reorder.",
+              ),
+              { status: 409 },
+            );
           }
         }
       }
@@ -623,7 +1023,9 @@ async function updateOrderStatus(req, res) {
               b.exp_date,
               b.supplier,
               row.stock_unit,
-              row.destination_ingredient_id, row.destination_unit, row.branch_units_per_source_unit,
+              row.destination_ingredient_id,
+              row.destination_unit,
+              row.branch_units_per_source_unit,
             ],
           );
         }
@@ -691,16 +1093,45 @@ async function updateOrderStatus(req, res) {
       const touchedIngredientIds = new Set();
 
       // Serialize new-item creation and batch numbering across orders for one branch/brand.
-      await client.query("SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))",[String(currentOrder.brand),String(currentOrder.branch)]);
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))",
+        [String(currentOrder.brand), String(currentOrder.branch)],
+      );
       for (const t of transfersRes.rows) {
         const destRes = t.destination_ingredient_id
-          ?await client.query(`SELECT * FROM ingredients WHERE id=$1 AND branch=$2 AND LOWER(TRIM(brand))=LOWER(TRIM($3)) FOR UPDATE`,[t.destination_ingredient_id,currentOrder.branch,currentOrder.brand])
-          :await client.query(`SELECT * FROM ingredients WHERE LOWER(TRIM(name))=LOWER(TRIM($1)) AND LOWER(TRIM(brand))=LOWER(TRIM($2)) AND branch=$3 FOR UPDATE`,[t.name,t.brand,currentOrder.branch]);
-        if(t.destination_ingredient_id&&(!destRes.rows.length||websiteUnit(destRes.rows[0].unit)!==websiteUnit(t.destination_unit)))
-          throw Object.assign(new Error("The receiving inventory record or its unit changed after checkout. Restore it before confirming receipt."),{status:409});
+          ? await client.query(
+              `SELECT * FROM ingredients WHERE id=$1 AND branch=$2 AND LOWER(TRIM(brand))=LOWER(TRIM($3)) FOR UPDATE`,
+              [
+                t.destination_ingredient_id,
+                currentOrder.branch,
+                currentOrder.brand,
+              ],
+            )
+          : await client.query(
+              `SELECT * FROM ingredients WHERE LOWER(TRIM(name))=LOWER(TRIM($1)) AND LOWER(TRIM(brand))=LOWER(TRIM($2)) AND branch=$3 FOR UPDATE`,
+              [t.name, t.brand, currentOrder.branch],
+            );
+        if (
+          t.destination_ingredient_id &&
+          (!destRes.rows.length ||
+            websiteUnit(destRes.rows[0].unit) !==
+              websiteUnit(t.destination_unit))
+        )
+          throw Object.assign(
+            new Error(
+              "The receiving inventory record or its unit changed after checkout. Restore it before confirming receipt.",
+            ),
+            { status: 409 },
+          );
         let dest;
         if (destRes.rows.length > 0) {
-          if(destRes.rows.length!==1)throw Object.assign(new Error("Multiple destination items match this supply. Resolve the duplicate inventory records before receipt."),{status:409});
+          if (destRes.rows.length !== 1)
+            throw Object.assign(
+              new Error(
+                "Multiple destination items match this supply. Resolve the duplicate inventory records before receipt.",
+              ),
+              { status: 409 },
+            );
           dest = destRes.rows[0];
         } else {
           const created = await client.query(
@@ -718,10 +1149,20 @@ async function updateOrderStatus(req, res) {
           dest = created.rows[0];
         }
 
-        const destinationFactor=t.destination_ingredient_id?Number(t.branch_units_per_source_unit):unitFactor(t.unit,dest.unit);
-        if(!(destinationFactor>0))throw Object.assign(new Error("The receiving item's unit is incompatible with the source batch. Correct its unit before confirming receipt."),{status:409});
-        const receivedQuantity=stockRound(Number(t.quantity)*destinationFactor);
-        const receivedCost=Number(t.cost_per_unit)/destinationFactor;
+        const destinationFactor = t.destination_ingredient_id
+          ? Number(t.branch_units_per_source_unit)
+          : unitFactor(t.unit, dest.unit);
+        if (!(destinationFactor > 0))
+          throw Object.assign(
+            new Error(
+              "The receiving item's unit is incompatible with the source batch. Correct its unit before confirming receipt.",
+            ),
+            { status: 409 },
+          );
+        const receivedQuantity = stockRound(
+          Number(t.quantity) * destinationFactor,
+        );
+        const receivedCost = Number(t.cost_per_unit) / destinationFactor;
         const countRes = await client.query(
           `SELECT
             (SELECT COUNT(*) FROM ingredient_batches WHERE ingredient_id=$1) +
@@ -824,27 +1265,33 @@ async function updateOrderStatus(req, res) {
     await client.query("COMMIT");
 
     try {
-    if (order?.user_id) {
-      const userRow = await pool.query(
-        "SELECT push_token FROM users WHERE id=$1",
-        [order.user_id],
-      );
-      const token = userRow.rows[0]?.push_token;
-      if (token)
-        await sendPushNotification(
-          token,
-          statusLabels[status] || "Order Update",
-          `Your order #${req.params.id} is now ${status}.`,
+      if (order?.user_id) {
+        const userRow = await pool.query(
+          "SELECT push_token FROM users WHERE id=$1",
+          [order.user_id],
         );
+        const token = userRow.rows[0]?.push_token;
+        if (token)
+          await sendPushNotification(
+            token,
+            statusLabels[status] || "Order Update",
+            `Your order #${req.params.id} is now ${status}.`,
+          );
+      }
+    } catch (notificationError) {
+      console.error(
+        "Order saved; push notification failed:",
+        notificationError,
+      );
     }
-
-    } catch (notificationError) { console.error("Order saved; push notification failed:", notificationError); }
 
     res.json({ success: true, order });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PUT /orders/:id error:", err);
-    res.status(err.status||500).json({ error: err.status?err.message:"Failed to update order status" });
+    res.status(err.status || 500).json({
+      error: err.status ? err.message : "Failed to update order status",
+    });
   } finally {
     client.release();
   }
@@ -893,4 +1340,3 @@ router.get("/orders-activity-log", async (req, res) => {
 });
 
 module.exports = router;
-
