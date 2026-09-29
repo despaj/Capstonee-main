@@ -13,6 +13,7 @@ import franchisync from "../assets/franchisyncjpg.jpg";
 import jsPDF from "jspdf";
 import MenuInventoryContent from "./MenuInventoryContent";
 import StockInventoryContent from "./StockInventoryContent";
+import { FACommunicationContent } from "./FranchiseAdminDashboard";
 import html2canvas from "html2canvas";
 import logoIfranchise from "../assets/report/ifranchise-logo.png";
 import logoSync from "../assets/report/franchsync-logo.png";
@@ -327,6 +328,17 @@ const ADMIN_CSS = `
     justify-content: space-between;
     padding: 16px 30px;
   }
+.sa-root .fa-communications {
+  --announcement-sticky-top: 72px;
+}
+
+.sa-root .fa-communications .fa-communication-toolbar,
+.sa-root .fa-communications .fa-announcement-toolbar {
+  position: sticky !important;
+  top: 72px !important;
+  z-index: 90 !important;
+}
+
   .sa-topbar-title { font-family:'Plus Jakarta Sans',sans-serif; color:#12241B; font-size: 22px; font-weight: 800; }
   .sa-avatar {
     background:#12241B; color:#b3a941; box-shadow:none; border-radius:12px;
@@ -544,6 +556,13 @@ const ADMIN_UI_PARITY_CSS = (sidebarCollapsed) => `
     padding:20px 30px 40px !important;
     box-sizing:border-box;
   }
+
+    /* Announcements must sit directly under the sticky Sales Admin topbar */
+.sa-content.sa-content-announcements {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
 
   /* Same shared control treatment used by AdminDashboard. */
   body.fr-admin-ui, body.fr-admin-ui *, body.fr-admin-ui *::before, body.fr-admin-ui *::after {
@@ -952,7 +971,7 @@ export default function SalesAdmin({ user, onLogout }) {
     {
       id: "stockInventory",
       label: "Stock Inventory",
-      icon: <Layers size={20} />,
+      icon: <Store size={20} />,
       section: "main",
     },
     {
@@ -965,6 +984,12 @@ export default function SalesAdmin({ user, onLogout }) {
       id: "mobileShop",
       label: "Mobile Shop Supplies",
       icon: <ShoppingCart size={20} />,
+      section: "main",
+    },
+    {
+      id: "communication",
+      label: "Announcements",
+      icon: <Megaphone size={20} />,
       section: "main",
     },
     {
@@ -1163,7 +1188,7 @@ export default function SalesAdmin({ user, onLogout }) {
       </aside>
 
       <main className="sa-main">
-        <div className="sa-topbar">
+        <div id="sales-admin-topbar" className="sa-topbar">
           <div>
             <h1 className="sa-topbar-title">{moduleLabel}</h1>
           </div>
@@ -1178,7 +1203,11 @@ export default function SalesAdmin({ user, onLogout }) {
           </div>
         </div>
 
-        <div className="sa-content">
+        <div
+          className={`sa-content ${
+            activeModule === "communication" ? "sa-content-announcements" : ""
+          }`}
+        >
           {activeModule === "dashboard" && (
             <SalesDashboardContent
               transactions={transactions}
@@ -1197,6 +1226,9 @@ export default function SalesAdmin({ user, onLogout }) {
           {activeModule === "reports" && (
             <SalesReportsContent user={user} brands={brands} />
           )}
+
+          {activeModule === "communication" && <SalesCommunicationContent />}
+
           {activeModule === "profile" && <SalesProfileContent user={user} />}
         </div>
       </main>
@@ -17902,6 +17934,94 @@ function Chip({ label, color, bg, onRemove }) {
         onClick={onRemove}
       />
     </span>
+  );
+}
+
+function SalesCommunicationContent({ user, brands = [] }) {
+  return (
+    <div className="sales-announcement-wrapper">
+      <style>{`
+        .sales-announcement-wrapper {
+          width: 100%;
+          min-width: 0;
+        }
+
+        .sales-announcement-wrapper .fa-communications-readonly {
+          width: 100% !important;
+        }
+
+        .sales-announcement-wrapper
+        .fa-communications-readonly
+        .fa-compact-toolbar {
+          position: sticky !important;
+          top: 72px !important;
+          z-index: 99 !important;
+
+          height: 48px !important;
+          min-height: 48px !important;
+          padding: 7px 20px !important;
+          margin: 0 !important;
+
+          align-items: center !important;
+          flex-wrap: nowrap !important;
+          box-sizing: border-box !important;
+          background: #fff !important;
+        }
+
+        .sales-announcement-wrapper
+        .fa-communications-readonly
+        button.comm-tab {
+          height: 30px !important;
+          min-height: 30px !important;
+          width: auto !important;
+          min-width: 0 !important;
+          padding: 0 14px !important;
+          font-size: 11px !important;
+          line-height: 1 !important;
+          gap: 5px !important;
+          border-radius: 18px !important;
+          box-sizing: border-box !important;
+        }
+
+        .sales-announcement-wrapper
+        .fa-communications-readonly
+        button.comm-tab span {
+          font-size: 10px !important;
+          line-height: 1 !important;
+        }
+
+        .sales-announcement-wrapper
+        .fa-communications-readonly
+        .fa-toolbar-actions {
+          margin-left: auto !important;
+          gap: 6px !important;
+          align-items: center !important;
+        }
+
+        .sales-announcement-wrapper
+        .fa-communications-readonly
+        .fa-toolbar-actions button {
+          width: 36px !important;
+          min-width: 36px !important;
+          height: 30px !important;
+          min-height: 30px !important;
+          padding: 0 !important;
+          border-radius: 8px !important;
+          display: grid !important;
+          place-items: center !important;
+          box-sizing: border-box !important;
+        }
+
+        .sales-announcement-wrapper
+        .fa-communications-readonly
+        .fa-toolbar-actions button svg {
+          width: 14px !important;
+          height: 14px !important;
+        }
+      `}</style>
+
+      <FACommunicationContent user={user} brands={brands} readOnly />
+    </div>
   );
 }
 

@@ -1087,15 +1087,16 @@ export default function FranchiseeDashboard({
 
   const navigation = [
     { id: "dashboard", label: "Dashboard", icon: <Home size={20} /> },
+    { id: "reports", label: "Sales & Reports", icon: <BarChart2 size={20} /> },
+    {
+      id: "stockInventory",
+      label: "Stock Inventory",
+      icon: <Store size={20} />,
+    },
     {
       id: "menuInventory",
       label: "Product Catalogue",
       icon: <Box size={20} />,
-    },
-    {
-      id: "stockInventory",
-      label: "Stock Inventory",
-      icon: <Layers size={20} />,
     },
     {
       id: "pos",
@@ -1103,7 +1104,6 @@ export default function FranchiseeDashboard({
       icon: <ShoppingCart size={20} />,
     },
     // { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
-    { id: "reports", label: "Sales & Reports", icon: <BarChart2 size={20} /> },
     { id: "staff", label: "Staff Management", icon: <Users size={20} /> },
     {
       id: "communication",

@@ -1296,15 +1296,15 @@ export default function FranchiseAdminDashboard({ user, onLogout }) {
       section: "main",
     },
     {
-      id: "inventory",
-      label: "Product Catalogue",
-      icon: <Box size={20} />,
+      id: "stockInventory",
+      label: "Stock Inventory",
+      icon: <Store size={20} />,
       section: "main",
     },
     {
-      id: "stockInventory",
-      label: "Stock Inventory",
-      icon: <Layers size={20} />,
+      id: "inventory",
+      label: "Product Catalogue",
+      icon: <Box size={20} />,
       section: "main",
     },
     {
