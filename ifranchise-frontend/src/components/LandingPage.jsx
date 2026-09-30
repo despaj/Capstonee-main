@@ -949,7 +949,7 @@ export default function LandingPage() {
                 <span className="trust-dot" />
                 <span className="trust-dot" />
               </div>
-              <span className="hero-trust-text"><b>400+</b> franchises already onboard</span>
+              <span className="hero-trust-text"><b>40+</b> franchises already onboard</span>
             </div>
           </div>
 

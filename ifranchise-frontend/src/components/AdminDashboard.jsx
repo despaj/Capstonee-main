@@ -564,7 +564,65 @@ const TrashIcon = ({ size = 14, ...p }) => (
     <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
   </svg>
 );
+const InventoryIcon = ({ size = 24, active = false }) => {
+  const color = active ? "#3B791E" : "#6F7B72";
 
+  return (
+    <svg
+      width={size * 1.15}
+      height={size}
+      viewBox="0 0 48 42"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* TOP DRAWER */}
+      <path
+        d="
+          M7 17
+          V10
+          C7 7.8 8.8 6 11 6
+          H37
+          C39.2 6 41 7.8 41 10
+          V17
+          H28
+          C27.2 17 26.7 17.5 26.5 18.2
+          C25.9 20.5 24.6 22 24 22
+          C23.4 22 22.1 20.5 21.5 18.2
+          C21.3 17.5 20.8 17 20 17
+          H7
+          Z
+        "
+        fill={active ? color : "none"}
+        stroke={color}
+        strokeWidth="2.8"
+        strokeLinejoin="round"
+      />
+
+      {/* BOTTOM DRAWER */}
+      <path
+        d="
+          M7 18
+          V33
+          C7 35.2 8.8 37 11 37
+          H37
+          C39.2 37 41 35.2 41 33
+          V18
+          H28
+          C27.2 18 26.7 18.5 26.5 19.2
+          C25.9 21.5 24.6 23 24 23
+          C23.4 23 22.1 21.5 21.5 19.2
+          C21.3 18.5 20.8 18 20 18
+          H7
+          Z
+        "
+        fill={active ? color : "none"}
+        stroke={color}
+        strokeWidth="2.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+};
 const ActivityIcon = ({ size = 14 }) => (
   <svg
     width={size}
@@ -2138,16 +2196,16 @@ export default function AdminDashboard({ user, onLogout }) {
       icon: <BarChart2 size={20} />,
       section: "main",
     },
-    {
-      id: "stockInventory",
-      label: "Stock Inventory",
-      icon: <Store size={20} />,
-      section: "main",
-    },
+{
+  id: "stockInventory",
+  label: "Stock Inventory",
+  icon: <InventoryIcon size={22} active={activeModule === "stockInventory"} />,
+  section: "main",
+},
     {
       id: "inventory",
       label: "Product Catalogue",
-      icon: <Box size={20} />,
+      icon: <Package size={20} />,
       section: "main",
     },
     {

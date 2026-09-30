@@ -1,4 +1,4 @@
-// UI/UX and dashboard behavior copied from the Franchisee dashboard; manager permissions and the existing StockInventoryContent callbacks are preserved.
+// Manager Dashboard with the latest Franchisee Stock Inventory; inventory and batch Edit/Delete controls are omitted.
 
 import React, {
   useState,
@@ -627,22 +627,6 @@ const fmtPeso = (n) =>
 
 const fmtReportId = (id) => `REP-${String(id).padStart(5, "0")}`;
 
-const UNITS = [
-  "pcs",
-  "kg",
-  "g",
-  "liters",
-  "ml",
-  "tbsp",
-  "tsp",
-  "cups",
-  "bottles",
-  "packs",
-  "bags",
-  "boxes",
-  "cans",
-];
-
 const bmInput = {
   width: "100%",
   padding: "9px 12px",
@@ -664,50 +648,6 @@ const bmLabel = {
   textTransform: "uppercase",
   letterSpacing: "0.07em",
 };
-
-const BRAND_EXTRA_FIELDS = {
-  iPharma: [
-    { key: "batch_number", label: "Batch No.", type: "text", width: 110 },
-    { key: "mfg_date", label: "Mfg Date", type: "date", width: 110 },
-    { key: "exp_date", label: "Exp Date", type: "date", width: 110 },
-    { key: "supply_date", label: "Supply Date", type: "date", width: 110 },
-  ],
-  "Coffee Spot": [
-    { key: "batch_number", label: "Batch No.", type: "text", width: 110 },
-    { key: "mfg_date", label: "Mfg Date", type: "date", width: 110 },
-    { key: "exp_date", label: "Exp Date", type: "date", width: 110 },
-    { key: "supply_date", label: "Supply Date", type: "date", width: 110 },
-    { key: "perishable", label: "Perishable", type: "yesno", width: 100 },
-  ],
-  "Food Caravan": [
-    { key: "batch_number", label: "Batch No.", type: "text", width: 110 },
-    { key: "mfg_date", label: "Mfg Date", type: "date", width: 110 },
-    { key: "exp_date", label: "Exp Date", type: "date", width: 110 },
-    { key: "supply_date", label: "Supply Date", type: "date", width: 110 },
-    { key: "perishable", label: "Perishable", type: "yesno", width: 100 },
-  ],
-  iFuel: [
-    { key: "fuel_type", label: "Type", type: "text", width: 100 },
-    { key: "tank_number", label: "Tank No.", type: "text", width: 90 },
-    { key: "exp_date", label: "Exp Date", type: "date", width: 110 },
-    { key: "supply_date", label: "Supply Date", type: "date", width: 110 },
-    {
-      key: "gallons_delivered",
-      label: "Gals Delivered",
-      type: "number",
-      width: 120,
-    },
-  ],
-};
-
-function getExtraFields(brandName) {
-  if (!brandName) return [];
-  for (const key of Object.keys(BRAND_EXTRA_FIELDS)) {
-    if (brandName.trim().toLowerCase() === key.toLowerCase())
-      return BRAND_EXTRA_FIELDS[key];
-  }
-  return [];
-}
 
 function ExtraFieldCell({ field, value }) {
   if (field.type === "yesno") {
@@ -8917,18 +8857,1742 @@ function ManagerFrFifoQueue({ product, batches, loading, lowStock = false }) {
   );
 }
 
-function ManagerStockInventoryContent({ user, brands }) {
-  const [editingItem, setEditingItem] = useState(null);
-  const [editForm, setEditForm] = useState({
-    min_stock: "",
+// Stock Inventory copied from the latest Franchisee code, without inventory or batch Edit/Delete controls.
+const MSI_fmtPeso = (n) =>
+  "₱" +
+  Number(n || 0).toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
-  const [savingEdit, setSavingEdit] = useState(false);
 
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deletingItem, setDeletingItem] = useState(false);
+const MSI_fmtTs = (d) =>
+  new Date(d).toLocaleString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Manila",
+  });
+
+const MSI_UNITS = [
+  "pcs",
+  "kg",
+  "g",
+  "liters",
+  "ml",
+  "tbsp",
+  "tsp",
+  "cups",
+  "bottles",
+  "packs",
+  "bags",
+  "boxes",
+  "cans",
+];
+
+const MSI_BRAND_EXTRA_FIELDS = {
+  iPharma: [
+    { key: "batch_number", label: "Batch No.", type: "text", width: 110 },
+    { key: "mfg_date", label: "Mfg Date", type: "date", width: 110 },
+    { key: "exp_date", label: "Exp Date", type: "date", width: 110 },
+    { key: "supply_date", label: "Supply Date", type: "date", width: 110 },
+  ],
+  "Coffee Spot": [
+    { key: "batch_number", label: "Batch No.", type: "text", width: 110 },
+    { key: "mfg_date", label: "Mfg Date", type: "date", width: 110 },
+    { key: "exp_date", label: "Exp Date", type: "date", width: 110 },
+    { key: "supply_date", label: "Supply Date", type: "date", width: 110 },
+    { key: "perishable", label: "Perishable", type: "yesno", width: 100 },
+  ],
+  "Food Caravan": [
+    { key: "batch_number", label: "Batch No.", type: "text", width: 110 },
+    { key: "mfg_date", label: "Mfg Date", type: "date", width: 110 },
+    { key: "exp_date", label: "Exp Date", type: "date", width: 110 },
+    { key: "supply_date", label: "Supply Date", type: "date", width: 110 },
+    { key: "perishable", label: "Perishable", type: "yesno", width: 100 },
+  ],
+  iFuel: [
+    { key: "fuel_type", label: "Type", type: "text", width: 100 },
+    { key: "tank_number", label: "Tank No.", type: "text", width: 90 },
+    { key: "exp_date", label: "Exp Date", type: "date", width: 110 },
+    { key: "supply_date", label: "Supply Date", type: "date", width: 110 },
+    {
+      key: "gallons_delivered",
+      label: "Gals Delivered",
+      type: "number",
+      width: 120,
+    },
+  ],
+};
+
+function MSI_getExtraFields(brandName) {
+  if (!brandName) return [];
+  for (const key of Object.keys(MSI_BRAND_EXTRA_FIELDS)) {
+    if (brandName.trim().toLowerCase() === key.toLowerCase())
+      return MSI_BRAND_EXTRA_FIELDS[key];
+  }
+  return [];
+}
+
+const MSI_normalizeListResponse = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return [];
+  const candidates = [
+    payload.items,
+    payload.ingredients,
+    payload.inventory,
+    payload.results,
+    payload.rows,
+    payload.data,
+    payload.data?.items,
+    payload.data?.ingredients,
+    payload.data?.inventory,
+    payload.data?.results,
+    payload.data?.rows,
+  ];
+  const found = candidates.find(Array.isArray);
+  return found || [];
+};
+
+const MSI_C = {
+  green: "#3b791e",
+  greenDk: "#2c5c16",
+  greenLt: "#f0f5e8",
+  greenMid: "#c9dba0",
+  teal: "#509820",
+  lime: "#bdd43c",
+  limeInk: "#24310C",
+  ink: "#12241B",
+  muted: "#5C6B60",
+  border: "#E1E6D8",
+  bg: "#F6F7F1",
+  white: "#ffffff",
+  warn: "#b45309",
+  warnBg: "#fff7ed",
+  ok: "#2c5c16",
+  okBg: "#f0f5e8",
+  red: "#c0392b",
+  redBg: "#fdf1f0",
+  amberBg: "#fffbeb",
+  amberBorder: "#fde68a",
+};
+
+const MSI_invInputSt = {
+  height: 38,
+  padding: "0 13px",
+  borderRadius: 11,
+  border: `1.5px solid ${MSI_C.border}`,
+  background: MSI_C.white,
+  fontSize: 13,
+  color: MSI_C.ink,
+  outline: "none",
+  fontFamily: "inherit",
+  boxSizing: "border-box",
+  width: "100%",
+};
+
+const MSI_EXPIRY_WARN_DAYS = 30;
+
+const MSI_SearchIcon = ({ size = 14 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="11" cy="11" r="8" />
+    <path d="m21 21-4.35-4.35" />
+  </svg>
+);
+
+const MSI_XIcon = ({ size = 14 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+const MSI_StoreIcon = ({ size = 14, color = "currentColor" }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    <polyline points="9 22 9 12 15 12 15 22" />
+  </svg>
+);
+
+const MSI_FR_UNIT_NAMES = {
+  tbsp: ["Tablespoon", "Tablespoons"],
+  tablespoon: ["Tablespoon", "Tablespoons"],
+  tablespoons: ["Tablespoon", "Tablespoons"],
+  tsp: ["Teaspoon", "Teaspoons"],
+  teaspoon: ["Teaspoon", "Teaspoons"],
+  teaspoons: ["Teaspoon", "Teaspoons"],
+  cup: ["Cup", "Cups"],
+  cups: ["Cup", "Cups"],
+  l: ["Liter", "Liters"],
+  liter: ["Liter", "Liters"],
+  liters: ["Liter", "Liters"],
+  litre: ["Liter", "Liters"],
+  litres: ["Liter", "Liters"],
+  ml: ["Milliliter", "Milliliters"],
+  milliliter: ["Milliliter", "Milliliters"],
+  milliliters: ["Milliliter", "Milliliters"],
+  kg: ["Kilogram", "Kilograms"],
+  kilogram: ["Kilogram", "Kilograms"],
+  kilograms: ["Kilogram", "Kilograms"],
+  g: ["Gram", "Grams"],
+  gram: ["Gram", "Grams"],
+  grams: ["Gram", "Grams"],
+  mg: ["Milligram", "Milligrams"],
+  milligram: ["Milligram", "Milligrams"],
+  milligrams: ["Milligram", "Milligrams"],
+  pc: ["Piece", "Pieces"],
+  pcs: ["Piece", "Pieces"],
+  piece: ["Piece", "Pieces"],
+  pieces: ["Piece", "Pieces"],
+  unit: ["Unit", "Units"],
+  units: ["Unit", "Units"],
+  bottle: ["Bottle", "Bottles"],
+  bottles: ["Bottle", "Bottles"],
+  btl: ["Bottle", "Bottles"],
+  btls: ["Bottle", "Bottles"],
+  box: ["Box", "Boxes"],
+  boxes: ["Box", "Boxes"],
+  pack: ["Pack", "Packs"],
+  packs: ["Pack", "Packs"],
+  pkt: ["Packet", "Packets"],
+  tablet: ["Tablet", "Tablets"],
+  tablets: ["Tablet", "Tablets"],
+  tab: ["Tablet", "Tablets"],
+  tabs: ["Tablet", "Tablets"],
+  capsule: ["Capsule", "Capsules"],
+  capsules: ["Capsule", "Capsules"],
+  cap: ["Capsule", "Capsules"],
+  caps: ["Capsule", "Capsules"],
+  gal: ["Gallon", "Gallons"],
+  gallon: ["Gallon", "Gallons"],
+  gallons: ["Gallon", "Gallons"],
+  oz: ["Ounce", "Ounces"],
+  lb: ["Pound", "Pounds"],
+  lbs: ["Pound", "Pounds"],
+  sachet: ["Sachet", "Sachets"],
+  sachets: ["Sachet", "Sachets"],
+  bag: ["Bag", "Bags"],
+  bags: ["Bag", "Bags"],
+  can: ["Can", "Cans"],
+  cans: ["Can", "Cans"],
+  roll: ["Roll", "Rolls"],
+  rolls: ["Roll", "Rolls"],
+};
+
+function MSI_frFullUnit(unit, quantity = 2) {
+  const raw = String(unit || "Units").trim();
+  const names = MSI_FR_UNIT_NAMES[raw.toLowerCase().replace(/\./g, "")];
+  return names ? names[Math.abs(Number(quantity)) === 1 ? 0 : 1] : raw;
+}
+
+function MSI_frStockQuantity(value, unit) {
+  if (value == null || value === "" || !Number.isFinite(Number(value)))
+    return "—";
+  const whole = Math.round(Number(value));
+  return `${whole.toLocaleString("en-PH", { maximumFractionDigits: 0 })} ${MSI_frFullUnit(unit, whole)}`;
+}
+
+const MSI_THREE_YEARS_MS = 3 * 365.25 * 24 * 60 * 60 * 1000;
+
+function MSI_computeExpiryStatus(exp_date, brand) {
+  if (!exp_date) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const exp = new Date(exp_date);
+  const msLeft = exp - now;
+  const isIPharma = (brand || "").toLowerCase().includes("ipharma");
+  if (isIPharma) {
+    if (msLeft < MSI_THREE_YEARS_MS) return "expired";
+    if (msLeft < MSI_THREE_YEARS_MS + 7 * 86400000) return "critical";
+    if (msLeft < MSI_THREE_YEARS_MS + 30 * 86400000) return "warning";
+    return "ok";
+  }
+  if (msLeft < 0) return "expired";
+  if (msLeft < 7 * 86400000) return "critical";
+  if (msLeft < 30 * 86400000) return "warning";
+  return "ok";
+}
+
+function MSI_getFifoMethod(brand, isPerishable) {
+  const isPharma = (brand || "").toLowerCase().includes("ipharma");
+  if (isPharma || isPerishable) {
+    return {
+      method: "FEFO",
+      topLabel: "NEXT OUT (FEFO)",
+      queueLabel: isPharma
+        ? "nearest expiry dispensed first — FDA compliance & patient safety"
+        : "nearest expiry dispensed first — reduce spoilage waste",
+    };
+  }
+  return {
+    method: "FIFO",
+    topLabel: "NEXT OUT",
+    queueLabel: "oldest received batch used first",
+  };
+}
+
+function MSI_sortBatchesByMethod(batches, brand, isPerishable) {
+  const { method } = MSI_getFifoMethod(brand, isPerishable);
+  return [...batches].sort((a, b) => {
+    if (method === "FEFO") {
+      const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
+      const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
+      return da - db;
+    }
+    const da = new Date(
+      a.supply_date || a.mfg_date || a.created_at || 0,
+    ).getTime();
+    const db = new Date(
+      b.supply_date || b.mfg_date || b.created_at || 0,
+    ).getTime();
+    return da - db;
+  });
+}
+
+function MSI_daysRemaining(exp_date) {
+  if (!exp_date) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const exp = new Date(exp_date);
+  return Math.round((exp - now) / 86400000);
+}
+
+function MSI_isPharmaBrand(brand) {
+  return (brand || "").toLowerCase().includes("ipharma");
+}
+
+function MSI_isFuelBrand(brand) {
+  return (brand || "").toLowerCase().includes("ifuel");
+}
+
+const MSI_FR_EXPIRY_STYLE = {
+  expired: {
+    border: "#fecaca",
+    badgeText: "#991b1b",
+    label: "EXPIRED",
+    dot: "#dc2626",
+  },
+  critical: {
+    border: "#fed7aa",
+    badgeText: "#9a3412",
+    label: "CRITICAL",
+    dot: "#ea580c",
+  },
+  warning: {
+    border: "#fef08a",
+    badgeText: "#854d0e",
+    label: "EXPIRING",
+    dot: "#ca8a04",
+  },
+  ok: {
+    border: MSI_C.greenMid,
+    badgeText: null,
+    label: null,
+    dot: MSI_C.green,
+  },
+};
+
+function MSI_fmtFrDate(d) {
+  return d
+    ? new Date(d).toLocaleDateString("en-PH", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "Asia/Manila",
+      })
+    : "—";
+}
+
+function MSI_fmtFrTs(d) {
+  return new Date(d).toLocaleString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Manila",
+  });
+}
+
+function MSI_FrMiniBar({ pct, color, track = "#eef6f1", height = 6 }) {
+  const w = Math.max(0, Math.min(100, pct ?? 0));
+  return (
+    <div
+      style={{
+        background: track,
+        borderRadius: 20,
+        height,
+        overflow: "hidden",
+        width: "100%",
+      }}
+    >
+      <div
+        style={{
+          width: `${w}%`,
+          height: "100%",
+          background: color,
+          borderRadius: 20,
+          transition: "width .3s ease",
+        }}
+      />
+    </div>
+  );
+}
+
+function MSI_FrFifoQueue({
+  product,
+  batches,
+  loading,
+  lowStock = false,
+
+  onViewHistory,
+}) {
+  if (!product) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+          minHeight: 300,
+          color: MSI_C.muted,
+          fontSize: 12.5,
+          textAlign: "center",
+          padding: 20,
+        }}
+      >
+        <div>
+          Select a product on the left
+          <br />
+          to view its consumption queue.
+        </div>
+      </div>
+    );
+  }
+
+  const fifo = MSI_getFifoMethod(product.brand, product.perishable);
+  const sorted = MSI_sortBatchesByMethod(
+    batches,
+    product.brand,
+    product.perishable,
+  );
+  const totalStock = sorted.reduce((s, b) => s + Number(b.stock || 0), 0);
+
+  return (
+    <div
+      className="fr-inventory-detail-content"
+      style={{ display: "flex", flexDirection: "column", height: "100%" }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          marginBottom: 10,
+          gap: 8,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 800,
+              color: MSI_C.ink,
+              fontFamily: "monospace",
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              overflow: "hidden",
+            }}
+          >
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {product.sku || "—"}
+            </span>
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: MSI_C.muted,
+              marginTop: 2,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: MSI_C.ink }}>
+              {product.name}
+            </span>
+            <span style={{ opacity: 0.45 }}>•</span>
+            <span>
+              {MSI_frStockQuantity(totalStock, product.unit)} · {sorted.length}{" "}
+              active batch{sorted.length === 1 ? "" : "es"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "6px 10px",
+          borderRadius: 8,
+          background: fifo.method === "FEFO" ? MSI_C.amberBg : MSI_C.greenLt,
+          border: `1px solid ${fifo.method === "FEFO" ? MSI_C.amberBorder : MSI_C.greenMid}`,
+          fontSize: 10.5,
+          color: fifo.method === "FEFO" ? "#9a3412" : MSI_C.greenDk,
+          fontWeight: 700,
+          marginBottom: 10,
+        }}
+      >
+        <span>{fifo.method} QUEUE</span>
+        <span style={{ fontWeight: 500, opacity: 0.85 }}>
+          — {fifo.queueLabel}
+        </span>
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          paddingRight: 2,
+          minHeight: 0,
+        }}
+      >
+        {loading ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "30px 0",
+              color: MSI_C.muted,
+              fontSize: 12,
+            }}
+          >
+            Loading queue…
+          </div>
+        ) : sorted.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "30px 0",
+              color: MSI_C.muted,
+              fontSize: 12,
+              fontStyle: "italic",
+            }}
+          >
+            No batches yet for this product.
+          </div>
+        ) : (
+          sorted.map((b, idx) => {
+            const status = MSI_computeExpiryStatus(b.exp_date, product.brand);
+            const ss = MSI_FR_EXPIRY_STYLE[status] || MSI_FR_EXPIRY_STYLE.ok;
+            const isFirst = idx === 0;
+            const isLast = idx === sorted.length - 1;
+            const supplyStr = b.supply_date ? MSI_fmtFrTs(b.supply_date) : "—";
+            const expStr = MSI_fmtFrDate(b.exp_date);
+            const dRem = MSI_daysRemaining(b.exp_date);
+            const stockPct =
+              totalStock > 0
+                ? Math.round((Number(b.stock || 0) / totalStock) * 100)
+                : 0;
+
+            return (
+              <div
+                key={b.id}
+                style={{
+                  background: MSI_C.white,
+                  borderBottom: isLast
+                    ? "none"
+                    : `1px solid ${isFirst ? MSI_C.greenMid : MSI_C.border}`,
+                  padding: "7px 4px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 6,
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 19,
+                        height: 19,
+                        borderRadius: "50%",
+                        background: isFirst ? MSI_C.green : "#b9c9bf",
+                        color: "#fff",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {idx + 1}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 800,
+                        color: MSI_C.ink,
+                      }}
+                    >
+                      Batch {b.batch_number || "—"}
+                    </span>
+                    {isFirst && (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 800,
+                          color: MSI_C.greenDk,
+                          border: `1px solid ${MSI_C.greenMid}`,
+                          padding: "2px 8px",
+                          borderRadius: 20,
+                        }}
+                      >
+                        {fifo.topLabel}
+                      </span>
+                    )}
+                  </span>
+                  {ss.label && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 800,
+                        color: ss.badgeText,
+                        border: `1px solid ${ss.border}`,
+                        padding: "2px 7px",
+                        borderRadius: 20,
+                      }}
+                    >
+                      {ss.label}
+                    </span>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    fontSize: 11,
+                    color: MSI_C.muted,
+                    marginBottom: 8,
+                  }}
+                >
+                  {b.supplier && (
+                    <span>
+                      Supplier:{" "}
+                      <strong style={{ color: MSI_C.ink }}>{b.supplier}</strong>
+                    </span>
+                  )}
+                  <span>
+                    Arrived:{" "}
+                    <strong style={{ color: MSI_C.ink }}>{supplyStr}</strong>
+                  </span>
+                  <span>
+                    Expires:{" "}
+                    <strong style={{ color: ss.dot }}>
+                      {expStr}
+                      {dRem != null
+                        ? ` (${dRem < 0 ? "expired" : dRem + "d left"})`
+                        : ""}
+                    </strong>
+                  </span>
+                  {b.cost_per_unit ? (
+                    <span>
+                      Cost/Unit:{" "}
+                      <strong style={{ color: MSI_C.ink }}>
+                        {MSI_fmtPeso(b.cost_per_unit)}
+                      </strong>
+                    </span>
+                  ) : null}
+                  {b.storage_location && (
+                    <span>
+                      Location:{" "}
+                      <strong style={{ color: MSI_C.ink }}>
+                        {b.storage_location}
+                      </strong>
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: 9.5,
+                      color: MSI_C.muted,
+                      fontWeight: 700,
+                      marginBottom: 2,
+                    }}
+                  >
+                    <span>STOCK</span>
+                    <span>
+                      {MSI_frStockQuantity(b.stock, product.unit)} /{" "}
+                      {MSI_frStockQuantity(totalStock, product.unit)}
+                    </span>
+                  </div>
+                  <MSI_FrMiniBar
+                    pct={stockPct}
+                    color={lowStock ? MSI_C.red : MSI_C.green}
+                    track={lowStock ? "#fbe5e3" : "#eef6f1"}
+                  />
+                </div>
+
+                {MSI_isPharmaBrand(product.brand) &&
+                  (b.lot_number ||
+                    b.ndc_code ||
+                    b.dosage_form ||
+                    b.storage_requirement ||
+                    b.controlled_substance) && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        paddingTop: 8,
+                        borderTop: `1px dashed ${MSI_C.border}`,
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 10,
+                        fontSize: 10.5,
+                        color: MSI_C.muted,
+                      }}
+                    >
+                      {b.lot_number && (
+                        <span>
+                          LOT:{" "}
+                          <strong style={{ color: MSI_C.ink }}>
+                            {b.lot_number}
+                          </strong>
+                        </span>
+                      )}
+                      {b.ndc_code && (
+                        <span>
+                          NDC:{" "}
+                          <strong style={{ color: MSI_C.ink }}>
+                            {b.ndc_code}
+                          </strong>
+                        </span>
+                      )}
+                      {b.dosage_form && (
+                        <span>
+                          {b.dosage_form}
+                          {b.strength ? ` · ${b.strength}` : ""}
+                        </span>
+                      )}
+                      {b.storage_requirement && (
+                        <span>
+                          Storage:{" "}
+                          <strong style={{ color: MSI_C.ink }}>
+                            {b.storage_requirement}
+                          </strong>
+                        </span>
+                      )}
+                      {b.controlled_substance && (
+                        <span style={{ color: "#991b1b", fontWeight: 800 }}>
+                          CONTROLLED SUBSTANCE
+                        </span>
+                      )}
+                    </div>
+                  )}
+                {MSI_isFuelBrand(product.brand) &&
+                  (b.tank_id || b.grade || b.octane_rating || b.truck_id) && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        paddingTop: 8,
+                        borderTop: `1px dashed ${MSI_C.border}`,
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 10,
+                        fontSize: 10.5,
+                        color: MSI_C.muted,
+                      }}
+                    >
+                      {b.tank_id && (
+                        <span>
+                          Tank:{" "}
+                          <strong style={{ color: MSI_C.ink }}>
+                            {b.tank_id}
+                          </strong>
+                        </span>
+                      )}
+                      {b.grade && (
+                        <span>
+                          Grade:{" "}
+                          <strong style={{ color: MSI_C.ink }}>
+                            {b.grade}
+                          </strong>
+                        </span>
+                      )}
+                      {b.octane_rating && (
+                        <span>
+                          Octane:{" "}
+                          <strong style={{ color: MSI_C.ink }}>
+                            {b.octane_rating}
+                          </strong>
+                        </span>
+                      )}
+                      {b.delivery_temp && (
+                        <span>
+                          Delivery Temp:{" "}
+                          <strong style={{ color: MSI_C.ink }}>
+                            {b.delivery_temp}°F
+                          </strong>
+                        </span>
+                      )}
+                      {b.truck_id && (
+                        <span>
+                          Truck:{" "}
+                          <strong style={{ color: MSI_C.ink }}>
+                            {b.truck_id}
+                          </strong>
+                        </span>
+                      )}
+                      {b.volume_correction && (
+                        <span>
+                          Corrected Vol (60°F):{" "}
+                          <strong style={{ color: MSI_C.ink }}>
+                            {MSI_frStockQuantity(
+                              b.volume_correction,
+                              product.unit,
+                            )}
+                          </strong>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                {b.notes && (
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      color: MSI_C.muted,
+                      marginTop: 6,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {b.notes}
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 7,
+                    marginTop: 10,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onViewHistory?.(b)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      height: 30,
+                      padding: "0 12px",
+                      borderRadius: 18,
+                      border: "1px solid #bbdefb",
+                      background: "#fff",
+                      color: "#1565c0",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <MSI_HistoryIcon size={12} />
+                    History
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MSI_WebGCashPaymentModal({ visible, amount, onConfirm, onCancel }) {
+  const [step, setStep] = useState("loading");
+  const [checkoutUrl, setCheckoutUrl] = useState("");
+  const [, setLinkId] = useState("");
+  const [reference, setReference] = useState("");
+  const [seconds, setSeconds] = useState(180);
+  const [error, setError] = useState("");
+  const pollRef = useRef(null);
+  const timerRef = useRef(null);
+  const confirmedRef = useRef(false);
+  const referenceRef = useRef("");
+
+  useEffect(() => {
+    if (!visible) return undefined;
+    let active = true;
+    confirmedRef.current = false;
+    setStep("loading");
+    setCheckoutUrl("");
+    setReference("");
+    setSeconds(180);
+    setError("");
+
+    const clearTimers = () => {
+      clearInterval(pollRef.current);
+      clearInterval(timerRef.current);
+    };
+    const createLink = async () => {
+      clearTimers();
+      try {
+        const response = await MSI_adminModuleFetch(
+          `${process.env.REACT_APP_API_URL}/paymongo/create-gcash`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              amount,
+              description: "iFranchise Supply Order",
+              orderId: Date.now(),
+            }),
+          },
+        );
+        const data = await response.json();
+        if (
+          !response.ok ||
+          !data.success ||
+          !data.checkoutUrl ||
+          !data.linkId
+        ) {
+          throw new Error(data.error || "Failed to create payment link.");
+        }
+        if (!active) return;
+        setCheckoutUrl(data.checkoutUrl);
+        setLinkId(data.linkId);
+        referenceRef.current = data.referenceNo || "";
+        setReference(referenceRef.current);
+        setStep("ready");
+        timerRef.current = setInterval(() => {
+          setSeconds((value) => {
+            if (value <= 1) {
+              clearTimers();
+              setError("Payment window expired. Please try again.");
+              setStep("error");
+              return 0;
+            }
+            return value - 1;
+          });
+        }, 1000);
+        pollRef.current = setInterval(async () => {
+          try {
+            const statusResponse = await MSI_adminModuleFetch(
+              `${process.env.REACT_APP_API_URL}/paymongo/link-status/${encodeURIComponent(data.linkId)}`,
+              { credentials: "include", cache: "no-store" },
+            );
+            if (!statusResponse.ok) return;
+            const status = await statusResponse.json();
+            if (active && status.status === "paid" && !confirmedRef.current) {
+              confirmedRef.current = true;
+              clearTimers();
+              const paidReference = status.gcashRef || referenceRef.current;
+              setReference(paidReference);
+              setStep("paid");
+              onConfirm(paidReference);
+            }
+          } catch (pollError) {
+            // A temporary network error should not mark an unpaid link as paid.
+          }
+        }, 3000);
+      } catch (requestError) {
+        if (!active) return;
+        setError(requestError.message || "Could not reach the payment server.");
+        setStep("error");
+      }
+    };
+    createLink();
+    return () => {
+      active = false;
+      clearTimers();
+    };
+  }, [visible, amount, onConfirm]);
+
+  if (!visible) return null;
+  const qrUrl = checkoutUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(checkoutUrl)}`
+    : "";
+  return (
+    <div
+      className="v-modal-overlay gcash-overlay"
+      onMouseDown={(event) => event.stopPropagation()}
+    >
+      <div
+        className="v-modal gcash-payment-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="GCash payment"
+      >
+        <div className="gcash-payment-head">
+          <div>
+            <small>SECURE PAYMENT</small>
+            <h2>Pay with GCash</h2>
+          </div>
+          {step !== "paid" && (
+            <button type="button" onClick={onCancel} aria-label="Close payment">
+              ×
+            </button>
+          )}
+        </div>
+        <div className="gcash-payment-body">
+          {step === "loading" && (
+            <div className="gcash-payment-state">Creating payment link…</div>
+          )}
+          {step === "ready" && (
+            <>
+              <div className="gcash-payment-amount">{MSI_fmtPeso(amount)}</div>
+              <p>Scan the QR code or open the secure checkout link to pay.</p>
+              <img
+                className="gcash-payment-qr"
+                src={qrUrl}
+                alt="QR code for GCash checkout"
+              />
+              {reference && (
+                <div className="gcash-payment-reference">
+                  Reference: {reference}
+                </div>
+              )}
+              <div className="gcash-payment-timer">
+                Time remaining: {Math.floor(seconds / 60)}:
+                {String(seconds % 60).padStart(2, "0")}
+              </div>
+              <a
+                className="gcash-payment-primary"
+                href={checkoutUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open in GCash
+              </a>
+              <a
+                className="gcash-payment-secondary"
+                href={qrUrl}
+                download="gcash-qr.png"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Save QR
+              </a>
+              <p className="gcash-payment-wait">
+                Waiting for payment confirmation…
+              </p>
+              <button
+                type="button"
+                className="gcash-payment-cancel"
+                onClick={onCancel}
+              >
+                Cancel payment
+              </button>
+            </>
+          )}
+          {step === "paid" && (
+            <div className="gcash-payment-state">
+              <strong>Payment Received!</strong>
+              <br />
+              {MSI_fmtPeso(amount)} via GCash
+              <br />
+              {reference && `Reference: ${reference}`}
+              <br />
+              Processing your order…
+            </div>
+          )}
+          {step === "error" && (
+            <div className="gcash-payment-state">
+              <strong>Payment unavailable</strong>
+              <p>{error}</p>
+              <button type="button" onClick={onCancel}>
+                Close and try again
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MSI_BatchTransferHistoryModal({ batch, ingredient, apiUrl, onClose }) {
+  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    MSI_adminModuleFetch(
+      `${apiUrl}/ingredient-batches/${batch.id}/transfer-history`,
+    )
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) {
+          setRows(Array.isArray(d) ? d : []);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [batch.id, apiUrl]);
+
+  const totalTransferred = rows.reduce(
+    (s, r) => s + Number(r.quantity || 0),
+    0,
+  );
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(13,43,30,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2800,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: MSI_C.white,
+          borderRadius: 18,
+          width: "100%",
+          maxWidth: 560,
+          maxHeight: "80vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: `1px solid ${MSI_C.border}`,
+          fontFamily: "Montserrat,sans-serif",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            padding: "18px 24px",
+            borderBottom: `1px solid ${MSI_C.border}`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            background: "#fbfcf8",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                color: MSI_C.ink,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <MSI_HistoryIcon size={14} /> Transfer History — Batch{" "}
+              {batch.batch_number || "—"}
+            </div>
+            <div style={{ fontSize: 12, color: MSI_C.muted, marginTop: 2 }}>
+              {ingredient.name} · {ingredient.branch}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              border: `1px solid ${MSI_C.border}`,
+              background: MSI_C.white,
+              cursor: "pointer",
+              color: MSI_C.muted,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <MSI_XIcon size={14} />
+          </button>
+        </div>
+
+        <div
+          style={{
+            padding: "14px 24px",
+            borderBottom: `1px solid ${MSI_C.border}`,
+            display: "flex",
+            gap: 20,
+            background: "#fafffe",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 10,
+                color: MSI_C.muted,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Total Transferred
+            </div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 800,
+                color: MSI_C.ink,
+                marginTop: 2,
+              }}
+            >
+              {totalTransferred} {ingredient.unit}
+            </div>
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: 10,
+                color: MSI_C.muted,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Transfers
+            </div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 800,
+                color: MSI_C.ink,
+                marginTop: 2,
+              }}
+            >
+              {rows.length}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ overflowY: "auto", flex: 1, padding: "8px 24px 20px" }}>
+          {loading ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "30px 0",
+                color: MSI_C.muted,
+                fontSize: 12.5,
+              }}
+            >
+              Loading transfer history…
+            </div>
+          ) : rows.length === 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "36px 0",
+                color: "#9ca3af",
+                fontSize: 13,
+                fontStyle: "italic",
+              }}
+            >
+              No stock from this batch has been transferred to a branch yet.
+            </div>
+          ) : (
+            rows.map((r, i) => (
+              <div
+                key={r.id}
+                style={{
+                  padding: "12px 0",
+                  borderBottom:
+                    i < rows.length - 1 ? `1px solid ${MSI_C.bg}` : "none",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <MSI_StoreIcon size={12} color={MSI_C.green} />
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 13,
+                        color: MSI_C.ink,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {r.destination_branch || "—"}
+                    </span>
+                  </div>
+                  <div
+                    style={{ fontSize: 11, color: MSI_C.muted, marginTop: 3 }}
+                  >
+                    Order #{r.order_id} · {r.destination_brand || "—"} ·{" "}
+                    {r.transferred_at ? MSI_fmtTs(r.transferred_at) : "—"}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div
+                    style={{ fontWeight: 800, fontSize: 14, color: MSI_C.ink }}
+                  >
+                    {r.quantity} {ingredient.unit}
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 9.5,
+                      fontWeight: 800,
+                      padding: "2px 8px",
+                      borderRadius: 20,
+                      marginTop: 3,
+                      display: "inline-block",
+                      background: r.applied ? MSI_C.greenLt : MSI_C.amberBg,
+                      color: r.applied ? MSI_C.greenDk : "#9a3412",
+                      border: `1px solid ${r.applied ? MSI_C.greenMid : MSI_C.amberBorder}`,
+                    }}
+                  >
+                    {r.applied ? "RECEIVED" : "IN TRANSIT"}
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const MSI_FR_SUPPLY_PSGC = "https://psgc.gitlab.io/api";
+
+const MSI_frSupplyAddressCache = new Map();
+
+async function MSI_frSupplyAddressList(path) {
+  if (MSI_frSupplyAddressCache.has(path))
+    return MSI_frSupplyAddressCache.get(path);
+  const response = await fetch(`${MSI_FR_SUPPLY_PSGC}${path}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok)
+    throw new Error(
+      "Address options could not be loaded. Please retry or enter the complete address below.",
+    );
+  const data = await response.json();
+  if (!Array.isArray(data)) throw new Error("Address options are unavailable.");
+  const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name));
+  MSI_frSupplyAddressCache.set(path, sorted);
+  return sorted;
+}
+
+function MSI_frSupplyAddressName(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(
+      /\b(city of|municipality of|province of|city|municipality|barangay|brgy\.?|province)\b/g,
+      "",
+    )
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function MSI_FrSupplyAddressFields({ address, mapResult, inputRef, onChange }) {
+  const [options, setOptions] = useState({
+    regions: [],
+    provinces: [],
+    cities: [],
+    barangays: [],
+  });
+  const [fields, setFields] = useState({
+    region: "",
+    province: "",
+    city: "",
+    barangay: "",
+    street: "",
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
+  const requestRef = useRef(0);
+  useEffect(() => {
+    const request = ++requestRef.current;
+    setBusy(true);
+    setError("");
+    (async () => {
+      try {
+        const regions = await MSI_frSupplyAddressList("/regions/");
+        if (request !== requestRef.current) return;
+        if (!mapResult) {
+          setOptions({ regions, provinces: [], cities: [], barangays: [] });
+          setFields({
+            region: "",
+            province: "",
+            city: "",
+            barangay: "",
+            street: "",
+          });
+          return;
+        }
+        const addr = mapResult.address || {};
+        const street = [
+          addr.house_number,
+          addr.road || addr.pedestrian || addr.residential,
+        ]
+          .filter(Boolean)
+          .join(" ");
+        const [allCities, allProvinces] = await Promise.all([
+          MSI_frSupplyAddressList("/cities-municipalities/"),
+          MSI_frSupplyAddressList("/provinces/"),
+        ]);
+        const names = [addr.city, addr.town, addr.municipality, addr.village]
+          .filter(Boolean)
+          .map(MSI_frSupplyAddressName);
+        const provinceNames = [addr.province, addr.state, addr.county]
+          .filter(Boolean)
+          .map(MSI_frSupplyAddressName);
+        let candidates = allCities.filter((item) =>
+          names.includes(MSI_frSupplyAddressName(item.name)),
+        );
+        if (candidates.length > 1)
+          candidates = candidates.filter((item) => {
+            const province = allProvinces.find(
+              (row) => String(row.code) === String(item.provinceCode),
+            );
+            return (
+              province &&
+              provinceNames.includes(MSI_frSupplyAddressName(province.name))
+            );
+          });
+        const city = candidates.length === 1 ? candidates[0] : null;
+        const province = city
+          ? allProvinces.find(
+              (item) => String(item.code) === String(city.provinceCode),
+            )
+          : null;
+        const region =
+          regions.find(
+            (item) =>
+              String(item.code) ===
+              String(city?.regionCode || province?.regionCode),
+          ) ||
+          regions.find(
+            (item) =>
+              MSI_frSupplyAddressName(item.name) ===
+              MSI_frSupplyAddressName(addr.region || addr.state),
+          );
+        const provinces = region
+          ? await MSI_frSupplyAddressList(`/regions/${region.code}/provinces/`)
+          : [];
+        const cities = province
+          ? await MSI_frSupplyAddressList(
+              `/provinces/${province.code}/cities-municipalities/`,
+            )
+          : region
+            ? await MSI_frSupplyAddressList(
+                `/regions/${region.code}/cities-municipalities/`,
+              )
+            : [];
+        const matchedCity = cities.find(
+          (item) => String(item.code) === String(city?.code),
+        );
+        const barangays = matchedCity
+          ? await MSI_frSupplyAddressList(
+              `/cities-municipalities/${matchedCity.code}/barangays/`,
+            )
+          : [];
+        const barangayNames = [
+          addr.suburb,
+          addr.quarter,
+          addr.neighbourhood,
+          addr.village,
+          addr.hamlet,
+        ]
+          .filter(Boolean)
+          .map(MSI_frSupplyAddressName);
+        const barangayMatches = barangays.filter((item) =>
+          barangayNames.includes(MSI_frSupplyAddressName(item.name)),
+        );
+        const barangay =
+          barangayMatches.length === 1 ? barangayMatches[0] : null;
+        if (request !== requestRef.current) return;
+        setOptions({ regions, provinces, cities, barangays });
+        setFields({
+          region: region?.code || "",
+          province: province?.code || "",
+          city: matchedCity?.code || "",
+          barangay: barangay?.code || "",
+          street,
+        });
+        if (!matchedCity || !barangay)
+          setError(
+            "The map filled the complete address below. Review it, or select any missing address fields.",
+          );
+      } catch (err) {
+        if (request === requestRef.current) setError(err.message);
+      } finally {
+        if (request === requestRef.current) setBusy(false);
+      }
+    })();
+    return () => {
+      requestRef.current += 1;
+    };
+  }, [mapResult, retry]);
+  const composeAddress = (next, lists) => {
+    if (
+      !next.region ||
+      !next.city ||
+      !next.barangay ||
+      (lists.provinces.length > 0 && !next.province)
+    )
+      return "";
+    return [
+      next.street.trim(),
+      lists.barangays.find((item) => item.code === next.barangay)?.name,
+      lists.cities.find((item) => item.code === next.city)?.name,
+      lists.provinces.find((item) => item.code === next.province)?.name,
+      lists.regions.find((item) => item.code === next.region)?.name,
+      "Philippines",
+    ]
+      .filter(Boolean)
+      .join(", ");
+  };
+  const changeField = async (key, value) => {
+    const request = ++requestRef.current;
+    const next = { ...fields, [key]: value };
+    const lists = { ...options };
+    if (key === "region") {
+      next.province = "";
+      next.city = "";
+      next.barangay = "";
+      lists.provinces = [];
+      lists.cities = [];
+      lists.barangays = [];
+    }
+    if (key === "province") {
+      next.city = "";
+      next.barangay = "";
+      lists.cities = [];
+      lists.barangays = [];
+    }
+    if (key === "city") {
+      next.barangay = "";
+      lists.barangays = [];
+    }
+    setFields(next);
+    setOptions(lists);
+    setError("");
+    onChange(composeAddress(next, lists));
+    if (!["region", "province", "city"].includes(key) || !value) {
+      setBusy(false);
+      return;
+    }
+    setBusy(true);
+    try {
+      if (key === "region") {
+        lists.provinces = await MSI_frSupplyAddressList(
+          `/regions/${value}/provinces/`,
+        );
+        if (!lists.provinces.length)
+          lists.cities = await MSI_frSupplyAddressList(
+            `/regions/${value}/cities-municipalities/`,
+          );
+      } else if (key === "province")
+        lists.cities = await MSI_frSupplyAddressList(
+          `/provinces/${value}/cities-municipalities/`,
+        );
+      else
+        lists.barangays = await MSI_frSupplyAddressList(
+          `/cities-municipalities/${value}/barangays/`,
+        );
+      if (request === requestRef.current) setOptions(lists);
+    } catch (err) {
+      if (request === requestRef.current) setError(err.message);
+    } finally {
+      if (request === requestRef.current) setBusy(false);
+    }
+  };
+  const dropdown = (key, label, rows, disabled = false) => (
+    <label className="fr-address-field">
+      <span>{label}</span>
+      <select
+        value={fields[key]}
+        disabled={busy || disabled}
+        onChange={(event) => changeField(key, event.target.value)}
+      >
+        <option value="">
+          {busy ? "Loading…" : `Select ${label.toLowerCase()}`}
+        </option>
+        {rows.map((item) => (
+          <option key={item.code} value={item.code}>
+            {item.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+  return (
+    <div className="fr-address-fields" aria-busy={busy}>
+      <div className="fr-address-grid">
+        {dropdown("region", "Region", options.regions)}
+        {options.provinces.length > 0 &&
+          dropdown("province", "Province", options.provinces, !fields.region)}
+        {dropdown(
+          "city",
+          "City / Municipality",
+          options.cities,
+          !fields.region || (options.provinces.length > 0 && !fields.province),
+        )}
+        {dropdown("barangay", "Barangay", options.barangays, !fields.city)}
+        <label className="fr-address-field fr-address-full">
+          <span>House / Building No., Street, Subdivision</span>
+          <input
+            value={fields.street}
+            disabled={busy}
+            onChange={(event) => changeField("street", event.target.value)}
+            placeholder="e.g. Unit 2, 123 Sampaguita Street"
+          />
+        </label>
+      </div>
+      {error && (
+        <div className="fr-address-notice" role="status">
+          {error}{" "}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setRetry((value) => value + 1)}
+          >
+            Reload address options
+          </button>
+        </div>
+      )}
+      <label className="fr-address-field fr-address-complete">
+        <span>Complete Delivery Address</span>
+        <textarea
+          ref={inputRef}
+          value={address}
+          rows={3}
+          onChange={(event) => {
+            requestRef.current += 1;
+            setBusy(false);
+            onChange(event.target.value);
+            setFields({
+              region: "",
+              province: "",
+              city: "",
+              barangay: "",
+              street: "",
+            });
+            setOptions((current) => ({
+              ...current,
+              provinces: [],
+              cities: [],
+              barangays: [],
+            }));
+          }}
+          placeholder="Select the address above or click the map. You may also enter the complete address here."
+        />
+      </label>
+      <small className="fr-address-help">
+        Check the house number, street, and barangay before placing your order.
+      </small>
+    </div>
+  );
+}
+
+function ManagerStockInventoryContent({ user }) {
+  const [stockToast, setStockToast] = useState(null);
+  const closeStockToast = useCallback(() => setStockToast(null), []);
+  const notifyStock = useCallback((message, type = "error") => {
+    setStockToast({
+      type,
+      title: type === "error" ? "Please review" : "Added to cart",
+      message,
+    });
+  }, []);
+  const [orderDialog, setOrderDialog] = useState(null);
+  const [orderQuantity, setOrderQuantity] = useState("1");
+  const [quantityError, setQuantityError] = useState("");
+  const [mapAddressData, setMapAddressData] = useState(null);
+  const orderingModalRef = useRef(null);
+  const hasOrderingDialog = Boolean(orderDialog);
+  const [checkoutSource, setCheckoutSource] = useState("cart");
 
   const isLowStock = (item) =>
     Number(item.stock || 0) <= Number(item.min_stock || 0);
+  // Read only the signed-in account's user ID; staff roles are not substituted.
+  const accountId =
+    [user?.id, user?.userId, user?.user_id]
+      .filter((value) => typeof value === "string" || typeof value === "number")
+      .map((value) => String(value).trim())
+      .find(
+        (value) =>
+          value && !["null", "undefined", "0"].includes(value.toLowerCase()),
+      ) || null;
   const userBranch = String(user?.branch || "").trim();
   const userBrand = String(user?.brand || user?.brand_name || "").trim();
   const CART_KEY = "@franchisee_supply_cart";
@@ -8947,15 +10611,44 @@ function ManagerStockInventoryContent({ user, brands }) {
   const [batches, setBatches] = useState([]);
   const [batchLoading, setBatchLoading] = useState(false);
 
-  const [editingBatch, setEditingBatch] = useState(null);
-  const [deleteConfirmBatch, setDeleteConfirmBatch] = useState(null);
-
   const [historyBatch, setHistoryBatch] = useState(null);
 
   const [cart, setCart] = useState([]);
   const [selectedCartIds, setSelectedCartIds] = useState([]);
   const [showCart, setShowCart] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
+  useEffect(() => {
+    if (!hasOrderingDialog && !showCart) return undefined;
+    const previousFocus = document.activeElement;
+    const modal = orderingModalRef.current;
+    const selector =
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]';
+    (
+      modal?.querySelector("[autofocus]") || modal?.querySelector(selector)
+    )?.focus();
+    const trapFocus = (event) => {
+      if (event.key !== "Tab" || !modal) return;
+      const controls = Array.from(modal.querySelectorAll(selector)).filter(
+        (element) => element.getClientRects().length,
+      );
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (!first) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      }
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    modal?.addEventListener("keydown", trapFocus);
+    return () => {
+      modal?.removeEventListener("keydown", trapFocus);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [hasOrderingDialog, showCart]);
   const [checkoutItems, setCheckoutItems] = useState([]);
   const [address, setAddress] = useState(String(user?.address || "").trim());
   const [mapCenter, setMapCenter] = useState(() => ({
@@ -8993,7 +10686,7 @@ function ManagerStockInventoryContent({ user, brands }) {
   const [ordersError, setOrdersError] = useState("");
   const [expandedOrderId, setExpandedOrderId] = useState(null);
 
-  const extraFields = useMemo(() => getExtraFields(userBrand), [userBrand]);
+  const extraFields = useMemo(() => MSI_getExtraFields(userBrand), [userBrand]);
   const hasExpiry = extraFields.some((f) => f.key === "exp_date");
 
   const normalize = useCallback(
@@ -9034,7 +10727,7 @@ function ManagerStockInventoryContent({ user, brands }) {
     setInventoryError("");
 
     try {
-      const res = await adminModuleFetch(
+      const res = await MSI_adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ingredients?branch=${encodeURIComponent(
           userBranch,
         )}`,
@@ -9051,7 +10744,7 @@ function ManagerStockInventoryContent({ user, brands }) {
       const data = await res.json();
       if (request !== inventoryRequest.current) return;
 
-      setItems(normalizeListResponse(data));
+      setItems(MSI_normalizeListResponse(data));
     } catch (error) {
       if (request === inventoryRequest.current) {
         console.error("FrStockInventoryContent fetch error:", error);
@@ -9073,7 +10766,7 @@ function ManagerStockInventoryContent({ user, brands }) {
     setShopLoading(true);
     setShopError("");
     try {
-      const res = await adminModuleFetch(
+      const res = await MSI_adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/shop-items`,
         {
           credentials: "include",
@@ -9111,10 +10804,10 @@ function ManagerStockInventoryContent({ user, brands }) {
   }, [branchAllowed, normalize, userBranch, userBrand]);
 
   const fetchOrders = useCallback(async () => {
-    if (!userBranch && !user?.id) {
+    if (!accountId) {
       setOrders([]);
       setOrdersError(
-        "Your account information is not available for loading orders.",
+        "Your signed-in account ID is not available yet. Please refresh the dashboard and try View Orders again.",
       );
       return;
     }
@@ -9123,12 +10816,14 @@ function ManagerStockInventoryContent({ user, brands }) {
     setOrdersError("");
     try {
       const params = new URLSearchParams();
-      if (user?.id != null) params.set("user_id", String(user.id));
+      // The order-history endpoint expects camelCase userId.
+      params.set("userId", accountId);
+      params.set("user_id", accountId); // Compatibility with existing snake_case routes.
       if (userBranch) params.set("branch", userBranch);
       if (userBrand) params.set("brand", userBrand);
 
       const query = params.toString();
-      const res = await adminModuleFetch(
+      const res = await MSI_adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/orders${query ? `?${query}` : ""}`,
         { credentials: "include", cache: "no-store" },
       );
@@ -9151,10 +10846,9 @@ function ManagerStockInventoryContent({ user, brands }) {
       // user/brand/branch fields. Unknown fields are tolerated for compatibility.
       const scoped = raw
         .filter((order) => {
+          const orderUserId = order?.user_id ?? order?.userId;
           const sameUser =
-            user?.id == null ||
-            order?.user_id == null ||
-            String(order.user_id) === String(user.id);
+            orderUserId == null || String(orderUserId) === accountId;
           const sameBranch =
             !userBranch ||
             !order?.branch ||
@@ -9183,7 +10877,7 @@ function ManagerStockInventoryContent({ user, brands }) {
     } finally {
       setOrdersLoading(false);
     }
-  }, [normalize, user?.id, userBranch, userBrand]);
+  }, [normalize, accountId, userBranch, userBrand]);
 
   useEffect(() => {
     if (userBranch) fetchItems();
@@ -9195,6 +10889,21 @@ function ManagerStockInventoryContent({ user, brands }) {
   useEffect(() => {
     fetchShopItems();
   }, [fetchShopItems]);
+  useEffect(() => {
+    if (showCart || hasOrderingDialog) fetchShopItems();
+  }, [showCart, hasOrderingDialog, fetchShopItems]);
+
+  const viewSupplyOrders = useCallback(() => {
+    setShowCheckout(false);
+    setOrderSuccess(null);
+    setShowOrders(true);
+    fetchOrders();
+  }, [fetchOrders]);
+  useEffect(() => {
+    if (!orderSuccess) return undefined;
+    const timer = setTimeout(viewSupplyOrders, 3000);
+    return () => clearTimeout(timer);
+  }, [orderSuccess, viewSupplyOrders]);
 
   useEffect(() => {
     try {
@@ -9250,7 +10959,9 @@ function ManagerStockInventoryContent({ user, brands }) {
         if (categoryF && String(i.category || "") !== categoryF) return false;
         if (unitF && String(i.unit || "") !== unitF) return false;
         const low = isLowStock(i);
-        if (statusF === "low" && !low) return false;
+        if (statusF === "out" && Number(i.stock || 0) > 0) return false;
+        if (statusF === "low" && (!low || Number(i.stock || 0) <= 0))
+          return false;
         if (statusF === "ok" && low) return false;
         if (statusF === "expiring" || statusF === "expired") {
           const expRaw = i.extra_fields?.exp_date;
@@ -9260,7 +10971,7 @@ function ManagerStockInventoryContent({ user, brands }) {
           const now = new Date();
           now.setHours(0, 0, 0, 0);
           const warn = new Date(now);
-          warn.setDate(warn.getDate() + EXPIRY_WARN_DAYS);
+          warn.setDate(warn.getDate() + MSI_EXPIRY_WARN_DAYS);
           if (statusF === "expired" && !(exp < now)) return false;
           if (statusF === "expiring" && !(exp >= now && exp <= warn))
             return false;
@@ -9308,25 +11019,8 @@ function ManagerStockInventoryContent({ user, brands }) {
     [normalize, shopItems, userBrand],
   );
 
-  const selectedShopItem = getShopListingFor(selected);
-  const selectedSupplyAvailable = Number(selectedShopItem?.stock || 0);
-  const selectedCurrentStock = Number(selected?.stock || 0);
-  const selectedPrice = selectedShopItem
-    ? Number(selectedShopItem.price || 0)
-    : 0;
-  const selectedUnit = selectedShopItem?.unit || selected?.unit || "unit";
-  const selectedCartQty = selectedShopItem
-    ? Number(
-        cart.find((entry) => entry.id === selectedShopItem.id)?.quantity || 0,
-      )
-    : 0;
   const cartItemCount = cart.reduce(
     (sum, entry) => sum + Number(entry.quantity || 0),
-    0,
-  );
-  const cartTotal = cart.reduce(
-    (sum, entry) =>
-      sum + Number(entry.price || 0) * Number(entry.quantity || 0),
     0,
   );
   const selectedCart = cart.filter((entry) =>
@@ -9334,7 +11028,13 @@ function ManagerStockInventoryContent({ user, brands }) {
   );
   const selectedCartTotal = selectedCart.reduce(
     (sum, entry) =>
-      sum + Number(entry.price || 0) * Number(entry.quantity || 0),
+      sum +
+      Number(
+        shopItems.find((item) => item.id === entry.id)?.price ??
+          entry.price ??
+          0,
+      ) *
+        Number(entry.quantity || 0),
     0,
   );
   const toggleCartItem = (id) =>
@@ -9361,48 +11061,108 @@ function ManagerStockInventoryContent({ user, brands }) {
     quantity,
   });
 
-  const addToCart = useCallback(
-    (shopItem, inventoryItem, quantity = 1) => {
-      const available = Number(shopItem?.stock || 0);
-      if (!shopItem?.id || available <= 0) {
-        window.alert("This supply item is currently out of stock.");
-        return false;
-      }
+  const addToCart = (shopItem, inventoryItem, quantity) => {
+    const available = Math.floor(Number(shopItem?.stock || 0));
+    const existing = cart.find((entry) => entry.id === shopItem?.id);
+    const currentQty = Number(existing?.quantity || 0);
+    if (
+      !shopItem ||
+      !Number.isInteger(quantity) ||
+      quantity < 1 ||
+      currentQty + quantity > available
+    ) {
+      setQuantityError(
+        `Enter a whole quantity from 1 to ${Math.max(0, available - currentQty)}.`,
+      );
+      return false;
+    }
+    const entry = createCartEntry(
+      shopItem,
+      inventoryItem,
+      currentQty + quantity,
+    );
+    saveCart(
+      existing
+        ? cart.map((item) => (item.id === entry.id ? entry : item))
+        : [...cart, entry],
+    );
+    setSelectedCartIds((ids) =>
+      ids.includes(entry.id) ? ids : [...ids, entry.id],
+    );
+    notifyStock(
+      `${MSI_frStockQuantity(quantity, entry.unit)} of ${entry.name} added to your cart.`,
+      "success",
+    );
+    return true;
+  };
 
-      setCart((current) => {
-        const existing = current.find((entry) => entry.id === shopItem.id);
-        const currentQty = Number(existing?.quantity || 0);
-        if (currentQty + quantity > available) {
-          window.alert(
-            `Only ${available} ${shopItem.unit || inventoryItem?.unit || "unit(s)"} available for ${shopItem.name}.`,
-          );
-          return current;
-        }
-
-        const next = existing
-          ? current.map((entry) =>
-              entry.id === shopItem.id
-                ? {
-                    ...entry,
-                    quantity: currentQty + quantity,
-                    price: Number(shopItem.price || 0),
-                    unit: shopItem.unit || inventoryItem?.unit || entry.unit,
-                  }
-                : entry,
-            )
-          : [...current, createCartEntry(shopItem, inventoryItem, quantity)];
-
-        try {
-          localStorage.setItem(CART_KEY, JSON.stringify(next));
-        } catch (error) {
-          console.warn("Failed to save franchisee supply cart:", error);
-        }
-        return next;
-      });
-      return true;
-    },
-    [userBrand],
+  const openOrderDialog = (inventoryItem, mode) => {
+    const shopItem = getShopListingFor(inventoryItem);
+    if (shopLoading) {
+      notifyStock(
+        "Supply details are still loading. Please try again shortly.",
+      );
+      return;
+    }
+    if (!shopItem || Number(shopItem.stock) < 1) {
+      notifyStock(
+        shopItem
+          ? "This supply item is currently out of stock."
+          : "This item has no available supply listing for your branch.",
+      );
+      return;
+    }
+    setOrderDialog({ inventoryItem, shopItem, mode });
+    setOrderQuantity("1");
+    setQuantityError("");
+  };
+  const dialogShopItem = orderDialog
+    ? shopItems.find((item) => item.id === orderDialog.shopItem.id)
+    : null;
+  const dialogCartQuantity = dialogShopItem
+    ? Number(cart.find((item) => item.id === dialogShopItem.id)?.quantity || 0)
+    : 0;
+  const dialogMaximum = Math.max(
+    0,
+    Math.floor(Number(dialogShopItem?.stock || 0)) -
+      (orderDialog?.mode === "cart" ? dialogCartQuantity : 0),
   );
+  const confirmOrderDialog = (event) => {
+    event.preventDefault();
+    if (shopLoading || shopError) {
+      setQuantityError("Please wait until Head Office stock is available.");
+      return;
+    }
+    const quantity = Number(orderQuantity);
+    if (
+      !dialogShopItem ||
+      !Number.isInteger(quantity) ||
+      quantity < 1 ||
+      quantity > dialogMaximum
+    ) {
+      setQuantityError(
+        dialogMaximum
+          ? `Enter a whole quantity from 1 to ${dialogMaximum}.`
+          : "No additional supply stock is available.",
+      );
+      return;
+    }
+    const completed =
+      orderDialog.mode === "cart"
+        ? addToCart(dialogShopItem, orderDialog.inventoryItem, quantity)
+        : prepareCheckout(
+            [
+              createCartEntry(
+                dialogShopItem,
+                orderDialog.inventoryItem,
+                quantity,
+              ),
+            ],
+            true,
+            "buyNow",
+          );
+    if (completed) setOrderDialog(null);
+  };
 
   const updateCartQuantity = (id, delta) => {
     const liveItem = shopItems.find((item) => item.id === id);
@@ -9410,8 +11170,8 @@ function ManagerStockInventoryContent({ user, brands }) {
       .map((entry) => {
         if (entry.id !== id) return entry;
         const max = liveItem
-          ? Number(liveItem.stock || 0)
-          : Number(entry.quantity || 0);
+          ? Math.floor(Number(liveItem.stock || 0))
+          : Math.floor(Number(entry.quantity || 0));
         return {
           ...entry,
           quantity: Math.min(
@@ -9439,7 +11199,7 @@ function ManagerStockInventoryContent({ user, brands }) {
       quantity = 1;
     }
 
-    quantity = Math.min(max, Math.max(1, quantity));
+    quantity = Math.min(Math.floor(max), Math.max(1, quantity));
 
     const next = cart.map((entry) =>
       entry.id === id
@@ -9458,9 +11218,13 @@ function ManagerStockInventoryContent({ user, brands }) {
   const removeFromCart = (id) =>
     saveCart(cart.filter((entry) => entry.id !== id));
 
-  const prepareCheckout = (requestedItems, closeCart = true) => {
+  const prepareCheckout = (
+    requestedItems,
+    closeCart = true,
+    source = "cart",
+  ) => {
     if (!requestedItems.length) {
-      window.alert("Your cart is empty.");
+      notifyStock("Your cart is empty.");
       return false;
     }
 
@@ -9479,7 +11243,11 @@ function ManagerStockInventoryContent({ user, brands }) {
         problems.push(`${entry.name}: out of stock`);
         return;
       }
-      if (requestedQty > available) {
+      if (
+        !Number.isInteger(requestedQty) ||
+        requestedQty < 1 ||
+        requestedQty > available
+      ) {
         problems.push(
           `${entry.name}: only ${available} ${live.unit || "unit(s)"} available`,
         );
@@ -9498,7 +11266,7 @@ function ManagerStockInventoryContent({ user, brands }) {
     });
 
     if (problems.length) {
-      window.alert(`Please review your cart:\n\n${problems.join("\n")}`);
+      notifyStock(`Please review your cart:\n\n${problems.join("\n")}`);
       return false;
     }
 
@@ -9514,30 +11282,12 @@ function ManagerStockInventoryContent({ user, brands }) {
           : entry;
       }),
     );
+    setCheckoutSource(source);
     setCheckoutItems(liveItems);
     setOrderSuccess(null);
     if (closeCart) setShowCart(false);
     setShowCheckout(true);
     return true;
-  };
-
-  const buyNow = () => {
-    if (!selected || !selectedShopItem) {
-      window.alert("This item is not currently available for supply ordering.");
-      return;
-    }
-
-    if (selectedSupplyAvailable <= 0) {
-      window.alert("This supply item is currently out of stock.");
-      return;
-    }
-
-    const quantity = selectedCartQty > 0 ? selectedCartQty : 1;
-
-    prepareCheckout(
-      [createCartEntry(selectedShopItem, selected, quantity)],
-      true,
-    );
   };
 
   const checkoutTotal = checkoutItems.reduce(
@@ -9561,12 +11311,14 @@ function ManagerStockInventoryContent({ user, brands }) {
     setMapCenter({ latitude, longitude });
     setLocationError("");
     setLocationBusy(true);
+    setAddress("");
+    setMapAddressData(null);
     reverseTimerRef.current = setTimeout(
       async () => {
         lastLookupRef.current = Date.now();
         try {
-          const response = await adminModuleFetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`,
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}&addressdetails=1&accept-language=en`,
             { headers: { Accept: "application/json" } },
           );
           if (!response.ok) throw new Error("Address lookup is unavailable.");
@@ -9574,18 +11326,16 @@ function ManagerStockInventoryContent({ user, brands }) {
           if (request !== mapRequestRef.current) return;
           if (!result.display_name)
             throw new Error("No address was found for this pin.");
-          setAddress(result.display_name);
-          if (user?.id) {
-            adminModuleFetch(
-              `${process.env.REACT_APP_API_URL}/users/${user.id}/saved-address`,
-              {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({ savedAddress: result.display_name }),
-              },
-            ).catch(() => {});
+          if (
+            result.address?.country_code &&
+            result.address.country_code !== "ph"
+          ) {
+            throw new Error(
+              "Please choose a delivery location in the Philippines.",
+            );
           }
+          setAddress(result.display_name);
+          setMapAddressData({ ...result, lookupId: request });
         } catch (error) {
           if (request === mapRequestRef.current) {
             setLocationError(
@@ -9611,7 +11361,17 @@ function ManagerStockInventoryContent({ user, brands }) {
       Math.min(1, (event.clientY - bounds.top) / bounds.height),
     );
     selectMapPoint({
-      latitude: mapBounds.north - y * (mapBounds.north - mapBounds.south),
+      latitude:
+        (Math.atan(
+          Math.sinh(
+            Math.asinh(Math.tan((mapBounds.north * Math.PI) / 180)) -
+              y *
+                (Math.asinh(Math.tan((mapBounds.north * Math.PI) / 180)) -
+                  Math.asinh(Math.tan((mapBounds.south * Math.PI) / 180))),
+          ),
+        ) *
+          180) /
+        Math.PI,
       longitude: mapBounds.west + x * (mapBounds.east - mapBounds.west),
     });
   };
@@ -9648,7 +11408,7 @@ function ManagerStockInventoryContent({ user, brands }) {
         className="checkout-map-touch"
         role="button"
         tabIndex={0}
-        aria-label="Tap or drag to pin delivery location"
+        aria-label="Click to pin delivery location"
         onPointerDown={(event) =>
           event.currentTarget.setPointerCapture(event.pointerId)
         }
@@ -9689,12 +11449,16 @@ function ManagerStockInventoryContent({ user, brands }) {
   );
 
   const submitOrder = async (confirmedGCashRef = null) => {
+    if (locationBusy) {
+      notifyStock("Please wait for the address lookup to finish.");
+      return;
+    }
     if (!address.trim()) {
       setShowAddressPrompt(true);
       return;
     }
     if (!checkoutItems.length) {
-      window.alert("There are no items to checkout.");
+      notifyStock("There are no items to checkout.");
       return;
     }
     if (paymentMethod === "gcash" && !confirmedGCashRef) return;
@@ -9702,7 +11466,7 @@ function ManagerStockInventoryContent({ user, brands }) {
     setPlacingOrder(true);
     try {
       // Re-check the live shop catalog immediately before creating the order.
-      const latestResponse = await adminModuleFetch(
+      const latestResponse = await MSI_adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/shop-items`,
         { credentials: "include", cache: "no-store" },
       );
@@ -9727,7 +11491,11 @@ function ManagerStockInventoryContent({ user, brands }) {
         const live = latestEligible.find((item) => item.id === entry.id);
         if (!live)
           throw new Error(`${entry.name} is no longer available for ordering.`);
-        if (Number(entry.quantity) > Number(live.stock)) {
+        if (
+          !Number.isInteger(Number(entry.quantity)) ||
+          Number(entry.quantity) < 1 ||
+          Number(entry.quantity) > Number(live.stock)
+        ) {
           throw new Error(
             `${entry.name} now has only ${Number(live.stock)} ${live.unit || entry.unit || "unit(s)"} available.`,
           );
@@ -9746,7 +11514,7 @@ function ManagerStockInventoryContent({ user, brands }) {
       );
 
       const payload = {
-        user_id: user?.id ?? null,
+        user_id: accountId,
         user_name: user?.name ?? null,
         phone: user?.phone ?? null,
         brand: user?.brand ?? user?.brand_name ?? null,
@@ -9765,7 +11533,7 @@ function ManagerStockInventoryContent({ user, brands }) {
         gcash_ref: paymentMethod === "gcash" ? confirmedGCashRef : null,
       };
 
-      const response = await adminModuleFetch(
+      const response = await MSI_adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/orders`,
         {
           method: "POST",
@@ -9781,7 +11549,10 @@ function ManagerStockInventoryContent({ user, brands }) {
       }
 
       const checkedOutIds = new Set(validatedItems.map((entry) => entry.id));
-      saveCart(cart.filter((entry) => !checkedOutIds.has(entry.id)));
+      if (checkoutSource === "cart") {
+        saveCart(cart.filter((entry) => !checkedOutIds.has(entry.id)));
+        setSelectedCartIds((ids) => ids.filter((id) => !checkedOutIds.has(id)));
+      }
       setCheckoutItems([]);
       setOrderSuccess({
         id: data?.order?.id ?? data?.id ?? "—",
@@ -9790,7 +11561,7 @@ function ManagerStockInventoryContent({ user, brands }) {
       await Promise.all([fetchItems(), fetchShopItems()]);
     } catch (error) {
       console.error("Supply order error:", error);
-      window.alert(
+      notifyStock(
         error.message || "Something went wrong while placing the order.",
       );
     } finally {
@@ -9804,6 +11575,10 @@ function ManagerStockInventoryContent({ user, brands }) {
   };
 
   const handleCheckoutAction = async () => {
+    if (locationBusy) {
+      notifyStock("Please wait for the address lookup to finish.");
+      return;
+    }
     if (paymentMethod === "cod") {
       submitOrder();
       return;
@@ -9813,12 +11588,12 @@ function ManagerStockInventoryContent({ user, brands }) {
       return;
     }
     if (!checkoutItems.length) {
-      window.alert("There are no items to checkout.");
+      notifyStock("There are no items to checkout.");
       return;
     }
     setPlacingOrder(true);
     try {
-      const response = await adminModuleFetch(
+      const response = await MSI_adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/shop-items`,
         { credentials: "include", cache: "no-store" },
       );
@@ -9833,7 +11608,11 @@ function ManagerStockInventoryContent({ user, brands }) {
         const live = eligible.find((item) => item.id === entry.id);
         if (!live)
           throw new Error(`${entry.name} is no longer available for ordering.`);
-        if (Number(entry.quantity) > Number(live.stock || 0)) {
+        if (
+          !Number.isInteger(Number(entry.quantity)) ||
+          Number(entry.quantity) < 1 ||
+          Number(entry.quantity) > Number(live.stock || 0)
+        ) {
           throw new Error(
             `${entry.name} now has only ${Number(live.stock || 0)} ${live.unit || entry.unit || "unit(s)"} available.`,
           );
@@ -9845,7 +11624,7 @@ function ManagerStockInventoryContent({ user, brands }) {
       setGcashAmount(amount);
       setShowGCash(true);
     } catch (error) {
-      window.alert(error.message || "Unable to start GCash payment.");
+      notifyStock(error.message || "Unable to start GCash payment.");
     } finally {
       setPlacingOrder(false);
     }
@@ -9869,7 +11648,7 @@ function ManagerStockInventoryContent({ user, brands }) {
     }
     let cancelled = false;
     setBatchLoading(true);
-    adminModuleFetch(
+    MSI_adminModuleFetch(
       `${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${selectedId}`,
       {
         credentials: "include",
@@ -9882,7 +11661,7 @@ function ManagerStockInventoryContent({ user, brands }) {
       })
       .then((d) => {
         if (!cancelled) {
-          setBatches(normalizeListResponse(d));
+          setBatches(MSI_normalizeListResponse(d));
           setBatchLoading(false);
         }
       })
@@ -9898,8 +11677,6 @@ function ManagerStockInventoryContent({ user, brands }) {
     };
   }, [selectedId]);
 
-  const lowCount = items.filter((i) => isLowStock(i)).length;
-
   const cartLineItems = cart.map((entry) => {
     const live = shopItems.find((item) => item.id === entry.id);
     return {
@@ -9909,12 +11686,6 @@ function ManagerStockInventoryContent({ user, brands }) {
       stock: live ? Number(live.stock || 0) : 0,
     };
   });
-
-  const cartHasStockIssues = cartLineItems.some(
-    (entry) =>
-      entry.stock <= 0 ||
-      Number(entry.quantity || 0) > Number(entry.stock || 0),
-  );
 
   const formatOrderDate = (value) => {
     if (!value) return "Date not available";
@@ -10005,120 +11776,30 @@ function ManagerStockInventoryContent({ user, brands }) {
     return counts;
   }, [orders]);
 
-  const openFrEdit = (item) => {
-    setEditingItem(item);
-
-    setEditForm({
-      min_stock: String(item?.min_stock ?? ""),
-    });
-  };
-
-  const saveFrEdit = async () => {
-    if (!editingItem) return;
-
-    const minStock = Number(editForm.min_stock);
-
-    if (!Number.isFinite(minStock) || minStock < 0) {
-      window.alert("Minimum stock must be 0 or greater.");
-      return;
-    }
-
-    setSavingEdit(true);
-
-    try {
-      const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/ingredients/${editingItem.id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            ...editingItem,
-            min_stock: minStock,
-            performed_by: user?.name || "Franchisee",
-            performed_by_role: user?.role || "Franchisee",
-          }),
-        },
-      );
-
-      const data = await res.json();
-
-      if (!res.ok || data?.success === false) {
-        throw new Error(data?.error || "Failed to update inventory item.");
-      }
-
-      setEditingItem(null);
-      await fetchItems();
-    } catch (error) {
-      console.error("Franchisee inventory edit error:", error);
-      window.alert(error.message || "Failed to update inventory item.");
-    } finally {
-      setSavingEdit(false);
-    }
-  };
-
-  const confirmFrDelete = async () => {
-    if (!deleteTarget) return;
-
-    setDeletingItem(true);
-
-    try {
-      const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/ingredients/${deleteTarget.id}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            deleted_by: user?.name || "Franchisee",
-            performed_by_role: user?.role || "Franchisee",
-          }),
-        },
-      );
-
-      const data = await res.json();
-
-      if (!res.ok || data?.success === false) {
-        throw new Error(data?.error || "Failed to delete inventory item.");
-      }
-
-      setDeleteTarget(null);
-
-      if (selectedId === deleteTarget.id) {
-        setSelectedId(null);
-      }
-
-      await fetchItems();
-    } catch (error) {
-      console.error("Franchisee inventory delete error:", error);
-      window.alert(error.message || "Failed to delete inventory item.");
-    } finally {
-      setDeletingItem(false);
-    }
-  };
-
   return (
     <div className="fr-stock-order-shell">
       <style>{`
         .fr-stock-order-shell { position:relative; padding-bottom:48px; }
         .fr-stock-order-shell .stock-surface { overflow:hidden; }
         .fr-stock-order-shell .stock-order-header { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-        .fr-stock-order-shell .stock-order-cart-btn { position:relative; min-width:124px; border-radius:8px !important; min-height:32px !important; padding:6px 11px !important; font-size:11px !important; }
-        .fr-stock-order-shell .stock-cart-count { min-width:20px; height:20px; padding:0 6px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#b3a941; color:#12241B; font-size:10px; font-weight:900; }
+        body.fr-admin-ui .fr-stock-order-shell .stock-order-cart-btn,
+        .fr-stock-order-shell .stock-order-cart-btn { position:relative; display:inline-flex; align-items:center; justify-content:center; flex:0 0 44px; width:44px!important; min-width:44px!important; height:44px!important; min-height:44px!important; padding:6px!important; margin:0 4px; border:0!important; border-radius:10px!important; background:transparent!important; color:#3b791e!important; box-shadow:none!important; cursor:pointer; overflow:visible; }
+        body.fr-admin-ui .fr-stock-order-shell .stock-order-cart-btn>svg,
+        .fr-stock-order-shell .stock-order-cart-btn>svg { width:26px!important; height:26px!important; fill:none; stroke:currentColor; }
+        .fr-stock-order-shell .stock-order-cart-btn:hover { background:#f0f5e8!important; }
+        .fr-stock-order-shell .stock-order-cart-btn:focus-visible { outline:2px solid #3b791e; outline-offset:3px; }
+        .fr-stock-order-shell .stock-cart-count { position:absolute; top:0; right:-3px; min-width:19px; height:19px; padding:0 4px; box-sizing:border-box; border:2px solid #fff; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#3b791e; color:#fff; font-size:10px; line-height:1; font-weight:800; pointer-events:none; }
+
         .fr-stock-order-shell .stock-order-layout { display:grid; grid-template-columns:minmax(360px,.95fr) minmax(430px,1.05fr); min-height:520px; max-height:760px; }
-        .fr-stock-order-shell .stock-order-list { min-width:0; border-right:1px solid ${C.border}; overflow-y:auto; max-height:760px; }
+        .fr-stock-order-shell .stock-order-list { min-width:0; border-right:1px solid ${MSI_C.border}; overflow-y:auto; max-height:760px; }
         .fr-stock-order-shell .stock-order-detail { min-width:0; overflow-y:auto; max-height:760px; padding:12px; scroll-margin-top:88px; }
-        .fr-stock-order-shell .stock-order-list { background:${C.white}; }
-        .fr-stock-order-shell .stock-order-row { position:relative; display:block; width:100%; min-height:82px; height:82px; border:0; border-left:3px solid transparent; border-radius:0 !important; background:${C.white}; color:${C.ink}; padding:10px 14px 28px 11px; text-align:left; cursor:pointer; border-bottom:1px solid #F1F3ED; transition:background-color .16s ease,border-color .16s ease; box-sizing:border-box; }
+        .fr-stock-order-shell .stock-order-list { background:${MSI_C.white}; }
+        .fr-stock-order-shell .stock-order-row { position:relative; display:block; width:100%; min-height:82px; height:82px; border:0; border-left:3px solid transparent; border-radius:0 !important; background:${MSI_C.white}; color:${MSI_C.ink}; padding:10px 14px 28px 11px; text-align:left; cursor:pointer; border-bottom:1px solid #F1F3ED; transition:background-color .16s ease,border-color .16s ease; box-sizing:border-box; }
         .fr-stock-order-shell .stock-order-row:hover { background:#FBFCF8; }
-        .fr-stock-order-shell .stock-order-row:focus-visible { outline:2px solid ${C.green}; outline-offset:-2px; border-radius:0 !important; }
+        .fr-stock-order-shell .stock-order-row:focus-visible { outline:2px solid ${MSI_C.green}; outline-offset:-2px; border-radius:0 !important; }
         .fr-stock-order-shell .stock-order-row.active { background:#FCFDF9; border-left-color:#B4B33F; }
         .fr-stock-order-shell .stock-order-row-top { display:block; min-width:0; overflow:hidden; }
-        .fr-stock-order-shell .stock-order-row-name { display:block; max-width:100%; font-size:12px; line-height:1.15; font-weight:850; color:${C.greenDk}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .fr-stock-order-shell .stock-order-row-name { display:block; max-width:100%; font-size:12px; line-height:1.15; font-weight:850; color:${MSI_C.greenDk}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .fr-stock-order-shell .stock-order-row-meta { margin-top:5px; color:#737B74; font-size:9.5px; line-height:1.15; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .fr-stock-order-shell .stock-order-row-submeta { margin-top:3px; color:#737B74; font-size:9.5px; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .fr-stock-order-shell .stock-order-stock-line {
@@ -10142,31 +11823,31 @@ function ManagerStockInventoryContent({ user, brands }) {
     width .22s ease;
 }
         .fr-stock-order-shell .stock-order-stock-line.low-track { background:#fbe5e3; }
-        .fr-stock-order-shell .stock-order-stock-line-fill { display:block; height:100%; width:0; border-radius:2px; background:${C.green}; transition:background-color .18s ease, width .22s ease; }
-        .fr-stock-order-shell .stock-order-stock-line-fill.low { background:${C.red}; }
-        .fr-stock-order-shell .stock-order-price { color:${C.greenDk}; font-weight:900; white-space:nowrap; }
-        .fr-stock-order-shell .stock-order-detail-card { border:1px solid ${C.border}; border-radius:13px; background:${C.white}; box-shadow:0 2px 10px rgba(18,36,27,.035); }
-        .fr-stock-order-shell .stock-order-hero { padding:14px; background:linear-gradient(135deg,#fbfcf8,#f3f7eb); border-bottom:1px solid ${C.border}; }
+        .fr-stock-order-shell .stock-order-stock-line-fill { display:block; height:100%; width:0; border-radius:2px; background:${MSI_C.green}; transition:background-color .18s ease, width .22s ease; }
+        .fr-stock-order-shell .stock-order-stock-line-fill.low { background:${MSI_C.red}; }
+        .fr-stock-order-shell .stock-order-price { color:${MSI_C.greenDk}; font-weight:900; white-space:nowrap; }
+        .fr-stock-order-shell .stock-order-detail-card { border:1px solid ${MSI_C.border}; border-radius:13px; background:${MSI_C.white}; box-shadow:0 2px 10px rgba(18,36,27,.035); }
+        .fr-stock-order-shell .stock-order-hero { padding:14px; background:linear-gradient(135deg,#fbfcf8,#f3f7eb); border-bottom:1px solid ${MSI_C.border}; }
         .fr-stock-order-shell .stock-order-facts { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; padding:11px 14px 0; }
-        .fr-stock-order-shell .stock-order-fact { min-width:0; padding:9px; border:1px solid ${C.border}; border-radius:12px; background:#fbfcf8; }
-        .fr-stock-order-shell .stock-order-fact-label { font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:${C.muted}; }
-        .fr-stock-order-shell .stock-order-fact-value { margin-top:4px; font-size:12px; font-weight:900; color:${C.ink}; overflow-wrap:anywhere; }
+        .fr-stock-order-shell .stock-order-fact { min-width:0; padding:9px; border:1px solid ${MSI_C.border}; border-radius:12px; background:#fbfcf8; }
+        .fr-stock-order-shell .stock-order-fact-label { font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:${MSI_C.muted}; }
+        .fr-stock-order-shell .stock-order-fact-value { margin-top:4px; font-size:12px; font-weight:900; color:${MSI_C.ink}; overflow-wrap:anywhere; }
         .fr-stock-order-shell .stock-order-purchase { margin:11px 14px 13px; padding:12px; border:1px solid rgba(59,121,30,.18); border-radius:15px; background:#f8fbf3; }
         .fr-stock-order-shell .stock-order-purchase-top { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
-        .fr-stock-order-shell .stock-order-price-big { font-size:21px; line-height:1; font-weight:900; color:${C.greenDk}; }
-        .fr-stock-order-shell .stock-order-price-unit { margin-top:5px; color:${C.muted}; font-size:10.5px; }
-        .fr-stock-order-shell .stock-order-availability { padding:7px 10px; border-radius:999px; background:${C.white}; border:1px solid ${C.border}; font-size:10px; font-weight:800; color:${C.greenDk}; white-space:nowrap; }
-        .fr-stock-order-shell .stock-order-availability.out { color:${C.red}; background:${C.redBg}; border-color:#f2c9c4; }
+        .fr-stock-order-shell .stock-order-price-big { font-size:21px; line-height:1; font-weight:900; color:${MSI_C.greenDk}; }
+        .fr-stock-order-shell .stock-order-price-unit { margin-top:5px; color:${MSI_C.muted}; font-size:10.5px; }
+        .fr-stock-order-shell .stock-order-availability { padding:7px 10px; border-radius:999px; background:${MSI_C.white}; border:1px solid ${MSI_C.border}; font-size:10px; font-weight:800; color:${MSI_C.greenDk}; white-space:nowrap; }
+        .fr-stock-order-shell .stock-order-availability.out { color:${MSI_C.red}; background:${MSI_C.redBg}; border-color:#f2c9c4; }
         .fr-stock-order-shell .stock-order-stepper { display:flex; align-items:center; gap:7px; margin-top:13px; }
-        .fr-stock-order-shell .stock-order-stepper button { width:32px; height:32px; min-width:32px; padding:0; border:1px solid ${C.border}; border-radius:10px; background:${C.white}; color:${C.greenDk}; font-size:18px; font-weight:800; cursor:pointer; }
+        .fr-stock-order-shell .stock-order-stepper button { width:32px; height:32px; min-width:32px; padding:0; border:1px solid ${MSI_C.border}; border-radius:10px; background:${MSI_C.white}; color:${MSI_C.greenDk}; font-size:18px; font-weight:800; cursor:pointer; }
 .fr-stock-order-shell .stock-order-stepper-input {
   width:60px;
   height:32px;
   padding:0 5px;
-  border:1px solid ${C.border};
+  border:1px solid ${MSI_C.border};
   border-radius:8px;
   background:#fff;
-  color:${C.ink};
+  color:${MSI_C.ink};
   text-align:center;
   font-size:14px;
   font-weight:800;
@@ -10175,7 +11856,7 @@ function ManagerStockInventoryContent({ user, brands }) {
 }
 
 .fr-stock-order-shell .stock-order-stepper-input:focus {
-  border-color:${C.green};
+  border-color:${MSI_C.green};
 }
 
 /* Remove Chrome, Edge, Safari number arrows */
@@ -10213,13 +11894,13 @@ function ManagerStockInventoryContent({ user, brands }) {
 }
         .fr-stock-order-shell .stock-order-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:10px; }
         .stock-order-actions .v-btn { min-height:32px !important; padding:6px 11px !important; font-size:11px !important; border-radius:8px !important; }
-        .fr-stock-order-shell .stock-order-unavailable { margin-top:12px; padding:10px 12px; border-radius:10px; background:${C.bg}; color:${C.muted}; font-size:11px; line-height:1.45; }
+        .fr-stock-order-shell .stock-order-unavailable { margin-top:12px; padding:10px 12px; border-radius:10px; background:${MSI_C.bg}; color:${MSI_C.muted}; font-size:11px; line-height:1.45; }
         .fr-stock-order-shell .stock-order-section { padding:0 14px 14px; }
-        .fr-stock-order-shell .stock-order-section-title { display:flex; align-items:center; gap:7px; margin:0 0 8px; font-size:11px; font-weight:900; color:${C.greenDk}; }
-        .fr-stock-order-shell .stock-order-queue-panel { margin-bottom:10px; border:1px solid ${C.border}; border-radius:13px; background:${C.white}; overflow:auto; max-height:245px; padding:10px 12px; }
+        .fr-stock-order-shell .stock-order-section-title { display:flex; align-items:center; gap:7px; margin:0 0 8px; font-size:11px; font-weight:900; color:${MSI_C.greenDk}; }
+        .fr-stock-order-shell .stock-order-queue-panel { margin-bottom:10px; border:1px solid ${MSI_C.border}; border-radius:13px; background:${MSI_C.white}; overflow:auto; max-height:245px; padding:10px 12px; }
         .fr-stock-order-shell .stock-order-queue-panel .fr-inventory-detail-content { animation:none; }
-        .fr-stock-order-shell .stock-order-detail-panel { border:1px solid ${C.border}; border-radius:13px; background:${C.white}; overflow:hidden; }
-        .fr-stock-order-shell .stock-order-detail-panel .stock-order-hero { border-bottom:1px solid ${C.border}; }
+        .fr-stock-order-shell .stock-order-detail-panel { border:1px solid ${MSI_C.border}; border-radius:13px; background:${MSI_C.white}; overflow:hidden; }
+        .fr-stock-order-shell .stock-order-detail-panel .stock-order-hero { border-bottom:1px solid ${MSI_C.border}; }
         .fr-stock-order-shell .stock-order-header-actions { display:flex; align-items:center; gap:7px; flex-wrap:wrap; justify-content:flex-end; }
         .fr-stock-order-shell .stock-order-cart-modal { width:min(100%,820px); padding:0 !important; overflow:hidden !important; }
         .fr-stock-order-shell .stock-order-orders-modal { width:min(100%,900px); padding:0 !important; overflow:hidden !important; }
@@ -10316,37 +11997,37 @@ function ManagerStockInventoryContent({ user, brands }) {
 }.fr-stock-order-shell .checkout-mobile-scroll { padding:16px; } .fr-stock-order-shell .checkout-mobile-bottom { padding-left:18px; padding-right:18px; padding-bottom:18px; } }
         .fr-stock-order-shell .stock-order-cart-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:15px; align-items:center; padding:15px 18px; border-bottom:1px solid #EEF1EA; background:#fff; }
         .fr-stock-order-shell .stock-order-cart-row:hover { background:#FBFCF8; }
-        .fr-stock-order-shell .stock-cart-modal-head, .fr-stock-order-shell .stock-orders-modal-head { padding:18px 20px; background:linear-gradient(135deg,#fbfcf8,#f4f8ec); border-bottom:1px solid ${C.border}; }
-        .fr-stock-order-shell .stock-modal-eyebrow { font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:.09em; color:${C.green}; }
+        .fr-stock-order-shell .stock-cart-modal-head, .fr-stock-order-shell .stock-orders-modal-head { padding:18px 20px; background:linear-gradient(135deg,#fbfcf8,#f4f8ec); border-bottom:1px solid ${MSI_C.border}; }
+        .fr-stock-order-shell .stock-modal-eyebrow { font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:.09em; color:${MSI_C.green}; }
         .fr-stock-order-shell .stock-modal-title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
-        .fr-stock-order-shell .stock-modal-title { margin-top:3px; font-size:19px; font-weight:900; color:${C.ink}; }
-        .fr-stock-order-shell .stock-modal-subtitle { margin-top:4px; color:${C.muted}; font-size:10.5px; line-height:1.45; }
+        .fr-stock-order-shell .stock-modal-title { margin-top:3px; font-size:19px; font-weight:900; color:${MSI_C.ink}; }
+        .fr-stock-order-shell .stock-modal-subtitle { margin-top:4px; color:${MSI_C.muted}; font-size:10.5px; line-height:1.45; }
         .fr-stock-order-shell .stock-modal-scroll { max-height:min(58vh,520px); overflow:auto; }
-        .fr-stock-order-shell .stock-modal-footer { padding:13px 20px 17px; border-top:1px solid ${C.border}; background:#fff; position:sticky; bottom:0; z-index:3; }
+        .fr-stock-order-shell .stock-modal-footer { padding:13px 20px 17px; border-top:1px solid ${MSI_C.border}; background:#fff; position:sticky; bottom:0; z-index:3; }
         .fr-stock-order-shell .stock-cart-item-main { min-width:0; }
-        .fr-stock-order-shell .stock-cart-item-title { font-size:13px; font-weight:900; color:${C.ink}; overflow-wrap:anywhere; }
-        .fr-stock-order-shell .stock-cart-item-meta { margin-top:4px; font-size:10.5px; color:${C.muted}; }
-        .fr-stock-order-shell .stock-cart-stock-note { margin-top:5px; font-size:9.5px; color:${C.greenDk}; font-weight:800; }
-        .fr-stock-order-shell .stock-cart-stock-note.low { color:${C.red}; }
-        .fr-stock-order-shell .stock-cart-qty { display:flex; align-items:center; gap:6px; padding:4px; border:1px solid ${C.border}; border-radius:10px; background:#FBFCF8; }
-        .fr-stock-order-shell .stock-cart-qty button { width:28px; height:28px; border:1px solid ${C.border}; border-radius:7px; background:#fff; color:${C.greenDk}; font-weight:900; cursor:pointer; }
+        .fr-stock-order-shell .stock-cart-item-title { font-size:13px; font-weight:900; color:${MSI_C.ink}; overflow-wrap:anywhere; }
+        .fr-stock-order-shell .stock-cart-item-meta { margin-top:4px; font-size:10.5px; color:${MSI_C.muted}; }
+        .fr-stock-order-shell .stock-cart-stock-note { margin-top:5px; font-size:9.5px; color:${MSI_C.greenDk}; font-weight:800; }
+        .fr-stock-order-shell .stock-cart-stock-note.low { color:${MSI_C.red}; }
+        .fr-stock-order-shell .stock-cart-qty { display:flex; align-items:center; gap:6px; padding:4px; border:1px solid ${MSI_C.border}; border-radius:10px; background:#FBFCF8; }
+        .fr-stock-order-shell .stock-cart-qty button { width:28px; height:28px; border:1px solid ${MSI_C.border}; border-radius:7px; background:#fff; color:${MSI_C.greenDk}; font-weight:900; cursor:pointer; }
         .fr-stock-order-shell .stock-cart-qty button:disabled { opacity:.4; cursor:not-allowed; }
         .fr-stock-order-shell .stock-cart-qty-input {
           width:52px;
           height:28px;
-          border:1px solid ${C.border};
+          border:1px solid ${MSI_C.border};
           border-radius:7px;
           background:#fff;
           text-align:center;
           font-size:12px;
           font-weight:800;
-          color:${C.ink};
+          color:${MSI_C.ink};
           outline:none;
           box-sizing:border-box;
         }
 
         .fr-stock-order-shell .stock-cart-qty-input:focus {
-          border-color:${C.green};
+          border-color:${MSI_C.green};
         }
 
         .fr-stock-order-shell .stock-cart-qty-input::-webkit-inner-spin-button,
@@ -10355,38 +12036,38 @@ function ManagerStockInventoryContent({ user, brands }) {
         }
         .fr-stock-order-shell .stock-cart-line-total { min-width:86px; text-align:right; }
         .fr-stock-order-shell .stock-cart-remove { margin-top:5px; border:0; background:transparent; color:#9B2C2C; font-size:9.5px; font-weight:800; cursor:pointer; padding:0; }
-        .fr-stock-order-shell .stock-order-count-badge { min-width:21px; height:21px; padding:0 6px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#EEF4E7; color:${C.greenDk}; font-size:9.5px; font-weight:900; }
+        .fr-stock-order-shell .stock-order-count-badge { min-width:21px; height:21px; padding:0 6px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#EEF4E7; color:${MSI_C.greenDk}; font-size:9.5px; font-weight:900; }
         .fr-stock-order-shell .stock-orders-summary { display:flex; gap:7px; flex-wrap:wrap; padding:12px 20px 0; }
-        .fr-stock-order-shell .stock-orders-stat { display:inline-flex; align-items:center; gap:6px; padding:6px 9px; border:1px solid ${C.border}; border-radius:9px; background:#FBFCF8; color:${C.muted}; font-size:9.5px; font-weight:800; }
-        .fr-stock-order-shell .stock-orders-stat strong { color:${C.ink}; font-size:11px; }
-        .fr-stock-order-shell .stock-order-history-card { margin:10px 20px; border:1px solid ${C.border}; border-radius:12px; overflow:hidden; background:#fff; }
+        .fr-stock-order-shell .stock-orders-stat { display:inline-flex; align-items:center; gap:6px; padding:6px 9px; border:1px solid ${MSI_C.border}; border-radius:9px; background:#FBFCF8; color:${MSI_C.muted}; font-size:9.5px; font-weight:800; }
+        .fr-stock-order-shell .stock-orders-stat strong { color:${MSI_C.ink}; font-size:11px; }
+        .fr-stock-order-shell .stock-order-history-card { margin:10px 20px; border:1px solid ${MSI_C.border}; border-radius:12px; overflow:hidden; background:#fff; }
         .fr-stock-order-shell .stock-order-history-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; cursor:pointer; }
         .fr-stock-order-shell .stock-order-history-head:hover { background:#FBFCF8; }
-        .fr-stock-order-shell .stock-order-history-id { font-size:12.5px; font-weight:900; color:${C.ink}; }
-        .fr-stock-order-shell .stock-order-history-date { margin-top:3px; font-size:9.5px; color:${C.muted}; }
+        .fr-stock-order-shell .stock-order-history-id { font-size:12.5px; font-weight:900; color:${MSI_C.ink}; }
+        .fr-stock-order-shell .stock-order-history-date { margin-top:3px; font-size:9.5px; color:${MSI_C.muted}; }
         .fr-stock-order-shell .stock-order-status { display:inline-flex; align-items:center; gap:5px; padding:5px 8px; border-radius:999px; font-size:9px; font-weight:900; white-space:nowrap; border:1px solid transparent; }
         .fr-stock-order-shell .stock-order-status::before { content:""; width:5px; height:5px; border-radius:50%; background:currentColor; }
         .fr-stock-order-shell .stock-order-status.pending { color:#8A6400; background:#FFF8D8; border-color:#F0DEA0; }
         .fr-stock-order-shell .stock-order-status.processing { color:#285C85; background:#EEF6FC; border-color:#C8DFEF; }
         .fr-stock-order-shell .stock-order-status.completed { color:#2C6B17; background:#EEF8E8; border-color:#CDE4BF; }
         .fr-stock-order-shell .stock-order-status.cancelled { color:#A3342A; background:#FFF1EF; border-color:#F0C9C3; }
-        .fr-stock-order-shell .stock-order-history-meta { display:flex; gap:12px; flex-wrap:wrap; padding:0 14px 11px; font-size:9.5px; color:${C.muted}; }
-        .fr-stock-order-shell .stock-order-history-total { color:${C.greenDk}; font-weight:900; }
+        .fr-stock-order-shell .stock-order-history-meta { display:flex; gap:12px; flex-wrap:wrap; padding:0 14px 11px; font-size:9.5px; color:${MSI_C.muted}; }
+        .fr-stock-order-shell .stock-order-history-total { color:${MSI_C.greenDk}; font-weight:900; }
         .fr-stock-order-shell .stock-order-history-details { padding:11px 14px 13px; background:#FBFCF8; border-top:1px solid #EEF1EA; }
         .fr-stock-order-shell .stock-order-history-item { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px dashed #E4E9DE; }
         .fr-stock-order-shell .stock-order-history-item:last-child { border-bottom:0; }
-        .fr-stock-order-shell .stock-order-history-item-name { font-size:10.5px; font-weight:800; color:${C.ink}; }
-        .fr-stock-order-shell .stock-order-history-item-meta { margin-top:2px; font-size:9px; color:${C.muted}; }
-        .fr-stock-order-shell .stock-order-history-address { margin-top:9px; padding-top:9px; border-top:1px solid ${C.border}; font-size:9.5px; color:${C.muted}; line-height:1.45; }
-        .fr-stock-order-shell .stock-order-history-address strong { color:${C.ink}; }
-        .fr-stock-order-shell .stock-order-empty { padding:56px 24px 62px; text-align:center; color:${C.muted}; }
+        .fr-stock-order-shell .stock-order-history-item-name { font-size:10.5px; font-weight:800; color:${MSI_C.ink}; }
+        .fr-stock-order-shell .stock-order-history-item-meta { margin-top:2px; font-size:9px; color:${MSI_C.muted}; }
+        .fr-stock-order-shell .stock-order-history-address { margin-top:9px; padding-top:9px; border-top:1px solid ${MSI_C.border}; font-size:9.5px; color:${MSI_C.muted}; line-height:1.45; }
+        .fr-stock-order-shell .stock-order-history-address strong { color:${MSI_C.ink}; }
+        .fr-stock-order-shell .stock-order-empty { padding:56px 24px 62px; text-align:center; color:${MSI_C.muted}; }
         .fr-stock-order-shell .stock-order-summary-row { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:10px 0; }
-        .fr-stock-order-shell .stock-order-summary-total { padding-top:14px; margin-top:5px; border-top:1px solid ${C.border}; }
-        .fr-stock-order-shell .stock-order-muted { color:${C.muted}; font-size:11px; }
+        .fr-stock-order-shell .stock-order-summary-total { padding-top:14px; margin-top:5px; border-top:1px solid ${MSI_C.border}; }
+        .fr-stock-order-shell .stock-order-muted { color:${MSI_C.muted}; font-size:11px; }
         .fr-stock-order-shell .stock-order-success { text-align:center; padding:40px 20px 24px; }
         @media(max-width:980px){
           .fr-stock-order-shell .stock-order-layout { grid-template-columns:1fr; max-height:none; }
-          .fr-stock-order-shell .stock-order-list { border-right:0; border-bottom:1px solid ${C.border}; max-height:340px; }
+          .fr-stock-order-shell .stock-order-list { border-right:0; border-bottom:1px solid ${MSI_C.border}; max-height:340px; }
           .fr-stock-order-shell .stock-order-detail { max-height:none; padding:10px; }
         }
         @media(max-width:620px){
@@ -10895,13 +12576,136 @@ max-width: 950px !important;
     font-size: 13px !important;
   }
 }
+        /* Stock-row ordering, website cart and Philippine address controls. */
+        .fr-stock-order-shell .stock-order-row-top { padding-right:94px; min-height:46px; }
+        .fr-row-order-buttons { position:absolute; right:20px; top:16px; display:flex; gap:8px; }
+        .fr-row-order-btn { width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #d8e3cf; border-radius:9px; background:#fff; color:#3b791e; cursor:pointer; transition:transform .15s,background .15s; }
+        .fr-row-order-btn.primary { background:#3b791e; border-color:#3b791e; color:#fff; }
+        .fr-row-order-btn:hover { transform:translateY(-1px); box-shadow:0 3px 9px #18380c16; }
+        .fr-row-order-btn:active { transform:scale(.95); }
+        .fr-row-order-btn:disabled { opacity:.5; cursor:wait; }
+        .fr-row-order-btn span,.fr-visually-hidden { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+        .fr-stock-order-shell .stock-order-queue-panel { max-height:650px; margin-bottom:0; }
+        .fr-stock-order-shell .fr-quantity-modal { width:min(92vw,410px); padding:24px!important; border-radius:18px; background:#fff; }
+        .fr-dialog-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+        .fr-dialog-head small { color:#6b7864; font-size:11px; }
+        .fr-dialog-head h3 { margin:6px 0 0; font-size:18px; color:#2c5c16; }
+        .fr-icon-btn { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border:0; border-radius:8px; background:#f3f6ef; color:#3b791e; cursor:pointer; flex-shrink:0; }
+        .fr-icon-btn.danger { color:#dc2626; background:#fff1f1; }
+        .fr-quantity-info { display:flex; gap:12px; align-items:center; background:#f5f8ef; padding:15px; border-radius:12px; margin:20px 0; color:#2c5c16; font-size:13px; }
+        .fr-quantity-info small { display:block; margin-top:5px; color:#6b7864; font-size:11px; }
+        .fr-quantity-label { display:block; font-size:12px; font-weight:700; margin-bottom:8px; }
+        .fr-quantity-control { display:flex; border:1px solid #d8e3cf; border-radius:10px; overflow:hidden; height:44px; }
+        .fr-quantity-control button { width:46px; border:0; background:#f3f6ef; color:#3b791e; cursor:pointer; font-size:20px; }
+        .fr-quantity-control input { flex:1; width:70px; border:0; min-width:0; text-align:center; font:inherit; }
+        .fr-quantity-control button:disabled { opacity:.4; cursor:default; }
+        .fr-quantity-total { display:flex; justify-content:space-between; align-items:center; margin:22px 0; font-size:13px; }
+        .fr-quantity-total strong { color:#2c5c16; font-size:20px; }
+        .fr-wide-button { width:100%; justify-content:center; gap:8px; }
+        .fr-field-error { color:#b42318!important; font-size:11px; line-height:1.5; }
+        .fr-stock-order-shell .fr-web-cart { width:min(96vw,1180px)!important; max-width:1180px!important; max-height:90vh; padding:0!important; overflow:auto!important; background:#fff; border-radius:18px; }
+        .fr-web-cart-head { display:flex; align-items:center; justify-content:space-between; padding:23px 26px; border-bottom:1px solid #e5ebdf; gap:16px; }
+        .fr-web-cart-head h2 { display:flex; align-items:center; gap:10px; font-size:21px; color:#2c5c16; margin:0; }
+        .fr-web-cart-head h2 span { background:#eef4e7; padding:4px 8px; font-size:12px; border-radius:7px; }
+        .fr-web-cart-head p { font-size:11px; color:#75806d; margin:7px 0 0; }
+        .fr-web-cart-layout { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:24px; padding:24px; align-items:start; }
+        .fr-web-cart-items { min-width:0; }
+        .fr-cart-toolbar { display:flex; align-items:center; justify-content:space-between; font-size:12px; padding:0 0 18px; gap:10px; }
+        .fr-cart-toolbar label { display:flex; align-items:center; gap:8px; font-weight:700; }
+        .fr-web-cart input[type=checkbox] { width:16px; height:16px; accent-color:#3b791e; cursor:pointer; }
+        .fr-cart-toolbar>span { color:#75806d; font-size:11px; }
+        .fr-cart-table-scroll { overflow-x:auto; }
+        .fr-cart-table { width:100%; border-collapse:collapse; font-size:12px; min-width:620px; }
+        .fr-cart-table th { text-align:left; background:#f5f7f0; font-size:10px; color:#66745e; font-weight:700; padding:12px 8px; white-space:nowrap; }
+        .fr-cart-table td { padding:18px 8px; border-bottom:1px solid #eef1e9; vertical-align:middle; white-space:nowrap; }
+        .fr-cart-table th:first-child,.fr-cart-table td:first-child { width:30px; }
+        .fr-cart-product { display:flex; gap:10px; align-items:center; min-width:170px; white-space:normal; }
+        .fr-cart-product strong { font-size:12px; color:#2c5c16; }
+        .fr-cart-product small { display:block; color:#75806d; font-size:10px; margin-top:5px; }
+        .fr-cart-thumb { width:44px; height:44px; flex-shrink:0; background:#f1f6e9; color:#3b791e; display:flex; align-items:center; justify-content:center; border-radius:9px; overflow:hidden; }
+        .fr-cart-thumb img { width:100%; height:100%; object-fit:contain; }
+        .fr-cart-stepper { display:flex; align-items:center; border:1px solid #dde6d5; border-radius:8px; overflow:hidden; width:100px; height:33px; }
+        .fr-cart-stepper button { background:#f5f8ef; border:0; width:28px; height:100%; color:#3b791e; cursor:pointer; }
+        .fr-cart-stepper input { width:42px; min-width:0; border:0; text-align:center; font:inherit; padding:0; appearance:textfield; }
+        .fr-cart-stepper input::-webkit-inner-spin-button { appearance:none; }
+        .fr-cart-stepper button:disabled { opacity:.4; cursor:default; }
+        .fr-cart-row-issue { background:#fff9f8; }
+        .fr-cart-continue { display:inline-flex; align-items:center; gap:7px; color:#3b791e; border:0; background:none; cursor:pointer; font:inherit; font-size:12px; margin-top:22px; padding:0; }
+        .fr-cart-summary { background:#f6f8f1; border:1px solid #e5ebdc; border-radius:13px; padding:22px; }
+        .fr-cart-summary h3 { margin:0; font-size:16px; color:#2c5c16; }
+        .fr-cart-summary p { color:#75806d; font-size:11px; line-height:1.6; margin:8px 0 22px; }
+        .fr-cart-summary>div { display:flex; justify-content:space-between; align-items:center; margin:16px 0; font-size:12px; gap:8px; }
+        .fr-cart-summary .fr-cart-summary-total { border-top:1px solid #dde5d4; padding-top:20px; margin:20px 0; }
+        .fr-cart-summary-total strong { font-size:23px; color:#2c5c16; }
+        .fr-cart-summary>small { display:block; text-align:center; font-size:10px; color:#75806d; margin-top:12px; line-height:1.5; }
+        .fr-address-fields { margin-top:14px; }
+        .fr-address-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        .fr-address-field { display:flex; flex-direction:column; gap:7px; min-width:0; }
+        .fr-address-field>span { font-size:11px; font-weight:700; color:#2c5c16; }
+        .fr-address-field input,.fr-address-field select,.fr-address-field textarea { box-sizing:border-box; width:100%; min-width:0; border:1px solid #dce5d4; border-radius:9px; background:#fff; color:#253820; padding:10px 11px; font:inherit; font-size:12px; }
+        .fr-address-field input:focus,.fr-address-field select:focus,.fr-address-field textarea:focus { outline:2px solid #b3c99d; outline-offset:1px; }
+        .fr-address-field select:disabled { background:#f5f7f1; }
+        .fr-address-full { grid-column:1/-1; }
+        .fr-address-complete { margin-top:14px; }
+        .fr-address-complete textarea { resize:vertical; min-height:80px; border-color:#c8b572; }
+        .fr-address-help { display:block; font-size:10px; color:#75806d; line-height:1.5; margin-top:8px; }
+        .fr-address-notice { font-size:11px; color:#766020; background:#fffbeb; border-radius:8px; padding:10px; margin-top:12px; line-height:1.5; }
+        .fr-address-notice button { background:none; border:0; color:#3b791e; text-decoration:underline; font:inherit; cursor:pointer; padding:4px 0; }
+        @media(max-width:900px) { .fr-web-cart-layout { grid-template-columns:1fr; gap:20px; padding:18px; } .fr-web-cart-head { padding:18px; } }
+        @media(max-width:520px) { .fr-address-grid { grid-template-columns:1fr; } .fr-row-order-buttons { right:14px; gap:6px; } .fr-stock-order-shell .stock-order-row-top { padding-right:84px; } }
+
+        /* Compact purchasing controls: override the shared round-button defaults. */
+        .fr-stock-order-shell .stock-order-row-top { padding-right:204px; }
+        body.fr-admin-ui .fr-stock-order-shell .fr-row-order-btn,
+        .fr-stock-order-shell .fr-row-order-btn { width:auto; min-width:0; height:32px; min-height:32px; padding:0 10px; gap:5px; font-size:11px!important; }
+        .fr-stock-order-shell .fr-row-order-btn span { position:static; width:auto; height:auto; overflow:visible; clip:auto; }
+        body.fr-admin-ui .fr-stock-order-shell .fr-row-order-btn.primary { background:#3b791e; color:#fff; }
+        .fr-stock-order-shell .fr-quantity-control,
+        .fr-stock-order-shell .fr-cart-stepper { display:inline-flex; width:126px; max-width:100%; height:34px; gap:4px; border:0!important; box-shadow:none!important; background:transparent; overflow:visible; border-radius:0; }
+        body.fr-admin-ui .fr-stock-order-shell :is(.fr-quantity-control,.fr-cart-stepper) button,
+        .fr-stock-order-shell :is(.fr-quantity-control,.fr-cart-stepper) button { width:30px!important; min-width:30px!important; height:32px!important; min-height:32px!important; padding:0!important; border:0!important; border-radius:8px!important; background:#edf3e5!important; color:#3b791e!important; flex:0 0 30px; box-shadow:none!important; }
+        .fr-stock-order-shell :is(.fr-quantity-control,.fr-cart-stepper) input { flex:0 0 58px; width:58px!important; min-width:0!important; height:32px; box-sizing:border-box; padding:0 3px!important; border:0!important; border-radius:6px; background:#f6f8f1; box-shadow:none!important; text-align:center; appearance:textfield; font:inherit; font-size:12px; }
+        .fr-stock-order-shell :is(.fr-quantity-control,.fr-cart-stepper) input::-webkit-inner-spin-button,
+        .fr-stock-order-shell :is(.fr-quantity-control,.fr-cart-stepper) input::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+        .fr-quantity-limit,.fr-cart-quantity-hint { display:block; font-size:10px; color:#65735c; line-height:1.5; margin:8px 0 0; }
+        .fr-supply-details { padding:14px; margin:18px 0; border-radius:12px; background:#f4f7ed; }
+        .fr-supply-details-title { display:flex; align-items:center; gap:7px; font-size:12px; color:#2c5c16; font-weight:800; margin-bottom:12px; }
+        .fr-supply-details dl { margin:0; display:grid; gap:9px; }
+        .fr-supply-details dl>div { display:flex; justify-content:space-between; gap:18px; font-size:11px; }
+        .fr-supply-details dt { color:#65735c; }
+        .fr-supply-details dd { margin:0; text-align:right; color:#2c5c16; font-weight:700; overflow-wrap:anywhere; }
+        .fr-supply-details p { margin:12px 0 0; font-size:10px; color:#65735c; }
+        body.fr-admin-ui .fr-stock-order-shell .fr-stock-status,
+        .fr-stock-order-shell .fr-stock-status { display:inline-flex; gap:5px; align-items:center; min-height:0; min-width:0; border:0; padding:3px 0; margin:0 0 8px; background:transparent; font-size:10px!important; font-weight:700!important; cursor:pointer; color:#3b791e; }
+        .fr-stock-status>span { width:6px; height:6px; border-radius:50%; background:currentColor; }
+        .fr-stock-order-shell .fr-stock-status.out,
+        body.fr-admin-ui .fr-stock-order-shell .fr-stock-status.out { color:#dc2626; }
+        .fr-stock-order-shell .fr-stock-status.low,
+        body.fr-admin-ui .fr-stock-order-shell .fr-stock-status.low { color:#c76b0a; }
+        .fr-stock-order-shell .stock-order-stock-line.out-track { background:#dc2626!important; }
+        .fr-stock-order-shell .stock-order-stock-line.low-track { background:#fff0d9; }
+        .fr-stock-order-shell .stock-order-stock-line-fill.low { background:#e99320!important; }
+        .fr-stock-order-shell .stock-order-stock-line-fill.out { background:#dc2626!important; }
+        @media(max-width:520px) {
+          .fr-stock-order-shell .stock-order-row-top { padding-right:0; display:flex; flex-direction:column; }
+          .fr-stock-order-shell .fr-row-order-buttons { position:static; order:4; margin-top:9px; flex-wrap:wrap; }
+        }
+
+        .fr-stock-order-shell .fr-order-success-actions { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; width:100%; margin-top:22px; }
+        body.fr-admin-ui .fr-stock-order-shell .fr-order-success-actions .checkout-place-btn,
+        .fr-stock-order-shell .fr-order-success-actions .checkout-place-btn { display:flex!important; align-items:center; justify-content:center; align-self:center; width:min(100%,240px)!important; max-width:240px; margin:0!important; }
+        body.fr-admin-ui .fr-stock-order-shell .fr-order-redirecting,
+        .fr-stock-order-shell .fr-order-redirecting { display:inline-flex!important; align-items:center; justify-content:center; gap:8px; max-width:100%; padding:9px 14px; border:0!important; background:#f0f5e8!important; color:#3b791e!important; opacity:1!important; cursor:wait!important; font-size:11px!important; white-space:normal; }
+        .fr-order-redirect-spinner { animation:frOrderRedirectSpin 1s linear infinite; }
+        @keyframes frOrderRedirectSpin { to { transform:rotate(360deg); } }
+        @media(prefers-reduced-motion:reduce) { .fr-order-redirect-spinner { animation:none; } }
       `}</style>
 
       <div
         className="stock-surface"
         style={{
-          background: C.white,
-          border: `1px solid ${C.border}`,
+          background: MSI_C.white,
+          border: `1px solid ${MSI_C.border}`,
           borderRadius: 18,
           overflow: "hidden",
           boxShadow: "0 2px 10px rgba(50,109,32,.05)",
@@ -10914,8 +12718,8 @@ max-width: 950px !important;
           style={{
             padding: "14px 18px 14px 22px",
             background: "#fbfcf8",
-            borderBottom: `1px solid ${C.border}`,
-            color: C.ink,
+            borderBottom: `1px solid ${MSI_C.border}`,
+            color: MSI_C.ink,
           }}
         >
           <div
@@ -10931,14 +12735,14 @@ max-width: 950px !important;
                 width: 34,
                 height: 34,
                 borderRadius: 10,
-                background: C.greenLt,
+                background: MSI_C.greenLt,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
               }}
             >
-              <Layers size={16} color={C.green} />
+              <Layers size={16} color={MSI_C.green} />
             </div>
             <div style={{ minWidth: 0 }}>
               <div
@@ -10956,9 +12760,9 @@ max-width: 950px !important;
                   style={{
                     padding: "4px 8px",
                     borderRadius: 999,
-                    background: C.white,
-                    border: `1px solid ${C.border}`,
-                    color: C.muted,
+                    background: MSI_C.white,
+                    border: `1px solid ${MSI_C.border}`,
+                    color: MSI_C.muted,
                     fontSize: 10,
                     fontWeight: 800,
                   }}
@@ -10966,9 +12770,8 @@ max-width: 950px !important;
                   {userBranch || "No branch assigned"}
                 </span>
               </div>
-              <div style={{ marginTop: 4, fontSize: 11, color: C.muted }}>
-                Monitor branch stock and order approved supplies without leaving
-                this screen.
+              <div style={{ marginTop: 4, fontSize: 11, color: MSI_C.muted }}>
+                Order store supplies from iFranchise
               </div>
             </div>
           </div>
@@ -10989,13 +12792,15 @@ max-width: 950px !important;
             </button>
             <button
               type="button"
-              className="v-btn v-btn-primary stock-order-cart-btn"
+              className="stock-order-cart-btn"
               onClick={() => setShowCart(true)}
+              aria-label={`Open cart, ${cartItemCount} ${cartItemCount === 1 ? "item" : "items"}`}
+              title="My Cart"
             >
-              <ShoppingCart size={15} />
-              Cart
-              <span className="stock-cart-count">{cartItemCount}</span>
-              <span style={{ opacity: 0.92 }}>{fmtPeso(cartTotal)}</span>
+              <ShoppingCart size={26} strokeWidth={1.7} aria-hidden="true" />
+              <span className="stock-cart-count" aria-hidden="true">
+                {cartItemCount}
+              </span>
             </button>
           </div>
         </div>
@@ -11003,7 +12808,7 @@ max-width: 950px !important;
         <div
           style={{
             padding: "12px 18px",
-            borderBottom: `1px solid ${C.border}`,
+            borderBottom: `1px solid ${MSI_C.border}`,
             display: "flex",
             gap: 6,
             flexWrap: "wrap",
@@ -11019,46 +12824,33 @@ max-width: 950px !important;
                 left: 8,
                 top: "50%",
                 transform: "translateY(-50%)",
-                color: C.muted,
+                color: MSI_C.muted,
               }}
             >
-              <SearchIcon size={11} />
+              <MSI_SearchIcon size={11} />
             </div>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search item, category, SKU…"
               style={{
-                ...invInputSt,
+                ...MSI_invInputSt,
                 height: 32,
                 fontSize: 12,
                 paddingLeft: 25,
               }}
             />
           </div>
-          <div
-            style={{
-              ...invInputSt,
-              height: 32,
-              minWidth: 150,
-              fontSize: 11,
-              padding: "6px 10px",
-              background: C.bg,
-              color: C.ink,
-              fontWeight: 700,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <StoreIcon size={12} color={C.green} />{" "}
-            {userBranch || "Assigned Branch"}
-          </div>
           {categoryOptions.length > 0 && (
             <select
               value={categoryF}
               onChange={(e) => setCategoryF(e.target.value)}
-              style={{ ...invInputSt, height: 32, fontSize: 11, width: 150 }}
+              style={{
+                ...MSI_invInputSt,
+                height: 32,
+                fontSize: 11,
+                width: 150,
+              }}
             >
               <option value="">All Categories</option>
               {categoryOptions.map((cat) => (
@@ -11071,10 +12863,10 @@ max-width: 950px !important;
           <select
             value={unitF}
             onChange={(e) => setUnitF(e.target.value)}
-            style={{ ...invInputSt, height: 32, fontSize: 11, width: 100 }}
+            style={{ ...MSI_invInputSt, height: 32, fontSize: 11, width: 100 }}
           >
             <option value="">All Units</option>
-            {UNITS.map((u) => (
+            {MSI_UNITS.map((u) => (
               <option key={u} value={u}>
                 {u}
               </option>
@@ -11083,9 +12875,10 @@ max-width: 950px !important;
           <select
             value={statusF}
             onChange={(e) => setStatusF(e.target.value)}
-            style={{ ...invInputSt, height: 32, fontSize: 11, width: 118 }}
+            style={{ ...MSI_invInputSt, height: 32, fontSize: 11, width: 118 }}
           >
             <option value="">All Status</option>
+            <option value="out">Out of Stock</option>
             <option value="low">Low Stock</option>
             <option value="ok">In Stock</option>
             {hasExpiry && <option value="expiring">Expiring Soon (30d)</option>}
@@ -11132,8 +12925,8 @@ max-width: 950px !important;
               padding: "10px 12px",
               border: "1px solid #f2c9c4",
               borderRadius: 10,
-              background: C.redBg,
-              color: C.red,
+              background: MSI_C.redBg,
+              color: MSI_C.red,
               fontSize: 11,
               display: "flex",
               gap: 8,
@@ -11152,7 +12945,7 @@ max-width: 950px !important;
                 style={{
                   padding: "50px 20px",
                   textAlign: "center",
-                  color: C.muted,
+                  color: MSI_C.muted,
                 }}
               >
                 <RefreshCw size={20} className="fr-spin" />
@@ -11165,7 +12958,7 @@ max-width: 950px !important;
                 style={{
                   padding: "44px 20px",
                   textAlign: "center",
-                  color: C.muted,
+                  color: MSI_C.muted,
                 }}
               >
                 <Package size={26} />
@@ -11179,7 +12972,14 @@ max-width: 950px !important;
               filtered.map((item) => {
                 const active = item.id === selectedId;
                 const stockValue = Math.max(0, Number(item.stock ?? 0));
-                const low = isLowStock(item);
+                const outOfStock = stockValue <= 0;
+                const low = !outOfStock && isLowStock(item);
+                const stockStatus = outOfStock
+                  ? "Out of Stock"
+                  : low
+                    ? "Low Stock"
+                    : "In Stock";
+                const stockClass = outOfStock ? "out" : low ? "low" : "ok";
                 const stockPercent =
                   maxBarStock > 0
                     ? Math.min(
@@ -11190,9 +12990,7 @@ max-width: 950px !important;
                         ),
                       )
                     : 0;
-                const stockBarLabel = low
-                  ? `Low stock: ${frStockQuantity(item.stock, item.unit)} (${stockPercent}% of highest stock)`
-                  : `Stock okay: ${frStockQuantity(item.stock, item.unit)} (${stockPercent}% of highest stock)`;
+                const stockBarLabel = `${stockStatus}: ${MSI_frStockQuantity(item.stock, item.unit)}. Click to view stock batches.`;
                 return (
                   <div
                     key={item.id}
@@ -11202,13 +13000,43 @@ max-width: 950px !important;
                     tabIndex={0}
                     aria-pressed={active}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
+                      if (
+                        e.target === e.currentTarget &&
+                        (e.key === "Enter" || e.key === " ")
+                      ) {
                         e.preventDefault();
                         selectItem(item);
                       }
                     }}
                   >
                     <span className="stock-order-row-top">
+                      <span
+                        className="fr-row-order-buttons"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          className="fr-row-order-btn"
+                          title={`Add ${item.name} to cart`}
+                          aria-label={`Add ${item.name} to cart`}
+                          disabled={shopLoading}
+                          onClick={() => openOrderDialog(item, "cart")}
+                        >
+                          <ShoppingCart size={15} />
+                          <span>Add to Cart</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="fr-row-order-btn primary"
+                          title={`Buy ${item.name} now`}
+                          aria-label={`Buy ${item.name} now`}
+                          disabled={shopLoading}
+                          onClick={() => openOrderDialog(item, "buyNow")}
+                        >
+                          <span>Buy Now</span>
+                        </button>
+                      </span>
                       <span className="stock-order-row-name">{item.name}</span>
                       <span className="stock-order-row-meta">
                         {[item.sku || "No SKU", item.branch || userBranch]
@@ -11222,7 +13050,7 @@ max-width: 950px !important;
                       </span>
                     </span>
                     <span
-                      className={`stock-order-stock-line${low ? " low-track" : ""}`}
+                      className={`stock-order-stock-line ${stockClass}-track`}
                       role="progressbar"
                       aria-valuenow={Math.max(0, stockValue)}
                       aria-valuemin={0}
@@ -11231,261 +13059,23 @@ max-width: 950px !important;
                       title={stockBarLabel}
                     >
                       <span
-                        className={`stock-order-stock-line-fill${low ? " low" : ""}`}
+                        className={`stock-order-stock-line-fill ${stockClass}`}
                         style={{ width: `${stockPercent}%` }}
                       />
                     </span>
-                    <span className="stock-order-row-actions">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openFrEdit(item);
-                        }}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 5,
-                          height: 32,
-                          padding: "0 12px",
-                          borderRadius: 18,
-                          border: "1px solid #d8e3cf",
-                          background: "#fff",
-                          color: C.green,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          fontFamily: "inherit",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <Pencil size={13} />
-                        Edit
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteTarget(item);
-                        }}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 5,
-                          height: 32,
-                          padding: "0 12px",
-                          borderRadius: 18,
-                          border: "1px solid #ffc9c9",
-                          background: "#fff",
-                          color: "#ef4444",
-                          fontSize: 11,
-                          fontWeight: 700,
-                          fontFamily: "inherit",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <Trash2 size={13} />
-                        Delete
-                      </button>
-                    </span>
-                    {editingItem && (
-                      <div
-                        style={{
-                          position: "fixed",
-                          inset: 0,
-                          zIndex: 5000,
-                          background: "rgba(0,0,0,.38)",
-                          display: "grid",
-                          placeItems: "center",
-                          padding: 20,
-                        }}
-                        onMouseDown={() => {
-                          if (!savingEdit) setEditingItem(null);
-                        }}
-                      >
-                        <div
-                          onMouseDown={(e) => e.stopPropagation()}
-                          style={{
-                            width: "min(92vw, 420px)",
-                            background: "#fff",
-                            borderRadius: 18,
-                            border: `1px solid ${C.border}`,
-                            boxShadow: "0 24px 70px rgba(0,0,0,.20)",
-                            padding: 22,
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: 17,
-                              fontWeight: 800,
-                              color: C.ink,
-                              marginBottom: 4,
-                            }}
-                          >
-                            Edit Inventory
-                          </div>
-
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: C.muted,
-                              marginBottom: 18,
-                            }}
-                          >
-                            {editingItem.name}
-                          </div>
-
-                          <label
-                            style={{
-                              display: "block",
-                              fontSize: 11,
-                              fontWeight: 700,
-                              color: C.muted,
-                              marginBottom: 6,
-                            }}
-                          >
-                            Minimum Stock
-                          </label>
-
-                          <input
-                            type="number"
-                            min="0"
-                            value={editForm.min_stock}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({
-                                ...prev,
-                                min_stock: e.target.value,
-                              }))
-                            }
-                            style={{
-                              width: "100%",
-                              height: 40,
-                              padding: "0 12px",
-                              borderRadius: 10,
-                              border: `1px solid ${C.border}`,
-                              outline: "none",
-                              boxSizing: "border-box",
-                              fontFamily: "inherit",
-                            }}
-                          />
-
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "flex-end",
-                              gap: 8,
-                              marginTop: 20,
-                            }}
-                          >
-                            <button
-                              type="button"
-                              disabled={savingEdit}
-                              onClick={() => setEditingItem(null)}
-                            >
-                              Cancel
-                            </button>
-
-                            <button
-                              type="button"
-                              disabled={savingEdit}
-                              onClick={saveFrEdit}
-                              style={{
-                                background: C.green,
-                                color: "#fff",
-                                border: "none",
-                                borderRadius: 999,
-                                padding: "9px 18px",
-                                fontWeight: 700,
-                              }}
-                            >
-                              {savingEdit ? "Saving..." : "Save Changes"}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {deleteTarget && (
-                      <div
-                        style={{
-                          position: "fixed",
-                          inset: 0,
-                          zIndex: 5000,
-                          background: "rgba(0,0,0,.38)",
-                          display: "grid",
-                          placeItems: "center",
-                          padding: 20,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: "min(92vw, 400px)",
-                            background: "#fff",
-                            borderRadius: 18,
-                            padding: 22,
-                            border: `1px solid ${C.border}`,
-                            boxShadow: "0 24px 70px rgba(0,0,0,.20)",
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: 17,
-                              fontWeight: 800,
-                              color: C.ink,
-                            }}
-                          >
-                            Delete Inventory Item?
-                          </div>
-
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: C.muted,
-                              lineHeight: 1.6,
-                              marginTop: 8,
-                            }}
-                          >
-                            Are you sure you want to delete{" "}
-                            <strong>{deleteTarget.name}</strong>?
-                          </div>
-
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "flex-end",
-                              gap: 8,
-                              marginTop: 20,
-                            }}
-                          >
-                            <button
-                              type="button"
-                              disabled={deletingItem}
-                              onClick={() => setDeleteTarget(null)}
-                            >
-                              Cancel
-                            </button>
-
-                            <button
-                              type="button"
-                              disabled={deletingItem}
-                              onClick={confirmFrDelete}
-                              style={{
-                                background: "#e53935",
-                                color: "#fff",
-                                border: "none",
-                                borderRadius: 999,
-                                padding: "9px 18px",
-                                fontWeight: 700,
-                              }}
-                            >
-                              {deletingItem ? "Deleting..." : "Delete"}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    <button
+                      type="button"
+                      className={`fr-stock-status ${stockClass}`}
+                      title={stockBarLabel}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        selectItem(item);
+                      }}
+                    >
+                      <span aria-hidden="true" />
+                      {stockStatus} ·{" "}
+                      {MSI_frStockQuantity(item.stock, item.unit)}
+                    </button>
                   </div>
                 );
               })
@@ -11503,24 +13093,12 @@ max-width: 950px !important;
                   <div className="stock-order-section-title">
                     <Layers size={13} /> Stock Rotation / Batches
                   </div>
-                  <FrFifoQueue
+                  <MSI_FrFifoQueue
                     key={selected.id || "empty"}
                     product={selected}
                     batches={batches}
                     loading={batchLoading}
                     lowStock={isLowStock(selected)}
-                    onEditBatch={(batch) => {
-                      setEditingBatch({
-                        batch,
-                        ingredient: selected,
-                      });
-                    }}
-                    onDeleteBatch={(batch) => {
-                      setDeleteConfirmBatch({
-                        batch,
-                        ingredient: selected,
-                      });
-                    }}
                     onViewHistory={(batch) => {
                       setHistoryBatch({
                         batch,
@@ -11528,259 +13106,6 @@ max-width: 950px !important;
                       });
                     }}
                   />
-                </div>
-
-                <div className="stock-order-detail-panel">
-                  <div className="stock-order-hero">
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        alignItems: "flex-start",
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontSize: 9.5,
-                            fontWeight: 800,
-                            letterSpacing: ".08em",
-                            textTransform: "uppercase",
-                            color: C.muted,
-                          }}
-                        >
-                          Supply Details
-                        </div>
-                        <h2
-                          style={{
-                            margin: "4px 0 0",
-                            fontSize: 18,
-                            lineHeight: 1.2,
-                            color: C.ink,
-                            overflowWrap: "anywhere",
-                          }}
-                        >
-                          {selected.name}
-                        </h2>
-                        <div
-                          style={{
-                            marginTop: 5,
-                            color: C.muted,
-                            fontSize: 10.5,
-                          }}
-                        >
-                          {[
-                            selected.brand || userBrand,
-                            selected.branch || userBranch,
-                            selected.sku,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </div>
-                      </div>
-                      {isLowStock(selected) && (
-                        <span
-                          className="v-badge v-badge-red"
-                          style={{ fontSize: 9.5, padding: "3px 9px" }}
-                        >
-                          Low Stock
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="stock-order-facts">
-                    <div className="stock-order-fact">
-                      <div className="stock-order-fact-label">Your Stock</div>
-                      <div className="stock-order-fact-value">
-                        {frStockQuantity(selectedCurrentStock, selected.unit)}
-                      </div>
-                    </div>
-                    <div className="stock-order-fact">
-                      <div className="stock-order-fact-label">Category</div>
-                      <div className="stock-order-fact-value">
-                        {selected.category || "—"}
-                      </div>
-                    </div>
-                    <div className="stock-order-fact">
-                      <div className="stock-order-fact-label">
-                        Supply Available
-                      </div>
-                      <div className="stock-order-fact-value">
-                        {selectedShopItem
-                          ? `${selectedSupplyAvailable} ${selectedUnit}`
-                          : "—"}
-                      </div>
-                    </div>
-                    <div className="stock-order-fact">
-                      <div className="stock-order-fact-label">Unit Price</div>
-                      <div className="stock-order-fact-value">
-                        {selectedShopItem ? fmtPeso(selectedPrice) : "—"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="stock-order-purchase">
-                    <div className="stock-order-purchase-top">
-                      <div>
-                        <div className="stock-order-price-big">
-                          {selectedShopItem
-                            ? fmtPeso(selectedPrice)
-                            : "Not Listed"}
-                        </div>
-                        <div className="stock-order-price-unit">
-                          {selectedShopItem
-                            ? `per ${selectedUnit}`
-                            : "This item is not currently configured for ordering"}
-                        </div>
-                      </div>
-                      <span
-                        className={`stock-order-availability${!selectedShopItem || selectedSupplyAvailable <= 0 ? " out" : ""}`}
-                      >
-                        {shopLoading
-                          ? "Checking…"
-                          : selectedShopItem
-                            ? selectedSupplyAvailable > 0
-                              ? `${selectedSupplyAvailable} available`
-                              : "Out of stock"
-                            : "Not orderable"}
-                      </span>
-                    </div>
-
-                    {selectedShopItem && selectedSupplyAvailable > 0 ? (
-                      <>
-                        <div className="stock-order-stepper">
-                          <button
-                            type="button"
-                            aria-label="Decrease quantity"
-                            onClick={() =>
-                              updateCartQuantity(selectedShopItem.id, -1)
-                            }
-                            disabled={selectedCartQty <= 0}
-                          >
-                            −
-                          </button>
-
-                          <input
-                            type="number"
-                            min="1"
-                            max={selectedSupplyAvailable}
-                            value={selectedCartQty || 1}
-                            onChange={(e) => {
-                              const value = e.target.value;
-
-                              if (value === "") return;
-
-                              const quantity = Math.max(
-                                1,
-                                Math.min(
-                                  Number(value),
-                                  selectedSupplyAvailable,
-                                ),
-                              );
-
-                              const existing = cart.find(
-                                (entry) => entry.id === selectedShopItem.id,
-                              );
-
-                              let next;
-
-                              if (existing) {
-                                next = cart.map((entry) =>
-                                  entry.id === selectedShopItem.id
-                                    ? { ...entry, quantity }
-                                    : entry,
-                                );
-                              } else {
-                                next = [
-                                  ...cart,
-                                  createCartEntry(
-                                    selectedShopItem,
-                                    selected,
-                                    quantity,
-                                  ),
-                                ];
-                              }
-
-                              saveCart(next);
-                            }}
-                            className="stock-order-stepper-input"
-                            aria-label="Cart quantity"
-                          />
-
-                          <button
-                            type="button"
-                            aria-label="Increase quantity"
-                            onClick={() =>
-                              addToCart(selectedShopItem, selected, 1)
-                            }
-                            disabled={
-                              selectedCartQty >= selectedSupplyAvailable
-                            }
-                          >
-                            +
-                          </button>
-
-                          <span
-                            style={{
-                              marginLeft: 2,
-                              color: C.muted,
-                              fontSize: 9.5,
-                            }}
-                          >
-                            in cart
-                          </span>
-                        </div>
-                        <div className="stock-order-actions">
-                          <button
-                            type="button"
-                            className="v-btn v-btn-secondary"
-                            onClick={() =>
-                              addToCart(selectedShopItem, selected, 1)
-                            }
-                            disabled={
-                              selectedCartQty >= selectedSupplyAvailable
-                            }
-                          >
-                            <ShoppingCart size={13} /> Add to Cart
-                          </button>
-                          <button
-                            type="button"
-                            className="v-btn v-btn-primary"
-                            onClick={buyNow}
-                            disabled={
-                              !selectedShopItem || selectedSupplyAvailable <= 0
-                            }
-                          >
-                            Buy Now
-                          </button>
-                        </div>
-                        {selectedCartQty > 0 && (
-                          <div
-                            style={{
-                              marginTop: 8,
-                              padding: "7px 9px",
-                              borderRadius: 8,
-                              background: C.white,
-                              border: `1px solid ${C.border}`,
-                              fontSize: 10,
-                              color: C.muted,
-                            }}
-                          >
-                            {selectedCartQty} {selectedUnit} in cart ·{" "}
-                            {fmtPeso(selectedCartQty * selectedPrice)}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="stock-order-unavailable">
-                        {selectedShopItem
-                          ? "This supply has a listing, but there is currently no supply stock available."
-                          : "This inventory item does not have an active supply-store listing for your assigned brand and branch."}
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
             ) : (
@@ -11794,23 +13119,29 @@ max-width: 950px !important;
                 }}
               >
                 <div
-                  style={{ textAlign: "center", padding: 30, color: C.muted }}
+                  style={{
+                    textAlign: "center",
+                    padding: 30,
+                    color: MSI_C.muted,
+                  }}
                 >
                   <div
                     style={{
                       width: 48,
                       height: 48,
                       borderRadius: 13,
-                      background: C.greenLt,
+                      background: MSI_C.greenLt,
                       margin: "0 auto 12px",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                     }}
                   >
-                    <Layers size={22} color={C.green} />
+                    <Layers size={22} color={MSI_C.green} />
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 900, color: C.ink }}>
+                  <div
+                    style={{ fontSize: 14, fontWeight: 900, color: MSI_C.ink }}
+                  >
                     Select an inventory item
                   </div>
                   <div
@@ -11821,8 +13152,8 @@ max-width: 950px !important;
                       lineHeight: 1.6,
                     }}
                   >
-                    View the stock rotation queue first, then review supply
-                    details and order quantity.
+                    View stock rotation and batch details. Use the buttons on
+                    each item to order supplies.
                   </div>
                 </div>
               </div>
@@ -11831,269 +13162,460 @@ max-width: 950px !important;
         </div>
       </div>
 
+      <MSI_Toast toast={stockToast} onClose={closeStockToast} />
+      {orderDialog && (
+        <div
+          className="v-modal-overlay"
+          onMouseDown={() => setOrderDialog(null)}
+        >
+          <form
+            ref={orderingModalRef}
+            className="v-modal fr-quantity-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="fr-order-title"
+            onMouseDown={(event) => event.stopPropagation()}
+            onSubmit={confirmOrderDialog}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setOrderDialog(null);
+            }}
+          >
+            <div className="fr-dialog-head">
+              <div>
+                <small>
+                  {orderDialog.mode === "cart" ? "Add to Cart" : "Buy Now"}
+                </small>
+                <h3 id="fr-order-title">{orderDialog.inventoryItem.name}</h3>
+              </div>
+              <button
+                type="button"
+                className="fr-icon-btn"
+                aria-label="Close quantity dialog"
+                onClick={() => setOrderDialog(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="fr-supply-details">
+              <div className="fr-supply-details-title">
+                <Package size={16} /> Supply Details
+              </div>
+              <dl>
+                <div>
+                  <dt>Brand</dt>
+                  <dd>{dialogShopItem?.brand || userBrand}</dd>
+                </div>
+                <div>
+                  <dt>Category</dt>
+                  <dd>
+                    {orderDialog.inventoryItem.category ||
+                      dialogShopItem?.category ||
+                      "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>SKU</dt>
+                  <dd>
+                    {orderDialog.inventoryItem.sku ||
+                      dialogShopItem?.sku ||
+                      "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Your Branch Stock</dt>
+                  <dd>
+                    {MSI_frStockQuantity(
+                      orderDialog.inventoryItem.stock,
+                      orderDialog.inventoryItem.unit,
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Head Office Stock</dt>
+                  <dd>
+                    {shopLoading
+                      ? "Loading…"
+                      : MSI_frStockQuantity(
+                          dialogShopItem?.stock || 0,
+                          dialogShopItem?.unit,
+                        )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Price per {MSI_frFullUnit(dialogShopItem?.unit, 1)}</dt>
+                  <dd>{MSI_fmtPeso(dialogShopItem?.price || 0)}</dd>
+                </div>
+              </dl>
+              {dialogCartQuantity > 0 && (
+                <p>
+                  {MSI_frStockQuantity(
+                    dialogCartQuantity,
+                    dialogShopItem?.unit,
+                  )}{" "}
+                  already in your cart.
+                </p>
+              )}
+            </div>
+            <label className="fr-quantity-label" htmlFor="fr-supply-quantity">
+              Quantity
+            </label>
+            <div className="fr-quantity-control">
+              <button
+                type="button"
+                aria-label="Decrease quantity"
+                disabled={shopLoading || Number(orderQuantity) <= 1}
+                onClick={() => {
+                  setOrderQuantity(
+                    String(Math.max(1, Number(orderQuantity || 1) - 1)),
+                  );
+                  setQuantityError("");
+                }}
+              >
+                −
+              </button>
+              <input
+                autoFocus
+                id="fr-supply-quantity"
+                type="number"
+                min="1"
+                max={dialogMaximum}
+                step="1"
+                value={orderQuantity}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setOrderQuantity(
+                    value === ""
+                      ? ""
+                      : String(
+                          Math.min(
+                            dialogMaximum,
+                            Math.max(1, Math.floor(Number(value) || 1)),
+                          ),
+                        ),
+                  );
+                  setQuantityError("");
+                }}
+                onBlur={() => {
+                  if (!orderQuantity && dialogMaximum > 0)
+                    setOrderQuantity("1");
+                }}
+                disabled={shopLoading || dialogMaximum < 1}
+                aria-describedby={
+                  quantityError ? "fr-quantity-error" : undefined
+                }
+              />
+              <button
+                type="button"
+                aria-label="Increase quantity"
+                disabled={shopLoading || Number(orderQuantity) >= dialogMaximum}
+                onClick={() => {
+                  setOrderQuantity(
+                    String(
+                      Math.min(dialogMaximum, Number(orderQuantity || 0) + 1),
+                    ),
+                  );
+                  setQuantityError("");
+                }}
+              >
+                +
+              </button>
+            </div>
+            <p className="fr-quantity-limit">
+              {MSI_frStockQuantity(
+                Number(orderQuantity) || 0,
+                dialogShopItem?.unit,
+              )}{" "}
+              selected · Maximum{" "}
+              {MSI_frStockQuantity(dialogMaximum, dialogShopItem?.unit)}
+              {orderDialog.mode === "cart" && dialogCartQuantity > 0
+                ? " more"
+                : ""}
+            </p>
+            {shopError && (
+              <p className="fr-field-error" role="alert">
+                Unable to refresh Head Office stock.{" "}
+                <button type="button" onClick={fetchShopItems}>
+                  Retry
+                </button>
+              </p>
+            )}
+            {quantityError && (
+              <p id="fr-quantity-error" className="fr-field-error" role="alert">
+                {quantityError}
+              </p>
+            )}
+            <div className="fr-quantity-total">
+              <span>Subtotal</span>
+              <strong>
+                {MSI_fmtPeso(
+                  Number(dialogShopItem?.price || 0) *
+                    Math.max(0, Number(orderQuantity) || 0),
+                )}
+              </strong>
+            </div>
+            <button
+              className="v-btn v-btn-primary fr-wide-button"
+              type="submit"
+              disabled={shopLoading || Boolean(shopError) || dialogMaximum < 1}
+            >
+              {orderDialog.mode === "cart" && <ShoppingCart size={15} />}
+              {orderDialog.mode === "cart"
+                ? "Add to Cart"
+                : "Proceed to Checkout"}
+            </button>
+          </form>
+        </div>
+      )}
       {showCart && (
         <div className="v-modal-overlay" onMouseDown={() => setShowCart(false)}>
           <div
-            className="v-modal stock-order-cart-modal"
-            onMouseDown={(e) => e.stopPropagation()}
+            ref={orderingModalRef}
+            className="v-modal fr-web-cart"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="fr-cart-title"
+            onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setShowCart(false);
+            }}
           >
-            <div className="stock-cart-modal-head">
-              <div className="stock-modal-title-row">
-                <div style={{ minWidth: 0 }}>
-                  <div className="stock-modal-title">My Cart</div>
-                  <div className="stock-modal-subtitle">
-                    {cart.length} {cart.length === 1 ? "item" : "items"} in your
-                    basket
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="v-btn v-btn-secondary"
-                  onClick={() => setShowCart(false)}
-                  style={{ minHeight: 34, padding: "7px 11px", fontSize: 10.5 }}
-                >
-                  <X size={13} /> Close
-                </button>
+            <header className="fr-web-cart-head">
+              <div>
+                <h2 id="fr-cart-title">
+                  <ShoppingCart size={23} /> My Cart <span>{cart.length}</span>
+                </h2>
+                <p>
+                  {userBrand} · {userBranch}
+                </p>
               </div>
-            </div>
-
+              <button
+                type="button"
+                className="v-btn v-btn-secondary"
+                onClick={() => setShowCart(false)}
+              >
+                <X size={15} /> Close
+              </button>
+            </header>
             {cartLineItems.length ? (
-              <>
-                <div className="stock-modal-scroll">
-                  <div className="cart-pick-note">
-                    <strong>Pick what to check out</strong>
-                    <p>
-                      Tick the items you want to order now. Anything unticked
-                      stays in your basket.
-                    </p>
-                  </div>
-                  <div className="cart-section-head">
-                    <div>
-                      <strong>Order basket</strong>
-                      <small>
-                        {selectedCart.length
-                          ? `${selectedCart.length} selected`
-                          : "Nothing selected yet"}
-                      </small>
-                    </div>
-                    <button
-                      type="button"
-                      className="cart-select-all"
-                      onClick={toggleAllCartItems}
-                      aria-pressed={
-                        cart.length > 0 && selectedCart.length === cart.length
-                      }
-                    >
-                      <span
-                        className={`cart-checkbox${cart.length > 0 && selectedCart.length === cart.length ? " checked" : ""}`}
+              <div className="fr-web-cart-layout">
+                <section className="fr-web-cart-items" aria-label="Cart items">
+                  <div className="fr-cart-toolbar">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={
+                          cart.length > 0 && selectedCart.length === cart.length
+                        }
+                        onChange={toggleAllCartItems}
                       />{" "}
-                      Select all
-                    </button>
+                      Select all items
+                    </label>
+                    <span>{selectedCart.length} selected</span>
                   </div>
-                  {cartLineItems.map((entry) => {
-                    const hasIssue =
-                      entry.stock <= 0 ||
-                      Number(entry.quantity || 0) > Number(entry.stock || 0);
-                    return (
-                      <div key={entry.id} className="stock-order-cart-row">
-                        <button
-                          type="button"
-                          className={`cart-checkbox${selectedCartIds.includes(entry.id) ? " checked" : ""}`}
-                          onClick={() => toggleCartItem(entry.id)}
-                          aria-label={`Select ${entry.name}`}
-                          aria-pressed={selectedCartIds.includes(entry.id)}
-                        />
-                        <div className="cart-product-thumb">
-                          {entry.image_url ? (
-                            <img src={entry.image_url} alt="" />
-                          ) : (
-                            <Package size={24} />
-                          )}
-                        </div>
-                        <div className="stock-cart-item-main">
-                          <div className="stock-cart-item-title">
-                            {entry.name}
-                          </div>
-                          <div className="stock-cart-item-meta">
-                            Unit: {entry.unit || "unit"}
-                          </div>
-                          <div className="stock-cart-item-price">
-                            {fmtPeso(entry.price)}{" "}
-                            <small>
-                              Line: {fmtPeso(entry.price * entry.quantity)}
-                            </small>
-                          </div>
-                          <div
-                            className={`stock-cart-stock-note${hasIssue ? " low" : ""}`}
-                          >
-                            {entry.stock <= 0
-                              ? "No longer available"
-                              : `${entry.stock} ${entry.unit || "unit(s)"} available`}
-                          </div>
-                        </div>
-
-                        <div className="stock-cart-qty">
-                          <button
-                            type="button"
-                            onClick={() => updateCartQuantity(entry.id, -1)}
-                          >
-                            −
-                          </button>
-
-                          <input
-                            type="number"
-                            value={entry.quantity}
-                            min="1"
-                            max={entry.stock}
-                            onChange={(e) => {
-                              const value = e.target.value;
-
-                              if (value === "") {
-                                const next = cart.map((item) =>
-                                  item.id === entry.id
-                                    ? { ...item, quantity: "" }
-                                    : item,
-                                );
-                                setCart(next);
-                                return;
-                              }
-
-                              const quantity = Number(value);
-
-                              if (
-                                quantity >= 1 &&
-                                quantity <= Number(entry.stock)
-                              ) {
-                                const next = cart.map((item) =>
-                                  item.id === entry.id
-                                    ? { ...item, quantity }
-                                    : item,
-                                );
-                                saveCart(next);
-                              }
-                            }}
-                            onBlur={(e) => {
-                              if (
-                                e.target.value === "" ||
-                                Number(e.target.value) < 1
-                              ) {
-                                setCartQuantity(entry.id, 1);
-                              } else if (
-                                Number(e.target.value) > Number(entry.stock)
-                              ) {
-                                setCartQuantity(entry.id, entry.stock);
-                              }
-                            }}
-                            className="stock-cart-qty-input"
-                          />
-
-                          <button
-                            type="button"
-                            onClick={() => updateCartQuantity(entry.id, 1)}
-                            disabled={
-                              Number(entry.quantity) >= Number(entry.stock)
-                            }
-                          >
-                            +
-                          </button>
-                        </div>
-
-                        <div className="stock-cart-line-total">
-                          <strong
-                            style={{
-                              color: hasIssue ? C.red : C.greenDk,
-                              fontSize: 13,
-                            }}
-                          >
-                            {fmtPeso(entry.price * entry.quantity)}
-                          </strong>
-                          <button
-                            type="button"
-                            className="stock-cart-remove"
-                            onClick={() => removeFromCart(entry.id)}
-                          >
-                            <Trash2
-                              size={10}
-                              style={{ verticalAlign: "-2px", marginRight: 3 }}
-                            />
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="stock-modal-footer">
+                  <div className="fr-cart-table-scroll">
+                    <table className="fr-cart-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Select</th>
+                          <th scope="col">Item</th>
+                          <th scope="col">Unit Price</th>
+                          <th scope="col">Quantity</th>
+                          <th scope="col">Subtotal</th>
+                          <th scope="col">
+                            <span className="fr-visually-hidden">Remove</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cartLineItems.map((entry) => {
+                          const hasIssue =
+                            !Number.isInteger(Number(entry.quantity)) ||
+                            Number(entry.quantity) < 1 ||
+                            entry.stock <= 0 ||
+                            Number(entry.quantity) > entry.stock;
+                          return (
+                            <tr
+                              key={entry.id}
+                              className={hasIssue ? "fr-cart-row-issue" : ""}
+                            >
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Select ${entry.name}`}
+                                  checked={selectedCartIds.includes(entry.id)}
+                                  onChange={() => toggleCartItem(entry.id)}
+                                />
+                              </td>
+                              <td>
+                                <div className="fr-cart-product">
+                                  <div className="fr-cart-thumb">
+                                    {entry.image_url ? (
+                                      <img src={entry.image_url} alt="" />
+                                    ) : (
+                                      <Package size={22} />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <strong>{entry.name}</strong>
+                                    <small>
+                                      {entry.brand} ·{" "}
+                                      {MSI_frFullUnit(
+                                        entry.unit,
+                                        Number(entry.quantity),
+                                      )}
+                                    </small>
+                                    <small
+                                      className={
+                                        hasIssue ? "fr-field-error" : ""
+                                      }
+                                    >
+                                      {entry.stock <= 0
+                                        ? "Currently unavailable"
+                                        : hasIssue
+                                          ? `Update quantity — ${entry.stock} available`
+                                          : `Head Office: ${MSI_frStockQuantity(entry.stock, entry.unit)} available`}
+                                    </small>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>{MSI_fmtPeso(entry.price)}</td>
+                              <td>
+                                <div className="fr-cart-stepper">
+                                  <button
+                                    type="button"
+                                    aria-label={`Decrease ${entry.name}`}
+                                    disabled={
+                                      Number(entry.quantity) <= 1 ||
+                                      entry.stock <= 0
+                                    }
+                                    onClick={() =>
+                                      updateCartQuantity(entry.id, -1)
+                                    }
+                                  >
+                                    −
+                                  </button>
+                                  <input
+                                    type="number"
+                                    aria-label={`Quantity for ${entry.name}`}
+                                    min="1"
+                                    max={Math.floor(entry.stock)}
+                                    step="1"
+                                    disabled={shopLoading || entry.stock <= 0}
+                                    value={entry.quantity}
+                                    onChange={(event) => {
+                                      const value = event.target.value;
+                                      if (value === "")
+                                        setCart((current) =>
+                                          current.map((item) =>
+                                            item.id === entry.id
+                                              ? { ...item, quantity: "" }
+                                              : item,
+                                          ),
+                                        );
+                                      else setCartQuantity(entry.id, value);
+                                    }}
+                                    onBlur={(event) =>
+                                      setCartQuantity(
+                                        entry.id,
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                  <button
+                                    type="button"
+                                    aria-label={`Increase ${entry.name}`}
+                                    disabled={
+                                      Number(entry.quantity) >= entry.stock ||
+                                      entry.stock <= 0
+                                    }
+                                    onClick={() =>
+                                      updateCartQuantity(entry.id, 1)
+                                    }
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                <small className="fr-cart-quantity-hint">
+                                  {MSI_frStockQuantity(
+                                    Number(entry.quantity) || 0,
+                                    entry.unit,
+                                  )}{" "}
+                                  · Max {Math.floor(entry.stock)}
+                                </small>
+                              </td>
+                              <td>
+                                <strong>
+                                  {MSI_fmtPeso(
+                                    entry.price * Number(entry.quantity || 0),
+                                  )}
+                                </strong>
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="fr-icon-btn danger"
+                                  title="Remove item"
+                                  aria-label={`Remove ${entry.name}`}
+                                  onClick={() => removeFromCart(entry.id)}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+                <aside className="fr-cart-summary">
+                  <h3>Order Summary</h3>
+                  <p>Choose the items you want to order.</p>
+                  <div>
+                    <span>Selected items</span>
+                    <strong>{selectedCart.length}</strong>
+                  </div>
+                  <div>
+                    <span>Quantity</span>
+                    <strong>
+                      {selectedCart.reduce(
+                        (sum, entry) => sum + Number(entry.quantity || 0),
+                        0,
+                      )}
+                    </strong>
+                  </div>
+                  <div className="fr-cart-summary-total">
+                    <span>Total</span>
+                    <strong>{MSI_fmtPeso(selectedCartTotal)}</strong>
+                  </div>
                   {cartLineItems.some(
                     (entry) =>
                       selectedCartIds.includes(entry.id) &&
-                      (entry.stock <= 0 ||
-                        Number(entry.quantity || 0) > Number(entry.stock || 0)),
+                      (!Number.isInteger(Number(entry.quantity)) ||
+                        Number(entry.quantity) < 1 ||
+                        entry.stock <= 0 ||
+                        Number(entry.quantity) > entry.stock),
                   ) && (
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 7,
-                        padding: "8px 10px",
-                        marginBottom: 9,
-                        border: "1px solid #F0C9C3",
-                        borderRadius: 9,
-                        background: C.redBg,
-                        color: C.red,
-                        fontSize: 9.5,
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      <AlertTriangle size={13} />
-                      Some cart items are unavailable or exceed the latest
-                      supply stock. Update the quantities before checkout.
-                    </div>
+                    <p className="fr-field-error" role="alert">
+                      Update the highlighted items before checkout.
+                    </p>
                   )}
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      alignItems: "flex-end",
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 9.5,
-                          color: C.muted,
-                          fontWeight: 800,
-                          textTransform: "uppercase",
-                          letterSpacing: ".06em",
-                        }}
-                      >
-                        {selectedCart.length
-                          ? `${selectedCart.length} selected`
-                          : "No items selected"}
-                      </div>
-                      <div
-                        style={{ marginTop: 2, fontSize: 11, color: C.muted }}
-                      >
-                        Total
-                      </div>
-                    </div>
-                    <strong
-                      style={{ fontSize: 22, lineHeight: 1, color: C.greenDk }}
-                    >
-                      {fmtPeso(selectedCartTotal)}
-                    </strong>
-                  </div>
                   <button
                     type="button"
-                    className="v-btn v-btn-primary"
-                    style={{
-                      width: "100%",
-                      minHeight: 43,
-                      marginTop: 12,
-                      borderRadius: 9,
-                    }}
+                    className="v-btn v-btn-primary fr-wide-button"
+                    disabled={
+                      !selectedCart.length ||
+                      shopLoading ||
+                      Boolean(shopError) ||
+                      cartLineItems.some(
+                        (entry) =>
+                          selectedCartIds.includes(entry.id) &&
+                          (!Number.isInteger(Number(entry.quantity)) ||
+                            Number(entry.quantity) < 1 ||
+                            entry.stock <= 0 ||
+                            Number(entry.quantity) > entry.stock),
+                      )
+                    }
                     onClick={() =>
                       prepareCheckout(
                         cartLineItems.filter((entry) =>
@@ -12101,58 +13623,17 @@ max-width: 950px !important;
                         ),
                       )
                     }
-                    disabled={
-                      !selectedCart.length ||
-                      cartLineItems.some(
-                        (entry) =>
-                          selectedCartIds.includes(entry.id) &&
-                          (entry.stock <= 0 ||
-                            Number(entry.quantity || 0) >
-                              Number(entry.stock || 0)),
-                      )
-                    }
                   >
-                    <CheckCircle size={16} /> Check Out
+                    <CheckCircle size={16} /> Check Out ({selectedCart.length})
                   </button>
-                </div>
-              </>
+                  <small>Unselected items stay in your cart.</small>
+                </aside>
+              </div>
             ) : (
               <div className="stock-order-empty">
-                <div
-                  style={{
-                    width: 54,
-                    height: 54,
-                    borderRadius: 15,
-                    background: C.greenLt,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    margin: "0 auto 13px",
-                    color: C.green,
-                  }}
-                >
-                  <ShoppingCart size={24} />
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 900, color: C.ink }}>
-                  Your cart is empty
-                </div>
-                <div style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.5 }}>
-                  Select an inventory item and add an approved supply to begin
-                  your order.
-                </div>
-                <button
-                  type="button"
-                  className="v-btn v-btn-secondary"
-                  style={{
-                    marginTop: 14,
-                    minHeight: 34,
-                    padding: "7px 12px",
-                    fontSize: 10.5,
-                  }}
-                  onClick={() => setShowCart(false)}
-                >
-                  Continue Browsing
-                </button>
+                <ShoppingCart size={36} color={MSI_C.green} />
+                <h3>Your cart is empty</h3>
+                <p>Add supplies directly from your stock inventory.</p>
               </div>
             )}
           </div>
@@ -12235,8 +13716,8 @@ max-width: 950px !important;
                   padding: "9px 11px",
                   border: "1px solid #f0c9c3",
                   borderRadius: 9,
-                  background: C.redBg,
-                  color: C.red,
+                  background: MSI_C.redBg,
+                  color: MSI_C.red,
                   fontSize: 10.5,
                   display: "flex",
                   gap: 7,
@@ -12254,19 +13735,23 @@ max-width: 950px !important;
             >
               {ordersLoading && !orders.length ? (
                 <div className="stock-order-empty">
-                  <RefreshCw size={24} className="fr-spin" color={C.green} />
+                  <RefreshCw
+                    size={24}
+                    className="fr-spin"
+                    color={MSI_C.green}
+                  />
                   <div
                     style={{
                       marginTop: 10,
                       fontSize: 12,
                       fontWeight: 900,
-                      color: C.ink,
+                      color: MSI_C.ink,
                     }}
                   >
                     Loading your orders…
                   </div>
                 </div>
-              ) : orders.length ? (
+              ) : ordersError && !orders.length ? null : orders.length ? (
                 orders.map((order) => {
                   const orderId =
                     order?.id ?? order?.order_id ?? order?.reference ?? "—";
@@ -12322,7 +13807,7 @@ max-width: 950px !important;
                           </span>
                           <ChevronDown
                             size={14}
-                            color={C.muted}
+                            color={MSI_C.muted}
                             style={{
                               transform: expanded ? "rotate(180deg)" : "none",
                               transition: "transform .15s ease",
@@ -12350,7 +13835,7 @@ max-width: 950px !important;
                           ).toUpperCase()}
                         </span>
                         <span className="stock-order-history-total">
-                          {fmtPeso(total)}
+                          {MSI_fmtPeso(total)}
                         </span>
                       </div>
 
@@ -12367,23 +13852,26 @@ max-width: 950px !important;
                                     {item._name}
                                   </div>
                                   <div className="stock-order-history-item-meta">
-                                    {item._quantity} × {fmtPeso(item._price)} ·{" "}
-                                    {item._unit}
+                                    {MSI_frStockQuantity(
+                                      item._quantity,
+                                      item._unit,
+                                    )}{" "}
+                                    × {MSI_fmtPeso(item._price)}
                                   </div>
                                 </div>
                                 <strong
                                   style={{
-                                    color: C.greenDk,
+                                    color: MSI_C.greenDk,
                                     fontSize: 10.5,
                                     whiteSpace: "nowrap",
                                   }}
                                 >
-                                  {fmtPeso(item._quantity * item._price)}
+                                  {MSI_fmtPeso(item._quantity * item._price)}
                                 </strong>
                               </div>
                             ))
                           ) : (
-                            <div style={{ fontSize: 9.5, color: C.muted }}>
+                            <div style={{ fontSize: 9.5, color: MSI_C.muted }}>
                               Item details are not included in the order
                               response.
                             </div>
@@ -12412,17 +13900,19 @@ max-width: 950px !important;
                       width: 54,
                       height: 54,
                       borderRadius: 15,
-                      background: C.greenLt,
+                      background: MSI_C.greenLt,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       margin: "0 auto 13px",
-                      color: C.green,
+                      color: MSI_C.green,
                     }}
                   >
                     <History size={24} />
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 900, color: C.ink }}>
+                  <div
+                    style={{ fontSize: 14, fontWeight: 900, color: MSI_C.ink }}
+                  >
                     No supply orders yet
                   </div>
                   <div
@@ -12469,34 +13959,50 @@ max-width: 950px !important;
 
             {orderSuccess ? (
               <div className="checkout-success-mobile">
-                <CheckCircle size={54} color={C.green} />
+                <CheckCircle size={54} color={MSI_C.green} />
                 <div
                   style={{
                     marginTop: 14,
                     fontSize: 20,
                     fontWeight: 900,
-                    color: C.ink,
+                    color: MSI_C.ink,
                   }}
                 >
                   Order Placed
                 </div>
                 <div className="stock-order-muted" style={{ marginTop: 7 }}>
-                  Order #{orderSuccess.id} · {fmtPeso(orderSuccess.total)}
+                  Order #{orderSuccess.id} · {MSI_fmtPeso(orderSuccess.total)}
                 </div>
-                <div style={{ marginTop: 12, fontSize: 11.5, color: C.muted }}>
-                  Your supply order has been submitted for processing.
-                </div>
-                <button
-                  type="button"
-                  className="checkout-place-btn"
-                  style={{ maxWidth: 220, margin: "22px auto 0" }}
-                  onClick={() => {
-                    setShowCheckout(false);
-                    setOrderSuccess(null);
-                  }}
+                <div
+                  style={{ marginTop: 12, fontSize: 11.5, color: MSI_C.muted }}
                 >
-                  <CheckCircle size={18} /> Done
-                </button>
+                  Your supply order has been submitted successfully.
+                </div>
+                <div className="fr-order-success-actions">
+                  <button
+                    type="button"
+                    className="checkout-place-btn"
+                    onClick={viewSupplyOrders}
+                  >
+                    <History size={18} /> View Orders
+                  </button>
+                  <button
+                    type="button"
+                    className="fr-order-redirecting"
+                    disabled
+                    aria-busy="true"
+                  >
+                    <RefreshCw
+                      size={15}
+                      className="fr-order-redirect-spinner"
+                      aria-hidden="true"
+                    />
+                    Redirecting to order history…
+                  </button>
+                  <span className="fr-visually-hidden" role="status">
+                    Redirecting to order history in 3 seconds.
+                  </span>
+                </div>
               </div>
             ) : (
               <>
@@ -12522,7 +14028,7 @@ max-width: 950px !important;
                         </div>
                         {userBranch && (
                           <div className="checkout-branch-pill">
-                            <StoreIcon size={13} /> {userBranch}
+                            <MSI_StoreIcon size={13} /> {userBranch}
                           </div>
                         )}
                       </div>
@@ -12549,11 +14055,12 @@ max-width: 950px !important;
                               {entry.name}
                             </div>
                             <div className="checkout-order-qty">
-                              ×{entry.quantity} · {fmtPeso(entry.price)} each
+                              {MSI_frStockQuantity(entry.quantity, entry.unit)}{" "}
+                              · {MSI_fmtPeso(entry.price)} each
                             </div>
                           </div>
                           <div className="checkout-order-price">
-                            {fmtPeso(
+                            {MSI_fmtPeso(
                               Number(entry.price) * Number(entry.quantity),
                             )}
                           </div>
@@ -12569,34 +14076,26 @@ max-width: 950px !important;
                     </div>
                     {renderLocationMap()}
                     <p className="checkout-map-hint">
-                      Tap the map or drag the pin to set your exact delivery
-                      location.
+                      Click the map to select your delivery location and fill in
+                      the address.
                     </p>
                     {locationError && (
                       <p className="checkout-map-error" role="alert">
                         {locationError}
                       </p>
                     )}
-                    <div className="checkout-address-card">
-                      <StoreIcon
-                        size={20}
-                        color="#2c5c16"
-                        style={{ marginTop: 2, flexShrink: 0 }}
-                      />
-                      <textarea
-                        ref={addressInputRef}
-                        value={address}
-                        onChange={(e) => {
-                          mapRequestRef.current += 1;
-                          clearTimeout(reverseTimerRef.current);
-                          setLocationBusy(false);
-                          setAddress(e.target.value);
-                          setPinCoords(null);
-                        }}
-                        placeholder="Address auto-fills from pin, or type manually"
-                        rows={3}
-                      />
-                    </div>
+                    <MSI_FrSupplyAddressFields
+                      address={address}
+                      mapResult={mapAddressData}
+                      inputRef={addressInputRef}
+                      onChange={(value) => {
+                        mapRequestRef.current += 1;
+                        clearTimeout(reverseTimerRef.current);
+                        setLocationBusy(false);
+                        setAddress(value);
+                        setPinCoords(null);
+                      }}
+                    />
                   </section>
 
                   <section className="checkout-mobile-section">
@@ -12661,7 +14160,7 @@ max-width: 950px !important;
                   <div className="checkout-total-row">
                     <div className="checkout-total-label">Total Amount</div>
                     <div className="checkout-total-amount">
-                      {fmtPeso(checkoutTotal)}
+                      {MSI_fmtPeso(checkoutTotal)}
                     </div>
                   </div>
                   <div
@@ -12708,7 +14207,7 @@ max-width: 950px !important;
           </div>
         </div>
       )}
-      <WebGCashPaymentModal
+      <MSI_WebGCashPaymentModal
         visible={showGCash}
         amount={gcashAmount}
         onConfirm={handleGCashConfirmed}
@@ -12764,7 +14263,7 @@ max-width: 950px !important;
             aria-describedby="checkout-address-prompt-message"
           >
             <div className="checkout-address-prompt-icon">
-              <StoreIcon size={25} />
+              <MSI_StoreIcon size={25} />
             </div>
             <h2 id="checkout-address-prompt-title">Delivery address needed</h2>
             <p id="checkout-address-prompt-message">
@@ -12791,7 +14290,7 @@ max-width: 950px !important;
       )}
 
       {historyBatch && (
-        <BatchTransferHistoryModal
+        <MSI_BatchTransferHistoryModal
           batch={historyBatch.batch}
           ingredient={historyBatch.ingredient}
           apiUrl={process.env.REACT_APP_API_URL}
@@ -12802,718 +14301,108 @@ max-width: 950px !important;
   );
 }
 
-const FR_EXPIRY_STYLE = {
-  expired: {
-    border: "#fecaca",
-    badgeText: "#991b1b",
-    label: "EXPIRED",
-    dot: "#dc2626",
-  },
-  critical: {
-    border: "#fed7aa",
-    badgeText: "#9a3412",
-    label: "CRITICAL",
-    dot: "#ea580c",
-  },
-  warning: {
-    border: "#fef08a",
-    badgeText: "#854d0e",
-    label: "EXPIRING",
-    dot: "#ca8a04",
-  },
-  ok: { border: C.greenMid, badgeText: null, label: null, dot: C.green },
-};
+function MSI_Toast({ toast, onClose }) {
+  useEffect(() => {
+    if (!toast) return;
+    if (toast.type === "loading") return;
+    const t = setTimeout(onClose, 2000);
+    return () => clearTimeout(t);
+  }, [toast, onClose]);
 
-function fmtFrDate(d) {
-  return d
-    ? new Date(d).toLocaleDateString("en-PH", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        timeZone: "Asia/Manila",
-      })
-    : "—";
-}
-function fmtFrTs(d) {
-  return new Date(d).toLocaleString("en-PH", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Manila",
-  });
-}
+  if (!toast) return null;
+  const isErr = toast.type === "error";
+  const isLoading = toast.type === "loading";
 
-function FrMiniBar({ pct, color, track = "#eef6f1", height = 6 }) {
-  const w = Math.max(0, Math.min(100, pct ?? 0));
   return (
     <div
       style={{
-        background: track,
-        borderRadius: 20,
-        height,
-        overflow: "hidden",
-        width: "100%",
+        position: "fixed",
+        top: 22,
+        right: 22,
+        zIndex: 4000,
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 12,
+        maxWidth: 380,
+        padding: "16px 18px",
+        borderRadius: 14,
+        background: isErr ? "#fef2f2" : "#F6F7F1",
+        borderLeft: `5px solid ${isErr ? "#dc2626" : "#3b791e"}`,
+        border: `1px solid ${isErr ? "#fecaca" : "#D4DBC8"}`,
+        borderLeftWidth: 5,
+        boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
+        fontFamily: "'Plus Jakarta Sans',sans-serif",
+        animation: "toastIn .22s ease",
       }}
     >
       <div
         style={{
-          width: `${w}%`,
-          height: "100%",
-          background: color,
-          borderRadius: 20,
-          transition: "width .3s ease",
-        }}
-      />
-    </div>
-  );
-}
-
-function FrFifoQueue({ product, batches, loading, lowStock = false }) {
-  if (!product) {
-    return (
-      <div
-        style={{
+          flexShrink: 0,
+          width: 32,
+          height: 32,
+          borderRadius: "50%",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          height: "100%",
-          minHeight: 300,
-          color: C.muted,
-          fontSize: 12.5,
-          textAlign: "center",
-          padding: 20,
+          background: isErr ? "#dc2626" : "#3b791e",
+          color: "#fff",
+          boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(59,121,30,0.4)"}`,
         }}
       >
-        <div>
-          Select a product on the left
-          <br />
-          to view its consumption queue.
-        </div>
-      </div>
-    );
-  }
-
-  const fifo = getFifoMethod(product.brand, product.perishable);
-  const sorted = sortBatchesByMethod(
-    batches,
-    product.brand,
-    product.perishable,
-  );
-  const totalStock = sorted.reduce((s, b) => s + Number(b.stock || 0), 0);
-
-  return (
-    <div
-      className="fr-inventory-detail-content"
-      style={{ display: "flex", flexDirection: "column", height: "100%" }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: 10,
-          gap: 8,
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 800,
-              color: C.ink,
-              fontFamily: "monospace",
-              display: "flex",
-              alignItems: "center",
-              gap: 7,
-              overflow: "hidden",
-            }}
-          >
-            <span
-              style={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {product.sku || "—"}
-            </span>
-          </div>
-          <div
-            style={{
-              fontSize: 11,
-              color: C.muted,
-              marginTop: 2,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <span style={{ fontSize: 9.5, fontWeight: 700, color: C.ink }}>
-              {product.name}
-            </span>
-            <span style={{ opacity: 0.45 }}>•</span>
-            <span>
-              {frStockQuantity(totalStock, product.unit)} · {sorted.length}{" "}
-              active batch{sorted.length === 1 ? "" : "es"}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "6px 10px",
-          borderRadius: 8,
-          background: fifo.method === "FEFO" ? C.amberBg : C.greenLt,
-          border: `1px solid ${fifo.method === "FEFO" ? C.amberBorder : C.greenMid}`,
-          fontSize: 10.5,
-          color: fifo.method === "FEFO" ? "#9a3412" : C.greenDk,
-          fontWeight: 700,
-          marginBottom: 10,
-        }}
-      >
-        <span>{fifo.method} QUEUE</span>
-        <span style={{ fontWeight: 500, opacity: 0.85 }}>
-          — {fifo.queueLabel}
-        </span>
-      </div>
-
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          paddingRight: 2,
-          minHeight: 0,
-        }}
-      >
-        {loading ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "30px 0",
-              color: C.muted,
-              fontSize: 12,
-            }}
-          >
-            Loading queue…
-          </div>
-        ) : sorted.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "30px 0",
-              color: C.muted,
-              fontSize: 12,
-              fontStyle: "italic",
-            }}
-          >
-            No batches yet for this product.
-          </div>
+        {isErr ? (
+          <AlertTriangle size={16} />
+        ) : isLoading ? (
+          <RefreshCw
+            size={16}
+            style={{ animation: "spin 0.8s linear infinite" }}
+          />
         ) : (
-          sorted.map((b, idx) => {
-            const status = computeExpiryStatus(b.exp_date, product.brand);
-            const ss = FR_EXPIRY_STYLE[status] || FR_EXPIRY_STYLE.ok;
-            const isFirst = idx === 0;
-            const isLast = idx === sorted.length - 1;
-            const supplyStr = b.supply_date ? fmtFrTs(b.supply_date) : "—";
-            const expStr = fmtFrDate(b.exp_date);
-            const dRem = daysRemaining(b.exp_date);
-            const stockPct =
-              totalStock > 0
-                ? Math.round((Number(b.stock || 0) / totalStock) * 100)
-                : 0;
-
-            return (
-              <div
-                key={b.id}
-                style={{
-                  background: C.white,
-                  borderBottom: isLast
-                    ? "none"
-                    : `1px solid ${isFirst ? C.greenMid : C.border}`,
-                  padding: "7px 4px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 6,
-                    gap: 8,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 19,
-                        height: 19,
-                        borderRadius: "50%",
-                        background: isFirst ? C.green : "#b9c9bf",
-                        color: "#fff",
-                        fontSize: 10,
-                        fontWeight: 800,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {idx + 1}
-                    </span>
-                    <span
-                      style={{ fontSize: 12, fontWeight: 800, color: C.ink }}
-                    >
-                      Batch {b.batch_number || "—"}
-                    </span>
-                    {isFirst && (
-                      <span
-                        style={{
-                          fontSize: 9,
-                          fontWeight: 800,
-                          color: C.greenDk,
-                          border: `1px solid ${C.greenMid}`,
-                          padding: "2px 8px",
-                          borderRadius: 20,
-                        }}
-                      >
-                        {fifo.topLabel}
-                      </span>
-                    )}
-                  </span>
-                  {ss.label && (
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 800,
-                        color: ss.badgeText,
-                        border: `1px solid ${ss.border}`,
-                        padding: "2px 7px",
-                        borderRadius: 20,
-                      }}
-                    >
-                      {ss.label}
-                    </span>
-                  )}
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 12,
-                    fontSize: 11,
-                    color: C.muted,
-                    marginBottom: 8,
-                  }}
-                >
-                  {b.supplier && (
-                    <span>
-                      Supplier:{" "}
-                      <strong style={{ color: C.ink }}>{b.supplier}</strong>
-                    </span>
-                  )}
-                  <span>
-                    Arrived:{" "}
-                    <strong style={{ color: C.ink }}>{supplyStr}</strong>
-                  </span>
-                  <span>
-                    Expires:{" "}
-                    <strong style={{ color: ss.dot }}>
-                      {expStr}
-                      {dRem != null
-                        ? ` (${dRem < 0 ? "expired" : dRem + "d left"})`
-                        : ""}
-                    </strong>
-                  </span>
-                  {b.cost_per_unit ? (
-                    <span>
-                      Cost/Unit:{" "}
-                      <strong style={{ color: C.ink }}>
-                        {fmtPeso(b.cost_per_unit)}
-                      </strong>
-                    </span>
-                  ) : null}
-                  {b.storage_location && (
-                    <span>
-                      Location:{" "}
-                      <strong style={{ color: C.ink }}>
-                        {b.storage_location}
-                      </strong>
-                    </span>
-                  )}
-                </div>
-
-                <div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      fontSize: 9.5,
-                      color: C.muted,
-                      fontWeight: 700,
-                      marginBottom: 2,
-                    }}
-                  >
-                    <span>STOCK</span>
-                    <span>
-                      {frStockQuantity(b.stock, product.unit)} /{" "}
-                      {frStockQuantity(totalStock, product.unit)}
-                    </span>
-                  </div>
-                  <FrMiniBar
-                    pct={stockPct}
-                    color={lowStock ? C.red : C.green}
-                    track={lowStock ? "#fbe5e3" : "#eef6f1"}
-                  />
-                </div>
-
-                {isPharmaBrand(product.brand) &&
-                  (b.lot_number ||
-                    b.ndc_code ||
-                    b.dosage_form ||
-                    b.storage_requirement ||
-                    b.controlled_substance) && (
-                    <div
-                      style={{
-                        marginTop: 8,
-                        paddingTop: 8,
-                        borderTop: `1px dashed ${C.border}`,
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 10,
-                        fontSize: 10.5,
-                        color: C.muted,
-                      }}
-                    >
-                      {b.lot_number && (
-                        <span>
-                          LOT:{" "}
-                          <strong style={{ color: C.ink }}>
-                            {b.lot_number}
-                          </strong>
-                        </span>
-                      )}
-                      {b.ndc_code && (
-                        <span>
-                          NDC:{" "}
-                          <strong style={{ color: C.ink }}>{b.ndc_code}</strong>
-                        </span>
-                      )}
-                      {b.dosage_form && (
-                        <span>
-                          {b.dosage_form}
-                          {b.strength ? ` · ${b.strength}` : ""}
-                        </span>
-                      )}
-                      {b.storage_requirement && (
-                        <span>
-                          Storage:{" "}
-                          <strong style={{ color: C.ink }}>
-                            {b.storage_requirement}
-                          </strong>
-                        </span>
-                      )}
-                      {b.controlled_substance && (
-                        <span style={{ color: "#991b1b", fontWeight: 800 }}>
-                          CONTROLLED SUBSTANCE
-                        </span>
-                      )}
-                    </div>
-                  )}
-                {isFuelBrand(product.brand) &&
-                  (b.tank_id || b.grade || b.octane_rating || b.truck_id) && (
-                    <div
-                      style={{
-                        marginTop: 8,
-                        paddingTop: 8,
-                        borderTop: `1px dashed ${C.border}`,
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 10,
-                        fontSize: 10.5,
-                        color: C.muted,
-                      }}
-                    >
-                      {b.tank_id && (
-                        <span>
-                          Tank:{" "}
-                          <strong style={{ color: C.ink }}>{b.tank_id}</strong>
-                        </span>
-                      )}
-                      {b.grade && (
-                        <span>
-                          Grade:{" "}
-                          <strong style={{ color: C.ink }}>{b.grade}</strong>
-                        </span>
-                      )}
-                      {b.octane_rating && (
-                        <span>
-                          Octane:{" "}
-                          <strong style={{ color: C.ink }}>
-                            {b.octane_rating}
-                          </strong>
-                        </span>
-                      )}
-                      {b.delivery_temp && (
-                        <span>
-                          Delivery Temp:{" "}
-                          <strong style={{ color: C.ink }}>
-                            {b.delivery_temp}°F
-                          </strong>
-                        </span>
-                      )}
-                      {b.truck_id && (
-                        <span>
-                          Truck:{" "}
-                          <strong style={{ color: C.ink }}>{b.truck_id}</strong>
-                        </span>
-                      )}
-                      {b.volume_correction && (
-                        <span>
-                          Corrected Vol (60°F):{" "}
-                          <strong style={{ color: C.ink }}>
-                            {frStockQuantity(b.volume_correction, product.unit)}
-                          </strong>
-                        </span>
-                      )}
-                    </div>
-                  )}
-                {b.notes && (
-                  <div
-                    style={{
-                      fontSize: 10.5,
-                      color: C.muted,
-                      marginTop: 6,
-                      fontStyle: "italic",
-                    }}
-                  >
-                    {b.notes}
-                  </div>
-                )}
-              </div>
-            );
-          })
+          <Check size={16} />
         )}
       </div>
-    </div>
-  );
-}
 
-function WebGCashPaymentModal({ visible, amount, onConfirm, onCancel }) {
-  const [step, setStep] = useState("loading");
-  const [checkoutUrl, setCheckoutUrl] = useState("");
-  const [linkId, setLinkId] = useState("");
-  const [reference, setReference] = useState("");
-  const [seconds, setSeconds] = useState(180);
-  const [error, setError] = useState("");
-  const pollRef = useRef(null);
-  const timerRef = useRef(null);
-  const confirmedRef = useRef(false);
-  const referenceRef = useRef("");
-
-  useEffect(() => {
-    if (!visible) return undefined;
-    let active = true;
-    confirmedRef.current = false;
-    setStep("loading");
-    setCheckoutUrl("");
-    setReference("");
-    setSeconds(180);
-    setError("");
-
-    const clearTimers = () => {
-      clearInterval(pollRef.current);
-      clearInterval(timerRef.current);
-    };
-    const createLink = async () => {
-      clearTimers();
-      try {
-        const response = await adminModuleFetch(
-          `${process.env.REACT_APP_API_URL}/paymongo/create-gcash`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              amount,
-              description: "iFranchise Supply Order",
-              orderId: Date.now(),
-            }),
-          },
-        );
-        const data = await response.json();
-        if (
-          !response.ok ||
-          !data.success ||
-          !data.checkoutUrl ||
-          !data.linkId
-        ) {
-          throw new Error(data.error || "Failed to create payment link.");
-        }
-        if (!active) return;
-        setCheckoutUrl(data.checkoutUrl);
-        setLinkId(data.linkId);
-        referenceRef.current = data.referenceNo || "";
-        setReference(referenceRef.current);
-        setStep("ready");
-        timerRef.current = setInterval(() => {
-          setSeconds((value) => {
-            if (value <= 1) {
-              clearTimers();
-              setError("Payment window expired. Please try again.");
-              setStep("error");
-              return 0;
-            }
-            return value - 1;
-          });
-        }, 1000);
-        pollRef.current = setInterval(async () => {
-          try {
-            const statusResponse = await adminModuleFetch(
-              `${process.env.REACT_APP_API_URL}/paymongo/link-status/${encodeURIComponent(data.linkId)}`,
-              { credentials: "include", cache: "no-store" },
-            );
-            if (!statusResponse.ok) return;
-            const status = await statusResponse.json();
-            if (active && status.status === "paid" && !confirmedRef.current) {
-              confirmedRef.current = true;
-              clearTimers();
-              const paidReference = status.gcashRef || referenceRef.current;
-              setReference(paidReference);
-              setStep("paid");
-              onConfirm(paidReference);
-            }
-          } catch (pollError) {
-            // A temporary network error should not mark an unpaid link as paid.
-          }
-        }, 3000);
-      } catch (requestError) {
-        if (!active) return;
-        setError(requestError.message || "Could not reach the payment server.");
-        setStep("error");
-      }
-    };
-    createLink();
-    return () => {
-      active = false;
-      clearTimers();
-    };
-  }, [visible, amount, onConfirm]);
-
-  if (!visible) return null;
-  const qrUrl = checkoutUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(checkoutUrl)}`
-    : "";
-  return (
-    <div
-      className="v-modal-overlay gcash-overlay"
-      onMouseDown={(event) => event.stopPropagation()}
-    >
-      <div
-        className="v-modal gcash-payment-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="GCash payment"
-      >
-        <div className="gcash-payment-head">
-          <div>
-            <small>SECURE PAYMENT</small>
-            <h2>Pay with GCash</h2>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 800,
+            color: isErr ? "#7f1d1d" : "#12241B",
+          }}
+        >
+          {toast.title}
+        </div>
+        {toast.message && (
+          <div
+            style={{
+              fontSize: 12.5,
+              color: isErr ? "#991b1b" : "#3f5f4f",
+              marginTop: 3,
+              lineHeight: 1.4,
+            }}
+          >
+            {toast.message}
           </div>
-          {step !== "paid" && (
-            <button type="button" onClick={onCancel} aria-label="Close payment">
-              ×
-            </button>
-          )}
-        </div>
-        <div className="gcash-payment-body">
-          {step === "loading" && (
-            <div className="gcash-payment-state">Creating payment link…</div>
-          )}
-          {step === "ready" && (
-            <>
-              <div className="gcash-payment-amount">{fmtPeso(amount)}</div>
-              <p>Scan the QR code or open the secure checkout link to pay.</p>
-              <img
-                className="gcash-payment-qr"
-                src={qrUrl}
-                alt="QR code for GCash checkout"
-              />
-              {reference && (
-                <div className="gcash-payment-reference">
-                  Reference: {reference}
-                </div>
-              )}
-              <div className="gcash-payment-timer">
-                Time remaining: {Math.floor(seconds / 60)}:
-                {String(seconds % 60).padStart(2, "0")}
-              </div>
-              <a
-                className="gcash-payment-primary"
-                href={checkoutUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Open in GCash
-              </a>
-              <a
-                className="gcash-payment-secondary"
-                href={qrUrl}
-                download="gcash-qr.png"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Save QR
-              </a>
-              <p className="gcash-payment-wait">
-                Waiting for payment confirmation…
-              </p>
-              <button
-                type="button"
-                className="gcash-payment-cancel"
-                onClick={onCancel}
-              >
-                Cancel payment
-              </button>
-            </>
-          )}
-          {step === "paid" && (
-            <div className="gcash-payment-state">
-              <strong>Payment Received!</strong>
-              <br />
-              {fmtPeso(amount)} via GCash
-              <br />
-              {reference && `Reference: ${reference}`}
-              <br />
-              Processing your order…
-            </div>
-          )}
-          {step === "error" && (
-            <div className="gcash-payment-state">
-              <strong>Payment unavailable</strong>
-              <p>{error}</p>
-              <button type="button" onClick={onCancel}>
-                Close and try again
-              </button>
-            </div>
-          )}
-        </div>
+        )}
       </div>
+
+      {!isLoading && (
+        <button
+          onClick={onClose}
+          style={{
+            background: "none",
+            border: "none",
+            color: isErr ? "#991b1b" : "#3f5f4f",
+            cursor: "pointer",
+            padding: 2,
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <X size={14} />
+        </button>
+      )}
     </div>
   );
 }
@@ -20125,19 +21014,6 @@ function FrDashboardContent({ transactions, brands, user }) {
   );
 }
 
-const invInputSt = {
-  height: 38,
-  padding: "0 13px",
-  borderRadius: 11,
-  border: `1.5px solid ${C.border}`,
-  background: C.white,
-  fontSize: 13,
-  color: C.ink,
-  outline: "none",
-  fontFamily: "inherit",
-  boxSizing: "border-box",
-  width: "100%",
-};
 const btnSt = {
   display: "inline-flex",
   alignItems: "center",
@@ -20168,24 +21044,10 @@ const smallBtnSt = {
 };
 
 const PAGE_SIZE = 15;
-const EXPIRY_WARN_DAYS = 30; // ← add this
+// ← add this
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
-const SearchIcon = ({ size = 14 }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx="11" cy="11" r="8" />
-    <path d="m21 21-4.35-4.35" />
-  </svg>
-);
+
 const XIcon = ({ size = 14 }) => (
   <svg
     width={size}
@@ -20201,21 +21063,7 @@ const XIcon = ({ size = 14 }) => (
     <line x1="6" y1="6" x2="18" y2="18" />
   </svg>
 );
-const StoreIcon = ({ size = 14, color = "currentColor" }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={color}
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-    <polyline points="9 22 9 12 15 12 15 22" />
-  </svg>
-);
+
 const ChevronIcon = ({ size = 12, dir = "down" }) => {
   const d = { down: "m6 9 6 6 6-6", up: "m18 15-6-6-6 6" };
   return (
