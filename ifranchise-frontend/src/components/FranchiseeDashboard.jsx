@@ -9110,7 +9110,136 @@ function BatchTransferHistoryModal({ batch, ingredient, apiUrl, onClose }) {
   );
 }
 
-function FrStockInventoryContent({ user, brands }) {
+// Uses the same Philippine address source as applyfranchise.jsx.
+const FR_SUPPLY_PSGC = "https://psgc.gitlab.io/api";
+const frSupplyAddressCache = new Map();
+async function frSupplyAddressList(path) {
+  if (frSupplyAddressCache.has(path)) return frSupplyAddressCache.get(path);
+  const response = await fetch(`${FR_SUPPLY_PSGC}${path}`, { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error("Address options could not be loaded. Please retry or enter the complete address below.");
+  const data = await response.json();
+  if (!Array.isArray(data)) throw new Error("Address options are unavailable.");
+  const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name));
+  frSupplyAddressCache.set(path, sorted);
+  return sorted;
+}
+function frSupplyAddressName(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/\b(city of|municipality of|province of|city|municipality|barangay|brgy\.?|province)\b/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+function FrSupplyAddressFields({ address, mapResult, inputRef, onChange }) {
+  const [options, setOptions] = useState({ regions: [], provinces: [], cities: [], barangays: [] });
+  const [fields, setFields] = useState({ region: "", province: "", city: "", barangay: "", street: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
+  const requestRef = useRef(0);
+  useEffect(() => {
+    const request = ++requestRef.current;
+    setBusy(true);
+    setError("");
+    (async () => {
+      try {
+        const regions = await frSupplyAddressList("/regions/");
+        if (request !== requestRef.current) return;
+        if (!mapResult) {
+          setOptions({ regions, provinces: [], cities: [], barangays: [] });
+          setFields({ region: "", province: "", city: "", barangay: "", street: "" });
+          return;
+        }
+        const addr = mapResult.address || {};
+        const street = [addr.house_number, addr.road || addr.pedestrian || addr.residential].filter(Boolean).join(" ");
+        const [allCities, allProvinces] = await Promise.all([
+          frSupplyAddressList("/cities-municipalities/"), frSupplyAddressList("/provinces/")
+        ]);
+        const names = [addr.city, addr.town, addr.municipality, addr.village].filter(Boolean).map(frSupplyAddressName);
+        const provinceNames = [addr.province, addr.state, addr.county].filter(Boolean).map(frSupplyAddressName);
+        let candidates = allCities.filter((item) => names.includes(frSupplyAddressName(item.name)));
+        if (candidates.length > 1) candidates = candidates.filter((item) => {
+          const province = allProvinces.find((row) => String(row.code) === String(item.provinceCode));
+          return province && provinceNames.includes(frSupplyAddressName(province.name));
+        });
+        const city = candidates.length === 1 ? candidates[0] : null;
+        const province = city ? allProvinces.find((item) => String(item.code) === String(city.provinceCode)) : null;
+        const region = regions.find((item) => String(item.code) === String(city?.regionCode || province?.regionCode)) ||
+          regions.find((item) => frSupplyAddressName(item.name) === frSupplyAddressName(addr.region || addr.state));
+        const provinces = region ? await frSupplyAddressList(`/regions/${region.code}/provinces/`) : [];
+        const cities = province ? await frSupplyAddressList(`/provinces/${province.code}/cities-municipalities/`) :
+          region ? await frSupplyAddressList(`/regions/${region.code}/cities-municipalities/`) : [];
+        const matchedCity = cities.find((item) => String(item.code) === String(city?.code));
+        const barangays = matchedCity ? await frSupplyAddressList(`/cities-municipalities/${matchedCity.code}/barangays/`) : [];
+        const barangayNames = [addr.suburb, addr.quarter, addr.neighbourhood, addr.village, addr.hamlet].filter(Boolean).map(frSupplyAddressName);
+        const barangayMatches = barangays.filter((item) => barangayNames.includes(frSupplyAddressName(item.name)));
+        const barangay = barangayMatches.length === 1 ? barangayMatches[0] : null;
+        if (request !== requestRef.current) return;
+        setOptions({ regions, provinces, cities, barangays });
+        setFields({ region: region?.code || "", province: province?.code || "", city: matchedCity?.code || "", barangay: barangay?.code || "", street });
+        if (!matchedCity || !barangay) setError("The map filled the complete address below. Review it, or select any missing address fields.");
+      } catch (err) {
+        if (request === requestRef.current) setError(err.message);
+      } finally {
+        if (request === requestRef.current) setBusy(false);
+      }
+    })();
+    return () => { requestRef.current += 1; };
+  }, [mapResult, retry]);
+  const composeAddress = (next, lists) => {
+    if (!next.region || !next.city || !next.barangay || (lists.provinces.length > 0 && !next.province)) return "";
+    return [next.street.trim(), lists.barangays.find((item) => item.code === next.barangay)?.name,
+      lists.cities.find((item) => item.code === next.city)?.name,
+      lists.provinces.find((item) => item.code === next.province)?.name,
+      lists.regions.find((item) => item.code === next.region)?.name, "Philippines"].filter(Boolean).join(", ");
+  };
+  const changeField = async (key, value) => {
+    const request = ++requestRef.current;
+    const next = { ...fields, [key]: value };
+    const lists = { ...options };
+    if (key === "region") { next.province = ""; next.city = ""; next.barangay = ""; lists.provinces = []; lists.cities = []; lists.barangays = []; }
+    if (key === "province") { next.city = ""; next.barangay = ""; lists.cities = []; lists.barangays = []; }
+    if (key === "city") { next.barangay = ""; lists.barangays = []; }
+    setFields(next); setOptions(lists); setError("");
+    onChange(composeAddress(next, lists));
+    if (!["region", "province", "city"].includes(key) || !value) { setBusy(false); return; }
+    setBusy(true);
+    try {
+      if (key === "region") {
+        lists.provinces = await frSupplyAddressList(`/regions/${value}/provinces/`);
+        if (!lists.provinces.length) lists.cities = await frSupplyAddressList(`/regions/${value}/cities-municipalities/`);
+      } else if (key === "province") lists.cities = await frSupplyAddressList(`/provinces/${value}/cities-municipalities/`);
+      else lists.barangays = await frSupplyAddressList(`/cities-municipalities/${value}/barangays/`);
+      if (request === requestRef.current) setOptions(lists);
+    } catch (err) { if (request === requestRef.current) setError(err.message); }
+    finally { if (request === requestRef.current) setBusy(false); }
+  };
+  const dropdown = (key, label, rows, disabled = false) => <label className="fr-address-field"><span>{label}</span><select value={fields[key]} disabled={busy || disabled} onChange={(event) => changeField(key, event.target.value)}><option value="">{busy ? "Loading…" : `Select ${label.toLowerCase()}`}</option>{rows.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label>;
+  return <div className="fr-address-fields" aria-busy={busy}>
+    <div className="fr-address-grid">
+      {dropdown("region", "Region", options.regions)}
+      {options.provinces.length > 0 && dropdown("province", "Province", options.provinces, !fields.region)}
+      {dropdown("city", "City / Municipality", options.cities, !fields.region || (options.provinces.length > 0 && !fields.province))}
+      {dropdown("barangay", "Barangay", options.barangays, !fields.city)}
+      <label className="fr-address-field fr-address-full"><span>House / Building No., Street, Subdivision</span><input value={fields.street} disabled={busy} onChange={(event) => changeField("street", event.target.value)} placeholder="e.g. Unit 2, 123 Sampaguita Street" /></label>
+    </div>
+    {error && <div className="fr-address-notice" role="status">{error} <button type="button" disabled={busy} onClick={() => setRetry((value) => value + 1)}>Reload address options</button></div>}
+    <label className="fr-address-field fr-address-complete"><span>Complete Delivery Address</span><textarea ref={inputRef} value={address} rows={3} onChange={(event) => { requestRef.current += 1; setBusy(false); onChange(event.target.value); setFields({ region: "", province: "", city: "", barangay: "", street: "" }); setOptions((current) => ({ ...current, provinces: [], cities: [], barangays: [] })); }} placeholder="Select the address above or click the map. You may also enter the complete address here." /></label>
+    <small className="fr-address-help">Check the house number, street, and barangay before placing your order.</small>
+  </div>;
+}
+
+function FrStockInventoryContent({ user }) {
+  const [stockToast, setStockToast] = useState(null);
+  const closeStockToast = useCallback(() => setStockToast(null), []);
+  const notifyStock = useCallback((message, type = "error") => {
+    setStockToast({ type, title: type === "error" ? "Please review" : "Added to cart", message });
+  }, []);
+  const [orderDialog, setOrderDialog] = useState(null);
+  const [orderQuantity, setOrderQuantity] = useState("1");
+  const [quantityError, setQuantityError] = useState("");
+  const [mapAddressData, setMapAddressData] = useState(null);
+  const orderingModalRef = useRef(null);
+  const hasOrderingDialog = Boolean(orderDialog);
+  const [checkoutSource, setCheckoutSource] = useState("cart");
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({
     min_stock: "",
@@ -9122,6 +9251,11 @@ function FrStockInventoryContent({ user, brands }) {
 
   const isLowStock = (item) =>
     Number(item.stock || 0) <= Number(item.min_stock || 0);
+  // Read only the signed-in account's user ID; staff roles are not substituted.
+  const accountId = [user?.id, user?.userId, user?.user_id]
+    .filter((value) => typeof value === "string" || typeof value === "number")
+    .map((value) => String(value).trim())
+    .find((value) => value && !["null", "undefined", "0"].includes(value.toLowerCase())) || null;
   const userBranch = String(user?.branch || "").trim();
   const userBrand = String(user?.brand || user?.brand_name || "").trim();
   const CART_KEY = "@franchisee_supply_cart";
@@ -9140,8 +9274,8 @@ function FrStockInventoryContent({ user, brands }) {
   const [batches, setBatches] = useState([]);
   const [batchLoading, setBatchLoading] = useState(false);
 
-  const [editingBatch, setEditingBatch] = useState(null);
-  const [deleteConfirmBatch, setDeleteConfirmBatch] = useState(null);
+  const [, setEditingBatch] = useState(null);
+  const [, setDeleteConfirmBatch] = useState(null);
 
   const [historyBatch, setHistoryBatch] = useState(null);
 
@@ -9149,6 +9283,23 @@ function FrStockInventoryContent({ user, brands }) {
   const [selectedCartIds, setSelectedCartIds] = useState([]);
   const [showCart, setShowCart] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
+  useEffect(() => {
+    if (!hasOrderingDialog && !showCart) return undefined;
+    const previousFocus = document.activeElement;
+    const modal = orderingModalRef.current;
+    const selector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]';
+    (modal?.querySelector("[autofocus]") || modal?.querySelector(selector))?.focus();
+    const trapFocus = (event) => {
+      if (event.key !== "Tab" || !modal) return;
+      const controls = Array.from(modal.querySelectorAll(selector)).filter((element) => element.getClientRects().length);
+      const first = controls[0]; const last = controls[controls.length - 1];
+      if (!first) return;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    modal?.addEventListener("keydown", trapFocus);
+    return () => { modal?.removeEventListener("keydown", trapFocus); if (previousFocus?.isConnected) previousFocus.focus(); };
+  }, [hasOrderingDialog, showCart]);
   const [checkoutItems, setCheckoutItems] = useState([]);
   const [address, setAddress] = useState(String(user?.address || "").trim());
   const [mapCenter, setMapCenter] = useState(() => ({
@@ -9304,10 +9455,10 @@ function FrStockInventoryContent({ user, brands }) {
   }, [branchAllowed, normalize, userBranch, userBrand]);
 
   const fetchOrders = useCallback(async () => {
-    if (!userBranch && !user?.id) {
+    if (!accountId) {
       setOrders([]);
       setOrdersError(
-        "Your account information is not available for loading orders.",
+        "Your signed-in account ID is not available yet. Please refresh the dashboard and try View Orders again.",
       );
       return;
     }
@@ -9316,7 +9467,9 @@ function FrStockInventoryContent({ user, brands }) {
     setOrdersError("");
     try {
       const params = new URLSearchParams();
-      if (user?.id != null) params.set("user_id", String(user.id));
+      // The order-history endpoint expects camelCase userId.
+      params.set("userId", accountId);
+      params.set("user_id", accountId); // Compatibility with existing snake_case routes.
       if (userBranch) params.set("branch", userBranch);
       if (userBrand) params.set("brand", userBrand);
 
@@ -9344,10 +9497,8 @@ function FrStockInventoryContent({ user, brands }) {
       // user/brand/branch fields. Unknown fields are tolerated for compatibility.
       const scoped = raw
         .filter((order) => {
-          const sameUser =
-            user?.id == null ||
-            order?.user_id == null ||
-            String(order.user_id) === String(user.id);
+          const orderUserId = order?.user_id ?? order?.userId;
+          const sameUser = orderUserId == null || String(orderUserId) === accountId;
           const sameBranch =
             !userBranch ||
             !order?.branch ||
@@ -9376,7 +9527,7 @@ function FrStockInventoryContent({ user, brands }) {
     } finally {
       setOrdersLoading(false);
     }
-  }, [normalize, user?.id, userBranch, userBrand]);
+  }, [normalize, accountId, userBranch, userBrand]);
 
   useEffect(() => {
     if (userBranch) fetchItems();
@@ -9388,6 +9539,22 @@ function FrStockInventoryContent({ user, brands }) {
   useEffect(() => {
     fetchShopItems();
   }, [fetchShopItems]);
+  useEffect(() => {
+    if (showCart || hasOrderingDialog) fetchShopItems();
+  }, [showCart, hasOrderingDialog, fetchShopItems]);
+
+  const viewSupplyOrders = useCallback(() => {
+    setShowCheckout(false);
+    setOrderSuccess(null);
+    setShowOrders(true);
+    fetchOrders();
+  }, [fetchOrders]);
+  useEffect(() => {
+    if (!orderSuccess) return undefined;
+    const timer = setTimeout(viewSupplyOrders, 3000);
+    return () => clearTimeout(timer);
+  }, [orderSuccess, viewSupplyOrders]);
+
 
   useEffect(() => {
     try {
@@ -9443,7 +9610,8 @@ function FrStockInventoryContent({ user, brands }) {
         if (categoryF && String(i.category || "") !== categoryF) return false;
         if (unitF && String(i.unit || "") !== unitF) return false;
         const low = isLowStock(i);
-        if (statusF === "low" && !low) return false;
+        if (statusF === "out" && Number(i.stock || 0) > 0) return false;
+        if (statusF === "low" && (!low || Number(i.stock || 0) <= 0)) return false;
         if (statusF === "ok" && low) return false;
         if (statusF === "expiring" || statusF === "expired") {
           const expRaw = i.extra_fields?.exp_date;
@@ -9501,18 +9669,6 @@ function FrStockInventoryContent({ user, brands }) {
     [normalize, shopItems, userBrand],
   );
 
-  const selectedShopItem = getShopListingFor(selected);
-  const selectedSupplyAvailable = Number(selectedShopItem?.stock || 0);
-  const selectedCurrentStock = Number(selected?.stock || 0);
-  const selectedPrice = selectedShopItem
-    ? Number(selectedShopItem.price || 0)
-    : 0;
-  const selectedUnit = selectedShopItem?.unit || selected?.unit || "unit";
-  const selectedCartQty = selectedShopItem
-    ? Number(
-        cart.find((entry) => entry.id === selectedShopItem.id)?.quantity || 0,
-      )
-    : 0;
   const cartItemCount = cart.reduce(
     (sum, entry) => sum + Number(entry.quantity || 0),
     0,
@@ -9527,7 +9683,7 @@ function FrStockInventoryContent({ user, brands }) {
   );
   const selectedCartTotal = selectedCart.reduce(
     (sum, entry) =>
-      sum + Number(entry.price || 0) * Number(entry.quantity || 0),
+      sum + Number(shopItems.find((item) => item.id === entry.id)?.price ?? entry.price ?? 0) * Number(entry.quantity || 0),
     0,
   );
   const toggleCartItem = (id) =>
@@ -9554,48 +9710,48 @@ function FrStockInventoryContent({ user, brands }) {
     quantity,
   });
 
-  const addToCart = useCallback(
-    (shopItem, inventoryItem, quantity = 1) => {
-      const available = Number(shopItem?.stock || 0);
-      if (!shopItem?.id || available <= 0) {
-        window.alert("This supply item is currently out of stock.");
-        return false;
-      }
+  const addToCart = (shopItem, inventoryItem, quantity) => {
+    const available = Math.floor(Number(shopItem?.stock || 0));
+    const existing = cart.find((entry) => entry.id === shopItem?.id);
+    const currentQty = Number(existing?.quantity || 0);
+    if (!shopItem || !Number.isInteger(quantity) || quantity < 1 || currentQty + quantity > available) {
+      setQuantityError(`Enter a whole quantity from 1 to ${Math.max(0, available - currentQty)}.`);
+      return false;
+    }
+    const entry = createCartEntry(shopItem, inventoryItem, currentQty + quantity);
+    saveCart(existing ? cart.map((item) => item.id === entry.id ? entry : item) : [...cart, entry]);
+    setSelectedCartIds((ids) => ids.includes(entry.id) ? ids : [...ids, entry.id]);
+    notifyStock(`${frStockQuantity(quantity, entry.unit)} of ${entry.name} added to your cart.`, "success");
+    return true;
+  };
 
-      setCart((current) => {
-        const existing = current.find((entry) => entry.id === shopItem.id);
-        const currentQty = Number(existing?.quantity || 0);
-        if (currentQty + quantity > available) {
-          window.alert(
-            `Only ${available} ${shopItem.unit || inventoryItem?.unit || "unit(s)"} available for ${shopItem.name}.`,
-          );
-          return current;
-        }
-
-        const next = existing
-          ? current.map((entry) =>
-              entry.id === shopItem.id
-                ? {
-                    ...entry,
-                    quantity: currentQty + quantity,
-                    price: Number(shopItem.price || 0),
-                    unit: shopItem.unit || inventoryItem?.unit || entry.unit,
-                  }
-                : entry,
-            )
-          : [...current, createCartEntry(shopItem, inventoryItem, quantity)];
-
-        try {
-          localStorage.setItem(CART_KEY, JSON.stringify(next));
-        } catch (error) {
-          console.warn("Failed to save franchisee supply cart:", error);
-        }
-        return next;
-      });
-      return true;
-    },
-    [userBrand],
-  );
+  const openOrderDialog = (inventoryItem, mode) => {
+    const shopItem = getShopListingFor(inventoryItem);
+    if (shopLoading) { notifyStock("Supply details are still loading. Please try again shortly."); return; }
+    if (!shopItem || Number(shopItem.stock) < 1) {
+      notifyStock(shopItem ? "This supply item is currently out of stock." : "This item has no available supply listing for your branch.");
+      return;
+    }
+    setOrderDialog({ inventoryItem, shopItem, mode });
+    setOrderQuantity("1");
+    setQuantityError("");
+  };
+  const dialogShopItem = orderDialog ? shopItems.find((item) => item.id === orderDialog.shopItem.id) : null;
+  const dialogCartQuantity = dialogShopItem ? Number(cart.find((item) => item.id === dialogShopItem.id)?.quantity || 0) : 0;
+  const dialogMaximum = Math.max(0, Math.floor(Number(dialogShopItem?.stock || 0)) - (orderDialog?.mode === "cart" ? dialogCartQuantity : 0));
+  const confirmOrderDialog = (event) => {
+    event.preventDefault();
+    if (shopLoading || shopError) { setQuantityError("Please wait until Head Office stock is available."); return; }
+    const quantity = Number(orderQuantity);
+    if (!dialogShopItem || !Number.isInteger(quantity) || quantity < 1 || quantity > dialogMaximum) {
+      setQuantityError(dialogMaximum ? `Enter a whole quantity from 1 to ${dialogMaximum}.` : "No additional supply stock is available.");
+      return;
+    }
+    const completed = orderDialog.mode === "cart"
+      ? addToCart(dialogShopItem, orderDialog.inventoryItem, quantity)
+      : prepareCheckout([createCartEntry(dialogShopItem, orderDialog.inventoryItem, quantity)], true, "buyNow");
+    if (completed) setOrderDialog(null);
+  };
 
   const updateCartQuantity = (id, delta) => {
     const liveItem = shopItems.find((item) => item.id === id);
@@ -9603,8 +9759,8 @@ function FrStockInventoryContent({ user, brands }) {
       .map((entry) => {
         if (entry.id !== id) return entry;
         const max = liveItem
-          ? Number(liveItem.stock || 0)
-          : Number(entry.quantity || 0);
+          ? Math.floor(Number(liveItem.stock || 0))
+          : Math.floor(Number(entry.quantity || 0));
         return {
           ...entry,
           quantity: Math.min(
@@ -9632,7 +9788,7 @@ function FrStockInventoryContent({ user, brands }) {
       quantity = 1;
     }
 
-    quantity = Math.min(max, Math.max(1, quantity));
+    quantity = Math.min(Math.floor(max), Math.max(1, quantity));
 
     const next = cart.map((entry) =>
       entry.id === id
@@ -9651,9 +9807,9 @@ function FrStockInventoryContent({ user, brands }) {
   const removeFromCart = (id) =>
     saveCart(cart.filter((entry) => entry.id !== id));
 
-  const prepareCheckout = (requestedItems, closeCart = true) => {
+  const prepareCheckout = (requestedItems, closeCart = true, source = "cart") => {
     if (!requestedItems.length) {
-      window.alert("Your cart is empty.");
+      notifyStock("Your cart is empty.");
       return false;
     }
 
@@ -9672,7 +9828,7 @@ function FrStockInventoryContent({ user, brands }) {
         problems.push(`${entry.name}: out of stock`);
         return;
       }
-      if (requestedQty > available) {
+      if (!Number.isInteger(requestedQty) || requestedQty < 1 || requestedQty > available) {
         problems.push(
           `${entry.name}: only ${available} ${live.unit || "unit(s)"} available`,
         );
@@ -9691,7 +9847,7 @@ function FrStockInventoryContent({ user, brands }) {
     });
 
     if (problems.length) {
-      window.alert(`Please review your cart:\n\n${problems.join("\n")}`);
+      notifyStock(`Please review your cart:\n\n${problems.join("\n")}`);
       return false;
     }
 
@@ -9707,30 +9863,12 @@ function FrStockInventoryContent({ user, brands }) {
           : entry;
       }),
     );
+    setCheckoutSource(source);
     setCheckoutItems(liveItems);
     setOrderSuccess(null);
     if (closeCart) setShowCart(false);
     setShowCheckout(true);
     return true;
-  };
-
-  const buyNow = () => {
-    if (!selected || !selectedShopItem) {
-      window.alert("This item is not currently available for supply ordering.");
-      return;
-    }
-
-    if (selectedSupplyAvailable <= 0) {
-      window.alert("This supply item is currently out of stock.");
-      return;
-    }
-
-    const quantity = selectedCartQty > 0 ? selectedCartQty : 1;
-
-    prepareCheckout(
-      [createCartEntry(selectedShopItem, selected, quantity)],
-      true,
-    );
   };
 
   const checkoutTotal = checkoutItems.reduce(
@@ -9754,12 +9892,14 @@ function FrStockInventoryContent({ user, brands }) {
     setMapCenter({ latitude, longitude });
     setLocationError("");
     setLocationBusy(true);
+    setAddress("");
+    setMapAddressData(null);
     reverseTimerRef.current = setTimeout(
       async () => {
         lastLookupRef.current = Date.now();
         try {
-          const response = await adminModuleFetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`,
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}&addressdetails=1&accept-language=en`,
             { headers: { Accept: "application/json" } },
           );
           if (!response.ok) throw new Error("Address lookup is unavailable.");
@@ -9767,18 +9907,11 @@ function FrStockInventoryContent({ user, brands }) {
           if (request !== mapRequestRef.current) return;
           if (!result.display_name)
             throw new Error("No address was found for this pin.");
-          setAddress(result.display_name);
-          if (user?.id) {
-            adminModuleFetch(
-              `${process.env.REACT_APP_API_URL}/users/${user.id}/saved-address`,
-              {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({ savedAddress: result.display_name }),
-              },
-            ).catch(() => {});
+          if (result.address?.country_code && result.address.country_code !== "ph") {
+            throw new Error("Please choose a delivery location in the Philippines.");
           }
+          setAddress(result.display_name);
+          setMapAddressData({ ...result, lookupId: request });
         } catch (error) {
           if (request === mapRequestRef.current) {
             setLocationError(
@@ -9804,7 +9937,10 @@ function FrStockInventoryContent({ user, brands }) {
       Math.min(1, (event.clientY - bounds.top) / bounds.height),
     );
     selectMapPoint({
-      latitude: mapBounds.north - y * (mapBounds.north - mapBounds.south),
+      latitude: (Math.atan(Math.sinh(
+        Math.asinh(Math.tan(mapBounds.north * Math.PI / 180)) - y *
+        (Math.asinh(Math.tan(mapBounds.north * Math.PI / 180)) - Math.asinh(Math.tan(mapBounds.south * Math.PI / 180)))
+      )) * 180) / Math.PI,
       longitude: mapBounds.west + x * (mapBounds.east - mapBounds.west),
     });
   };
@@ -9841,7 +9977,7 @@ function FrStockInventoryContent({ user, brands }) {
         className="checkout-map-touch"
         role="button"
         tabIndex={0}
-        aria-label="Tap or drag to pin delivery location"
+        aria-label="Click to pin delivery location"
         onPointerDown={(event) =>
           event.currentTarget.setPointerCapture(event.pointerId)
         }
@@ -9882,12 +10018,13 @@ function FrStockInventoryContent({ user, brands }) {
   );
 
   const submitOrder = async (confirmedGCashRef = null) => {
+    if (locationBusy) { notifyStock("Please wait for the address lookup to finish."); return; }
     if (!address.trim()) {
       setShowAddressPrompt(true);
       return;
     }
     if (!checkoutItems.length) {
-      window.alert("There are no items to checkout.");
+      notifyStock("There are no items to checkout.");
       return;
     }
     if (paymentMethod === "gcash" && !confirmedGCashRef) return;
@@ -9920,7 +10057,7 @@ function FrStockInventoryContent({ user, brands }) {
         const live = latestEligible.find((item) => item.id === entry.id);
         if (!live)
           throw new Error(`${entry.name} is no longer available for ordering.`);
-        if (Number(entry.quantity) > Number(live.stock)) {
+        if (!Number.isInteger(Number(entry.quantity)) || Number(entry.quantity) < 1 || Number(entry.quantity) > Number(live.stock)) {
           throw new Error(
             `${entry.name} now has only ${Number(live.stock)} ${live.unit || entry.unit || "unit(s)"} available.`,
           );
@@ -9939,7 +10076,7 @@ function FrStockInventoryContent({ user, brands }) {
       );
 
       const payload = {
-        user_id: user?.id ?? null,
+        user_id: accountId,
         user_name: user?.name ?? null,
         phone: user?.phone ?? null,
         brand: user?.brand ?? user?.brand_name ?? null,
@@ -9974,7 +10111,10 @@ function FrStockInventoryContent({ user, brands }) {
       }
 
       const checkedOutIds = new Set(validatedItems.map((entry) => entry.id));
-      saveCart(cart.filter((entry) => !checkedOutIds.has(entry.id)));
+      if (checkoutSource === "cart") {
+        saveCart(cart.filter((entry) => !checkedOutIds.has(entry.id)));
+        setSelectedCartIds((ids) => ids.filter((id) => !checkedOutIds.has(id)));
+      }
       setCheckoutItems([]);
       setOrderSuccess({
         id: data?.order?.id ?? data?.id ?? "—",
@@ -9983,7 +10123,7 @@ function FrStockInventoryContent({ user, brands }) {
       await Promise.all([fetchItems(), fetchShopItems()]);
     } catch (error) {
       console.error("Supply order error:", error);
-      window.alert(
+      notifyStock(
         error.message || "Something went wrong while placing the order.",
       );
     } finally {
@@ -9997,6 +10137,7 @@ function FrStockInventoryContent({ user, brands }) {
   };
 
   const handleCheckoutAction = async () => {
+    if (locationBusy) { notifyStock("Please wait for the address lookup to finish."); return; }
     if (paymentMethod === "cod") {
       submitOrder();
       return;
@@ -10006,7 +10147,7 @@ function FrStockInventoryContent({ user, brands }) {
       return;
     }
     if (!checkoutItems.length) {
-      window.alert("There are no items to checkout.");
+      notifyStock("There are no items to checkout.");
       return;
     }
     setPlacingOrder(true);
@@ -10026,7 +10167,7 @@ function FrStockInventoryContent({ user, brands }) {
         const live = eligible.find((item) => item.id === entry.id);
         if (!live)
           throw new Error(`${entry.name} is no longer available for ordering.`);
-        if (Number(entry.quantity) > Number(live.stock || 0)) {
+        if (!Number.isInteger(Number(entry.quantity)) || Number(entry.quantity) < 1 || Number(entry.quantity) > Number(live.stock || 0)) {
           throw new Error(
             `${entry.name} now has only ${Number(live.stock || 0)} ${live.unit || entry.unit || "unit(s)"} available.`,
           );
@@ -10038,7 +10179,7 @@ function FrStockInventoryContent({ user, brands }) {
       setGcashAmount(amount);
       setShowGCash(true);
     } catch (error) {
-      window.alert(error.message || "Unable to start GCash payment.");
+      notifyStock(error.message || "Unable to start GCash payment.");
     } finally {
       setPlacingOrder(false);
     }
@@ -10091,8 +10232,6 @@ function FrStockInventoryContent({ user, brands }) {
     };
   }, [selectedId]);
 
-  const lowCount = items.filter((i) => isLowStock(i)).length;
-
   const cartLineItems = cart.map((entry) => {
     const live = shopItems.find((item) => item.id === entry.id);
     return {
@@ -10102,12 +10241,6 @@ function FrStockInventoryContent({ user, brands }) {
       stock: live ? Number(live.stock || 0) : 0,
     };
   });
-
-  const cartHasStockIssues = cartLineItems.some(
-    (entry) =>
-      entry.stock <= 0 ||
-      Number(entry.quantity || 0) > Number(entry.stock || 0),
-  );
 
   const formatOrderDate = (value) => {
     if (!value) return "Date not available";
@@ -10212,7 +10345,7 @@ function FrStockInventoryContent({ user, brands }) {
     const minStock = Number(editForm.min_stock);
 
     if (!Number.isFinite(minStock) || minStock < 0) {
-      window.alert("Minimum stock must be 0 or greater.");
+      notifyStock("Minimum stock must be 0 or greater.");
       return;
     }
 
@@ -10246,7 +10379,7 @@ function FrStockInventoryContent({ user, brands }) {
       await fetchItems();
     } catch (error) {
       console.error("Franchisee inventory edit error:", error);
-      window.alert(error.message || "Failed to update inventory item.");
+      notifyStock(error.message || "Failed to update inventory item.");
     } finally {
       setSavingEdit(false);
     }
@@ -10288,7 +10421,7 @@ function FrStockInventoryContent({ user, brands }) {
       await fetchItems();
     } catch (error) {
       console.error("Franchisee inventory delete error:", error);
-      window.alert(error.message || "Failed to delete inventory item.");
+      notifyStock(error.message || "Failed to delete inventory item.");
     } finally {
       setDeletingItem(false);
     }
@@ -11088,6 +11221,129 @@ max-width: 950px !important;
     font-size: 13px !important;
   }
 }
+        /* Stock-row ordering, website cart and Philippine address controls. */
+        .fr-stock-order-shell .stock-order-row-top { padding-right:94px; min-height:46px; }
+        .fr-row-order-buttons { position:absolute; right:20px; top:16px; display:flex; gap:8px; }
+        .fr-row-order-btn { width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border:1px solid #d8e3cf; border-radius:9px; background:#fff; color:#3b791e; cursor:pointer; transition:transform .15s,background .15s; }
+        .fr-row-order-btn.primary { background:#3b791e; border-color:#3b791e; color:#fff; }
+        .fr-row-order-btn:hover { transform:translateY(-1px); box-shadow:0 3px 9px #18380c16; }
+        .fr-row-order-btn:active { transform:scale(.95); }
+        .fr-row-order-btn:disabled { opacity:.5; cursor:wait; }
+        .fr-row-order-btn span,.fr-visually-hidden { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+        .fr-stock-order-shell .stock-order-queue-panel { max-height:650px; margin-bottom:0; }
+        .fr-stock-order-shell .fr-quantity-modal { width:min(92vw,410px); padding:24px!important; border-radius:18px; background:#fff; }
+        .fr-dialog-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+        .fr-dialog-head small { color:#6b7864; font-size:11px; }
+        .fr-dialog-head h3 { margin:6px 0 0; font-size:18px; color:#2c5c16; }
+        .fr-icon-btn { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border:0; border-radius:8px; background:#f3f6ef; color:#3b791e; cursor:pointer; flex-shrink:0; }
+        .fr-icon-btn.danger { color:#dc2626; background:#fff1f1; }
+        .fr-quantity-info { display:flex; gap:12px; align-items:center; background:#f5f8ef; padding:15px; border-radius:12px; margin:20px 0; color:#2c5c16; font-size:13px; }
+        .fr-quantity-info small { display:block; margin-top:5px; color:#6b7864; font-size:11px; }
+        .fr-quantity-label { display:block; font-size:12px; font-weight:700; margin-bottom:8px; }
+        .fr-quantity-control { display:flex; border:1px solid #d8e3cf; border-radius:10px; overflow:hidden; height:44px; }
+        .fr-quantity-control button { width:46px; border:0; background:#f3f6ef; color:#3b791e; cursor:pointer; font-size:20px; }
+        .fr-quantity-control input { flex:1; width:70px; border:0; min-width:0; text-align:center; font:inherit; }
+        .fr-quantity-control button:disabled { opacity:.4; cursor:default; }
+        .fr-quantity-total { display:flex; justify-content:space-between; align-items:center; margin:22px 0; font-size:13px; }
+        .fr-quantity-total strong { color:#2c5c16; font-size:20px; }
+        .fr-wide-button { width:100%; justify-content:center; gap:8px; }
+        .fr-field-error { color:#b42318!important; font-size:11px; line-height:1.5; }
+        .fr-stock-order-shell .fr-web-cart { width:min(96vw,1180px)!important; max-width:1180px!important; max-height:90vh; padding:0!important; overflow:auto!important; background:#fff; border-radius:18px; }
+        .fr-web-cart-head { display:flex; align-items:center; justify-content:space-between; padding:23px 26px; border-bottom:1px solid #e5ebdf; gap:16px; }
+        .fr-web-cart-head h2 { display:flex; align-items:center; gap:10px; font-size:21px; color:#2c5c16; margin:0; }
+        .fr-web-cart-head h2 span { background:#eef4e7; padding:4px 8px; font-size:12px; border-radius:7px; }
+        .fr-web-cart-head p { font-size:11px; color:#75806d; margin:7px 0 0; }
+        .fr-web-cart-layout { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:24px; padding:24px; align-items:start; }
+        .fr-web-cart-items { min-width:0; }
+        .fr-cart-toolbar { display:flex; align-items:center; justify-content:space-between; font-size:12px; padding:0 0 18px; gap:10px; }
+        .fr-cart-toolbar label { display:flex; align-items:center; gap:8px; font-weight:700; }
+        .fr-web-cart input[type=checkbox] { width:16px; height:16px; accent-color:#3b791e; cursor:pointer; }
+        .fr-cart-toolbar>span { color:#75806d; font-size:11px; }
+        .fr-cart-table-scroll { overflow-x:auto; }
+        .fr-cart-table { width:100%; border-collapse:collapse; font-size:12px; min-width:620px; }
+        .fr-cart-table th { text-align:left; background:#f5f7f0; font-size:10px; color:#66745e; font-weight:700; padding:12px 8px; white-space:nowrap; }
+        .fr-cart-table td { padding:18px 8px; border-bottom:1px solid #eef1e9; vertical-align:middle; white-space:nowrap; }
+        .fr-cart-table th:first-child,.fr-cart-table td:first-child { width:30px; }
+        .fr-cart-product { display:flex; gap:10px; align-items:center; min-width:170px; white-space:normal; }
+        .fr-cart-product strong { font-size:12px; color:#2c5c16; }
+        .fr-cart-product small { display:block; color:#75806d; font-size:10px; margin-top:5px; }
+        .fr-cart-thumb { width:44px; height:44px; flex-shrink:0; background:#f1f6e9; color:#3b791e; display:flex; align-items:center; justify-content:center; border-radius:9px; overflow:hidden; }
+        .fr-cart-thumb img { width:100%; height:100%; object-fit:contain; }
+        .fr-cart-stepper { display:flex; align-items:center; border:1px solid #dde6d5; border-radius:8px; overflow:hidden; width:100px; height:33px; }
+        .fr-cart-stepper button { background:#f5f8ef; border:0; width:28px; height:100%; color:#3b791e; cursor:pointer; }
+        .fr-cart-stepper input { width:42px; min-width:0; border:0; text-align:center; font:inherit; padding:0; appearance:textfield; }
+        .fr-cart-stepper input::-webkit-inner-spin-button { appearance:none; }
+        .fr-cart-stepper button:disabled { opacity:.4; cursor:default; }
+        .fr-cart-row-issue { background:#fff9f8; }
+        .fr-cart-continue { display:inline-flex; align-items:center; gap:7px; color:#3b791e; border:0; background:none; cursor:pointer; font:inherit; font-size:12px; margin-top:22px; padding:0; }
+        .fr-cart-summary { background:#f6f8f1; border:1px solid #e5ebdc; border-radius:13px; padding:22px; }
+        .fr-cart-summary h3 { margin:0; font-size:16px; color:#2c5c16; }
+        .fr-cart-summary p { color:#75806d; font-size:11px; line-height:1.6; margin:8px 0 22px; }
+        .fr-cart-summary>div { display:flex; justify-content:space-between; align-items:center; margin:16px 0; font-size:12px; gap:8px; }
+        .fr-cart-summary .fr-cart-summary-total { border-top:1px solid #dde5d4; padding-top:20px; margin:20px 0; }
+        .fr-cart-summary-total strong { font-size:23px; color:#2c5c16; }
+        .fr-cart-summary>small { display:block; text-align:center; font-size:10px; color:#75806d; margin-top:12px; line-height:1.5; }
+        .fr-address-fields { margin-top:14px; }
+        .fr-address-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        .fr-address-field { display:flex; flex-direction:column; gap:7px; min-width:0; }
+        .fr-address-field>span { font-size:11px; font-weight:700; color:#2c5c16; }
+        .fr-address-field input,.fr-address-field select,.fr-address-field textarea { box-sizing:border-box; width:100%; min-width:0; border:1px solid #dce5d4; border-radius:9px; background:#fff; color:#253820; padding:10px 11px; font:inherit; font-size:12px; }
+        .fr-address-field input:focus,.fr-address-field select:focus,.fr-address-field textarea:focus { outline:2px solid #b3c99d; outline-offset:1px; }
+        .fr-address-field select:disabled { background:#f5f7f1; }
+        .fr-address-full { grid-column:1/-1; }
+        .fr-address-complete { margin-top:14px; }
+        .fr-address-complete textarea { resize:vertical; min-height:80px; border-color:#c8b572; }
+        .fr-address-help { display:block; font-size:10px; color:#75806d; line-height:1.5; margin-top:8px; }
+        .fr-address-notice { font-size:11px; color:#766020; background:#fffbeb; border-radius:8px; padding:10px; margin-top:12px; line-height:1.5; }
+        .fr-address-notice button { background:none; border:0; color:#3b791e; text-decoration:underline; font:inherit; cursor:pointer; padding:4px 0; }
+        @media(max-width:900px) { .fr-web-cart-layout { grid-template-columns:1fr; gap:20px; padding:18px; } .fr-web-cart-head { padding:18px; } }
+        @media(max-width:520px) { .fr-address-grid { grid-template-columns:1fr; } .fr-row-order-buttons { right:14px; gap:6px; } .fr-stock-order-shell .stock-order-row-top { padding-right:84px; } }
+
+        /* Compact purchasing controls: override the shared round-button defaults. */
+        .fr-stock-order-shell .stock-order-row-top { padding-right:204px; }
+        body.fr-admin-ui .fr-stock-order-shell .fr-row-order-btn,
+        .fr-stock-order-shell .fr-row-order-btn { width:auto; min-width:0; height:32px; min-height:32px; padding:0 10px; gap:5px; font-size:11px!important; }
+        .fr-stock-order-shell .fr-row-order-btn span { position:static; width:auto; height:auto; overflow:visible; clip:auto; }
+        body.fr-admin-ui .fr-stock-order-shell .fr-row-order-btn.primary { background:#3b791e; color:#fff; }
+        .fr-stock-order-shell .fr-quantity-control,
+        .fr-stock-order-shell .fr-cart-stepper { display:inline-flex; width:126px; max-width:100%; height:34px; gap:4px; border:0!important; box-shadow:none!important; background:transparent; overflow:visible; border-radius:0; }
+        body.fr-admin-ui .fr-stock-order-shell :is(.fr-quantity-control,.fr-cart-stepper) button,
+        .fr-stock-order-shell :is(.fr-quantity-control,.fr-cart-stepper) button { width:30px!important; min-width:30px!important; height:32px!important; min-height:32px!important; padding:0!important; border:0!important; border-radius:8px!important; background:#edf3e5!important; color:#3b791e!important; flex:0 0 30px; box-shadow:none!important; }
+        .fr-stock-order-shell :is(.fr-quantity-control,.fr-cart-stepper) input { flex:0 0 58px; width:58px!important; min-width:0!important; height:32px; box-sizing:border-box; padding:0 3px!important; border:0!important; border-radius:6px; background:#f6f8f1; box-shadow:none!important; text-align:center; appearance:textfield; font:inherit; font-size:12px; }
+        .fr-stock-order-shell :is(.fr-quantity-control,.fr-cart-stepper) input::-webkit-inner-spin-button,
+        .fr-stock-order-shell :is(.fr-quantity-control,.fr-cart-stepper) input::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+        .fr-quantity-limit,.fr-cart-quantity-hint { display:block; font-size:10px; color:#65735c; line-height:1.5; margin:8px 0 0; }
+        .fr-supply-details { padding:14px; margin:18px 0; border-radius:12px; background:#f4f7ed; }
+        .fr-supply-details-title { display:flex; align-items:center; gap:7px; font-size:12px; color:#2c5c16; font-weight:800; margin-bottom:12px; }
+        .fr-supply-details dl { margin:0; display:grid; gap:9px; }
+        .fr-supply-details dl>div { display:flex; justify-content:space-between; gap:18px; font-size:11px; }
+        .fr-supply-details dt { color:#65735c; }
+        .fr-supply-details dd { margin:0; text-align:right; color:#2c5c16; font-weight:700; overflow-wrap:anywhere; }
+        .fr-supply-details p { margin:12px 0 0; font-size:10px; color:#65735c; }
+        body.fr-admin-ui .fr-stock-order-shell .fr-stock-status,
+        .fr-stock-order-shell .fr-stock-status { display:inline-flex; gap:5px; align-items:center; min-height:0; min-width:0; border:0; padding:3px 0; margin:0 0 8px; background:transparent; font-size:10px!important; font-weight:700!important; cursor:pointer; color:#3b791e; }
+        .fr-stock-status>span { width:6px; height:6px; border-radius:50%; background:currentColor; }
+        .fr-stock-order-shell .fr-stock-status.out,
+        body.fr-admin-ui .fr-stock-order-shell .fr-stock-status.out { color:#dc2626; }
+        .fr-stock-order-shell .fr-stock-status.low,
+        body.fr-admin-ui .fr-stock-order-shell .fr-stock-status.low { color:#c76b0a; }
+        .fr-stock-order-shell .stock-order-stock-line.out-track { background:#dc2626!important; }
+        .fr-stock-order-shell .stock-order-stock-line.low-track { background:#fff0d9; }
+        .fr-stock-order-shell .stock-order-stock-line-fill.low { background:#e99320!important; }
+        .fr-stock-order-shell .stock-order-stock-line-fill.out { background:#dc2626!important; }
+        @media(max-width:520px) {
+          .fr-stock-order-shell .stock-order-row-top { padding-right:0; display:flex; flex-direction:column; }
+          .fr-stock-order-shell .fr-row-order-buttons { position:static; order:4; margin-top:9px; flex-wrap:wrap; }
+        }
+
+        .fr-stock-order-shell .fr-order-success-actions { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; width:100%; margin-top:22px; }
+        body.fr-admin-ui .fr-stock-order-shell .fr-order-success-actions .checkout-place-btn,
+        .fr-stock-order-shell .fr-order-success-actions .checkout-place-btn { display:flex!important; align-items:center; justify-content:center; align-self:center; width:min(100%,240px)!important; max-width:240px; margin:0!important; }
+        body.fr-admin-ui .fr-stock-order-shell .fr-order-redirecting,
+        .fr-stock-order-shell .fr-order-redirecting { display:inline-flex!important; align-items:center; justify-content:center; gap:8px; max-width:100%; padding:9px 14px; border:0!important; background:#f0f5e8!important; color:#3b791e!important; opacity:1!important; cursor:wait!important; font-size:11px!important; white-space:normal; }
+        .fr-order-redirect-spinner { animation:frOrderRedirectSpin 1s linear infinite; }
+        @keyframes frOrderRedirectSpin { to { transform:rotate(360deg); } }
+        @media(prefers-reduced-motion:reduce) { .fr-order-redirect-spinner { animation:none; } }
       `}</style>
 
       <div
@@ -11229,24 +11485,6 @@ max-width: 950px !important;
               }}
             />
           </div>
-          <div
-            style={{
-              ...invInputSt,
-              height: 32,
-              minWidth: 150,
-              fontSize: 11,
-              padding: "6px 10px",
-              background: C.bg,
-              color: C.ink,
-              fontWeight: 700,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <StoreIcon size={12} color={C.green} />{" "}
-            {userBranch || "Assigned Branch"}
-          </div>
           {categoryOptions.length > 0 && (
             <select
               value={categoryF}
@@ -11279,6 +11517,7 @@ max-width: 950px !important;
             style={{ ...invInputSt, height: 32, fontSize: 11, width: 118 }}
           >
             <option value="">All Status</option>
+            <option value="out">Out of Stock</option>
             <option value="low">Low Stock</option>
             <option value="ok">In Stock</option>
             {hasExpiry && <option value="expiring">Expiring Soon (30d)</option>}
@@ -11372,7 +11611,10 @@ max-width: 950px !important;
               filtered.map((item) => {
                 const active = item.id === selectedId;
                 const stockValue = Math.max(0, Number(item.stock ?? 0));
-                const low = isLowStock(item);
+                const outOfStock = stockValue <= 0;
+                const low = !outOfStock && isLowStock(item);
+                const stockStatus = outOfStock ? "Out of Stock" : low ? "Low Stock" : "In Stock";
+                const stockClass = outOfStock ? "out" : low ? "low" : "ok";
                 const stockPercent =
                   maxBarStock > 0
                     ? Math.min(
@@ -11383,9 +11625,7 @@ max-width: 950px !important;
                         ),
                       )
                     : 0;
-                const stockBarLabel = low
-                  ? `Low stock: ${frStockQuantity(item.stock, item.unit)} (${stockPercent}% of highest stock)`
-                  : `Stock okay: ${frStockQuantity(item.stock, item.unit)} (${stockPercent}% of highest stock)`;
+                const stockBarLabel = `${stockStatus}: ${frStockQuantity(item.stock, item.unit)}. Click to view stock batches.`;
                 return (
                   <div
                     key={item.id}
@@ -11395,13 +11635,17 @@ max-width: 950px !important;
                     tabIndex={0}
                     aria-pressed={active}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
+                      if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
                         e.preventDefault();
                         selectItem(item);
                       }
                     }}
                   >
                     <span className="stock-order-row-top">
+                      <span className="fr-row-order-buttons" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                        <button type="button" className="fr-row-order-btn" title={`Add ${item.name} to cart`} aria-label={`Add ${item.name} to cart`} disabled={shopLoading} onClick={() => openOrderDialog(item, "cart")}><ShoppingCart size={15} /><span>Add to Cart</span></button>
+                        <button type="button" className="fr-row-order-btn primary" title={`Buy ${item.name} now`} aria-label={`Buy ${item.name} now`} disabled={shopLoading} onClick={() => openOrderDialog(item, "buyNow")}><span>Buy Now</span></button>
+                      </span>
                       <span className="stock-order-row-name">{item.name}</span>
                       <span className="stock-order-row-meta">
                         {[item.sku || "No SKU", item.branch || userBranch]
@@ -11415,7 +11659,7 @@ max-width: 950px !important;
                       </span>
                     </span>
                     <span
-                      className={`stock-order-stock-line${low ? " low-track" : ""}`}
+                      className={`stock-order-stock-line ${stockClass}-track`}
                       role="progressbar"
                       aria-valuenow={Math.max(0, stockValue)}
                       aria-valuemin={0}
@@ -11424,10 +11668,13 @@ max-width: 950px !important;
                       title={stockBarLabel}
                     >
                       <span
-                        className={`stock-order-stock-line-fill${low ? " low" : ""}`}
+                        className={`stock-order-stock-line-fill ${stockClass}`}
                         style={{ width: `${stockPercent}%` }}
                       />
                     </span>
+                    <button type="button" className={`fr-stock-status ${stockClass}`} title={stockBarLabel} onClick={(event) => { event.stopPropagation(); selectItem(item); }}>
+                      <span aria-hidden="true" />{stockStatus} · {frStockQuantity(item.stock, item.unit)}
+                    </button>
                     <span className="stock-order-row-actions">
                       <button
                         type="button"
@@ -11723,258 +11970,7 @@ max-width: 950px !important;
                   />
                 </div>
 
-                <div className="stock-order-detail-panel">
-                  <div className="stock-order-hero">
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        alignItems: "flex-start",
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontSize: 9.5,
-                            fontWeight: 800,
-                            letterSpacing: ".08em",
-                            textTransform: "uppercase",
-                            color: C.muted,
-                          }}
-                        >
-                          Supply Details
-                        </div>
-                        <h2
-                          style={{
-                            margin: "4px 0 0",
-                            fontSize: 18,
-                            lineHeight: 1.2,
-                            color: C.ink,
-                            overflowWrap: "anywhere",
-                          }}
-                        >
-                          {selected.name}
-                        </h2>
-                        <div
-                          style={{
-                            marginTop: 5,
-                            color: C.muted,
-                            fontSize: 10.5,
-                          }}
-                        >
-                          {[
-                            selected.brand || userBrand,
-                            selected.branch || userBranch,
-                            selected.sku,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </div>
-                      </div>
-                      {isLowStock(selected) && (
-                        <span
-                          className="v-badge v-badge-red"
-                          style={{ fontSize: 9.5, padding: "3px 9px" }}
-                        >
-                          Low Stock
-                        </span>
-                      )}
-                    </div>
-                  </div>
 
-                  <div className="stock-order-facts">
-                    <div className="stock-order-fact">
-                      <div className="stock-order-fact-label">Your Stock</div>
-                      <div className="stock-order-fact-value">
-                        {frStockQuantity(selectedCurrentStock, selected.unit)}
-                      </div>
-                    </div>
-                    <div className="stock-order-fact">
-                      <div className="stock-order-fact-label">Category</div>
-                      <div className="stock-order-fact-value">
-                        {selected.category || "—"}
-                      </div>
-                    </div>
-                    <div className="stock-order-fact">
-                      <div className="stock-order-fact-label">
-                        Supply Available
-                      </div>
-                      <div className="stock-order-fact-value">
-                        {selectedShopItem
-                          ? `${selectedSupplyAvailable} ${selectedUnit}`
-                          : "—"}
-                      </div>
-                    </div>
-                    <div className="stock-order-fact">
-                      <div className="stock-order-fact-label">Unit Price</div>
-                      <div className="stock-order-fact-value">
-                        {selectedShopItem ? fmtPeso(selectedPrice) : "—"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="stock-order-purchase">
-                    <div className="stock-order-purchase-top">
-                      <div>
-                        <div className="stock-order-price-big">
-                          {selectedShopItem
-                            ? fmtPeso(selectedPrice)
-                            : "Not Listed"}
-                        </div>
-                        <div className="stock-order-price-unit">
-                          {selectedShopItem
-                            ? `per ${selectedUnit}`
-                            : "This item is not currently configured for ordering"}
-                        </div>
-                      </div>
-                      <span
-                        className={`stock-order-availability${!selectedShopItem || selectedSupplyAvailable <= 0 ? " out" : ""}`}
-                      >
-                        {shopLoading
-                          ? "Checking…"
-                          : selectedShopItem
-                            ? selectedSupplyAvailable > 0
-                              ? `${selectedSupplyAvailable} available`
-                              : "Out of stock"
-                            : "Not orderable"}
-                      </span>
-                    </div>
-
-                    {selectedShopItem && selectedSupplyAvailable > 0 ? (
-                      <>
-                        <div className="stock-order-stepper">
-                          <button
-                            type="button"
-                            aria-label="Decrease quantity"
-                            onClick={() =>
-                              updateCartQuantity(selectedShopItem.id, -1)
-                            }
-                            disabled={selectedCartQty <= 0}
-                          >
-                            −
-                          </button>
-
-                          <input
-                            type="number"
-                            min="1"
-                            max={selectedSupplyAvailable}
-                            value={selectedCartQty || 1}
-                            onChange={(e) => {
-                              const value = e.target.value;
-
-                              if (value === "") return;
-
-                              const quantity = Math.max(
-                                1,
-                                Math.min(
-                                  Number(value),
-                                  selectedSupplyAvailable,
-                                ),
-                              );
-
-                              const existing = cart.find(
-                                (entry) => entry.id === selectedShopItem.id,
-                              );
-
-                              let next;
-
-                              if (existing) {
-                                next = cart.map((entry) =>
-                                  entry.id === selectedShopItem.id
-                                    ? { ...entry, quantity }
-                                    : entry,
-                                );
-                              } else {
-                                next = [
-                                  ...cart,
-                                  createCartEntry(
-                                    selectedShopItem,
-                                    selected,
-                                    quantity,
-                                  ),
-                                ];
-                              }
-
-                              saveCart(next);
-                            }}
-                            className="stock-order-stepper-input"
-                            aria-label="Cart quantity"
-                          />
-
-                          <button
-                            type="button"
-                            aria-label="Increase quantity"
-                            onClick={() =>
-                              addToCart(selectedShopItem, selected, 1)
-                            }
-                            disabled={
-                              selectedCartQty >= selectedSupplyAvailable
-                            }
-                          >
-                            +
-                          </button>
-
-                          <span
-                            style={{
-                              marginLeft: 2,
-                              color: C.muted,
-                              fontSize: 9.5,
-                            }}
-                          >
-                            in cart
-                          </span>
-                        </div>
-                        <div className="stock-order-actions">
-                          <button
-                            type="button"
-                            className="v-btn v-btn-secondary"
-                            onClick={() =>
-                              addToCart(selectedShopItem, selected, 1)
-                            }
-                            disabled={
-                              selectedCartQty >= selectedSupplyAvailable
-                            }
-                          >
-                            <ShoppingCart size={13} /> Add to Cart
-                          </button>
-                          <button
-                            type="button"
-                            className="v-btn v-btn-primary"
-                            onClick={buyNow}
-                            disabled={
-                              !selectedShopItem || selectedSupplyAvailable <= 0
-                            }
-                          >
-                            Buy Now
-                          </button>
-                        </div>
-                        {selectedCartQty > 0 && (
-                          <div
-                            style={{
-                              marginTop: 8,
-                              padding: "7px 9px",
-                              borderRadius: 8,
-                              background: C.white,
-                              border: `1px solid ${C.border}`,
-                              fontSize: 10,
-                              color: C.muted,
-                            }}
-                          >
-                            {selectedCartQty} {selectedUnit} in cart ·{" "}
-                            {fmtPeso(selectedCartQty * selectedPrice)}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="stock-order-unavailable">
-                        {selectedShopItem
-                          ? "This supply has a listing, but there is currently no supply stock available."
-                          : "This inventory item does not have an active supply-store listing for your assigned brand and branch."}
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
             ) : (
               <div
@@ -12014,8 +12010,7 @@ max-width: 950px !important;
                       lineHeight: 1.6,
                     }}
                   >
-                    View the stock rotation queue first, then review supply
-                    details and order quantity.
+                    View stock rotation and batch details. Use the buttons on each item to order supplies.
                   </div>
                 </div>
               </div>
@@ -12024,330 +12019,68 @@ max-width: 950px !important;
         </div>
       </div>
 
+      <Toast toast={stockToast} onClose={closeStockToast} />
+      {orderDialog && (
+        <div className="v-modal-overlay" onMouseDown={() => setOrderDialog(null)}>
+          <form ref={orderingModalRef} className="v-modal fr-quantity-modal" role="dialog" aria-modal="true" aria-labelledby="fr-order-title" onMouseDown={(event) => event.stopPropagation()} onSubmit={confirmOrderDialog} onKeyDown={(event) => { if (event.key === "Escape") setOrderDialog(null); }}>
+            <div className="fr-dialog-head"><div><small>{orderDialog.mode === "cart" ? "Add to Cart" : "Buy Now"}</small><h3 id="fr-order-title">{orderDialog.inventoryItem.name}</h3></div><button type="button" className="fr-icon-btn" aria-label="Close quantity dialog" onClick={() => setOrderDialog(null)}><X size={18} /></button></div>
+            <div className="fr-supply-details">
+              <div className="fr-supply-details-title"><Package size={16} /> Supply Details</div>
+              <dl>
+                <div><dt>Brand</dt><dd>{dialogShopItem?.brand || userBrand}</dd></div>
+                <div><dt>Category</dt><dd>{orderDialog.inventoryItem.category || dialogShopItem?.category || "—"}</dd></div>
+                <div><dt>SKU</dt><dd>{orderDialog.inventoryItem.sku || dialogShopItem?.sku || "—"}</dd></div>
+                <div><dt>Your Branch Stock</dt><dd>{frStockQuantity(orderDialog.inventoryItem.stock, orderDialog.inventoryItem.unit)}</dd></div>
+                <div><dt>Head Office Stock</dt><dd>{shopLoading ? "Loading…" : frStockQuantity(dialogShopItem?.stock || 0, dialogShopItem?.unit)}</dd></div>
+                <div><dt>Price per {frFullUnit(dialogShopItem?.unit, 1)}</dt><dd>{fmtPeso(dialogShopItem?.price || 0)}</dd></div>
+              </dl>
+              {dialogCartQuantity > 0 && <p>{frStockQuantity(dialogCartQuantity, dialogShopItem?.unit)} already in your cart.</p>}
+            </div>
+            <label className="fr-quantity-label" htmlFor="fr-supply-quantity">Quantity</label>
+            <div className="fr-quantity-control"><button type="button" aria-label="Decrease quantity" disabled={shopLoading || Number(orderQuantity) <= 1} onClick={() => { setOrderQuantity(String(Math.max(1, Number(orderQuantity || 1) - 1))); setQuantityError(""); }}>−</button><input autoFocus id="fr-supply-quantity" type="number" min="1" max={dialogMaximum} step="1" value={orderQuantity} onChange={(event) => {
+              const value = event.target.value;
+              setOrderQuantity(value === "" ? "" : String(Math.min(dialogMaximum, Math.max(1, Math.floor(Number(value) || 1)))));
+              setQuantityError("");
+            }} onBlur={() => { if (!orderQuantity && dialogMaximum > 0) setOrderQuantity("1"); }} disabled={shopLoading || dialogMaximum < 1} aria-describedby={quantityError ? "fr-quantity-error" : undefined} /><button type="button" aria-label="Increase quantity" disabled={shopLoading || Number(orderQuantity) >= dialogMaximum} onClick={() => { setOrderQuantity(String(Math.min(dialogMaximum, Number(orderQuantity || 0) + 1))); setQuantityError(""); }}>+</button></div>
+            <p className="fr-quantity-limit">{frStockQuantity(Number(orderQuantity) || 0, dialogShopItem?.unit)} selected · Maximum {frStockQuantity(dialogMaximum, dialogShopItem?.unit)}{orderDialog.mode === "cart" && dialogCartQuantity > 0 ? " more" : ""}</p>
+            {shopError && <p className="fr-field-error" role="alert">Unable to refresh Head Office stock. <button type="button" onClick={fetchShopItems}>Retry</button></p>}
+            {quantityError && <p id="fr-quantity-error" className="fr-field-error" role="alert">{quantityError}</p>}
+            <div className="fr-quantity-total"><span>Subtotal</span><strong>{fmtPeso(Number(dialogShopItem?.price || 0) * Math.max(0, Number(orderQuantity) || 0))}</strong></div>
+            <button className="v-btn v-btn-primary fr-wide-button" type="submit" disabled={shopLoading || Boolean(shopError) || dialogMaximum < 1}>{orderDialog.mode === "cart" && <ShoppingCart size={15} />}{orderDialog.mode === "cart" ? "Add to Cart" : "Proceed to Checkout"}</button>
+          </form>
+        </div>
+      )}
       {showCart && (
         <div className="v-modal-overlay" onMouseDown={() => setShowCart(false)}>
-          <div
-            className="v-modal stock-order-cart-modal"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="stock-cart-modal-head">
-              <div className="stock-modal-title-row">
-                <div style={{ minWidth: 0 }}>
-                  <div className="stock-modal-title">My Cart</div>
-                  <div className="stock-modal-subtitle">
-                    {cart.length} {cart.length === 1 ? "item" : "items"} in your
-                    basket
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="v-btn v-btn-secondary"
-                  onClick={() => setShowCart(false)}
-                  style={{ minHeight: 34, padding: "7px 11px", fontSize: 10.5 }}
-                >
-                  <X size={13} /> Close
-                </button>
-              </div>
-            </div>
-
+          <div ref={orderingModalRef} className="v-modal fr-web-cart" role="dialog" aria-modal="true" aria-labelledby="fr-cart-title" onMouseDown={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === "Escape") setShowCart(false); }}>
+            <header className="fr-web-cart-head"><div><h2 id="fr-cart-title"><ShoppingCart size={23} /> My Cart <span>{cart.length}</span></h2><p>{userBrand} · {userBranch}</p></div><button type="button" className="v-btn v-btn-secondary" onClick={() => setShowCart(false)}><X size={15} /> Close</button></header>
             {cartLineItems.length ? (
-              <>
-                <div className="stock-modal-scroll">
-                  <div className="cart-pick-note">
-                    <strong>Pick what to check out</strong>
-                    <p>
-                      Tick the items you want to order now. Anything unticked
-                      stays in your basket.
-                    </p>
-                  </div>
-                  <div className="cart-section-head">
-                    <div>
-                      <strong>Order basket</strong>
-                      <small>
-                        {selectedCart.length
-                          ? `${selectedCart.length} selected`
-                          : "Nothing selected yet"}
-                      </small>
-                    </div>
-                    <button
-                      type="button"
-                      className="cart-select-all"
-                      onClick={toggleAllCartItems}
-                      aria-pressed={
-                        cart.length > 0 && selectedCart.length === cart.length
-                      }
-                    >
-                      <span
-                        className={`cart-checkbox${cart.length > 0 && selectedCart.length === cart.length ? " checked" : ""}`}
-                      />{" "}
-                      Select all
-                    </button>
-                  </div>
+              <div className="fr-web-cart-layout">
+                <section className="fr-web-cart-items" aria-label="Cart items">
+                  <div className="fr-cart-toolbar"><label><input type="checkbox" checked={cart.length > 0 && selectedCart.length === cart.length} onChange={toggleAllCartItems} /> Select all items</label><span>{selectedCart.length} selected</span></div>
+                  <div className="fr-cart-table-scroll"><table className="fr-cart-table"><thead><tr><th scope="col">Select</th><th scope="col">Item</th><th scope="col">Unit Price</th><th scope="col">Quantity</th><th scope="col">Subtotal</th><th scope="col"><span className="fr-visually-hidden">Remove</span></th></tr></thead><tbody>
                   {cartLineItems.map((entry) => {
-                    const hasIssue =
-                      entry.stock <= 0 ||
-                      Number(entry.quantity || 0) > Number(entry.stock || 0);
-                    return (
-                      <div key={entry.id} className="stock-order-cart-row">
-                        <button
-                          type="button"
-                          className={`cart-checkbox${selectedCartIds.includes(entry.id) ? " checked" : ""}`}
-                          onClick={() => toggleCartItem(entry.id)}
-                          aria-label={`Select ${entry.name}`}
-                          aria-pressed={selectedCartIds.includes(entry.id)}
-                        />
-                        <div className="cart-product-thumb">
-                          {entry.image_url ? (
-                            <img src={entry.image_url} alt="" />
-                          ) : (
-                            <Package size={24} />
-                          )}
-                        </div>
-                        <div className="stock-cart-item-main">
-                          <div className="stock-cart-item-title">
-                            {entry.name}
-                          </div>
-                          <div className="stock-cart-item-meta">
-                            Unit: {entry.unit || "unit"}
-                          </div>
-                          <div className="stock-cart-item-price">
-                            {fmtPeso(entry.price)}{" "}
-                            <small>
-                              Line: {fmtPeso(entry.price * entry.quantity)}
-                            </small>
-                          </div>
-                          <div
-                            className={`stock-cart-stock-note${hasIssue ? " low" : ""}`}
-                          >
-                            {entry.stock <= 0
-                              ? "No longer available"
-                              : `${entry.stock} ${entry.unit || "unit(s)"} available`}
-                          </div>
-                        </div>
-
-                        <div className="stock-cart-qty">
-                          <button
-                            type="button"
-                            onClick={() => updateCartQuantity(entry.id, -1)}
-                          >
-                            −
-                          </button>
-
-                          <input
-                            type="number"
-                            value={entry.quantity}
-                            min="1"
-                            max={entry.stock}
-                            onChange={(e) => {
-                              const value = e.target.value;
-
-                              if (value === "") {
-                                const next = cart.map((item) =>
-                                  item.id === entry.id
-                                    ? { ...item, quantity: "" }
-                                    : item,
-                                );
-                                setCart(next);
-                                return;
-                              }
-
-                              const quantity = Number(value);
-
-                              if (
-                                quantity >= 1 &&
-                                quantity <= Number(entry.stock)
-                              ) {
-                                const next = cart.map((item) =>
-                                  item.id === entry.id
-                                    ? { ...item, quantity }
-                                    : item,
-                                );
-                                saveCart(next);
-                              }
-                            }}
-                            onBlur={(e) => {
-                              if (
-                                e.target.value === "" ||
-                                Number(e.target.value) < 1
-                              ) {
-                                setCartQuantity(entry.id, 1);
-                              } else if (
-                                Number(e.target.value) > Number(entry.stock)
-                              ) {
-                                setCartQuantity(entry.id, entry.stock);
-                              }
-                            }}
-                            className="stock-cart-qty-input"
-                          />
-
-                          <button
-                            type="button"
-                            onClick={() => updateCartQuantity(entry.id, 1)}
-                            disabled={
-                              Number(entry.quantity) >= Number(entry.stock)
-                            }
-                          >
-                            +
-                          </button>
-                        </div>
-
-                        <div className="stock-cart-line-total">
-                          <strong
-                            style={{
-                              color: hasIssue ? C.red : C.greenDk,
-                              fontSize: 13,
-                            }}
-                          >
-                            {fmtPeso(entry.price * entry.quantity)}
-                          </strong>
-                          <button
-                            type="button"
-                            className="stock-cart-remove"
-                            onClick={() => removeFromCart(entry.id)}
-                          >
-                            <Trash2
-                              size={10}
-                              style={{ verticalAlign: "-2px", marginRight: 3 }}
-                            />
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    );
+                    const hasIssue = !Number.isInteger(Number(entry.quantity)) || Number(entry.quantity) < 1 || entry.stock <= 0 || Number(entry.quantity) > entry.stock;
+                    return <tr key={entry.id} className={hasIssue ? "fr-cart-row-issue" : ""}>
+                      <td><input type="checkbox" aria-label={`Select ${entry.name}`} checked={selectedCartIds.includes(entry.id)} onChange={() => toggleCartItem(entry.id)} /></td>
+                      <td><div className="fr-cart-product"><div className="fr-cart-thumb">{entry.image_url ? <img src={entry.image_url} alt="" /> : <Package size={22} />}</div><div><strong>{entry.name}</strong><small>{entry.brand} · {frFullUnit(entry.unit, Number(entry.quantity))}</small><small className={hasIssue ? "fr-field-error" : ""}>{entry.stock <= 0 ? "Currently unavailable" : hasIssue ? `Update quantity — ${entry.stock} available` : `Head Office: ${frStockQuantity(entry.stock, entry.unit)} available`}</small></div></div></td>
+                      <td>{fmtPeso(entry.price)}</td>
+                      <td><div className="fr-cart-stepper"><button type="button" aria-label={`Decrease ${entry.name}`} disabled={Number(entry.quantity) <= 1 || entry.stock <= 0} onClick={() => updateCartQuantity(entry.id, -1)}>−</button><input type="number" aria-label={`Quantity for ${entry.name}`} min="1" max={Math.floor(entry.stock)} step="1" disabled={shopLoading || entry.stock <= 0} value={entry.quantity} onChange={(event) => { const value = event.target.value;
+                        if (value === "") setCart((current) => current.map((item) => item.id === entry.id ? { ...item, quantity: "" } : item));
+                        else setCartQuantity(entry.id, value); }} onBlur={(event) => setCartQuantity(entry.id, event.target.value)} /><button type="button" aria-label={`Increase ${entry.name}`} disabled={Number(entry.quantity) >= entry.stock || entry.stock <= 0} onClick={() => updateCartQuantity(entry.id, 1)}>+</button></div><small className="fr-cart-quantity-hint">{frStockQuantity(Number(entry.quantity) || 0, entry.unit)} · Max {Math.floor(entry.stock)}</small></td>
+                      <td><strong>{fmtPeso(entry.price * Number(entry.quantity || 0))}</strong></td>
+                      <td><button type="button" className="fr-icon-btn danger" title="Remove item" aria-label={`Remove ${entry.name}`} onClick={() => removeFromCart(entry.id)}><Trash2 size={16} /></button></td>
+                    </tr>;
                   })}
-                </div>
+                  </tbody></table></div>
 
-                <div className="stock-modal-footer">
-                  {cartLineItems.some(
-                    (entry) =>
-                      selectedCartIds.includes(entry.id) &&
-                      (entry.stock <= 0 ||
-                        Number(entry.quantity || 0) > Number(entry.stock || 0)),
-                  ) && (
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 7,
-                        padding: "8px 10px",
-                        marginBottom: 9,
-                        border: "1px solid #F0C9C3",
-                        borderRadius: 9,
-                        background: C.redBg,
-                        color: C.red,
-                        fontSize: 9.5,
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      <AlertTriangle size={13} />
-                      Some cart items are unavailable or exceed the latest
-                      supply stock. Update the quantities before checkout.
-                    </div>
-                  )}
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      alignItems: "flex-end",
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 9.5,
-                          color: C.muted,
-                          fontWeight: 800,
-                          textTransform: "uppercase",
-                          letterSpacing: ".06em",
-                        }}
-                      >
-                        {selectedCart.length
-                          ? `${selectedCart.length} selected`
-                          : "No items selected"}
-                      </div>
-                      <div
-                        style={{ marginTop: 2, fontSize: 11, color: C.muted }}
-                      >
-                        Total
-                      </div>
-                    </div>
-                    <strong
-                      style={{ fontSize: 22, lineHeight: 1, color: C.greenDk }}
-                    >
-                      {fmtPeso(selectedCartTotal)}
-                    </strong>
-                  </div>
-                  <button
-                    type="button"
-                    className="v-btn v-btn-primary"
-                    style={{
-                      width: "100%",
-                      minHeight: 43,
-                      marginTop: 12,
-                      borderRadius: 9,
-                    }}
-                    onClick={() =>
-                      prepareCheckout(
-                        cartLineItems.filter((entry) =>
-                          selectedCartIds.includes(entry.id),
-                        ),
-                      )
-                    }
-                    disabled={
-                      !selectedCart.length ||
-                      cartLineItems.some(
-                        (entry) =>
-                          selectedCartIds.includes(entry.id) &&
-                          (entry.stock <= 0 ||
-                            Number(entry.quantity || 0) >
-                              Number(entry.stock || 0)),
-                      )
-                    }
-                  >
-                    <CheckCircle size={16} /> Check Out
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="stock-order-empty">
-                <div
-                  style={{
-                    width: 54,
-                    height: 54,
-                    borderRadius: 15,
-                    background: C.greenLt,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    margin: "0 auto 13px",
-                    color: C.green,
-                  }}
-                >
-                  <ShoppingCart size={24} />
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 900, color: C.ink }}>
-                  Your cart is empty
-                </div>
-                <div style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.5 }}>
-                  Select an inventory item and add an approved supply to begin
-                  your order.
-                </div>
-                <button
-                  type="button"
-                  className="v-btn v-btn-secondary"
-                  style={{
-                    marginTop: 14,
-                    minHeight: 34,
-                    padding: "7px 12px",
-                    fontSize: 10.5,
-                  }}
-                  onClick={() => setShowCart(false)}
-                >
-                  Continue Browsing
-                </button>
+                </section>
+                <aside className="fr-cart-summary"><h3>Order Summary</h3><p>Choose the items you want to order.</p><div><span>Selected items</span><strong>{selectedCart.length}</strong></div><div><span>Quantity</span><strong>{selectedCart.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0)}</strong></div><div className="fr-cart-summary-total"><span>Total</span><strong>{fmtPeso(selectedCartTotal)}</strong></div>
+                  {cartLineItems.some((entry) => selectedCartIds.includes(entry.id) && (!Number.isInteger(Number(entry.quantity)) || Number(entry.quantity) < 1 || entry.stock <= 0 || Number(entry.quantity) > entry.stock)) && <p className="fr-field-error" role="alert">Update the highlighted items before checkout.</p>}
+                  <button type="button" className="v-btn v-btn-primary fr-wide-button" disabled={!selectedCart.length || shopLoading || Boolean(shopError) || cartLineItems.some((entry) => selectedCartIds.includes(entry.id) && (!Number.isInteger(Number(entry.quantity)) || Number(entry.quantity) < 1 || entry.stock <= 0 || Number(entry.quantity) > entry.stock))} onClick={() => prepareCheckout(cartLineItems.filter((entry) => selectedCartIds.includes(entry.id)))}><CheckCircle size={16} /> Check Out ({selectedCart.length})</button><small>Unselected items stay in your cart.</small>
+                </aside>
               </div>
-            )}
+            ) : <div className="stock-order-empty"><ShoppingCart size={36} color={C.green} /><h3>Your cart is empty</h3><p>Add supplies directly from your stock inventory.</p></div>}
           </div>
         </div>
       )}
@@ -12459,7 +12192,7 @@ max-width: 950px !important;
                     Loading your orders…
                   </div>
                 </div>
-              ) : orders.length ? (
+              ) : ordersError && !orders.length ? null : orders.length ? (
                 orders.map((order) => {
                   const orderId =
                     order?.id ?? order?.order_id ?? order?.reference ?? "—";
@@ -12560,8 +12293,7 @@ max-width: 950px !important;
                                     {item._name}
                                   </div>
                                   <div className="stock-order-history-item-meta">
-                                    {item._quantity} × {fmtPeso(item._price)} ·{" "}
-                                    {item._unit}
+                                    {frStockQuantity(item._quantity, item._unit)} × {fmtPeso(item._price)}
                                   </div>
                                 </div>
                                 <strong
@@ -12677,19 +12409,18 @@ max-width: 950px !important;
                   Order #{orderSuccess.id} · {fmtPeso(orderSuccess.total)}
                 </div>
                 <div style={{ marginTop: 12, fontSize: 11.5, color: C.muted }}>
-                  Your supply order has been submitted for processing.
+                  Your supply order has been submitted successfully.
                 </div>
-                <button
-                  type="button"
-                  className="checkout-place-btn"
-                  style={{ maxWidth: 220, margin: "22px auto 0" }}
-                  onClick={() => {
-                    setShowCheckout(false);
-                    setOrderSuccess(null);
-                  }}
-                >
-                  <CheckCircle size={18} /> Done
-                </button>
+                <div className="fr-order-success-actions">
+                  <button type="button" className="checkout-place-btn" onClick={viewSupplyOrders}>
+                    <History size={18} /> View Orders
+                  </button>
+                  <button type="button" className="fr-order-redirecting" disabled aria-busy="true">
+                    <RefreshCw size={15} className="fr-order-redirect-spinner" aria-hidden="true" />
+                    Redirecting to order history…
+                  </button>
+                  <span className="fr-visually-hidden" role="status">Redirecting to order history in 3 seconds.</span>
+                </div>
               </div>
             ) : (
               <>
@@ -12742,7 +12473,7 @@ max-width: 950px !important;
                               {entry.name}
                             </div>
                             <div className="checkout-order-qty">
-                              ×{entry.quantity} · {fmtPeso(entry.price)} each
+                              {frStockQuantity(entry.quantity, entry.unit)} · {fmtPeso(entry.price)} each
                             </div>
                           </div>
                           <div className="checkout-order-price">
@@ -12762,34 +12493,25 @@ max-width: 950px !important;
                     </div>
                     {renderLocationMap()}
                     <p className="checkout-map-hint">
-                      Tap the map or drag the pin to set your exact delivery
-                      location.
+                      Click the map to select your delivery location and fill in the address.
                     </p>
                     {locationError && (
                       <p className="checkout-map-error" role="alert">
                         {locationError}
                       </p>
                     )}
-                    <div className="checkout-address-card">
-                      <StoreIcon
-                        size={20}
-                        color="#2c5c16"
-                        style={{ marginTop: 2, flexShrink: 0 }}
-                      />
-                      <textarea
-                        ref={addressInputRef}
-                        value={address}
-                        onChange={(e) => {
-                          mapRequestRef.current += 1;
-                          clearTimeout(reverseTimerRef.current);
-                          setLocationBusy(false);
-                          setAddress(e.target.value);
-                          setPinCoords(null);
-                        }}
-                        placeholder="Address auto-fills from pin, or type manually"
-                        rows={3}
-                      />
-                    </div>
+                    <FrSupplyAddressFields
+                      address={address}
+                      mapResult={mapAddressData}
+                      inputRef={addressInputRef}
+                      onChange={(value) => {
+                        mapRequestRef.current += 1;
+                        clearTimeout(reverseTimerRef.current);
+                        setLocationBusy(false);
+                        setAddress(value);
+                        setPinCoords(null);
+                      }}
+                    />
                   </section>
 
                   <section className="checkout-mobile-section">
