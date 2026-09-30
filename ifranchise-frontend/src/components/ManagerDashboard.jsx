@@ -95,7 +95,7 @@ import {
 } from "lucide-react";
 
 async function adminModuleFetch(input, options) {
-  const response = await fetch(input, options);
+  const response = await adminModuleFetch(input, options);
   const method = String(
     options?.method ||
       (typeof Request !== "undefined" && input instanceof Request
@@ -2633,7 +2633,9 @@ function BatchTransferHistoryModal({ batch, ingredient, apiUrl, onClose }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`${apiUrl}/ingredient-batches/${batch.id}/transfer-history`)
+    adminModuleFetch(
+      `${apiUrl}/ingredient-batches/${batch.id}/transfer-history`,
+    )
       .then((r) => r.json())
       .then((d) => {
         if (!cancelled) {
@@ -4861,7 +4863,7 @@ function BrandCard({
       return;
     }
     setBatchLoading(true);
-    fetch(`${apiUrl}/ingredient-batches?ingredient_id=${selectedId}`)
+    adminModuleFetch(`${apiUrl}/ingredient-batches?ingredient_id=${selectedId}`)
       .then((r) => r.json())
       .then((d) => {
         setBatches(Array.isArray(d) ? d : []);
@@ -4873,7 +4875,7 @@ function BrandCard({
   }, [selectedId, apiUrl]);
   const syncIngredientStock = async (ingredient) => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`,
       );
       const freshBatches = await res.json();
@@ -4887,7 +4889,7 @@ function BrandCard({
         ingredient.brand,
         !!ingredient.perishable,
       );
-      await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
+      await adminModuleFetch(`${apiUrl}/ingredients/${ingredient.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -5000,7 +5002,7 @@ function BrandCard({
         : {}),
     };
     try {
-      await fetch(`${apiUrl}/ingredient-batches/${batch.id}`, {
+      await adminModuleFetch(`${apiUrl}/ingredient-batches/${batch.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -5036,7 +5038,7 @@ function BrandCard({
     const { batch, ingredient } = deleteConfirmBatch;
     setDeletingBatch(true);
     try {
-      await fetch(`${apiUrl}/ingredient-batch-delete-history`, {
+      await adminModuleFetch(`${apiUrl}/ingredient-batch-delete-history`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -5046,7 +5048,7 @@ function BrandCard({
           deleted_by: userName,
         }),
       });
-      await fetch(`${apiUrl}/ingredient-batches/${batch.id}`, {
+      await adminModuleFetch(`${apiUrl}/ingredient-batches/${batch.id}`, {
         method: "DELETE",
       });
       await syncIngredientStock(ingredient);
@@ -5075,7 +5077,7 @@ function BrandCard({
     }
     let cancelled = false;
     setBatchLoading(true);
-    fetch(`${apiUrl}/ingredient-batches?ingredient_id=${selectedId}`)
+    adminModuleFetch(`${apiUrl}/ingredient-batches?ingredient_id=${selectedId}`)
       .then((r) => r.json())
       .then((d) => {
         if (!cancelled) {
@@ -5780,7 +5782,7 @@ function ReceiveStockModal({
     : basicReceivedDateStr;
   const maxExpiryDateStr = expiryRule ? expiryBounds.maxStr : "";
   const syncIngredientStock = async (prod) => {
-    const res = await fetch(
+    const res = await adminModuleFetch(
       `${apiUrl}/ingredient-batches?ingredient_id=${prod.id}`,
     );
     const freshBatches = await res.json();
@@ -5794,15 +5796,18 @@ function ReceiveStockModal({
       prod.brand,
       !!prod.perishable,
     );
-    const updateRes = await fetch(`${apiUrl}/ingredients/${prod.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...prod,
-        stock: totalStock,
-        ...(nextOutCost !== null ? { cost_per_unit: nextOutCost } : {}),
-      }),
-    });
+    const updateRes = await adminModuleFetch(
+      `${apiUrl}/ingredients/${prod.id}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...prod,
+          stock: totalStock,
+          ...(nextOutCost !== null ? { cost_per_unit: nextOutCost } : {}),
+        }),
+      },
+    );
     if (!updateRes.ok)
       throw new Error("Failed to sync product totals after receiving stock.");
   };
@@ -5978,7 +5983,7 @@ function ReceiveStockModal({
       }
       const body = buildBody(prod, f, userName, userRole, coords);
       try {
-        const res = await fetch(`${apiUrl}/ingredient-batches`, {
+        const res = await adminModuleFetch(`${apiUrl}/ingredient-batches`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -7755,7 +7760,7 @@ function BatchesModal({
   const [historyBatch, setHistoryBatch] = useState(null);
   const fetchBatchHistory = useCallback(async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${apiUrl}/ingredient-batch-delete-history?ingredient_id=${ingredient.id}`,
       );
       const data = await res.json();
@@ -7806,7 +7811,7 @@ function BatchesModal({
   };
   const syncIngredientStock = async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`,
       );
       const freshBatches = await res.json();
@@ -7820,7 +7825,7 @@ function BatchesModal({
         ingredient.brand,
         !!ingredient.perishable,
       );
-      await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
+      await adminModuleFetch(`${apiUrl}/ingredients/${ingredient.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -7944,11 +7949,14 @@ function BatchesModal({
       longitude: coords?.longitude,
     };
     try {
-      await fetch(`${apiUrl}/ingredient-batches/${editingBatch.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      await adminModuleFetch(
+        `${apiUrl}/ingredient-batches/${editingBatch.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
       await syncIngredientStock();
       setEditingBatch(null);
       onRefresh();
@@ -7971,7 +7979,7 @@ function BatchesModal({
   const deleteBatch = async (id) => {
     // Find the batch data before deleting
     const batchToDelete = batches.find((b) => b.id === id);
-    await fetch(`${apiUrl}/ingredient-batch-delete-history`, {
+    await adminModuleFetch(`${apiUrl}/ingredient-batch-delete-history`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -7981,7 +7989,9 @@ function BatchesModal({
         deleted_by: userName,
       }),
     });
-    await fetch(`${apiUrl}/ingredient-batches/${id}`, { method: "DELETE" });
+    await adminModuleFetch(`${apiUrl}/ingredient-batches/${id}`, {
+      method: "DELETE",
+    });
     await syncIngredientStock();
     await fetchBatchHistory();
     onRefresh();
@@ -8014,7 +8024,7 @@ function BatchesModal({
     setRestoringBatchId(entry.id);
     try {
       const d = entry.data || {};
-      const res = await fetch(`${apiUrl}/ingredient-batches`, {
+      const res = await adminModuleFetch(`${apiUrl}/ingredient-batches`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -8032,9 +8042,12 @@ function BatchesModal({
       });
       const result = await res.json();
       if (result && (result.id || result.success)) {
-        await fetch(`${apiUrl}/ingredient-batch-delete-history/${entry.id}`, {
-          method: "DELETE",
-        });
+        await adminModuleFetch(
+          `${apiUrl}/ingredient-batch-delete-history/${entry.id}`,
+          {
+            method: "DELETE",
+          },
+        );
         await fetchBatchHistory();
         onRefresh();
         setToast({
@@ -8917,16 +8930,16 @@ function ManagerFrFifoQueue({ product, batches, loading, lowStock = false }) {
   );
 }
 
-/* Read-only Stock Inventory UI for franchisees. */
-/* ── MAIN COMPONENT — read-only two-panel stock inventory for franchisees ── */
+function ManagerStockInventoryContent({ user, brands }) {
+  const [editingItem, setEditingItem] = useState(null);
+  const [editForm, setEditForm] = useState({
+    min_stock: "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
 
-function ManagerStockInventoryContent({
-  user,
-  brands,
-  onEdit,
-  onDelete,
-  initialFocus = null,
-}) {
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletingItem, setDeletingItem] = useState(false);
+
   const isLowStock = (item) =>
     Number(item.stock || 0) <= Number(item.min_stock || 0);
   const userBranch = String(user?.branch || "").trim();
@@ -8947,15 +8960,51 @@ function ManagerStockInventoryContent({
   const [batches, setBatches] = useState([]);
   const [batchLoading, setBatchLoading] = useState(false);
 
+  const [editingBatch, setEditingBatch] = useState(null);
+  const [deleteConfirmBatch, setDeleteConfirmBatch] = useState(null);
+
+  const [historyBatch, setHistoryBatch] = useState(null);
+
   const [cart, setCart] = useState([]);
+  const [selectedCartIds, setSelectedCartIds] = useState([]);
   const [showCart, setShowCart] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutItems, setCheckoutItems] = useState([]);
   const [address, setAddress] = useState(String(user?.address || "").trim());
+  const [mapCenter, setMapCenter] = useState(() => ({
+    latitude: Number(user?.latitude) || 14.5995,
+    longitude: Number(user?.longitude) || 120.9842,
+  }));
+  const [pinCoords, setPinCoords] = useState(null);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [locationError, setLocationError] = useState("");
+  const mapRequestRef = useRef(0);
+  const reverseTimerRef = useRef(null);
+  const lastLookupRef = useRef(0);
+  useEffect(
+    () => () => {
+      clearTimeout(reverseTimerRef.current);
+      mapRequestRef.current += 1;
+    },
+    [],
+  );
+  const [showAddressPrompt, setShowAddressPrompt] = useState(false);
+  const addressInputRef = useRef(null);
   const [paymentMethod, setPaymentMethod] = useState("cod");
-  const [gcashRef, setGcashRef] = useState("");
+  const [showGCash, setShowGCash] = useState(false);
+  const [gcashAmount, setGcashAmount] = useState(0);
+  const paidRef = useRef(null);
+  const handleGCashConfirmed = useCallback((reference) => {
+    paidRef.current?.(reference);
+  }, []);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
+  const [showOrders, setShowOrders] = useState(false);
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState("");
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
 
   const extraFields = useMemo(() => getExtraFields(userBrand), [userBrand]);
   const hasExpiry = extraFields.some((f) => f.key === "exp_date");
@@ -9074,6 +9123,81 @@ function ManagerStockInventoryContent({
     }
   }, [branchAllowed, normalize, userBranch, userBrand]);
 
+  const fetchOrders = useCallback(async () => {
+    if (!userBranch && !user?.id) {
+      setOrders([]);
+      setOrdersError(
+        "Your account information is not available for loading orders.",
+      );
+      return;
+    }
+
+    setOrdersLoading(true);
+    setOrdersError("");
+    try {
+      const params = new URLSearchParams();
+      if (user?.id != null) params.set("user_id", String(user.id));
+      if (userBranch) params.set("branch", userBranch);
+      if (userBrand) params.set("brand", userBrand);
+
+      const query = params.toString();
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/orders${query ? `?${query}` : ""}`,
+        { credentials: "include", cache: "no-store" },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(
+          data?.error || `Unable to load orders (${res.status}).`,
+        );
+      }
+
+      const raw = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.orders)
+          ? data.orders
+          : Array.isArray(data?.data)
+            ? data.data
+            : [];
+
+      // Keep the view scoped to the signed-in franchisee when the API returns
+      // user/brand/branch fields. Unknown fields are tolerated for compatibility.
+      const scoped = raw
+        .filter((order) => {
+          const sameUser =
+            user?.id == null ||
+            order?.user_id == null ||
+            String(order.user_id) === String(user.id);
+          const sameBranch =
+            !userBranch ||
+            !order?.branch ||
+            normalize(order.branch) === normalize(userBranch);
+          const sameBrand =
+            !userBrand ||
+            !order?.brand ||
+            normalize(order.brand) === normalize(userBrand);
+          return sameUser && sameBranch && sameBrand;
+        })
+        .sort((a, b) => {
+          const da = new Date(
+            a?.created_at || a?.createdAt || a?.date || 0,
+          ).getTime();
+          const db = new Date(
+            b?.created_at || b?.createdAt || b?.date || 0,
+          ).getTime();
+          return db - da;
+        });
+
+      setOrders(scoped);
+    } catch (error) {
+      console.error("Supply order history fetch error:", error);
+      setOrders([]);
+      setOrdersError(error.message || "Unable to load your supply orders.");
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [normalize, user?.id, userBranch, userBrand]);
+
   useEffect(() => {
     if (userBranch) fetchItems();
     return () => {
@@ -9099,23 +9223,6 @@ function ManagerStockInventoryContent({
     if (!user?.address) return;
     setAddress((prev) => prev || String(user.address).trim());
   }, [user?.address]);
-
-  useEffect(() => {
-    if (initialFocus?.lowStockOnly) setStatusF("low");
-  }, [initialFocus?.lowStockOnly]);
-
-  useEffect(() => {
-    const refresh = () => {
-      fetchItems();
-      fetchShopItems();
-    };
-    window.addEventListener("stock-inventory-updated", refresh);
-    window.addEventListener("franchisync:data-changed", refresh);
-    return () => {
-      window.removeEventListener("stock-inventory-updated", refresh);
-      window.removeEventListener("franchisync:data-changed", refresh);
-    };
-  }, [fetchItems, fetchShopItems]);
 
   const saveCart = useCallback((next) => {
     setCart(next);
@@ -9235,6 +9342,26 @@ function ManagerStockInventoryContent({
       sum + Number(entry.price || 0) * Number(entry.quantity || 0),
     0,
   );
+  const selectedCart = cart.filter((entry) =>
+    selectedCartIds.includes(entry.id),
+  );
+  const selectedCartTotal = selectedCart.reduce(
+    (sum, entry) =>
+      sum + Number(entry.price || 0) * Number(entry.quantity || 0),
+    0,
+  );
+  const toggleCartItem = (id) =>
+    setSelectedCartIds((current) =>
+      current.includes(id)
+        ? current.filter((value) => value !== id)
+        : [...current, id],
+    );
+  const toggleAllCartItems = () =>
+    setSelectedCartIds(
+      cart.length && cart.every((entry) => selectedCartIds.includes(entry.id))
+        ? []
+        : cart.map((entry) => entry.id),
+    );
 
   const createCartEntry = (shopItem, inventoryItem, quantity) => ({
     id: shopItem.id,
@@ -9313,6 +9440,34 @@ function ManagerStockInventoryContent({
     saveCart(next);
   };
 
+  const setCartQuantity = (id, value) => {
+    const liveItem = shopItems.find((item) => item.id === id);
+    if (!liveItem) return;
+
+    const max = Math.max(0, Number(liveItem.stock || 0));
+
+    let quantity = parseInt(value, 10);
+
+    if (Number.isNaN(quantity)) {
+      quantity = 1;
+    }
+
+    quantity = Math.min(max, Math.max(1, quantity));
+
+    const next = cart.map((entry) =>
+      entry.id === id
+        ? {
+            ...entry,
+            quantity,
+            price: Number(liveItem.price || 0),
+            unit: liveItem.unit || entry.unit,
+          }
+        : entry,
+    );
+
+    saveCart(next);
+  };
+
   const removeFromCart = (id) =>
     saveCart(cart.filter((entry) => entry.id !== id));
 
@@ -9384,11 +9539,18 @@ function ManagerStockInventoryContent({
       window.alert("This item is not currently available for supply ordering.");
       return;
     }
+
     if (selectedSupplyAvailable <= 0) {
       window.alert("This supply item is currently out of stock.");
       return;
     }
-    prepareCheckout([createCartEntry(selectedShopItem, selected, 1)], true);
+
+    const quantity = selectedCartQty > 0 ? selectedCartQty : 1;
+
+    prepareCheckout(
+      [createCartEntry(selectedShopItem, selected, quantity)],
+      true,
+    );
   };
 
   const checkoutTotal = checkoutItems.reduce(
@@ -9397,19 +9559,158 @@ function ManagerStockInventoryContent({
     0,
   );
 
-  const submitOrder = async () => {
+  const mapBounds = {
+    west: mapCenter.longitude - 0.013,
+    east: mapCenter.longitude + 0.013,
+    south: mapCenter.latitude - 0.008,
+    north: mapCenter.latitude + 0.008,
+  };
+  const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(`${mapBounds.west},${mapBounds.south},${mapBounds.east},${mapBounds.north}`)}&layer=mapnik`;
+
+  const selectMapPoint = ({ latitude, longitude }) => {
+    const request = ++mapRequestRef.current;
+    clearTimeout(reverseTimerRef.current);
+    setPinCoords({ latitude, longitude });
+    setMapCenter({ latitude, longitude });
+    setLocationError("");
+    setLocationBusy(true);
+    reverseTimerRef.current = setTimeout(
+      async () => {
+        lastLookupRef.current = Date.now();
+        try {
+          const response = await adminModuleFetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`,
+            { headers: { Accept: "application/json" } },
+          );
+          if (!response.ok) throw new Error("Address lookup is unavailable.");
+          const result = await response.json();
+          if (request !== mapRequestRef.current) return;
+          if (!result.display_name)
+            throw new Error("No address was found for this pin.");
+          setAddress(result.display_name);
+          if (user?.id) {
+            adminModuleFetch(
+              `${process.env.REACT_APP_API_URL}/users/${user.id}/saved-address`,
+              {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ savedAddress: result.display_name }),
+              },
+            ).catch(() => {});
+          }
+        } catch (error) {
+          if (request === mapRequestRef.current) {
+            setLocationError(
+              "Could not find an address for this pin. Please type the address below.",
+            );
+          }
+        } finally {
+          if (request === mapRequestRef.current) setLocationBusy(false);
+        }
+      },
+      Math.max(300, 1000 - (Date.now() - lastLookupRef.current)),
+    );
+  };
+
+  const handleMapPointerUp = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = Math.max(
+      0,
+      Math.min(1, (event.clientX - bounds.left) / bounds.width),
+    );
+    const y = Math.max(
+      0,
+      Math.min(1, (event.clientY - bounds.top) / bounds.height),
+    );
+    selectMapPoint({
+      latitude: mapBounds.north - y * (mapBounds.north - mapBounds.south),
+      longitude: mapBounds.west + x * (mapBounds.east - mapBounds.west),
+    });
+  };
+
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError(
+        "Location is unavailable in this browser. Please type your address.",
+      );
+      return;
+    }
+    setLocationBusy(true);
+    setLocationError("");
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) =>
+        selectMapPoint({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        }),
+      () => {
+        setLocationBusy(false);
+        setLocationError(
+          "Location access was unavailable. You can pin the map or type your address.",
+        );
+      },
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  };
+
+  const renderLocationMap = (fullScreen = false) => (
+    <div className={`checkout-map-preview${fullScreen ? " full-screen" : ""}`}>
+      <iframe title="Delivery location map" loading="lazy" src={mapUrl} />
+      <div
+        className="checkout-map-touch"
+        role="button"
+        tabIndex={0}
+        aria-label="Tap or drag to pin delivery location"
+        onPointerDown={(event) =>
+          event.currentTarget.setPointerCapture(event.pointerId)
+        }
+        onPointerUp={handleMapPointerUp}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            selectMapPoint(mapCenter);
+          }
+        }}
+      />
+      {pinCoords && (
+        <span className="checkout-map-pin" aria-hidden="true">
+          ●
+        </span>
+      )}
+      <span className="checkout-map-attribution">
+        © OpenStreetMap contributors
+      </span>
+      {!fullScreen && (
+        <button
+          type="button"
+          className="checkout-map-open"
+          onClick={() => setShowMapPicker(true)}
+        >
+          Tap to pin location
+        </button>
+      )}
+      <button
+        type="button"
+        className="checkout-map-current"
+        onClick={handleUseMyLocation}
+        disabled={locationBusy}
+      >
+        {locationBusy ? "Finding location…" : "Use my location"}
+      </button>
+    </div>
+  );
+
+  const submitOrder = async (confirmedGCashRef = null) => {
     if (!address.trim()) {
-      window.alert("Please enter your delivery address.");
+      setShowAddressPrompt(true);
       return;
     }
     if (!checkoutItems.length) {
       window.alert("There are no items to checkout.");
       return;
     }
-    if (paymentMethod === "gcash" && !gcashRef.trim()) {
-      window.alert("Please enter the GCash reference number.");
-      return;
-    }
+    if (paymentMethod === "gcash" && !confirmedGCashRef) return;
 
     setPlacingOrder(true);
     try {
@@ -9464,16 +9765,17 @@ function ManagerStockInventoryContent({
         brand: user?.brand ?? user?.brand_name ?? null,
         branch: user?.branch ?? null,
         address: address.trim(),
-        latitude: null,
-        longitude: null,
+        latitude: pinCoords?.latitude ?? null,
+        longitude: pinCoords?.longitude ?? null,
         total_amount: validatedTotal,
         payment_method: paymentMethod,
+        order_source: "Web",
         items: validatedItems.map((entry) => ({
           shop_item_id: entry.id,
           quantity: Number(entry.quantity),
           price: Number(entry.price),
         })),
-        gcash_ref: paymentMethod === "gcash" ? gcashRef.trim() : null,
+        gcash_ref: paymentMethod === "gcash" ? confirmedGCashRef : null,
       };
 
       const response = await adminModuleFetch(
@@ -9494,7 +9796,6 @@ function ManagerStockInventoryContent({
       const checkedOutIds = new Set(validatedItems.map((entry) => entry.id));
       saveCart(cart.filter((entry) => !checkedOutIds.has(entry.id)));
       setCheckoutItems([]);
-      setGcashRef("");
       setOrderSuccess({
         id: data?.order?.id ?? data?.id ?? "—",
         total: validatedTotal,
@@ -9505,6 +9806,59 @@ function ManagerStockInventoryContent({
       window.alert(
         error.message || "Something went wrong while placing the order.",
       );
+    } finally {
+      setPlacingOrder(false);
+    }
+  };
+
+  paidRef.current = (reference) => {
+    setShowGCash(false);
+    submitOrder(reference);
+  };
+
+  const handleCheckoutAction = async () => {
+    if (paymentMethod === "cod") {
+      submitOrder();
+      return;
+    }
+    if (!address.trim()) {
+      setShowAddressPrompt(true);
+      return;
+    }
+    if (!checkoutItems.length) {
+      window.alert("There are no items to checkout.");
+      return;
+    }
+    setPlacingOrder(true);
+    try {
+      const response = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/shop-items`,
+        { credentials: "include", cache: "no-store" },
+      );
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data?.error || "Unable to verify supply availability.");
+      const eligible = (Array.isArray(data) ? data : [])
+        .filter((item) => item?.is_visible !== false)
+        .filter((item) => normalize(item?.brand) === normalize(userBrand))
+        .filter(branchAllowed);
+      const amount = checkoutItems.reduce((sum, entry) => {
+        const live = eligible.find((item) => item.id === entry.id);
+        if (!live)
+          throw new Error(`${entry.name} is no longer available for ordering.`);
+        if (Number(entry.quantity) > Number(live.stock || 0)) {
+          throw new Error(
+            `${entry.name} now has only ${Number(live.stock || 0)} ${live.unit || entry.unit || "unit(s)"} available.`,
+          );
+        }
+        return sum + Number(live.price || 0) * Number(entry.quantity);
+      }, 0);
+      if (amount <= 0)
+        throw new Error("The order total must be greater than zero.");
+      setGcashAmount(amount);
+      setShowGCash(true);
+    } catch (error) {
+      window.alert(error.message || "Unable to start GCash payment.");
     } finally {
       setPlacingOrder(false);
     }
@@ -9569,6 +9923,197 @@ function ManagerStockInventoryContent({
     };
   });
 
+  const cartHasStockIssues = cartLineItems.some(
+    (entry) =>
+      entry.stock <= 0 ||
+      Number(entry.quantity || 0) > Number(entry.stock || 0),
+  );
+
+  const formatOrderDate = (value) => {
+    if (!value) return "Date not available";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  const orderStatusMeta = (status) => {
+    const raw = String(status || "pending")
+      .trim()
+      .toLowerCase();
+    if (
+      ["completed", "complete", "delivered", "fulfilled", "approved"].includes(
+        raw,
+      )
+    ) {
+      return { label: status || "Completed", cls: "completed" };
+    }
+    if (["cancelled", "canceled", "rejected", "failed"].includes(raw)) {
+      return { label: status || "Cancelled", cls: "cancelled" };
+    }
+    if (
+      [
+        "processing",
+        "preparing",
+        "packed",
+        "shipped",
+        "out_for_delivery",
+      ].includes(raw)
+    ) {
+      return { label: status || "Processing", cls: "processing" };
+    }
+    return { label: status || "Pending", cls: "pending" };
+  };
+
+  const orderItemList = (order) => {
+    const source = Array.isArray(order?.items)
+      ? order.items
+      : Array.isArray(order?.order_items)
+        ? order.order_items
+        : [];
+    return source.map((item, index) => ({
+      ...item,
+      _key:
+        item?.id ?? item?.shop_item_id ?? `${order?.id || "order"}-${index}`,
+      _name:
+        item?.name ||
+        item?.item_name ||
+        item?.product_name ||
+        item?.shop_item?.name ||
+        "Supply Item",
+      _quantity: Number(item?.quantity ?? item?.qty ?? 0),
+      _price: Number(item?.price ?? item?.unit_price ?? 0),
+      _unit: item?.unit || item?.shop_item?.unit || "unit",
+    }));
+  };
+
+  const orderCounts = useMemo(() => {
+    const counts = {
+      total: orders.length,
+      totalAmount: 0,
+      pending: 0,
+      processing: 0,
+      completed: 0,
+    };
+
+    orders.forEach((order) => {
+      counts.totalAmount += Number(order?.total_amount || 0);
+
+      const meta = orderStatusMeta(order?.status);
+
+      if (meta.cls === "completed") {
+        counts.completed += 1;
+      } else if (meta.cls === "processing") {
+        counts.processing += 1;
+      } else {
+        counts.pending += 1;
+      }
+    });
+
+    return counts;
+  }, [orders]);
+
+  const openFrEdit = (item) => {
+    setEditingItem(item);
+
+    setEditForm({
+      min_stock: String(item?.min_stock ?? ""),
+    });
+  };
+
+  const saveFrEdit = async () => {
+    if (!editingItem) return;
+
+    const minStock = Number(editForm.min_stock);
+
+    if (!Number.isFinite(minStock) || minStock < 0) {
+      window.alert("Minimum stock must be 0 or greater.");
+      return;
+    }
+
+    setSavingEdit(true);
+
+    try {
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/ingredients/${editingItem.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            ...editingItem,
+            min_stock: minStock,
+            performed_by: user?.name || "Franchisee",
+            performed_by_role: user?.role || "Franchisee",
+          }),
+        },
+      );
+
+      const data = await res.json();
+
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.error || "Failed to update inventory item.");
+      }
+
+      setEditingItem(null);
+      await fetchItems();
+    } catch (error) {
+      console.error("Franchisee inventory edit error:", error);
+      window.alert(error.message || "Failed to update inventory item.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const confirmFrDelete = async () => {
+    if (!deleteTarget) return;
+
+    setDeletingItem(true);
+
+    try {
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/ingredients/${deleteTarget.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            deleted_by: user?.name || "Franchisee",
+            performed_by_role: user?.role || "Franchisee",
+          }),
+        },
+      );
+
+      const data = await res.json();
+
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.error || "Failed to delete inventory item.");
+      }
+
+      setDeleteTarget(null);
+
+      if (selectedId === deleteTarget.id) {
+        setSelectedId(null);
+      }
+
+      await fetchItems();
+    } catch (error) {
+      console.error("Franchisee inventory delete error:", error);
+      window.alert(error.message || "Failed to delete inventory item.");
+    } finally {
+      setDeletingItem(false);
+    }
+  };
+
   return (
     <div className="fr-stock-order-shell">
       <style>{`
@@ -9581,7 +10126,7 @@ function ManagerStockInventoryContent({
         .fr-stock-order-shell .stock-order-list { min-width:0; border-right:1px solid ${C.border}; overflow-y:auto; max-height:760px; }
         .fr-stock-order-shell .stock-order-detail { min-width:0; overflow-y:auto; max-height:760px; padding:12px; scroll-margin-top:88px; }
         .fr-stock-order-shell .stock-order-list { background:${C.white}; }
-        .fr-stock-order-shell .stock-order-row { position:relative; display:block; width:100%; min-height:128px; height:128px; border:0; border-left:3px solid transparent; border-radius:0 !important; background:${C.white}; color:${C.ink}; padding:10px 14px 8px 11px; text-align:left; cursor:pointer; border-bottom:1px solid #F1F3ED; transition:background-color .16s ease,border-color .16s ease; box-sizing:border-box; }
+        .fr-stock-order-shell .stock-order-row { position:relative; display:block; width:100%; min-height:82px; height:82px; border:0; border-left:3px solid transparent; border-radius:0 !important; background:${C.white}; color:${C.ink}; padding:10px 14px 28px 11px; text-align:left; cursor:pointer; border-bottom:1px solid #F1F3ED; transition:background-color .16s ease,border-color .16s ease; box-sizing:border-box; }
         .fr-stock-order-shell .stock-order-row:hover { background:#FBFCF8; }
         .fr-stock-order-shell .stock-order-row:focus-visible { outline:2px solid ${C.green}; outline-offset:-2px; border-radius:0 !important; }
         .fr-stock-order-shell .stock-order-row.active { background:#FCFDF9; border-left-color:#B4B33F; }
@@ -9589,7 +10134,26 @@ function ManagerStockInventoryContent({
         .fr-stock-order-shell .stock-order-row-name { display:block; max-width:100%; font-size:12px; line-height:1.15; font-weight:850; color:${C.greenDk}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .fr-stock-order-shell .stock-order-row-meta { margin-top:5px; color:#737B74; font-size:9.5px; line-height:1.15; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .fr-stock-order-shell .stock-order-row-submeta { margin-top:3px; color:#737B74; font-size:9.5px; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .fr-stock-order-shell .stock-order-stock-line { position:absolute; left:14px; right:14px; bottom:11px; margin:0; width:auto; height:4px; border-radius:2px; background:#E9EEE5; overflow:hidden; transition:background-color .18s ease; }
+        .fr-stock-order-shell .stock-order-stock-line {
+  position: relative !important;
+  display: block !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+
+  width: 100% !important;
+  height: 4px !important;
+
+  margin: 8px 0 9px !important;
+
+  border-radius: 2px;
+  background: #E9EEE5;
+  overflow: hidden;
+
+  transition:
+    background-color .18s ease,
+    width .22s ease;
+}
         .fr-stock-order-shell .stock-order-stock-line.low-track { background:#fbe5e3; }
         .fr-stock-order-shell .stock-order-stock-line-fill { display:block; height:100%; width:0; border-radius:2px; background:${C.green}; transition:background-color .18s ease, width .22s ease; }
         .fr-stock-order-shell .stock-order-stock-line-fill.low { background:${C.red}; }
@@ -9608,7 +10172,58 @@ function ManagerStockInventoryContent({
         .fr-stock-order-shell .stock-order-availability.out { color:${C.red}; background:${C.redBg}; border-color:#f2c9c4; }
         .fr-stock-order-shell .stock-order-stepper { display:flex; align-items:center; gap:7px; margin-top:13px; }
         .fr-stock-order-shell .stock-order-stepper button { width:32px; height:32px; min-width:32px; padding:0; border:1px solid ${C.border}; border-radius:10px; background:${C.white}; color:${C.greenDk}; font-size:18px; font-weight:800; cursor:pointer; }
-        .fr-stock-order-shell .stock-order-stepper strong { min-width:34px; text-align:center; font-size:14px; }
+.fr-stock-order-shell .stock-order-stepper-input {
+  width:60px;
+  height:32px;
+  padding:0 5px;
+  border:1px solid ${C.border};
+  border-radius:8px;
+  background:#fff;
+  color:${C.ink};
+  text-align:center;
+  font-size:14px;
+  font-weight:800;
+  outline:none;
+  box-sizing:border-box;
+}
+
+.fr-stock-order-shell .stock-order-stepper-input:focus {
+  border-color:${C.green};
+}
+
+/* Remove Chrome, Edge, Safari number arrows */
+.fr-stock-order-shell
+  .stock-order-stepper-input::-webkit-inner-spin-button,
+.fr-stock-order-shell
+  .stock-order-stepper-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Remove Firefox number arrows */
+.fr-stock-order-shell .stock-order-stepper-input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.stock-order-list .stock-order-row {
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  padding: 16px 22px !important;
+  box-sizing: border-box !important;
+}
+.stock-order-list .stock-order-row + .stock-order-row {
+  border-top: 1px solid #eef1e9 !important;
+}
+
+.stock-order-row-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  margin-top: 0 !important;
+  position: relative !important;
+  z-index: 2 !important;
+}
         .fr-stock-order-shell .stock-order-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:10px; }
         .stock-order-actions .v-btn { min-height:32px !important; padding:6px 11px !important; font-size:11px !important; border-radius:8px !important; }
         .fr-stock-order-shell .stock-order-unavailable { margin-top:12px; padding:10px 12px; border-radius:10px; background:${C.bg}; color:${C.muted}; font-size:11px; line-height:1.45; }
@@ -9618,9 +10233,166 @@ function ManagerStockInventoryContent({
         .fr-stock-order-shell .stock-order-queue-panel .fr-inventory-detail-content { animation:none; }
         .fr-stock-order-shell .stock-order-detail-panel { border:1px solid ${C.border}; border-radius:13px; background:${C.white}; overflow:hidden; }
         .fr-stock-order-shell .stock-order-detail-panel .stock-order-hero { border-bottom:1px solid ${C.border}; }
-        .fr-stock-order-shell .stock-order-cart-modal { width:min(100%,720px); }
-        .fr-stock-order-shell .stock-order-checkout-modal { width:min(100%,760px); }
-        .fr-stock-order-shell .stock-order-cart-row { display:grid; grid-template-columns:1fr auto auto; gap:12px; align-items:center; padding:13px 14px; border-bottom:1px solid #F0F2EC; }
+        .fr-stock-order-shell .stock-order-header-actions { display:flex; align-items:center; gap:7px; flex-wrap:wrap; justify-content:flex-end; }
+        .fr-stock-order-shell .stock-order-cart-modal { width:min(100%,820px); padding:0 !important; overflow:hidden !important; }
+        .fr-stock-order-shell .stock-order-orders-modal { width:min(100%,900px); padding:0 !important; overflow:hidden !important; }
+       .fr-stock-order-shell .stock-order-checkout-modal {
+          width:min(94vw,1100px);
+          padding:0 !important;
+          overflow:hidden !important;
+          max-height:min(90vh,760px);
+          display:flex;
+          flex-direction:column;
+          background:#fff;
+        }
+        .fr-stock-order-shell .checkout-mobile-head { padding:18px 20px; background:linear-gradient(135deg,#2c5c16,#d4a63c); color:#fff; display:flex; align-items:center; justify-content:space-between; gap:14px; }
+        .fr-stock-order-shell .checkout-mobile-head-left { display:flex; align-items:center; gap:12px; min-width:0; }
+        .fr-stock-order-shell .checkout-mobile-back { width:36px; height:36px; border-radius:11px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.18); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+        .fr-stock-order-shell .checkout-mobile-eyebrow { font-size:9px; color:rgba(255,255,255,.7); letter-spacing:2.2px; font-weight:900; }
+        .fr-stock-order-shell .checkout-mobile-title { font-size:20px; line-height:1.15; font-weight:900; margin-top:3px; }
+        .fr-stock-order-shell .checkout-mobile-count { flex-shrink:0; padding:6px 11px; border-radius:20px; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.18); color:#fbf3df; font-size:9px; letter-spacing:1px; font-weight:900; }
+.fr-stock-order-shell .checkout-mobile-scroll {
+  padding:20px;
+  overflow:auto;
+}
+        .fr-stock-order-shell .checkout-mobile-section { margin-top:22px; }
+        .fr-stock-order-shell .checkout-mobile-section:first-child { margin-top:0; }
+        .fr-stock-order-shell .checkout-mobile-section-title { display:flex; align-items:center; gap:8px; margin-bottom:14px; font-size:11px; color:#2c5c16; letter-spacing:.6px; text-transform:uppercase; font-weight:900; }
+        .fr-stock-order-shell .checkout-mobile-section-bar { width:4px; height:14px; border-radius:2px; background:linear-gradient(180deg,#2c5c16,#d4a63c); }
+        .fr-stock-order-shell .checkout-mobile-card { background:#fff; border:1px solid rgba(44,92,22,.14); border-radius:16px; box-shadow:0 3px 7px rgba(44,92,22,.06); overflow:hidden; }
+        .fr-stock-order-shell .checkout-user-card { display:flex; align-items:center; gap:12px; padding:14px; }
+        .fr-stock-order-shell .checkout-user-thumb { width:52px; height:52px; border-radius:14px; background:#f1f8e8; border:1px solid #dcefc9; color:#2c5c16; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+        .fr-stock-order-shell .checkout-user-name { font-size:14px; color:#2c5c16; font-weight:900; }
+        .fr-stock-order-shell .checkout-user-meta { margin-top:2px; font-size:10px; color:rgba(44,92,22,.45); }
+        .fr-stock-order-shell .checkout-order-row { display:flex; align-items:center; gap:12px; padding:14px; border-bottom:1px solid rgba(44,92,22,.14); }
+        .fr-stock-order-shell .checkout-order-row:last-child { border-bottom:0; }
+        .fr-stock-order-shell .checkout-order-thumb { width:36px; height:36px; border-radius:10px; background:#f1f8e8; border:1px solid #dcefc9; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; color:#2c5c16; }
+        .fr-stock-order-shell .checkout-order-thumb img { width:100%; height:100%; object-fit:contain; }
+        .fr-stock-order-shell .checkout-order-main { flex:1; min-width:0; }
+        .fr-stock-order-shell .checkout-order-name { font-size:13px; color:#2c5c16; font-weight:900; overflow-wrap:anywhere; }
+        .fr-stock-order-shell .checkout-order-qty { margin-top:2px; font-size:10px; color:rgba(44,92,22,.45); }
+        .fr-stock-order-shell .checkout-order-price { font-size:14px; color:#2c5c16; font-weight:900; white-space:nowrap; }
+        .fr-stock-order-shell .checkout-address-card { display:flex; align-items:flex-start; gap:10px; padding:14px; border:2px solid #d4a63c; border-radius:16px; background:#fff; box-shadow:0 3px 7px rgba(44,92,22,.06); }
+        .fr-stock-order-shell .checkout-address-card textarea { flex:1; min-height:58px; resize:vertical; border:0; outline:0; padding:0; background:transparent; color:#2c5c16; font:inherit; font-size:13px; line-height:1.45; }
+        .fr-stock-order-shell .checkout-address-prompt { width:min(92vw,390px); padding:26px; border-radius:18px; text-align:center; background:#fff; box-shadow:0 18px 50px rgba(20,50,15,.18); }
+        .fr-stock-order-shell .checkout-address-prompt-icon { width:54px; height:54px; margin:0 auto 14px; display:flex; align-items:center; justify-content:center; border-radius:16px; background:#f1f8e8; color:#2c5c16; }
+        .fr-stock-order-shell .checkout-address-prompt h2 { margin:0 0 7px; color:#2c5c16; font-size:18px; }
+        .fr-stock-order-shell .checkout-address-prompt p { margin:0 0 20px; color:#63725c; font-size:13px; line-height:1.5; }
+        .fr-stock-order-shell .checkout-address-prompt button { width:100%; min-height:44px; border:0; border-radius:12px; background:linear-gradient(90deg,#2c5c16,#d4a63c); color:#fff; font-size:13px; font-weight:900; cursor:pointer; }
+        .fr-stock-order-shell .checkout-pay-card { width:100%; display:flex; align-items:center; gap:12px; padding:14px; margin-bottom:12px; border:1px solid rgba(44,92,22,.14); border-radius:16px; background:#fff; box-shadow:0 3px 7px rgba(44,92,22,.06); cursor:pointer; text-align:left; color:#2c5c16; }
+        .fr-stock-order-shell .checkout-pay-card.selected { border:2px solid #d4a63c; padding:13px; }
+        .fr-stock-order-shell .checkout-pay-thumb { width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid #dcefc9; background:#f1f8e8; }
+        .fr-stock-order-shell .checkout-pay-thumb.gcash { color:#1565C0; background:#E3F2FD; border-color:#BFDBFE; font-size:16px; font-weight:900; }
+        .fr-stock-order-shell .checkout-pay-main { flex:1; min-width:0; }
+        .fr-stock-order-shell .checkout-pay-label { font-size:14px; font-weight:900; color:#2c5c16; }
+        .fr-stock-order-shell .checkout-pay-desc { margin-top:2px; font-size:11px; color:rgba(44,92,22,.45); }
+        .fr-stock-order-shell .checkout-radio { width:22px; height:22px; border-radius:50%; border:2px solid rgba(44,92,22,.14); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+        .fr-stock-order-shell .checkout-pay-card.selected .checkout-radio { border-color:#2c5c16; }
+        .fr-stock-order-shell .checkout-radio-dot { width:11px; height:11px; border-radius:50%; background:#2c5c16; }
+        .fr-stock-order-shell .checkout-gcash-ref { margin-top:-2px; margin-bottom:12px; padding:12px 14px; border-radius:14px; background:#E3F2FD; border:1px solid #BFDBFE; }
+        .fr-stock-order-shell .checkout-gcash-ref label { display:block; margin-bottom:7px; color:#1565C0; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.05em; }
+        .fr-stock-order-shell .checkout-gcash-ref input { width:100%; box-sizing:border-box; border:1px solid #BFDBFE; border-radius:10px; background:#fff; padding:10px 11px; outline:0; color:#2c5c16; font:inherit; font-size:12px; }
+        .fr-stock-order-shell .gcash-overlay { z-index:10001; }
+        .fr-stock-order-shell .gcash-payment-modal { width:min(92vw,420px); padding:0; overflow:hidden; background:#fff; border-radius:20px; }
+        .fr-stock-order-shell .gcash-payment-head { display:flex; align-items:center; justify-content:space-between; padding:19px 22px; background:linear-gradient(135deg,#1565C0,#0D47A1); color:#fff; }
+        .fr-stock-order-shell .gcash-payment-head small { font-size:9px; font-weight:800; letter-spacing:1.6px; opacity:.8; }
+        .fr-stock-order-shell .gcash-payment-head h2 { margin:3px 0 0; font-size:19px; }
+        .fr-stock-order-shell .gcash-payment-head button { border:0; background:rgba(255,255,255,.18); color:#fff; border-radius:9px; width:32px; height:32px; font-size:23px; cursor:pointer; }
+        .fr-stock-order-shell .gcash-payment-body { padding:24px; text-align:center; color:#25435f; }
+        .fr-stock-order-shell .gcash-payment-body p { font-size:12px; line-height:1.5; }
+        .fr-stock-order-shell .gcash-payment-amount { font-size:28px; font-weight:900; color:#1565C0; }
+        .fr-stock-order-shell .gcash-payment-qr { display:block; width:220px; height:220px; max-width:100%; margin:18px auto; border:1px solid #d5e6f8; border-radius:12px; }
+        .fr-stock-order-shell .gcash-payment-reference, .fr-stock-order-shell .gcash-payment-timer { margin:9px 0; font-size:12px; font-weight:800; }
+        .fr-stock-order-shell .gcash-payment-primary, .fr-stock-order-shell .gcash-payment-secondary { display:block; padding:12px; margin-top:10px; border-radius:11px; text-decoration:none; font-size:13px; font-weight:900; }
+        .fr-stock-order-shell .gcash-payment-primary { background:#1565C0; color:#fff; }
+        .fr-stock-order-shell .gcash-payment-secondary { border:1px solid #bfdbfe; color:#1565C0; }
+        .fr-stock-order-shell .gcash-payment-cancel, .fr-stock-order-shell .gcash-payment-state button { border:0; background:transparent; color:#1565C0; font-weight:800; cursor:pointer; }
+        .fr-stock-order-shell .gcash-payment-wait { color:#627f9b; }
+        .fr-stock-order-shell .gcash-payment-state { padding:30px 5px; font-size:14px; line-height:1.8; }
+        .fr-stock-order-shell .checkout-mobile-bottom { padding:4px 22px 22px; background:#fff; border-top:1px solid rgba(44,92,22,.10); box-shadow:0 -3px 12px rgba(44,92,22,.08); }
+        .fr-stock-order-shell .checkout-mobile-accent { height:3px; border-radius:2px; margin-bottom:18px; background:linear-gradient(90deg,#2c5c16,#d4a63c); }
+        .fr-stock-order-shell .checkout-total-row { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:12px; }
+        .fr-stock-order-shell .checkout-total-label { font-size:12px; color:rgba(44,92,22,.62); text-transform:uppercase; letter-spacing:.6px; }
+        .fr-stock-order-shell .checkout-total-amount { font-size:26px; color:#2c5c16; font-weight:900; letter-spacing:-.5px; }
+        .fr-stock-order-shell .checkout-payment-chip { width:max-content; max-width:100%; display:flex; align-items:center; gap:6px; padding:7px 12px; margin-bottom:14px; border:1px solid rgba(44,92,22,.14); border-radius:10px; background:#f1f8e8; color:#2c5c16; font-size:12px; font-weight:900; }
+        .fr-stock-order-shell .checkout-place-btn { width:100%; min-height:50px; border:0; border-radius:15px; background:linear-gradient(90deg,#2c5c16,#d4a63c); color:#fff; display:flex; align-items:center; justify-content:center; gap:8px; font-size:14px; font-weight:900; cursor:pointer; }
+        .fr-stock-order-shell .checkout-place-btn:disabled { opacity:.7; cursor:not-allowed; }
+        .fr-stock-order-shell .checkout-success-mobile { padding:48px 24px; text-align:center; }
+        @media(max-width:620px){.fr-stock-order-shell .stock-order-checkout-modal {
+  width:min(94vw,1100px);
+  padding:0 !important;
+  overflow:hidden !important;
+  max-height:min(90vh,760px);
+  display:flex;
+  flex-direction:column;
+  background:#fff;
+}.fr-stock-order-shell .checkout-mobile-scroll { padding:16px; } .fr-stock-order-shell .checkout-mobile-bottom { padding-left:18px; padding-right:18px; padding-bottom:18px; } }
+        .fr-stock-order-shell .stock-order-cart-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:15px; align-items:center; padding:15px 18px; border-bottom:1px solid #EEF1EA; background:#fff; }
+        .fr-stock-order-shell .stock-order-cart-row:hover { background:#FBFCF8; }
+        .fr-stock-order-shell .stock-cart-modal-head, .fr-stock-order-shell .stock-orders-modal-head { padding:18px 20px; background:linear-gradient(135deg,#fbfcf8,#f4f8ec); border-bottom:1px solid ${C.border}; }
+        .fr-stock-order-shell .stock-modal-eyebrow { font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:.09em; color:${C.green}; }
+        .fr-stock-order-shell .stock-modal-title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+        .fr-stock-order-shell .stock-modal-title { margin-top:3px; font-size:19px; font-weight:900; color:${C.ink}; }
+        .fr-stock-order-shell .stock-modal-subtitle { margin-top:4px; color:${C.muted}; font-size:10.5px; line-height:1.45; }
+        .fr-stock-order-shell .stock-modal-scroll { max-height:min(58vh,520px); overflow:auto; }
+        .fr-stock-order-shell .stock-modal-footer { padding:13px 20px 17px; border-top:1px solid ${C.border}; background:#fff; position:sticky; bottom:0; z-index:3; }
+        .fr-stock-order-shell .stock-cart-item-main { min-width:0; }
+        .fr-stock-order-shell .stock-cart-item-title { font-size:13px; font-weight:900; color:${C.ink}; overflow-wrap:anywhere; }
+        .fr-stock-order-shell .stock-cart-item-meta { margin-top:4px; font-size:10.5px; color:${C.muted}; }
+        .fr-stock-order-shell .stock-cart-stock-note { margin-top:5px; font-size:9.5px; color:${C.greenDk}; font-weight:800; }
+        .fr-stock-order-shell .stock-cart-stock-note.low { color:${C.red}; }
+        .fr-stock-order-shell .stock-cart-qty { display:flex; align-items:center; gap:6px; padding:4px; border:1px solid ${C.border}; border-radius:10px; background:#FBFCF8; }
+        .fr-stock-order-shell .stock-cart-qty button { width:28px; height:28px; border:1px solid ${C.border}; border-radius:7px; background:#fff; color:${C.greenDk}; font-weight:900; cursor:pointer; }
+        .fr-stock-order-shell .stock-cart-qty button:disabled { opacity:.4; cursor:not-allowed; }
+        .fr-stock-order-shell .stock-cart-qty-input {
+          width:52px;
+          height:28px;
+          border:1px solid ${C.border};
+          border-radius:7px;
+          background:#fff;
+          text-align:center;
+          font-size:12px;
+          font-weight:800;
+          color:${C.ink};
+          outline:none;
+          box-sizing:border-box;
+        }
+
+        .fr-stock-order-shell .stock-cart-qty-input:focus {
+          border-color:${C.green};
+        }
+
+        .fr-stock-order-shell .stock-cart-qty-input::-webkit-inner-spin-button,
+        .fr-stock-order-shell .stock-cart-qty-input::-webkit-outer-spin-button {
+          margin:0;
+        }
+        .fr-stock-order-shell .stock-cart-line-total { min-width:86px; text-align:right; }
+        .fr-stock-order-shell .stock-cart-remove { margin-top:5px; border:0; background:transparent; color:#9B2C2C; font-size:9.5px; font-weight:800; cursor:pointer; padding:0; }
+        .fr-stock-order-shell .stock-order-count-badge { min-width:21px; height:21px; padding:0 6px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#EEF4E7; color:${C.greenDk}; font-size:9.5px; font-weight:900; }
+        .fr-stock-order-shell .stock-orders-summary { display:flex; gap:7px; flex-wrap:wrap; padding:12px 20px 0; }
+        .fr-stock-order-shell .stock-orders-stat { display:inline-flex; align-items:center; gap:6px; padding:6px 9px; border:1px solid ${C.border}; border-radius:9px; background:#FBFCF8; color:${C.muted}; font-size:9.5px; font-weight:800; }
+        .fr-stock-order-shell .stock-orders-stat strong { color:${C.ink}; font-size:11px; }
+        .fr-stock-order-shell .stock-order-history-card { margin:10px 20px; border:1px solid ${C.border}; border-radius:12px; overflow:hidden; background:#fff; }
+        .fr-stock-order-shell .stock-order-history-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; cursor:pointer; }
+        .fr-stock-order-shell .stock-order-history-head:hover { background:#FBFCF8; }
+        .fr-stock-order-shell .stock-order-history-id { font-size:12.5px; font-weight:900; color:${C.ink}; }
+        .fr-stock-order-shell .stock-order-history-date { margin-top:3px; font-size:9.5px; color:${C.muted}; }
+        .fr-stock-order-shell .stock-order-status { display:inline-flex; align-items:center; gap:5px; padding:5px 8px; border-radius:999px; font-size:9px; font-weight:900; white-space:nowrap; border:1px solid transparent; }
+        .fr-stock-order-shell .stock-order-status::before { content:""; width:5px; height:5px; border-radius:50%; background:currentColor; }
+        .fr-stock-order-shell .stock-order-status.pending { color:#8A6400; background:#FFF8D8; border-color:#F0DEA0; }
+        .fr-stock-order-shell .stock-order-status.processing { color:#285C85; background:#EEF6FC; border-color:#C8DFEF; }
+        .fr-stock-order-shell .stock-order-status.completed { color:#2C6B17; background:#EEF8E8; border-color:#CDE4BF; }
+        .fr-stock-order-shell .stock-order-status.cancelled { color:#A3342A; background:#FFF1EF; border-color:#F0C9C3; }
+        .fr-stock-order-shell .stock-order-history-meta { display:flex; gap:12px; flex-wrap:wrap; padding:0 14px 11px; font-size:9.5px; color:${C.muted}; }
+        .fr-stock-order-shell .stock-order-history-total { color:${C.greenDk}; font-weight:900; }
+        .fr-stock-order-shell .stock-order-history-details { padding:11px 14px 13px; background:#FBFCF8; border-top:1px solid #EEF1EA; }
+        .fr-stock-order-shell .stock-order-history-item { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px dashed #E4E9DE; }
+        .fr-stock-order-shell .stock-order-history-item:last-child { border-bottom:0; }
+        .fr-stock-order-shell .stock-order-history-item-name { font-size:10.5px; font-weight:800; color:${C.ink}; }
+        .fr-stock-order-shell .stock-order-history-item-meta { margin-top:2px; font-size:9px; color:${C.muted}; }
+        .fr-stock-order-shell .stock-order-history-address { margin-top:9px; padding-top:9px; border-top:1px solid ${C.border}; font-size:9.5px; color:${C.muted}; line-height:1.45; }
+        .fr-stock-order-shell .stock-order-history-address strong { color:${C.ink}; }
+        .fr-stock-order-shell .stock-order-empty { padding:56px 24px 62px; text-align:center; color:${C.muted}; }
         .fr-stock-order-shell .stock-order-summary-row { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:10px 0; }
         .fr-stock-order-shell .stock-order-summary-total { padding-top:14px; margin-top:5px; border-top:1px solid ${C.border}; }
         .fr-stock-order-shell .stock-order-muted { color:${C.muted}; font-size:11px; }
@@ -9633,9 +10405,509 @@ function ManagerStockInventoryContent({
         @media(max-width:620px){
           .fr-stock-order-shell .stock-order-facts { grid-template-columns:1fr 1fr; }
           .fr-stock-order-shell .stock-order-actions { grid-template-columns:1fr; }
-          .fr-stock-order-shell .stock-order-cart-row { grid-template-columns:1fr auto; }
+          .fr-stock-order-shell .stock-order-header-actions { width:100%; justify-content:stretch; }
+          .fr-stock-order-shell .stock-order-header-actions .v-btn { flex:1 1 0; }
+          .fr-stock-order-shell .stock-order-cart-row { grid-template-columns:1fr auto; gap:9px; padding:12px 14px; }
+          .fr-stock-order-shell .stock-cart-line-total { grid-column:2; }
           .fr-stock-order-shell .stock-order-cart-row > :last-child { grid-column:2; }
+          .fr-stock-order-shell .stock-modal-title { font-size:17px; }
+          .fr-stock-order-shell .stock-orders-modal-head .stock-modal-title-row { flex-direction:column; }
+          .fr-stock-order-shell .stock-orders-modal-head .stock-modal-title-row > div:last-child { width:100%; }
+          .fr-stock-order-shell .stock-orders-modal-head .stock-modal-title-row > div:last-child .v-btn { flex:1; }
         }
+        /* Cart and checkout match the mobile screens: white chrome, soft green canvas, and rounded cards. */
+.fr-stock-order-shell .stock-order-cart-modal {
+  width:min(100% - 24px,620px);
+  max-height:94vh;
+  display:flex;
+  flex-direction:column;
+  border-radius:24px;
+  background:#f8fbf4;
+}
+
+.fr-stock-order-shell .stock-order-checkout-modal {
+  width:min(94vw,1100px);
+  height:min(88vh,720px);
+  max-height:720px;
+  display:flex;
+  flex-direction:column;
+  padding:0 !important;
+  overflow:hidden !important;
+  border-radius:24px;
+  background:#f8fbf4;
+}
+        .fr-stock-order-shell .stock-cart-modal-head, .fr-stock-order-shell .checkout-mobile-head { flex-shrink:0; padding:22px 26px; background:#fff; border-bottom:1px solid #e4eadc; color:#151c13; box-shadow:none; }
+        .fr-stock-order-shell .stock-modal-title, .fr-stock-order-shell .checkout-mobile-title { margin:0; font-size:23px; line-height:1.2; font-weight:900; color:#151c13; }
+        .fr-stock-order-shell .stock-modal-subtitle, .fr-stock-order-shell .checkout-mobile-subtitle { display:block; margin-top:5px; font-size:12px; color:#8a9485; }
+        .fr-stock-order-shell .checkout-mobile-head-left { gap:16px; }
+        .fr-stock-order-shell .checkout-mobile-back { width:42px; height:42px; border:1px solid #d6dfcf; background:#fff; color:#162014; box-shadow:none; }
+.fr-stock-order-shell .stock-order-cart-modal .stock-modal-scroll {
+  flex:1;
+  max-height:none;
+  padding:24px 26px 32px;
+  overflow:auto;
+  background-color:#f8fbf4;
+  background-image:radial-gradient(#e7eedf 1px,transparent 1px);
+  background-size:18px 18px;
+}
+
+.fr-stock-order-shell .stock-order-checkout-modal .checkout-mobile-scroll {
+  flex:1;
+  min-height:0;
+  max-height:none;
+  padding:20px 26px;
+  overflow-y:auto;
+  overflow-x:hidden;
+  background-color:#f8fbf4;
+  background-image:radial-gradient(#e7eedf 1px,transparent 1px);
+  background-size:18px 18px;
+
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
+  gap:20px 26px;
+  align-content:start;
+}
+        .fr-stock-order-shell .cart-pick-note { padding:18px 20px; border:1px solid #e0e8d9; border-left:5px solid #4a8e25; border-radius:17px; background:#fff; color:#1d291a; }
+        .fr-stock-order-shell .cart-pick-note strong { font-size:16px; }
+        .fr-stock-order-shell .cart-pick-note p { margin:8px 0 0; color:#838d7e; font-size:12px; line-height:1.5; }
+        .fr-stock-order-shell .cart-section-head { display:flex; align-items:center; justify-content:space-between; gap:15px; margin:28px 0 16px; padding-left:16px; border-left:5px solid #4a8e25; }
+        .fr-stock-order-shell .cart-section-head strong { display:block; font-size:19px; color:#1c261a; }
+        .fr-stock-order-shell .cart-section-head small { display:block; margin-top:4px; color:#889383; }
+        .fr-stock-order-shell .cart-select-all { display:flex; align-items:center; gap:8px; padding:9px 12px; border:1px solid #d8e0d0; border-radius:13px; background:#fff; color:#1c261a; font-weight:800; cursor:pointer; white-space:nowrap; }
+        .fr-stock-order-shell .cart-checkbox { width:21px; height:21px; flex:0 0 21px; border:2px solid #cbd6c6; border-radius:7px; background:#fff; cursor:pointer; }
+        .fr-stock-order-shell .cart-checkbox.checked { background:#4a8e25; border-color:#4a8e25; }
+        .fr-stock-order-shell .cart-checkbox.checked::after { content:"✓"; color:#fff; font-size:15px; line-height:17px; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-order-cart-row { position:relative; display:grid; grid-template-columns:21px 58px minmax(0,1fr) auto; gap:14px; align-items:center; margin-bottom:14px; padding:18px; border:1px solid #e0e7d9; border-radius:18px; background:#fff; box-shadow:0 2px 8px rgba(32,64,20,.04); }
+        .fr-stock-order-shell .cart-product-thumb { width:58px; height:58px; display:flex; align-items:center; justify-content:center; border:1px solid #dfeccf; border-radius:15px; background:#f3f9e9; color:#4b8f29; overflow:hidden; }
+        .fr-stock-order-shell .cart-product-thumb img { width:100%; height:100%; object-fit:contain; }
+        .fr-stock-order-shell .stock-cart-item-title { font-size:15px; color:#192319; }
+        .fr-stock-order-shell .stock-cart-item-meta { color:#899286; }
+        .fr-stock-order-shell .stock-cart-item-price { margin-top:8px; color:#202920; font-size:15px; font-weight:900; }
+        .fr-stock-order-shell .stock-cart-item-price small { display:block; margin-top:2px; color:#8d9788; font-size:10px; font-weight:500; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-qty { grid-column:4; grid-row:1; align-self:end; margin-top:45px; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-line-total { position:absolute; right:18px; top:16px; min-width:0; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-line-total strong { display:none; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-remove { margin:0; padding:7px; border:1px solid #f2d3d4; border-radius:9px; background:#fff6f6; color:#ce5459; font-size:0; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-cart-remove svg { width:15px; height:15px; margin:0 !important; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-modal-footer, .fr-stock-order-shell .checkout-mobile-bottom { flex-shrink:0; padding:20px 26px 24px; border-top:1px solid #e5eadf; background:#fff; box-shadow:0 -4px 14px rgba(30,60,20,.05); }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-modal-footer .v-btn-primary, .fr-stock-order-shell .checkout-place-btn { min-height:52px !important; border-radius:14px !important; background:#4a8e25; color:#fff; font-size:15px; font-weight:900; }
+        .fr-stock-order-shell .stock-order-cart-modal .stock-modal-footer .v-btn-primary:disabled { background:#b8d1a6; color:#fff; }
+        .fr-stock-order-shell .checkout-mobile-section { margin-top:26px; }
+        .fr-stock-order-shell .checkout-mobile-section-title { gap:11px; color:#1c261a; font-size:17px; letter-spacing:0; text-transform:none; }
+        .fr-stock-order-shell .checkout-mobile-section-bar { width:5px; height:26px; background:#4a8e25; }
+        .fr-stock-order-shell .checkout-mobile-card, .fr-stock-order-shell .checkout-address-card, .fr-stock-order-shell .checkout-pay-card { border:1px solid #e0e7d9; border-radius:18px; box-shadow:0 2px 8px rgba(32,64,20,.04); }
+        .fr-stock-order-shell .checkout-user-card, .fr-stock-order-shell .checkout-order-row { padding:17px; }
+        .fr-stock-order-shell .checkout-user-thumb { width:58px; height:58px; border:0; border-radius:17px; background:#11250d; color:#bed66a; font-size:24px; font-weight:900; }
+        .fr-stock-order-shell .checkout-user-name, .fr-stock-order-shell .checkout-order-name { color:#1d251b; font-size:15px; }
+        .fr-stock-order-shell .checkout-branch-pill { display:inline-flex; align-items:center; gap:5px; margin-top:7px; padding:4px 8px; border:1px solid #dceacb; border-radius:9px; background:#f3f9e9; color:#427c20; font-size:11px; font-weight:800; }
+        .fr-stock-order-shell .checkout-order-thumb { width:48px; height:48px; border-radius:13px; }
+        .fr-stock-order-shell .checkout-order-qty { color:#899286; }
+        .fr-stock-order-shell .checkout-order-price { color:#1d251b; }
+        .fr-stock-order-shell .checkout-map-preview { position:relative; height:235px; overflow:hidden; border:1px solid #e0e7d9; border-radius:17px; background:#e8eddd; }
+        .fr-stock-order-shell .checkout-map-preview iframe { width:100%; height:100%; border:0; pointer-events:none; }
+        .fr-stock-order-shell .checkout-map-touch { position:absolute; inset:0; z-index:1; cursor:crosshair; touch-action:none; }
+        .fr-stock-order-shell .checkout-map-pin { position:absolute; z-index:2; left:50%; top:50%; transform:translate(-50%,-100%); color:#4a8e25; font-size:38px; line-height:1; text-shadow:0 2px 3px #fff; pointer-events:none; }
+        .fr-stock-order-shell .checkout-map-attribution { position:absolute; z-index:2; left:7px; bottom:5px; padding:2px 4px; background:rgba(255,255,255,.85); color:#4e5b4a; font-size:9px; pointer-events:none; }
+        .fr-stock-order-shell .checkout-map-open, .fr-stock-order-shell .checkout-map-current { position:absolute; z-index:3; border:1px solid #d7dfcd; border-radius:11px; background:#fff; color:#172216; font-size:12px; font-weight:800; cursor:pointer; box-shadow:0 2px 8px rgba(20,40,15,.12); }
+        .fr-stock-order-shell .checkout-map-open { top:14px; left:14px; padding:9px 12px; }
+        .fr-stock-order-shell .checkout-map-current { right:14px; bottom:14px; padding:10px 13px; background:#4a8e25; color:#fff; border-color:#4a8e25; }
+        .fr-stock-order-shell .checkout-map-current:disabled { opacity:.65; cursor:wait; }
+        .fr-stock-order-shell .checkout-map-caption { position:absolute; top:14px; left:14px; padding:8px 12px; border:1px solid #d7dfcd; border-radius:11px; background:#fff; color:#172216; font-size:12px; font-weight:800; }
+        .fr-stock-order-shell .checkout-map-hint { margin:10px 0 14px; color:#899286; font-size:11px; }
+        .fr-stock-order-shell .checkout-map-error { margin:8px 0; color:#a3342a; font-size:11px; }
+        .fr-stock-order-shell .checkout-map-picker-overlay { z-index:10003; }
+        .fr-stock-order-shell .checkout-map-picker { width:min(92vw,680px); height:min(88vh,720px); padding:0; display:flex; flex-direction:column; overflow:hidden; border-radius:18px; background:#fff; }
+        .fr-stock-order-shell .checkout-map-picker-head { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px 18px; color:#1c261a; }
+        .fr-stock-order-shell .checkout-map-picker-head button { border:1px solid #d7dfcd; border-radius:10px; background:#fff; color:#2c5c16; font-size:14px; font-weight:800; padding:7px 12px; cursor:pointer; }
+        .fr-stock-order-shell .checkout-map-preview.full-screen { flex:1; height:auto; min-height:250px; border-radius:0; }
+        .fr-stock-order-shell .checkout-map-picker > .checkout-map-hint, .fr-stock-order-shell .checkout-map-picker > .checkout-map-error { margin:10px 16px; }
+        .fr-stock-order-shell .checkout-address-card { border:2px solid #a7cf83; }
+        .fr-stock-order-shell .checkout-mobile-accent { display:none; }
+        .fr-stock-order-shell .checkout-total-label { color:#202820; text-transform:none; font-size:14px; font-weight:800; }
+        .fr-stock-order-shell .checkout-total-amount { color:#172216; font-size:27px; }
+        .fr-stock-order-shell .checkout-address-prompt { border:1px solid #e0e7d9; background:#fff; }
+        .fr-stock-order-shell .checkout-address-prompt button { background:#4a8e25; }
+        @media(max-width:620px){
+          .fr-stock-order-shell .stock-cart-modal-head, .fr-stock-order-shell .checkout-mobile-head { padding:18px; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-modal-scroll, .fr-stock-order-shell .checkout-mobile-scroll { padding:20px 15px; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-order-cart-row { grid-template-columns:21px 50px minmax(0,1fr); gap:10px; padding:15px; min-height:125px; }
+          .fr-stock-order-shell .cart-product-thumb { width:50px; height:50px; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-cart-qty { grid-column:3; grid-row:2; justify-self:end; margin:0; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-cart-line-total { grid-column:auto; }
+          .fr-stock-order-shell .stock-order-cart-modal .stock-modal-footer, .fr-stock-order-shell .checkout-mobile-bottom { padding:17px; }
+        }
+
+        /* =========================================================
+   DESKTOP CHECKOUT — COMPACT WEBSITE LANDSCAPE
+   ========================================================= */
+
+@media (min-width: 900px) {
+
+.fr-stock-order-shell .stock-order-checkout-modal {
+width: min(90vw, 950px) !important;
+max-width: 950px !important;
+  height: auto !important;
+  max-height: 88vh !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+
+    padding: 0 !important;
+    overflow: hidden !important;
+
+    border-radius: 22px !important;
+    background: #f8fbf4 !important;
+  }
+
+
+  /* ================= HEADER ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-head {
+    flex: 0 0 auto !important;
+    padding: 18px 26px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-title {
+    font-size: 21px !important;
+  }
+
+
+  /* ================= BODY ================= */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-scroll {
+  flex: 0 1 auto !important;
+  min-height: 0 !important;
+  max-height: 62vh !important;
+
+  padding: 20px 26px 22px !important;
+
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(0, 1.15fr)
+    minmax(320px, 0.85fr) !important;
+
+  grid-template-areas:
+    "franchisee payment"
+    "summary    payment"
+    "location   payment" !important;
+
+  grid-template-rows:
+    auto
+    auto
+    auto !important;
+
+  column-gap: 28px !important;
+  row-gap: 16px !important;
+
+  align-items: start !important;
+  align-content: start !important;
+}
+
+
+/* RESET ALL SECTION SPACING */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section {
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  align-self: start !important;
+}
+
+
+/* 1 — FRANCHISEE */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section:nth-child(1) {
+  grid-area: franchisee !important;
+}
+
+
+/* 2 — ORDER SUMMARY */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section:nth-child(2) {
+  grid-area: summary !important;
+}
+
+
+/* 3 — DELIVERY LOCATION */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section:nth-child(3) {
+  grid-area: location !important;
+}
+
+
+/* 4 — PAYMENT METHOD */
+
+.fr-stock-order-shell
+.stock-order-checkout-modal
+.checkout-mobile-section:nth-child(4) {
+  grid-area: payment !important;
+}
+
+  /* ================= SECTION TITLES ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-section-title {
+    margin: 0 0 10px !important;
+
+    gap: 8px !important;
+
+    font-size: 15px !important;
+    line-height: 1.2 !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-section-bar {
+    width: 4px !important;
+    height: 22px !important;
+  }
+
+
+  /* ================= CARDS ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-card,
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-address-card,
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-card {
+    width: 100% !important;
+    max-width: none !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* ================= FRANCHISEE ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-user-card {
+    min-height: 88px !important;
+    padding: 14px 16px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-user-thumb {
+    width: 52px !important;
+    height: 52px !important;
+    border-radius: 15px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-user-name {
+    font-size: 14px !important;
+  }
+
+
+  /* ================= ORDER SUMMARY ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-row {
+    display: grid !important;
+
+    grid-template-columns:
+      46px
+      minmax(0, 1fr)
+      auto !important;
+
+    gap: 12px !important;
+
+    align-items: center !important;
+
+    padding: 14px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-thumb {
+    width: 46px !important;
+    height: 46px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-main {
+    min-width: 0 !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-name {
+    font-size: 13px !important;
+
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+
+    line-height: 1.3 !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-order-price {
+    font-size: 13px !important;
+    white-space: nowrap !important;
+  }
+
+
+  /* ================= DELIVERY ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-map-preview {
+    height: 150px !important;
+    border-radius: 15px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-map-hint {
+    margin: 8px 0 10px !important;
+    font-size: 10px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-address-card {
+    min-height: 76px !important;
+    padding: 12px 14px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-address-card textarea {
+    min-height: 48px !important;
+    font-size: 12px !important;
+  }
+
+
+  /* ================= PAYMENT ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-card {
+    min-height: 64px !important;
+
+    margin-bottom: 9px !important;
+    padding: 11px 13px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-thumb {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-label {
+    font-size: 13px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-pay-desc {
+    font-size: 10px !important;
+  }
+
+
+  /* ================= BOTTOM ================= */
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-mobile-bottom {
+    flex: 0 0 auto !important;
+
+    padding: 14px 26px 18px !important;
+
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      300px !important;
+
+    column-gap: 28px !important;
+
+    align-items: center !important;
+
+    background: #fff !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-total-row {
+    grid-column: 1 !important;
+
+    margin: 0 0 7px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-total-label {
+    font-size: 12px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-total-amount {
+    font-size: 24px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-payment-chip {
+    grid-column: 1 !important;
+
+    margin: 0 !important;
+
+    padding: 6px 10px !important;
+
+    font-size: 10px !important;
+  }
+
+  .fr-stock-order-shell
+  .stock-order-checkout-modal
+  .checkout-place-btn {
+    grid-column: 2 !important;
+    grid-row: 1 / span 2 !important;
+
+    width: 100% !important;
+    min-height: 50px !important;
+
+    margin: 0 !important;
+
+    font-size: 13px !important;
+  }
+}
       `}</style>
 
       <div
@@ -9713,17 +10985,32 @@ function ManagerStockInventoryContent({
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            className="v-btn v-btn-primary stock-order-cart-btn"
-            onClick={() => setShowCart(true)}
-            disabled={!cartItemCount}
-          >
-            <ShoppingCart size={15} />
-            Cart
-            <span className="stock-cart-count">{cartItemCount}</span>
-            <span style={{ opacity: 0.92 }}>{fmtPeso(cartTotal)}</span>
-          </button>
+          <div className="stock-order-header-actions">
+            <button
+              type="button"
+              className="v-btn v-btn-secondary stock-order-orders-btn"
+              onClick={() => {
+                setShowOrders(true);
+                fetchOrders();
+              }}
+            >
+              <History size={14} />
+              View Orders
+              <span className="stock-order-count-badge">
+                {orderCounts.total}
+              </span>
+            </button>
+            <button
+              type="button"
+              className="v-btn v-btn-primary stock-order-cart-btn"
+              onClick={() => setShowCart(true)}
+            >
+              <ShoppingCart size={15} />
+              Cart
+              <span className="stock-cart-count">{cartItemCount}</span>
+              <span style={{ opacity: 0.92 }}>{fmtPeso(cartTotal)}</span>
+            </button>
+          </div>
         </div>
 
         <div
@@ -9923,10 +11210,10 @@ function ManagerStockInventoryContent({
                   <div
                     key={item.id}
                     className={`stock-order-row${active ? " active" : ""}`}
+                    onClick={() => selectItem(item)}
                     role="button"
                     tabIndex={0}
                     aria-pressed={active}
-                    onClick={() => selectItem(item)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
@@ -9961,55 +11248,256 @@ function ManagerStockInventoryContent({
                         style={{ width: `${stockPercent}%` }}
                       />
                     </span>
-                    {(onEdit || onDelete) && (
-                      <span style={{ display: "flex", gap: 6, marginTop: 7 }}>
-                        {onEdit && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEdit(item);
-                            }}
+                    <span className="stock-order-row-actions">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openFrEdit(item);
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 5,
+                          height: 32,
+                          padding: "0 12px",
+                          borderRadius: 18,
+                          border: "1px solid #d8e3cf",
+                          background: "#fff",
+                          color: C.green,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          fontFamily: "inherit",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <Pencil size={13} />
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget(item);
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 5,
+                          height: 32,
+                          padding: "0 12px",
+                          borderRadius: 18,
+                          border: "1px solid #ffc9c9",
+                          background: "#fff",
+                          color: "#ef4444",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          fontFamily: "inherit",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <Trash2 size={13} />
+                        Delete
+                      </button>
+                    </span>
+                    {editingItem && (
+                      <div
+                        style={{
+                          position: "fixed",
+                          inset: 0,
+                          zIndex: 5000,
+                          background: "rgba(0,0,0,.38)",
+                          display: "grid",
+                          placeItems: "center",
+                          padding: 20,
+                        }}
+                        onMouseDown={() => {
+                          if (!savingEdit) setEditingItem(null);
+                        }}
+                      >
+                        <div
+                          onMouseDown={(e) => e.stopPropagation()}
+                          style={{
+                            width: "min(92vw, 420px)",
+                            background: "#fff",
+                            borderRadius: 18,
+                            border: `1px solid ${C.border}`,
+                            boxShadow: "0 24px 70px rgba(0,0,0,.20)",
+                            padding: 22,
+                          }}
+                        >
+                          <div
                             style={{
-                              minHeight: 24,
-                              height: 24,
-                              padding: "0 9px",
-                              borderRadius: 7,
+                              fontSize: 17,
+                              fontWeight: 800,
+                              color: C.ink,
+                              marginBottom: 4,
+                            }}
+                          >
+                            Edit Inventory
+                          </div>
+
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: C.muted,
+                              marginBottom: 18,
+                            }}
+                          >
+                            {editingItem.name}
+                          </div>
+
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: C.muted,
+                              marginBottom: 6,
+                            }}
+                          >
+                            Minimum Stock
+                          </label>
+
+                          <input
+                            type="number"
+                            min="0"
+                            value={editForm.min_stock}
+                            onChange={(e) =>
+                              setEditForm((prev) => ({
+                                ...prev,
+                                min_stock: e.target.value,
+                              }))
+                            }
+                            style={{
+                              width: "100%",
+                              height: 40,
+                              padding: "0 12px",
+                              borderRadius: 10,
                               border: `1px solid ${C.border}`,
-                              background: C.white,
-                              color: C.green,
-                              fontSize: 10.5,
-                              fontWeight: 700,
-                              cursor: "pointer",
+                              outline: "none",
+                              boxSizing: "border-box",
+                              fontFamily: "inherit",
                             }}
-                          >
-                            <Pencil size={10} /> Edit
-                          </button>
-                        )}
-                        {onDelete && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDelete(item);
-                            }}
+                          />
+
+                          <div
                             style={{
-                              minHeight: 24,
-                              height: 24,
-                              padding: "0 9px",
-                              borderRadius: 7,
-                              border: "1px solid #fecaca",
-                              background: C.white,
-                              color: "#e53935",
-                              fontSize: 10.5,
-                              fontWeight: 700,
-                              cursor: "pointer",
+                              display: "flex",
+                              justifyContent: "flex-end",
+                              gap: 8,
+                              marginTop: 20,
                             }}
                           >
-                            <Trash2 size={10} /> Delete
-                          </button>
-                        )}
-                      </span>
+                            <button
+                              type="button"
+                              disabled={savingEdit}
+                              onClick={() => setEditingItem(null)}
+                            >
+                              Cancel
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={savingEdit}
+                              onClick={saveFrEdit}
+                              style={{
+                                background: C.green,
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: 999,
+                                padding: "9px 18px",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {savingEdit ? "Saving..." : "Save Changes"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {deleteTarget && (
+                      <div
+                        style={{
+                          position: "fixed",
+                          inset: 0,
+                          zIndex: 5000,
+                          background: "rgba(0,0,0,.38)",
+                          display: "grid",
+                          placeItems: "center",
+                          padding: 20,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "min(92vw, 400px)",
+                            background: "#fff",
+                            borderRadius: 18,
+                            padding: 22,
+                            border: `1px solid ${C.border}`,
+                            boxShadow: "0 24px 70px rgba(0,0,0,.20)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 17,
+                              fontWeight: 800,
+                              color: C.ink,
+                            }}
+                          >
+                            Delete Inventory Item?
+                          </div>
+
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: C.muted,
+                              lineHeight: 1.6,
+                              marginTop: 8,
+                            }}
+                          >
+                            Are you sure you want to delete{" "}
+                            <strong>{deleteTarget.name}</strong>?
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "flex-end",
+                              gap: 8,
+                              marginTop: 20,
+                            }}
+                          >
+                            <button
+                              type="button"
+                              disabled={deletingItem}
+                              onClick={() => setDeleteTarget(null)}
+                            >
+                              Cancel
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={deletingItem}
+                              onClick={confirmFrDelete}
+                              style={{
+                                background: "#e53935",
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: 999,
+                                padding: "9px 18px",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {deletingItem ? "Deleting..." : "Delete"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 );
@@ -10028,12 +11516,30 @@ function ManagerStockInventoryContent({
                   <div className="stock-order-section-title">
                     <Layers size={13} /> Stock Rotation / Batches
                   </div>
-                  <ManagerFrFifoQueue
+                  <FrFifoQueue
                     key={selected.id || "empty"}
                     product={selected}
                     batches={batches}
                     loading={batchLoading}
                     lowStock={isLowStock(selected)}
+                    onEditBatch={(batch) => {
+                      setEditingBatch({
+                        batch,
+                        ingredient: selected,
+                      });
+                    }}
+                    onDeleteBatch={(batch) => {
+                      setDeleteConfirmBatch({
+                        batch,
+                        ingredient: selected,
+                      });
+                    }}
+                    onViewHistory={(batch) => {
+                      setHistoryBatch({
+                        batch,
+                        ingredient: selected,
+                      });
+                    }}
                   />
                 </div>
 
@@ -10168,7 +11674,54 @@ function ManagerStockInventoryContent({
                           >
                             −
                           </button>
-                          <strong>{selectedCartQty || 1}</strong>
+
+                          <input
+                            type="number"
+                            min="1"
+                            max={selectedSupplyAvailable}
+                            value={selectedCartQty || 1}
+                            onChange={(e) => {
+                              const value = e.target.value;
+
+                              if (value === "") return;
+
+                              const quantity = Math.max(
+                                1,
+                                Math.min(
+                                  Number(value),
+                                  selectedSupplyAvailable,
+                                ),
+                              );
+
+                              const existing = cart.find(
+                                (entry) => entry.id === selectedShopItem.id,
+                              );
+
+                              let next;
+
+                              if (existing) {
+                                next = cart.map((entry) =>
+                                  entry.id === selectedShopItem.id
+                                    ? { ...entry, quantity }
+                                    : entry,
+                                );
+                              } else {
+                                next = [
+                                  ...cart,
+                                  createCartEntry(
+                                    selectedShopItem,
+                                    selected,
+                                    quantity,
+                                  ),
+                                ];
+                              }
+
+                              saveCart(next);
+                            }}
+                            className="stock-order-stepper-input"
+                            aria-label="Cart quantity"
+                          />
+
                           <button
                             type="button"
                             aria-label="Increase quantity"
@@ -10181,6 +11734,7 @@ function ManagerStockInventoryContent({
                           >
                             +
                           </button>
+
                           <span
                             style={{
                               marginLeft: 2,
@@ -10296,154 +11850,602 @@ function ManagerStockInventoryContent({
             className="v-modal stock-order-cart-modal"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <div>
-                <div className="v-modal-title">Supply Cart</div>
-                <div className="stock-order-muted" style={{ marginTop: 4 }}>
-                  {userBrand} · {userBranch}
+            <div className="stock-cart-modal-head">
+              <div className="stock-modal-title-row">
+                <div style={{ minWidth: 0 }}>
+                  <div className="stock-modal-title">My Cart</div>
+                  <div className="stock-modal-subtitle">
+                    {cart.length} {cart.length === 1 ? "item" : "items"} in your
+                    basket
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  className="v-btn v-btn-secondary"
+                  onClick={() => setShowCart(false)}
+                  style={{ minHeight: 34, padding: "7px 11px", fontSize: 10.5 }}
+                >
+                  <X size={13} /> Close
+                </button>
               </div>
-              <button
-                type="button"
-                className="v-btn v-btn-secondary"
-                onClick={() => setShowCart(false)}
-              >
-                <X size={14} /> Close
-              </button>
             </div>
 
             {cartLineItems.length ? (
               <>
-                <div
-                  style={{
-                    marginTop: 18,
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 14,
-                    overflow: "hidden",
-                  }}
-                >
-                  {cartLineItems.map((entry) => (
-                    <div key={entry.id} className="stock-order-cart-row">
-                      <div style={{ minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 900,
-                            color: C.ink,
-                            overflowWrap: "anywhere",
-                          }}
-                        >
-                          {entry.name}
+                <div className="stock-modal-scroll">
+                  <div className="cart-pick-note">
+                    <strong>Pick what to check out</strong>
+                    <p>
+                      Tick the items you want to order now. Anything unticked
+                      stays in your basket.
+                    </p>
+                  </div>
+                  <div className="cart-section-head">
+                    <div>
+                      <strong>Order basket</strong>
+                      <small>
+                        {selectedCart.length
+                          ? `${selectedCart.length} selected`
+                          : "Nothing selected yet"}
+                      </small>
+                    </div>
+                    <button
+                      type="button"
+                      className="cart-select-all"
+                      onClick={toggleAllCartItems}
+                      aria-pressed={
+                        cart.length > 0 && selectedCart.length === cart.length
+                      }
+                    >
+                      <span
+                        className={`cart-checkbox${cart.length > 0 && selectedCart.length === cart.length ? " checked" : ""}`}
+                      />{" "}
+                      Select all
+                    </button>
+                  </div>
+                  {cartLineItems.map((entry) => {
+                    const hasIssue =
+                      entry.stock <= 0 ||
+                      Number(entry.quantity || 0) > Number(entry.stock || 0);
+                    return (
+                      <div key={entry.id} className="stock-order-cart-row">
+                        <button
+                          type="button"
+                          className={`cart-checkbox${selectedCartIds.includes(entry.id) ? " checked" : ""}`}
+                          onClick={() => toggleCartItem(entry.id)}
+                          aria-label={`Select ${entry.name}`}
+                          aria-pressed={selectedCartIds.includes(entry.id)}
+                        />
+                        <div className="cart-product-thumb">
+                          {entry.image_url ? (
+                            <img src={entry.image_url} alt="" />
+                          ) : (
+                            <Package size={24} />
+                          )}
                         </div>
-                        <div
-                          className="stock-order-muted"
-                          style={{ marginTop: 3 }}
-                        >
-                          {entry.unit || "unit"} · {fmtPeso(entry.price)} each
-                        </div>
-                        {entry.stock <= 0 && (
+                        <div className="stock-cart-item-main">
+                          <div className="stock-cart-item-title">
+                            {entry.name}
+                          </div>
+                          <div className="stock-cart-item-meta">
+                            Unit: {entry.unit || "unit"}
+                          </div>
+                          <div className="stock-cart-item-price">
+                            {fmtPeso(entry.price)}{" "}
+                            <small>
+                              Line: {fmtPeso(entry.price * entry.quantity)}
+                            </small>
+                          </div>
                           <div
+                            className={`stock-cart-stock-note${hasIssue ? " low" : ""}`}
+                          >
+                            {entry.stock <= 0
+                              ? "No longer available"
+                              : `${entry.stock} ${entry.unit || "unit(s)"} available`}
+                          </div>
+                        </div>
+
+                        <div className="stock-cart-qty">
+                          <button
+                            type="button"
+                            onClick={() => updateCartQuantity(entry.id, -1)}
+                          >
+                            −
+                          </button>
+
+                          <input
+                            type="number"
+                            value={entry.quantity}
+                            min="1"
+                            max={entry.stock}
+                            onChange={(e) => {
+                              const value = e.target.value;
+
+                              if (value === "") {
+                                const next = cart.map((item) =>
+                                  item.id === entry.id
+                                    ? { ...item, quantity: "" }
+                                    : item,
+                                );
+                                setCart(next);
+                                return;
+                              }
+
+                              const quantity = Number(value);
+
+                              if (
+                                quantity >= 1 &&
+                                quantity <= Number(entry.stock)
+                              ) {
+                                const next = cart.map((item) =>
+                                  item.id === entry.id
+                                    ? { ...item, quantity }
+                                    : item,
+                                );
+                                saveCart(next);
+                              }
+                            }}
+                            onBlur={(e) => {
+                              if (
+                                e.target.value === "" ||
+                                Number(e.target.value) < 1
+                              ) {
+                                setCartQuantity(entry.id, 1);
+                              } else if (
+                                Number(e.target.value) > Number(entry.stock)
+                              ) {
+                                setCartQuantity(entry.id, entry.stock);
+                              }
+                            }}
+                            className="stock-cart-qty-input"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => updateCartQuantity(entry.id, 1)}
+                            disabled={
+                              Number(entry.quantity) >= Number(entry.stock)
+                            }
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        <div className="stock-cart-line-total">
+                          <strong
                             style={{
-                              color: C.red,
-                              fontSize: 10.5,
-                              marginTop: 4,
-                              fontWeight: 800,
+                              color: hasIssue ? C.red : C.greenDk,
+                              fontSize: 13,
                             }}
                           >
-                            No longer available
-                          </div>
-                        )}
+                            {fmtPeso(entry.price * entry.quantity)}
+                          </strong>
+                          <button
+                            type="button"
+                            className="stock-cart-remove"
+                            onClick={() => removeFromCart(entry.id)}
+                          >
+                            <Trash2
+                              size={10}
+                              style={{ verticalAlign: "-2px", marginRight: 3 }}
+                            />
+                            Remove
+                          </button>
+                        </div>
                       </div>
+                    );
+                  })}
+                </div>
+
+                <div className="stock-modal-footer">
+                  {cartLineItems.some(
+                    (entry) =>
+                      selectedCartIds.includes(entry.id) &&
+                      (entry.stock <= 0 ||
+                        Number(entry.quantity || 0) > Number(entry.stock || 0)),
+                  ) && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 7,
+                        padding: "8px 10px",
+                        marginBottom: 9,
+                        border: "1px solid #F0C9C3",
+                        borderRadius: 9,
+                        background: C.redBg,
+                        color: C.red,
+                        fontSize: 9.5,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      <AlertTriangle size={13} />
+                      Some cart items are unavailable or exceed the latest
+                      supply stock. Update the quantities before checkout.
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      alignItems: "flex-end",
+                    }}
+                  >
+                    <div>
                       <div
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6,
+                          fontSize: 9.5,
+                          color: C.muted,
+                          fontWeight: 800,
+                          textTransform: "uppercase",
+                          letterSpacing: ".06em",
                         }}
                       >
-                        <button
-                          type="button"
-                          className="v-btn v-btn-sm"
-                          onClick={() => updateCartQuantity(entry.id, -1)}
-                        >
-                          −
-                        </button>
-                        <strong style={{ minWidth: 20, textAlign: "center" }}>
-                          {entry.quantity}
-                        </strong>
-                        <button
-                          type="button"
-                          className="v-btn v-btn-sm"
-                          onClick={() => updateCartQuantity(entry.id, 1)}
-                          disabled={entry.quantity >= entry.stock}
-                        >
-                          +
-                        </button>
+                        {selectedCart.length
+                          ? `${selectedCart.length} selected`
+                          : "No items selected"}
                       </div>
                       <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 9,
-                          justifyContent: "flex-end",
-                        }}
+                        style={{ marginTop: 2, fontSize: 11, color: C.muted }}
                       >
-                        <strong style={{ color: C.greenDk }}>
-                          {fmtPeso(entry.price * entry.quantity)}
-                        </strong>
-                        <button
-                          type="button"
-                          className="v-btn v-btn-sm"
-                          title="Remove"
-                          onClick={() => removeFromCart(entry.id)}
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        Total
                       </div>
                     </div>
-                  ))}
-                </div>
-                <div style={{ marginTop: 16 }}>
-                  <div className="stock-order-summary-row stock-order-summary-total">
-                    <span style={{ color: C.muted, fontWeight: 800 }}>
-                      Estimated total
-                    </span>
-                    <strong style={{ fontSize: 20, color: C.greenDk }}>
-                      {fmtPeso(cartTotal)}
+                    <strong
+                      style={{ fontSize: 22, lineHeight: 1, color: C.greenDk }}
+                    >
+                      {fmtPeso(selectedCartTotal)}
                     </strong>
                   </div>
                   <button
                     type="button"
                     className="v-btn v-btn-primary"
-                    style={{ width: "100%", minHeight: 46, marginTop: 12 }}
-                    onClick={() => prepareCheckout(cartLineItems, false)}
-                    disabled={!cartLineItems.length}
+                    style={{
+                      width: "100%",
+                      minHeight: 43,
+                      marginTop: 12,
+                      borderRadius: 9,
+                    }}
+                    onClick={() =>
+                      prepareCheckout(
+                        cartLineItems.filter((entry) =>
+                          selectedCartIds.includes(entry.id),
+                        ),
+                      )
+                    }
+                    disabled={
+                      !selectedCart.length ||
+                      cartLineItems.some(
+                        (entry) =>
+                          selectedCartIds.includes(entry.id) &&
+                          (entry.stock <= 0 ||
+                            Number(entry.quantity || 0) >
+                              Number(entry.stock || 0)),
+                      )
+                    }
                   >
-                    Proceed to Checkout
+                    <CheckCircle size={16} /> Check Out
                   </button>
                 </div>
               </>
             ) : (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "50px 20px",
-                  color: C.muted,
-                }}
-              >
-                <ShoppingCart size={28} />
-                <div style={{ marginTop: 10, fontWeight: 800, color: C.ink }}>
+              <div className="stock-order-empty">
+                <div
+                  style={{
+                    width: 54,
+                    height: 54,
+                    borderRadius: 15,
+                    background: C.greenLt,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    margin: "0 auto 13px",
+                    color: C.green,
+                  }}
+                >
+                  <ShoppingCart size={24} />
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 900, color: C.ink }}>
                   Your cart is empty
                 </div>
+                <div style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.5 }}>
+                  Select an inventory item and add an approved supply to begin
+                  your order.
+                </div>
+                <button
+                  type="button"
+                  className="v-btn v-btn-secondary"
+                  style={{
+                    marginTop: 14,
+                    minHeight: 34,
+                    padding: "7px 12px",
+                    fontSize: 10.5,
+                  }}
+                  onClick={() => setShowCart(false)}
+                >
+                  Continue Browsing
+                </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showOrders && (
+        <div
+          className="v-modal-overlay"
+          onMouseDown={() => setShowOrders(false)}
+        >
+          <div
+            className="v-modal stock-order-orders-modal"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="stock-orders-modal-head">
+              <div className="stock-modal-title-row">
+                <div style={{ minWidth: 0 }}>
+                  <div className="stock-modal-eyebrow">Order History</div>
+                  <div className="stock-modal-title">My Supply Orders</div>
+                  <div className="stock-modal-subtitle">
+                    Orders placed for {userBrand || "your assigned brand"} ·{" "}
+                    {userBranch || "your assigned branch"}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    className="v-btn v-btn-secondary"
+                    onClick={fetchOrders}
+                    disabled={ordersLoading}
+                    style={{
+                      minHeight: 34,
+                      padding: "7px 10px",
+                      fontSize: 10.5,
+                    }}
+                  >
+                    <RefreshCw
+                      size={12}
+                      className={ordersLoading ? "fr-spin" : ""}
+                    />{" "}
+                    Refresh
+                  </button>
+                  <button
+                    type="button"
+                    className="v-btn v-btn-secondary"
+                    onClick={() => setShowOrders(false)}
+                    style={{
+                      minHeight: 34,
+                      padding: "7px 10px",
+                      fontSize: 10.5,
+                    }}
+                  >
+                    <X size={13} /> Close
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="stock-orders-summary">
+              <div className="stock-orders-stat">
+                <strong>{orderCounts.total}</strong> Total
+              </div>
+              <div className="stock-orders-stat">
+                <strong>{orderCounts.pending}</strong> Pending
+              </div>
+              <div className="stock-orders-stat">
+                <strong>{orderCounts.processing}</strong> Processing
+              </div>
+              <div className="stock-orders-stat">
+                <strong>{orderCounts.completed}</strong> Completed
+              </div>
+            </div>
+
+            {ordersError && (
+              <div
+                role="alert"
+                style={{
+                  margin: "12px 20px 0",
+                  padding: "9px 11px",
+                  border: "1px solid #f0c9c3",
+                  borderRadius: 9,
+                  background: C.redBg,
+                  color: C.red,
+                  fontSize: 10.5,
+                  display: "flex",
+                  gap: 7,
+                  alignItems: "center",
+                }}
+              >
+                <AlertTriangle size={13} />
+                {ordersError}
+              </div>
+            )}
+
+            <div
+              className="stock-modal-scroll"
+              style={{ maxHeight: "min(62vh,560px)", padding: "2px 0 10px" }}
+            >
+              {ordersLoading && !orders.length ? (
+                <div className="stock-order-empty">
+                  <RefreshCw size={24} className="fr-spin" color={C.green} />
+                  <div
+                    style={{
+                      marginTop: 10,
+                      fontSize: 12,
+                      fontWeight: 900,
+                      color: C.ink,
+                    }}
+                  >
+                    Loading your orders…
+                  </div>
+                </div>
+              ) : orders.length ? (
+                orders.map((order) => {
+                  const orderId =
+                    order?.id ?? order?.order_id ?? order?.reference ?? "—";
+                  const status = orderStatusMeta(order?.status);
+                  const items = orderItemList(order);
+                  const total = Number(
+                    order?.total_amount ?? order?.total ?? 0,
+                  );
+                  const created =
+                    order?.created_at ||
+                    order?.createdAt ||
+                    order?.date ||
+                    order?.ordered_at;
+                  const expanded = String(expandedOrderId) === String(orderId);
+
+                  return (
+                    <div
+                      key={String(orderId)}
+                      className="stock-order-history-card"
+                    >
+                      <button
+                        type="button"
+                        className="stock-order-history-head"
+                        style={{
+                          width: "100%",
+                          border: 0,
+                          background: "transparent",
+                          textAlign: "left",
+                        }}
+                        onClick={() =>
+                          setExpandedOrderId(expanded ? null : orderId)
+                        }
+                        aria-expanded={expanded}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div className="stock-order-history-id">
+                            Order #{orderId}
+                          </div>
+                          <div className="stock-order-history-date">
+                            {formatOrderDate(created)}
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            flexShrink: 0,
+                          }}
+                        >
+                          <span className={`stock-order-status ${status.cls}`}>
+                            {status.label}
+                          </span>
+                          <ChevronDown
+                            size={14}
+                            color={C.muted}
+                            style={{
+                              transform: expanded ? "rotate(180deg)" : "none",
+                              transition: "transform .15s ease",
+                            }}
+                          />
+                        </div>
+                      </button>
+                      <div className="stock-order-history-meta">
+                        <span>
+                          {items.reduce(
+                            (sum, item) => sum + Number(item._quantity || 0),
+                            0,
+                          )}{" "}
+                          item
+                          {items.reduce(
+                            (sum, item) => sum + Number(item._quantity || 0),
+                            0,
+                          ) === 1
+                            ? ""
+                            : "s"}
+                        </span>
+                        <span>
+                          {String(
+                            order?.payment_method || order?.payment || "COD",
+                          ).toUpperCase()}
+                        </span>
+                        <span className="stock-order-history-total">
+                          {fmtPeso(total)}
+                        </span>
+                      </div>
+
+                      {expanded && (
+                        <div className="stock-order-history-details">
+                          {items.length ? (
+                            items.map((item) => (
+                              <div
+                                key={String(item._key)}
+                                className="stock-order-history-item"
+                              >
+                                <div style={{ minWidth: 0 }}>
+                                  <div className="stock-order-history-item-name">
+                                    {item._name}
+                                  </div>
+                                  <div className="stock-order-history-item-meta">
+                                    {item._quantity} × {fmtPeso(item._price)} ·{" "}
+                                    {item._unit}
+                                  </div>
+                                </div>
+                                <strong
+                                  style={{
+                                    color: C.greenDk,
+                                    fontSize: 10.5,
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {fmtPeso(item._quantity * item._price)}
+                                </strong>
+                              </div>
+                            ))
+                          ) : (
+                            <div style={{ fontSize: 9.5, color: C.muted }}>
+                              Item details are not included in the order
+                              response.
+                            </div>
+                          )}
+                          {(order?.address || order?.delivery_address) && (
+                            <div className="stock-order-history-address">
+                              <strong>Delivery:</strong>{" "}
+                              {order.address || order.delivery_address}
+                            </div>
+                          )}
+                          {order?.gcash_ref && (
+                            <div className="stock-order-history-address">
+                              <strong>GCash reference:</strong>{" "}
+                              {order.gcash_ref}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="stock-order-empty">
+                  <div
+                    style={{
+                      width: 54,
+                      height: 54,
+                      borderRadius: 15,
+                      background: C.greenLt,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      margin: "0 auto 13px",
+                      color: C.green,
+                    }}
+                  >
+                    <History size={24} />
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: C.ink }}>
+                    No supply orders yet
+                  </div>
+                  <div
+                    style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.5 }}
+                  >
+                    Orders you place from Stock Inventory will appear here.
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -10457,33 +12459,30 @@ function ManagerStockInventoryContent({
             className="v-modal stock-order-checkout-modal"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <div>
-                <div className="v-modal-title">Checkout Supply Order</div>
-                <div className="stock-order-muted" style={{ marginTop: 4 }}>
-                  {userBrand} · {userBranch}
+            <div className="checkout-mobile-head">
+              <div className="checkout-mobile-head-left">
+                <button
+                  type="button"
+                  className="checkout-mobile-back"
+                  onClick={() => setShowCheckout(false)}
+                  disabled={placingOrder}
+                  aria-label="Back"
+                >
+                  <span style={{ fontSize: 20, lineHeight: 1 }}>‹</span>
+                </button>
+                <div>
+                  <div className="checkout-mobile-title">Check Out</div>
+                  <div className="checkout-mobile-subtitle">
+                    {checkoutItems.length}{" "}
+                    {checkoutItems.length === 1 ? "item" : "items"} to order
+                  </div>
                 </div>
               </div>
-              <button
-                type="button"
-                className="v-btn v-btn-secondary"
-                onClick={() => setShowCheckout(false)}
-                disabled={placingOrder}
-              >
-                <X size={14} /> Close
-              </button>
             </div>
 
             {orderSuccess ? (
-              <div className="stock-order-success">
-                <CheckCircle size={50} color={C.green} />
+              <div className="checkout-success-mobile">
+                <CheckCircle size={54} color={C.green} />
                 <div
                   style={{
                     marginTop: 14,
@@ -10502,185 +12501,315 @@ function ManagerStockInventoryContent({
                 </div>
                 <button
                   type="button"
-                  className="v-btn v-btn-primary"
-                  style={{ marginTop: 20, minWidth: 120 }}
+                  className="checkout-place-btn"
+                  style={{ maxWidth: 220, margin: "22px auto 0" }}
                   onClick={() => {
                     setShowCheckout(false);
                     setOrderSuccess(null);
                   }}
                 >
-                  Done
+                  <CheckCircle size={18} /> Done
                 </button>
               </div>
             ) : (
               <>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.25fr .9fr",
-                    gap: 16,
-                    marginTop: 18,
-                  }}
-                >
-                  <div
-                    style={{
-                      border: `1px solid ${C.border}`,
-                      borderRadius: 14,
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "10px 14px",
-                        background: C.bg,
-                        borderBottom: `1px solid ${C.border}`,
-                        fontSize: 10.5,
-                        fontWeight: 900,
-                        textTransform: "uppercase",
-                        letterSpacing: ".06em",
-                        color: C.muted,
-                      }}
-                    >
-                      Order summary
+                <div className="checkout-mobile-scroll">
+                  <section className="checkout-mobile-section">
+                    <div className="checkout-mobile-section-title">
+                      <span className="checkout-mobile-section-bar" />
+                      Franchisee
                     </div>
-                    {checkoutItems.map((entry) => (
-                      <div
-                        key={entry.id}
-                        style={{
-                          padding: "12px 14px",
-                          borderBottom: `1px solid #F0F2EC`,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          gap: 12,
-                          alignItems: "center",
-                        }}
-                      >
-                        <div style={{ minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontSize: 12.5,
-                              fontWeight: 900,
-                              color: C.ink,
-                              overflowWrap: "anywhere",
-                            }}
-                          >
-                            {entry.name}
+                    <div className="checkout-mobile-card checkout-user-card">
+                      <div className="checkout-user-thumb">
+                        {String(user?.name || "F")
+                          .trim()
+                          .charAt(0)
+                          .toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="checkout-user-name">
+                          {user?.name || "Franchisee"}
+                        </div>
+                        <div className="checkout-user-meta">
+                          {user?.role || "Franchisee"}
+                        </div>
+                        {userBranch && (
+                          <div className="checkout-branch-pill">
+                            <StoreIcon size={13} /> {userBranch}
                           </div>
-                          <div
-                            className="stock-order-muted"
-                            style={{ marginTop: 3 }}
-                          >
-                            {entry.quantity} × {fmtPeso(entry.price)} /{" "}
-                            {entry.unit || "unit"}
+                        )}
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="checkout-mobile-section">
+                    <div className="checkout-mobile-section-title">
+                      <span className="checkout-mobile-section-bar" />
+                      Order Summary
+                    </div>
+                    <div className="checkout-mobile-card">
+                      {checkoutItems.map((entry) => (
+                        <div className="checkout-order-row" key={entry.id}>
+                          <div className="checkout-order-thumb">
+                            {entry.image_url ? (
+                              <img src={entry.image_url} alt="" />
+                            ) : (
+                              <Package size={16} />
+                            )}
+                          </div>
+                          <div className="checkout-order-main">
+                            <div className="checkout-order-name">
+                              {entry.name}
+                            </div>
+                            <div className="checkout-order-qty">
+                              ×{entry.quantity} · {fmtPeso(entry.price)} each
+                            </div>
+                          </div>
+                          <div className="checkout-order-price">
+                            {fmtPeso(
+                              Number(entry.price) * Number(entry.quantity),
+                            )}
                           </div>
                         </div>
-                        <strong
-                          style={{ color: C.greenDk, whiteSpace: "nowrap" }}
-                        >
-                          {fmtPeso(entry.quantity * entry.price)}
-                        </strong>
-                      </div>
-                    ))}
-                    <div
-                      style={{
-                        padding: "12px 14px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <span style={{ fontWeight: 800, color: C.muted }}>
-                        Total
-                      </span>
-                      <strong style={{ fontSize: 19, color: C.greenDk }}>
-                        {fmtPeso(checkoutTotal)}
-                      </strong>
+                      ))}
                     </div>
-                  </div>
+                  </section>
 
-                  <div>
-                    <div className="v-form-group">
-                      <label className="v-form-label">Delivery Address</label>
+                  <section className="checkout-mobile-section">
+                    <div className="checkout-mobile-section-title">
+                      <span className="checkout-mobile-section-bar" />
+                      Delivery Location
+                    </div>
+                    {renderLocationMap()}
+                    <p className="checkout-map-hint">
+                      Tap the map or drag the pin to set your exact delivery
+                      location.
+                    </p>
+                    {locationError && (
+                      <p className="checkout-map-error" role="alert">
+                        {locationError}
+                      </p>
+                    )}
+                    <div className="checkout-address-card">
+                      <StoreIcon
+                        size={20}
+                        color="#2c5c16"
+                        style={{ marginTop: 2, flexShrink: 0 }}
+                      />
                       <textarea
-                        className="v-form-input"
-                        rows={4}
+                        ref={addressInputRef}
                         value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        placeholder="Enter the supply delivery address"
-                        style={{ resize: "vertical" }}
+                        onChange={(e) => {
+                          mapRequestRef.current += 1;
+                          clearTimeout(reverseTimerRef.current);
+                          setLocationBusy(false);
+                          setAddress(e.target.value);
+                          setPinCoords(null);
+                        }}
+                        placeholder="Address auto-fills from pin, or type manually"
+                        rows={3}
                       />
                     </div>
-                    <div className="v-form-group">
-                      <label className="v-form-label">Payment Method</label>
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "1fr 1fr",
-                          gap: 7,
-                        }}
-                      >
-                        <button
-                          type="button"
-                          className={`v-btn ${paymentMethod === "cod" ? "v-btn-primary" : "v-btn-secondary"}`}
-                          onClick={() => setPaymentMethod("cod")}
-                        >
-                          Cash on Delivery
-                        </button>
-                        <button
-                          type="button"
-                          className={`v-btn ${paymentMethod === "gcash" ? "v-btn-primary" : "v-btn-secondary"}`}
-                          onClick={() => setPaymentMethod("gcash")}
-                        >
-                          GCash
-                        </button>
-                      </div>
+                  </section>
+
+                  <section className="checkout-mobile-section">
+                    <div className="checkout-mobile-section-title">
+                      <span className="checkout-mobile-section-bar" />
+                      Payment Method
                     </div>
-                    {paymentMethod === "gcash" && (
-                      <div className="v-form-group">
-                        <label className="v-form-label">
-                          GCash Reference Number
-                        </label>
-                        <input
-                          className="v-form-input"
-                          value={gcashRef}
-                          onChange={(e) => setGcashRef(e.target.value)}
-                          placeholder="Enter GCash reference number"
-                        />
+
+                    <button
+                      type="button"
+                      className={`checkout-pay-card${paymentMethod === "gcash" ? " selected" : ""}`}
+                      onClick={() => setPaymentMethod("gcash")}
+                    >
+                      <div className="checkout-pay-thumb gcash">G</div>
+                      <div className="checkout-pay-main">
+                        <div className="checkout-pay-label">GCash</div>
+                        <div className="checkout-pay-desc">
+                          Pay via GCash for your supply order
+                        </div>
                       </div>
-                    )}
-                  </div>
+                      <span className="checkout-radio">
+                        {paymentMethod === "gcash" && (
+                          <span className="checkout-radio-dot" />
+                        )}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`checkout-pay-card${paymentMethod === "cod" ? " selected" : ""}`}
+                      onClick={() => setPaymentMethod("cod")}
+                    >
+                      <div className="checkout-pay-thumb">
+                        <CreditCard size={20} color="#2c5c16" />
+                      </div>
+                      <div className="checkout-pay-main">
+                        <div className="checkout-pay-label">
+                          Cash on Delivery
+                        </div>
+                        <div className="checkout-pay-desc">
+                          Pay when your order arrives
+                        </div>
+                      </div>
+                      <span className="checkout-radio">
+                        {paymentMethod === "cod" && (
+                          <span className="checkout-radio-dot" />
+                        )}
+                      </span>
+                    </button>
+                  </section>
                 </div>
 
-                <div
-                  style={{
-                    marginTop: 16,
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: 8,
-                  }}
-                >
+                <div className="checkout-mobile-bottom">
+                  <div className="checkout-mobile-accent" />
+                  <div
+                    className="checkout-mobile-section-title"
+                    style={{ marginBottom: 16 }}
+                  >
+                    <span className="checkout-mobile-section-bar" />
+                    Order Total
+                  </div>
+                  <div className="checkout-total-row">
+                    <div className="checkout-total-label">Total Amount</div>
+                    <div className="checkout-total-amount">
+                      {fmtPeso(checkoutTotal)}
+                    </div>
+                  </div>
+                  <div
+                    className="checkout-payment-chip"
+                    style={
+                      paymentMethod === "gcash"
+                        ? { color: "#1565C0" }
+                        : undefined
+                    }
+                  >
+                    {paymentMethod === "gcash" ? (
+                      <>
+                        <strong>G</strong>
+                        <span>GCash payment</span>
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard size={14} />
+                        <span>Cash on Delivery</span>
+                      </>
+                    )}
+                  </div>
                   <button
                     type="button"
-                    className="v-btn v-btn-secondary"
-                    onClick={() => setShowCheckout(false)}
+                    className="checkout-place-btn"
+                    onClick={handleCheckoutAction}
                     disabled={placingOrder}
                   >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    className="v-btn v-btn-primary"
-                    style={{ minWidth: 170, minHeight: 44 }}
-                    onClick={submitOrder}
-                    disabled={placingOrder}
-                  >
-                    {placingOrder ? "Placing Order…" : "Place Order"}
+                    {placingOrder ? (
+                      "Placing Order…"
+                    ) : paymentMethod === "gcash" ? (
+                      <>
+                        <CreditCard size={18} /> Pay with GCash
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={18} /> Place Order (COD)
+                      </>
+                    )}
                   </button>
                 </div>
               </>
             )}
           </div>
         </div>
+      )}
+      <WebGCashPaymentModal
+        visible={showGCash}
+        amount={gcashAmount}
+        onConfirm={handleGCashConfirmed}
+        onCancel={() => setShowGCash(false)}
+      />
+      {showMapPicker && (
+        <div
+          className="v-modal-overlay checkout-map-picker-overlay"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div
+            className="v-modal checkout-map-picker"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Pin your delivery location"
+          >
+            <div className="checkout-map-picker-head">
+              <button
+                type="button"
+                onClick={() => setShowMapPicker(false)}
+                aria-label="Back to checkout"
+              >
+                ‹
+              </button>
+              <strong>Pin Your Location</strong>
+              <button type="button" onClick={() => setShowMapPicker(false)}>
+                Done
+              </button>
+            </div>
+            {renderLocationMap(true)}
+            {locationError && (
+              <p className="checkout-map-error" role="alert">
+                {locationError}
+              </p>
+            )}
+            <p className="checkout-map-hint">
+              Tap the map or drag the pin to set your exact delivery location.
+            </p>
+          </div>
+        </div>
+      )}
+      {showAddressPrompt && (
+        <div
+          className="v-modal-overlay"
+          style={{ zIndex: 10002 }}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div
+            className="v-modal checkout-address-prompt"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="checkout-address-prompt-title"
+            aria-describedby="checkout-address-prompt-message"
+          >
+            <div className="checkout-address-prompt-icon">
+              <StoreIcon size={25} />
+            </div>
+            <h2 id="checkout-address-prompt-title">Delivery address needed</h2>
+            <p id="checkout-address-prompt-message">
+              Please enter your delivery address before placing your order.
+            </p>
+            <button
+              type="button"
+              autoFocus
+              onClick={() => {
+                setShowAddressPrompt(false);
+                requestAnimationFrame(() => {
+                  addressInputRef.current?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                  });
+                  addressInputRef.current?.focus();
+                });
+              }}
+            >
+              Enter Address
+            </button>
+          </div>
+        </div>
+      )}
+
+      {historyBatch && (
+        <BatchTransferHistoryModal
+          batch={historyBatch.batch}
+          ingredient={historyBatch.ingredient}
+          apiUrl={process.env.REACT_APP_API_URL}
+          onClose={() => setHistoryBatch(null)}
+        />
       )}
     </div>
   );
@@ -11710,7 +13839,7 @@ export default function ManagerDashboard({
         localStorage.getItem("user") || sessionStorage.getItem("user");
       const userId = stored ? JSON.parse(stored)?.id : null;
 
-      await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+      await adminModuleFetch(`${process.env.REACT_APP_API_URL}/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
@@ -13246,7 +15375,7 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`,
         {
           method: "POST",
@@ -15009,7 +17138,7 @@ function PrescriptiveSection({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`,
         {
           method: "POST",
@@ -15772,7 +17901,7 @@ function SalesVsStockSection({
         );
         if (names.length) params.set("branches", names.join(","));
       }
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`,
       );
       const json = await res.json();
@@ -16780,7 +18909,7 @@ function FrDashboardContent({ transactions, brands, user }) {
       params.set("branch", userBranch.trim());
       if (!userBranch) return;
 
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`,
       );
       const data = await res.json();
@@ -19168,7 +21297,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
   const fetchProducts = useCallback(async () => {
     if (!userBranch) return;
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/inventory?branch=${encodeURIComponent(userBranch)}`,
       );
       const d = await res.json();
@@ -19182,7 +21311,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
     if (!userBranch) return;
     setLoadingTx(true);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/transactions?branch=${encodeURIComponent(userBranch)}`,
       );
       const d = await res.json();
@@ -19300,11 +21429,14 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
           subtotal: c.price * c.qty,
         })),
       };
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/transactions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
       const d = await res.json();
       if (d.success) {
         setLastReceipt({
@@ -20761,8 +22893,12 @@ function FrReportsContent({ user, transactions = [] }) {
     const fetchSavedReports = async () => {
       try {
         const [savedRes, liveRes] = await Promise.all([
-          fetch(`${process.env.REACT_APP_API_URL}/generated-reports`),
-          fetch(`${process.env.REACT_APP_API_URL}/reports?branch=${branch}`),
+          adminModuleFetch(
+            `${process.env.REACT_APP_API_URL}/generated-reports?branch=${encodeURIComponent(branch)}`,
+          ),
+          adminModuleFetch(
+            `${process.env.REACT_APP_API_URL}/reports?branch=${encodeURIComponent(branch)}`,
+          ),
         ]);
 
         const savedData = await savedRes.json();
@@ -20809,7 +22945,7 @@ function FrReportsContent({ user, transactions = [] }) {
     setKpiLoading(true);
     try {
       const params = new URLSearchParams({ from, to, branch });
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`,
       );
       const data = await res.json();
@@ -20823,7 +22959,7 @@ function FrReportsContent({ user, transactions = [] }) {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await fetch(
+        const res = await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/reports/history?branch=${branch}`,
         );
         const data = await res.json();
@@ -20866,7 +23002,7 @@ function FrReportsContent({ user, transactions = [] }) {
     const fetchDeletedReports = async () => {
       if (!branch) return;
       try {
-        const res = await fetch(
+        const res = await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/reports/deleted?branch=${branch}`,
         );
         const data = await res.json();
@@ -21045,14 +23181,17 @@ ${topItems}
       ═══════════════════════════════════════════════════════════════
       `.trim();
 
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/ai/report`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          max_tokens: 4000,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/ai/report`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            max_tokens: 4000,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        },
+      );
 
       const data = await res.json();
       const reportText =
@@ -21083,7 +23222,7 @@ ${topItems}
       const cleanReportText = sanitizeReport(reportText);
       setAiReport(cleanReportText);
 
-      const submitRes = await fetch(
+      const submitRes = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports`,
         {
           method: "POST",
@@ -21147,7 +23286,7 @@ ${topItems}
 
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports/${report.id}/soft-delete`,
         {
           method: "POST",
@@ -21209,7 +23348,7 @@ ${topItems}
     setRetrieving(report.id);
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports/${report.id}/retrieve`,
         {
           method: "POST",
@@ -21496,7 +23635,7 @@ ${topItems}
     }
     setSavingId(report.id);
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports/${report.id}/save`,
         {
           method: "POST",
@@ -21537,7 +23676,7 @@ ${topItems}
     setSubmitting(report.id);
     try {
       const coords = await getBrowserLocation();
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/reports/submit`,
         {
           method: "POST",
@@ -22916,7 +25055,7 @@ function FrStaffManagementContent({ user }) {
 
   const fetchStaff = async () => {
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users?branch=${encodeURIComponent(franchiseeBranch)}`,
       );
       const d = await res.json();
@@ -22954,11 +25093,14 @@ function FrStaffManagementContent({ user }) {
       return;
     }
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, branch: franchiseeBranch }),
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/users`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...form, branch: franchiseeBranch }),
+        },
+      );
       const d = await res.json();
       if (d.success) {
         await fetchStaff();
@@ -22978,7 +25120,7 @@ function FrStaffManagementContent({ user }) {
       return;
     }
     try {
-      const res = await fetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users/${editingStaff.id}`,
         {
           method: "PUT",
@@ -23011,9 +25153,12 @@ function FrStaffManagementContent({ user }) {
       return;
     }
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/users/${id}`, {
-        method: "DELETE",
-      });
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/users/${id}`,
+        {
+          method: "DELETE",
+        },
+      );
       const d = await res.json();
       if (d.success) {
         await fetchStaff();
@@ -23624,7 +25769,7 @@ function FrProfileContent({ user }) {
     try {
       setOtpError("");
       const emailToVerify = formData.personalEmail || formData.email;
-      const response = await fetch(
+      const response = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/users/${user.id}/password`,
         {
           method: "PUT",
