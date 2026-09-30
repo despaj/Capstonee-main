@@ -93,20 +93,7 @@ import {
   UploadCloud,
   Truck,
 } from "lucide-react";
-
-async function adminModuleFetch(input, options) {
-  const response = await adminModuleFetch(input, options);
-  const method = String(
-    options?.method ||
-      (typeof Request !== "undefined" && input instanceof Request
-        ? input.method
-        : "GET"),
-  ).toUpperCase();
-  if (response.ok && !["GET", "HEAD", "OPTIONS"].includes(method)) {
-    window.dispatchEvent(new Event("franchisync:data-changed"));
-  }
-  return response;
-}
+import { adminModuleFetch } from "../utils/adminModuleFetch";
 
 const VIBE_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -13557,7 +13544,6 @@ export default function ManagerDashboard({
       "stockInventory",
       "pos",
       "reports",
-      "staff",
       "communication",
       "profile",
     ].includes(stored)
@@ -13879,7 +13865,6 @@ export default function ManagerDashboard({
       icon: <ShoppingCart size={20} />,
     },
     // { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
-    { id: "staff", label: "Staff Management", icon: <Users size={20} /> },
     {
       id: "communication",
       label: "Announcements",
@@ -14070,7 +14055,7 @@ export default function ManagerDashboard({
         </button>
         <nav className="fr-nav">
           {!sidebarCollapsed && <div className="fr-nav-section">Main Menu</div>}
-          {navigation.slice(0, 7).map((item) => (
+          {navigation.slice(0, 6).map((item) => (
             <button
               type="button"
               aria-label={item.label}
@@ -14093,7 +14078,7 @@ export default function ManagerDashboard({
               Account
             </div>
           )}
-          {navigation.slice(7).map((item) => (
+          {navigation.slice(6).map((item) => (
             <button
               type="button"
               aria-label={item.label}
@@ -14203,9 +14188,6 @@ export default function ManagerDashboard({
             {activeModule === "receipts" && <Receipts />}
             {activeModule === "reports" && (
               <FrReportsContent user={user} transactions={transactions} />
-            )}
-            {activeModule === "staff" && (
-              <FrStaffManagementContent user={user} />
             )}
             {activeModule === "communication" && (
               <ManCommunicationContent
@@ -25029,443 +25011,6 @@ const StaffForm = ({
     </div>
   </form>
 );
-
-function FrStaffManagementContent({ user }) {
-  const franchiseeBranch = (user?.branch || "").trim();
-  const [staff, setStaff] = useState([]);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingStaff, setEditingStaff] = useState(null);
-  const [confirmDel, setConfirmDel] = useState(null);
-  const [pwErrors, setPwErrors] = useState([]);
-  const [showPwRules, setShowPwRules] = useState(false);
-
-  const emptyForm = {
-    name: "",
-    email: "",
-    role: "Staff",
-    branch: franchiseeBranch,
-    password: "",
-  };
-  const [form, setForm] = useState(emptyForm);
-
-  useEffect(() => {
-    fetchStaff();
-  }, []);
-
-  const fetchStaff = async () => {
-    try {
-      const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/users?branch=${encodeURIComponent(franchiseeBranch)}`,
-      );
-      const d = await res.json();
-      const normalizedBranch = franchiseeBranch.toLowerCase();
-      setStaff(
-        (Array.isArray(d) ? d : [])
-          .filter((u) => ["Staff", "Manager"].includes(u.role))
-          .filter(
-            (u) => (u.branch || "").trim().toLowerCase() === normalizedBranch,
-          ),
-      );
-    } catch {
-      setStaff([]);
-    }
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setForm((p) => ({ ...p, [name]: value }));
-    if (name === "password") {
-      if (value) {
-        setShowPwRules(true);
-        setPwErrors(validatePw(value).errs);
-      } else {
-        setShowPwRules(false);
-        setPwErrors([]);
-      }
-    }
-  };
-
-  const handleAdd = async (e) => {
-    e.preventDefault();
-    if (!validatePw(form.password).valid) {
-      alert("Password does not meet requirements.");
-      return;
-    }
-    try {
-      const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/users`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...form, branch: franchiseeBranch }),
-        },
-      );
-      const d = await res.json();
-      if (d.success) {
-        await fetchStaff();
-        setShowAddModal(false);
-        setForm(emptyForm);
-        setShowPwRules(false);
-      } else alert(d.error || "Failed to add staff");
-    } catch {
-      alert("Failed to add staff");
-    }
-  };
-
-  const handleEdit = async (e) => {
-    e.preventDefault();
-    if (form.password && !validatePw(form.password).valid) {
-      alert("Password does not meet requirements.");
-      return;
-    }
-    try {
-      const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/users/${editingStaff.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: form.name,
-            email: form.email,
-            role: form.role,
-            email: form.email,
-            ...(form.password && { newPassword: form.password }), // backend expects newPassword not password
-          }),
-        },
-      );
-      const d = await res.json();
-      if (d.success) {
-        await fetchStaff();
-        setShowEditModal(false);
-        setEditingStaff(null);
-        setForm(emptyForm);
-        setShowPwRules(false);
-      } else alert(d.error || "Failed to update");
-    } catch {
-      alert("Failed to update");
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (confirmDel !== id) {
-      setConfirmDel(id);
-      return;
-    }
-    try {
-      const res = await adminModuleFetch(
-        `${process.env.REACT_APP_API_URL}/users/${id}`,
-        {
-          method: "DELETE",
-        },
-      );
-      const d = await res.json();
-      if (d.success) {
-        await fetchStaff();
-        setConfirmDel(null);
-      } else alert(d.error || "Failed to delete");
-    } catch {
-      alert("Failed to delete");
-    }
-  };
-
-  const closeModal = () => {
-    setShowAddModal(false);
-    setShowEditModal(false);
-    setForm(emptyForm);
-    setShowPwRules(false);
-    setPwErrors([]);
-  };
-
-  return (
-    <>
-      <div className="v-stat-grid">
-        <VKpi
-          label="Total Staff"
-          value={staff.length}
-          sub={`Branch: ${franchiseeBranch}`}
-          icon={<Users size={20} />}
-          color="green"
-        />
-        <VKpi
-          label="Active Staff"
-          value={
-            staff.filter((s) => (s.status || "active") === "active").length
-          }
-          sub="Active accounts"
-          icon={<Check size={20} />}
-          color="blue"
-        />
-        <VKpi
-          label="Managers"
-          value={staff.filter((s) => s.role === "Manager").length}
-          sub="Manager accounts"
-          icon={<Shield size={20} />}
-          color="orange"
-        />
-      </div>
-
-      <div className="v-card" style={{ padding: "20px 22px" }}>
-        <div className="v-section-head">
-          <VSectionTitle icon={<Users size={16} />}>
-            Staff Accounts — {franchiseeBranch}
-          </VSectionTitle>
-          <button
-            className="v-btn v-btn-primary"
-            onClick={() => {
-              setForm(emptyForm);
-              setShowPwRules(false);
-              setPwErrors([]);
-              setShowAddModal(true);
-            }}
-          >
-            <Plus size={14} /> Create Staff Account
-          </button>
-        </div>
-
-        {staff.length === 0 ? (
-          <VEmptyState
-            icon={<Users size={30} />}
-            title="No staff accounts yet"
-            sub="Create the first staff account for your branch."
-          />
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="v-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {staff.map((s) => (
-                  <tr key={s.id}>
-                    <td>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 34,
-                            height: 34,
-                            borderRadius: 10,
-                            background: "#f0f5e8",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontWeight: 800,
-                            color: "#bdd43c",
-                            fontSize: 13,
-                            fontFamily: "Plus Jakarta Sans,sans-serif",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {(s.name || "S")[0]}
-                        </div>
-                        <strong
-                          style={{
-                            color: "#12241B",
-                            fontFamily: "Plus Jakarta Sans,sans-serif",
-                          }}
-                        >
-                          {s.name}
-                        </strong>
-                      </div>
-                    </td>
-                    <td style={{ color: "#5C6B60", fontSize: 13 }}>
-                      {s.email}
-                    </td>
-                    <td>
-                      {s.role === "Manager" ? (
-                        <span className="v-badge v-badge-orange">
-                          <Shield size={10} /> Manager
-                        </span>
-                      ) : (
-                        <span className="v-badge v-badge-blue">Staff</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className="v-badge v-badge-green">
-                        <div
-                          className="v-dot v-dot-green"
-                          style={{ width: 6, height: 6 }}
-                        />{" "}
-                        {(s.status || "active").toUpperCase()}
-                      </span>
-                    </td>
-                    <td>
-                      <div
-                        style={{ display: "flex", gap: 6, flexWrap: "wrap" }}
-                      >
-                        <button
-                          className="v-btn v-btn-ghost v-btn-sm"
-                          onClick={() => {
-                            setEditingStaff(s);
-                            setForm({
-                              name: s.name,
-                              email: s.email,
-                              role: s.role,
-                              branch: franchiseeBranch,
-                              password: "",
-                            });
-                            setShowPwRules(false);
-                            setPwErrors([]);
-                            setShowEditModal(true);
-                          }}
-                        >
-                          <Edit2 size={12} /> Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(s.id)}
-                          className="v-btn v-btn-sm"
-                          style={{
-                            color: confirmDel === s.id ? "#fff" : "#ef4444",
-                            background:
-                              confirmDel === s.id
-                                ? "var(--grad-red)"
-                                : "rgba(239,68,68,0.06)",
-                            border: "1.5px solid rgba(239,68,68,0.25)",
-                            borderRadius: 9,
-                            boxShadow:
-                              confirmDel === s.id
-                                ? "0 3px 10px rgba(239,68,68,.3)"
-                                : "none",
-                          }}
-                        >
-                          <Trash2 size={12} />{" "}
-                          {confirmDel === s.id ? "Confirm?" : "Delete"}
-                        </button>
-                        {confirmDel === s.id && (
-                          <button
-                            className="v-btn v-btn-secondary v-btn-sm"
-                            onClick={() => setConfirmDel(null)}
-                          >
-                            Cancel
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {showAddModal && (
-        <div className="v-modal-overlay" onClick={closeModal}>
-          <div className="v-modal" onClick={(e) => e.stopPropagation()}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-                marginBottom: 6,
-              }}
-            >
-              <div
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 10,
-                  background: "#f0f5e8",
-                  color: "#3b791e",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <UserPlus size={16} />
-              </div>
-              <h2 className="v-modal-title" style={{ marginBottom: 0 }}>
-                Create Staff Account
-              </h2>
-            </div>
-            <p
-              style={{
-                color: "#94a3b8",
-                fontSize: 13,
-                marginBottom: 22,
-                fontFamily: "Plus Jakarta Sans,sans-serif",
-              }}
-            >
-              Add a new staff or manager to your branch.
-            </p>
-            <StaffForm
-              onSubmit={handleAdd}
-              isEdit={false}
-              form={form}
-              handleInputChange={handleInputChange}
-              closeModal={closeModal}
-              showPwRules={showPwRules}
-              pwErrors={pwErrors}
-            />
-          </div>
-        </div>
-      )}
-      {showEditModal && (
-        <div className="v-modal-overlay" onClick={closeModal}>
-          <div className="v-modal" onClick={(e) => e.stopPropagation()}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-                marginBottom: 6,
-              }}
-            >
-              <div
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 10,
-                  background: "#f0f5e8",
-                  color: "#3b791e",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Pencil size={16} />
-              </div>
-              <h2 className="v-modal-title" style={{ marginBottom: 0 }}>
-                Edit Staff Account
-              </h2>
-            </div>
-            <p
-              style={{
-                color: "#94a3b8",
-                fontSize: 13,
-                marginBottom: 22,
-                fontFamily: "Plus Jakarta Sans,sans-serif",
-              }}
-            >
-              Update details for {editingStaff?.name}.
-            </p>
-            <StaffForm
-              onSubmit={handleEdit}
-              isEdit={true}
-              form={form}
-              handleInputChange={handleInputChange}
-              closeModal={closeModal}
-              showPwRules={showPwRules}
-              pwErrors={pwErrors}
-            />
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
 
 function ManCommunicationContent({ user, brands = [], sidebarCollapsed }) {
   return (
