@@ -814,7 +814,6 @@ async function updateOrderStatus(req, res) {
   try {
     let { status, performed_by, performed_by_role, latitude, longitude } =
       req.body;
-    console.log("PUT /orders/:id body:", req.body);
     const validStatuses = [
       "pending",
       "accepted",
@@ -1290,7 +1289,9 @@ async function updateOrderStatus(req, res) {
     await client.query("ROLLBACK");
     console.error("PUT /orders/:id error:", err);
     res.status(err.status || 500).json({
-      error: err.status ? err.message : "Failed to update order status",
+      error: err.message || "Failed to update order status",
+      code: err.code || null,
+      detail: err.detail || null,
     });
   } finally {
     client.release();
