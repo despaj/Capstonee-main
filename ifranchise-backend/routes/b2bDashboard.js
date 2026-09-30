@@ -619,6 +619,7 @@ const endpoint = (handler) => async (req, res) => {
   }
 };
 router.get("/dashboard/b2b/overview", endpoint(overview));
+
 router.get(
   "/dashboard/b2b/branches",
   endpoint((raw, q, m) =>

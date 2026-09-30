@@ -32,6 +32,9 @@ import {
   Package,
   AlertTriangle,
   DollarSign,
+  EditIcon,
+  TrashIcon,
+  HistoryIcon,
   Grid3X3,
   ChevronDown,
   Plus,
@@ -609,6 +612,16 @@ const fmtPeso = (n) =>
   });
 
 const fmtReportId = (id) => `REP-${String(id).padStart(5, "0")}`;
+
+const fmtTs = (d) =>
+  new Date(d).toLocaleString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Manila",
+  });
 
 const UNITS = [
   "pcs",
@@ -8110,7 +8123,15 @@ function FrMiniBar({ pct, color, track = "#eef6f1", height = 6 }) {
   );
 }
 
-function FrFifoQueue({ product, batches, loading, lowStock = false }) {
+function FrFifoQueue({
+  product,
+  batches,
+  loading,
+  lowStock = false,
+  onEditBatch,
+  onDeleteBatch,
+  onViewHistory,
+}) {
   if (!product) {
     return (
       <div
@@ -8545,6 +8566,82 @@ function FrFifoQueue({ product, batches, loading, lowStock = false }) {
                     {b.notes}
                   </div>
                 )}
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 7,
+                    marginTop: 10,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onEditBatch?.(b)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      height: 30,
+                      padding: "0 12px",
+                      borderRadius: 18,
+                      border: `1px solid ${C.border}`,
+                      background: "#fff",
+                      color: C.green,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <EditIcon size={12} />
+                    Edit
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onDeleteBatch?.(b)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      height: 30,
+                      padding: "0 12px",
+                      borderRadius: 18,
+                      border: "1px solid #ffcdd2",
+                      background: "#fff",
+                      color: "#e53935",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <TrashIcon size={12} />
+                    Delete
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onViewHistory?.(b)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      height: 30,
+                      padding: "0 12px",
+                      borderRadius: 18,
+                      border: "1px solid #bbdefb",
+                      background: "#fff",
+                      color: "#1565c0",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <HistoryIcon size={12} />
+                    History
+                  </button>
+                </div>
               </div>
             );
           })
@@ -8758,7 +8855,271 @@ function WebGCashPaymentModal({ visible, amount, onConfirm, onCancel }) {
   );
 }
 
+function BatchTransferHistoryModal({ batch, ingredient, apiUrl, onClose }) {
+  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    adminModuleFetch(
+      `${apiUrl}/ingredient-batches/${batch.id}/transfer-history`,
+    )
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) {
+          setRows(Array.isArray(d) ? d : []);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [batch.id, apiUrl]);
+
+  const totalTransferred = rows.reduce(
+    (s, r) => s + Number(r.quantity || 0),
+    0,
+  );
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(13,43,30,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2800,
+        padding: 20,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: C.white,
+          borderRadius: 18,
+          width: "100%",
+          maxWidth: 560,
+          maxHeight: "80vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: `1px solid ${C.border}`,
+          fontFamily: "Montserrat,sans-serif",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            padding: "18px 24px",
+            borderBottom: `1px solid ${C.border}`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            background: "#fbfcf8",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                color: C.ink,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <HistoryIcon size={14} /> Transfer History — Batch{" "}
+              {batch.batch_number || "—"}
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+              {ingredient.name} · {ingredient.branch}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              border: `1px solid ${C.border}`,
+              background: C.white,
+              cursor: "pointer",
+              color: C.muted,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <XIcon size={14} />
+          </button>
+        </div>
+
+        <div
+          style={{
+            padding: "14px 24px",
+            borderBottom: `1px solid ${C.border}`,
+            display: "flex",
+            gap: 20,
+            background: "#fafffe",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 10,
+                color: C.muted,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Total Transferred
+            </div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 800,
+                color: C.ink,
+                marginTop: 2,
+              }}
+            >
+              {totalTransferred} {ingredient.unit}
+            </div>
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: 10,
+                color: C.muted,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Transfers
+            </div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 800,
+                color: C.ink,
+                marginTop: 2,
+              }}
+            >
+              {rows.length}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ overflowY: "auto", flex: 1, padding: "8px 24px 20px" }}>
+          {loading ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "30px 0",
+                color: C.muted,
+                fontSize: 12.5,
+              }}
+            >
+              Loading transfer history…
+            </div>
+          ) : rows.length === 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "36px 0",
+                color: "#9ca3af",
+                fontSize: 13,
+                fontStyle: "italic",
+              }}
+            >
+              No stock from this batch has been transferred to a branch yet.
+            </div>
+          ) : (
+            rows.map((r, i) => (
+              <div
+                key={r.id}
+                style={{
+                  padding: "12px 0",
+                  borderBottom:
+                    i < rows.length - 1 ? `1px solid ${C.bg}` : "none",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <StoreIcon size={12} color={C.green} />
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 13,
+                        color: C.ink,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {r.destination_branch || "—"}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
+                    Order #{r.order_id} · {r.destination_brand || "—"} ·{" "}
+                    {r.transferred_at ? fmtTs(r.transferred_at) : "—"}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: C.ink }}>
+                    {r.quantity} {ingredient.unit}
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 9.5,
+                      fontWeight: 800,
+                      padding: "2px 8px",
+                      borderRadius: 20,
+                      marginTop: 3,
+                      display: "inline-block",
+                      background: r.applied ? C.greenLt : C.amberBg,
+                      color: r.applied ? C.greenDk : "#9a3412",
+                      border: `1px solid ${r.applied ? C.greenMid : C.amberBorder}`,
+                    }}
+                  >
+                    {r.applied ? "RECEIVED" : "IN TRANSIT"}
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FrStockInventoryContent({ user, brands }) {
+  const [editingItem, setEditingItem] = useState(null);
+  const [editForm, setEditForm] = useState({
+    min_stock: "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletingItem, setDeletingItem] = useState(false);
+
   const isLowStock = (item) =>
     Number(item.stock || 0) <= Number(item.min_stock || 0);
   const userBranch = String(user?.branch || "").trim();
@@ -8778,6 +9139,11 @@ function FrStockInventoryContent({ user, brands }) {
   const [selectedId, setSelectedId] = useState(null);
   const [batches, setBatches] = useState([]);
   const [batchLoading, setBatchLoading] = useState(false);
+
+  const [editingBatch, setEditingBatch] = useState(null);
+  const [deleteConfirmBatch, setDeleteConfirmBatch] = useState(null);
+
+  const [historyBatch, setHistoryBatch] = useState(null);
 
   const [cart, setCart] = useState([]);
   const [selectedCartIds, setSelectedCartIds] = useState([]);
@@ -9832,6 +10198,102 @@ function FrStockInventoryContent({ user, brands }) {
     return counts;
   }, [orders]);
 
+  const openFrEdit = (item) => {
+    setEditingItem(item);
+
+    setEditForm({
+      min_stock: String(item?.min_stock ?? ""),
+    });
+  };
+
+  const saveFrEdit = async () => {
+    if (!editingItem) return;
+
+    const minStock = Number(editForm.min_stock);
+
+    if (!Number.isFinite(minStock) || minStock < 0) {
+      window.alert("Minimum stock must be 0 or greater.");
+      return;
+    }
+
+    setSavingEdit(true);
+
+    try {
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/ingredients/${editingItem.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            ...editingItem,
+            min_stock: minStock,
+            performed_by: user?.name || "Franchisee",
+            performed_by_role: user?.role || "Franchisee",
+          }),
+        },
+      );
+
+      const data = await res.json();
+
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.error || "Failed to update inventory item.");
+      }
+
+      setEditingItem(null);
+      await fetchItems();
+    } catch (error) {
+      console.error("Franchisee inventory edit error:", error);
+      window.alert(error.message || "Failed to update inventory item.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const confirmFrDelete = async () => {
+    if (!deleteTarget) return;
+
+    setDeletingItem(true);
+
+    try {
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/ingredients/${deleteTarget.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            deleted_by: user?.name || "Franchisee",
+            performed_by_role: user?.role || "Franchisee",
+          }),
+        },
+      );
+
+      const data = await res.json();
+
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.error || "Failed to delete inventory item.");
+      }
+
+      setDeleteTarget(null);
+
+      if (selectedId === deleteTarget.id) {
+        setSelectedId(null);
+      }
+
+      await fetchItems();
+    } catch (error) {
+      console.error("Franchisee inventory delete error:", error);
+      window.alert(error.message || "Failed to delete inventory item.");
+    } finally {
+      setDeletingItem(false);
+    }
+  };
+
   return (
     <div className="fr-stock-order-shell">
       <style>{`
@@ -9852,7 +10314,26 @@ function FrStockInventoryContent({ user, brands }) {
         .fr-stock-order-shell .stock-order-row-name { display:block; max-width:100%; font-size:12px; line-height:1.15; font-weight:850; color:${C.greenDk}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .fr-stock-order-shell .stock-order-row-meta { margin-top:5px; color:#737B74; font-size:9.5px; line-height:1.15; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .fr-stock-order-shell .stock-order-row-submeta { margin-top:3px; color:#737B74; font-size:9.5px; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .fr-stock-order-shell .stock-order-stock-line { position:absolute; left:14px; right:14px; bottom:11px; margin:0; width:auto; height:4px; border-radius:2px; background:#E9EEE5; overflow:hidden; transition:background-color .18s ease; }
+        .fr-stock-order-shell .stock-order-stock-line {
+  position: relative !important;
+  display: block !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+
+  width: 100% !important;
+  height: 4px !important;
+
+  margin: 8px 0 9px !important;
+
+  border-radius: 2px;
+  background: #E9EEE5;
+  overflow: hidden;
+
+  transition:
+    background-color .18s ease,
+    width .22s ease;
+}
         .fr-stock-order-shell .stock-order-stock-line.low-track { background:#fbe5e3; }
         .fr-stock-order-shell .stock-order-stock-line-fill { display:block; height:100%; width:0; border-radius:2px; background:${C.green}; transition:background-color .18s ease, width .22s ease; }
         .fr-stock-order-shell .stock-order-stock-line-fill.low { background:${C.red}; }
@@ -9903,6 +10384,25 @@ function FrStockInventoryContent({ user, brands }) {
 .fr-stock-order-shell .stock-order-stepper-input {
   -moz-appearance: textfield;
   appearance: textfield;
+}
+.stock-order-list .stock-order-row {
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  padding: 16px 22px !important;
+  box-sizing: border-box !important;
+}
+.stock-order-list .stock-order-row + .stock-order-row {
+  border-top: 1px solid #eef1e9 !important;
+}
+
+.stock-order-row-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  margin-top: 0 !important;
+  position: relative !important;
+  z-index: 2 !important;
 }
         .fr-stock-order-shell .stock-order-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:10px; }
         .stock-order-actions .v-btn { min-height:32px !important; padding:6px 11px !important; font-size:11px !important; border-radius:8px !important; }
@@ -10887,12 +11387,19 @@ max-width: 950px !important;
                   ? `Low stock: ${frStockQuantity(item.stock, item.unit)} (${stockPercent}% of highest stock)`
                   : `Stock okay: ${frStockQuantity(item.stock, item.unit)} (${stockPercent}% of highest stock)`;
                 return (
-                  <button
-                    type="button"
+                  <div
                     key={item.id}
                     className={`stock-order-row${active ? " active" : ""}`}
-                    aria-pressed={active}
                     onClick={() => selectItem(item)}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={active}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        selectItem(item);
+                      }
+                    }}
                   >
                     <span className="stock-order-row-top">
                       <span className="stock-order-row-name">{item.name}</span>
@@ -10921,7 +11428,258 @@ max-width: 950px !important;
                         style={{ width: `${stockPercent}%` }}
                       />
                     </span>
-                  </button>
+                    <span className="stock-order-row-actions">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openFrEdit(item);
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 5,
+                          height: 32,
+                          padding: "0 12px",
+                          borderRadius: 18,
+                          border: "1px solid #d8e3cf",
+                          background: "#fff",
+                          color: C.green,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          fontFamily: "inherit",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <Pencil size={13} />
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget(item);
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 5,
+                          height: 32,
+                          padding: "0 12px",
+                          borderRadius: 18,
+                          border: "1px solid #ffc9c9",
+                          background: "#fff",
+                          color: "#ef4444",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          fontFamily: "inherit",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <Trash2 size={13} />
+                        Delete
+                      </button>
+                    </span>
+                    {editingItem && (
+                      <div
+                        style={{
+                          position: "fixed",
+                          inset: 0,
+                          zIndex: 5000,
+                          background: "rgba(0,0,0,.38)",
+                          display: "grid",
+                          placeItems: "center",
+                          padding: 20,
+                        }}
+                        onMouseDown={() => {
+                          if (!savingEdit) setEditingItem(null);
+                        }}
+                      >
+                        <div
+                          onMouseDown={(e) => e.stopPropagation()}
+                          style={{
+                            width: "min(92vw, 420px)",
+                            background: "#fff",
+                            borderRadius: 18,
+                            border: `1px solid ${C.border}`,
+                            boxShadow: "0 24px 70px rgba(0,0,0,.20)",
+                            padding: 22,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 17,
+                              fontWeight: 800,
+                              color: C.ink,
+                              marginBottom: 4,
+                            }}
+                          >
+                            Edit Inventory
+                          </div>
+
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: C.muted,
+                              marginBottom: 18,
+                            }}
+                          >
+                            {editingItem.name}
+                          </div>
+
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: C.muted,
+                              marginBottom: 6,
+                            }}
+                          >
+                            Minimum Stock
+                          </label>
+
+                          <input
+                            type="number"
+                            min="0"
+                            value={editForm.min_stock}
+                            onChange={(e) =>
+                              setEditForm((prev) => ({
+                                ...prev,
+                                min_stock: e.target.value,
+                              }))
+                            }
+                            style={{
+                              width: "100%",
+                              height: 40,
+                              padding: "0 12px",
+                              borderRadius: 10,
+                              border: `1px solid ${C.border}`,
+                              outline: "none",
+                              boxSizing: "border-box",
+                              fontFamily: "inherit",
+                            }}
+                          />
+
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "flex-end",
+                              gap: 8,
+                              marginTop: 20,
+                            }}
+                          >
+                            <button
+                              type="button"
+                              disabled={savingEdit}
+                              onClick={() => setEditingItem(null)}
+                            >
+                              Cancel
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={savingEdit}
+                              onClick={saveFrEdit}
+                              style={{
+                                background: C.green,
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: 999,
+                                padding: "9px 18px",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {savingEdit ? "Saving..." : "Save Changes"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {deleteTarget && (
+                      <div
+                        style={{
+                          position: "fixed",
+                          inset: 0,
+                          zIndex: 5000,
+                          background: "rgba(0,0,0,.38)",
+                          display: "grid",
+                          placeItems: "center",
+                          padding: 20,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "min(92vw, 400px)",
+                            background: "#fff",
+                            borderRadius: 18,
+                            padding: 22,
+                            border: `1px solid ${C.border}`,
+                            boxShadow: "0 24px 70px rgba(0,0,0,.20)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 17,
+                              fontWeight: 800,
+                              color: C.ink,
+                            }}
+                          >
+                            Delete Inventory Item?
+                          </div>
+
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: C.muted,
+                              lineHeight: 1.6,
+                              marginTop: 8,
+                            }}
+                          >
+                            Are you sure you want to delete{" "}
+                            <strong>{deleteTarget.name}</strong>?
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "flex-end",
+                              gap: 8,
+                              marginTop: 20,
+                            }}
+                          >
+                            <button
+                              type="button"
+                              disabled={deletingItem}
+                              onClick={() => setDeleteTarget(null)}
+                            >
+                              Cancel
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={deletingItem}
+                              onClick={confirmFrDelete}
+                              style={{
+                                background: "#e53935",
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: 999,
+                                padding: "9px 18px",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {deletingItem ? "Deleting..." : "Delete"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 );
               })
             )}
@@ -10944,6 +11702,24 @@ max-width: 950px !important;
                     batches={batches}
                     loading={batchLoading}
                     lowStock={isLowStock(selected)}
+                    onEditBatch={(batch) => {
+                      setEditingBatch({
+                        batch,
+                        ingredient: selected,
+                      });
+                    }}
+                    onDeleteBatch={(batch) => {
+                      setDeleteConfirmBatch({
+                        batch,
+                        ingredient: selected,
+                      });
+                    }}
+                    onViewHistory={(batch) => {
+                      setHistoryBatch({
+                        batch,
+                        ingredient: selected,
+                      });
+                    }}
                   />
                 </div>
 
@@ -11698,6 +12474,7 @@ max-width: 950px !important;
                     order?.date ||
                     order?.ordered_at;
                   const expanded = String(expandedOrderId) === String(orderId);
+
                   return (
                     <div
                       key={String(orderId)}
@@ -12205,6 +12982,15 @@ max-width: 950px !important;
           </div>
         </div>
       )}
+
+      {historyBatch && (
+        <BatchTransferHistoryModal
+          batch={historyBatch.batch}
+          ingredient={historyBatch.ingredient}
+          apiUrl={process.env.REACT_APP_API_URL}
+          onClose={() => setHistoryBatch(null)}
+        />
+      )}
     </div>
   );
 }
@@ -12230,6 +13016,16 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
   const [processing, setProcessing] = useState(false);
   const [txPage, setTxPage] = useState(0);
   const [noteInput, setNoteInput] = useState("");
+
+  const [editingItem, setEditingItem] = useState(null);
+  const [editForm, setEditForm] = useState({
+    min_stock: "",
+  });
+
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletingItem, setDeletingItem] = useState(false);
 
   const VAT_RATE = 0.12;
   const TX_PAGE_SIZE = 20;

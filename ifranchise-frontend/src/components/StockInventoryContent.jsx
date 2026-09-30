@@ -4399,28 +4399,6 @@ function BrandCard({
               </span>
             )}
           </button>
-          {canModifyItem(selected) && (
-            <button
-              onClick={() => onReceiveStock(brandDef, selected)}
-              title="Receive stock for this brand"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                height: 26,
-                padding: "0 11px",
-                borderRadius: 7,
-                border: `1px solid ${C.border}`,
-                background: C.white,
-                color: C.greenDk,
-                fontSize: 11,
-                fontWeight: 700,
-                fontFamily: "inherit",
-              }}
-            >
-              <PlusIcon size={11} /> Receive Stock
-            </button>
-          )}
 
           {canEditSelectedBranch && (
             <>
