@@ -14630,22 +14630,33 @@ function FrReportsContent({ user, transactions = [] }) {
       try {
         const [savedRes, liveRes] = await Promise.all([
           adminModuleFetch(
-            `${process.env.REACT_APP_API_URL}/generated-reports`,
+            `${process.env.REACT_APP_API_URL}/generated-reports?branch=${encodeURIComponent(branch)}`,
           ),
           adminModuleFetch(
-            `${process.env.REACT_APP_API_URL}/reports?branch=${branch}`,
+            `${process.env.REACT_APP_API_URL}/reports?branch=${encodeURIComponent(branch)}`,
           ),
         ]);
 
         const savedData = await savedRes.json();
         const liveData = await liveRes.json();
 
+        if (!savedRes.ok) {
+          throw new Error(savedData?.error || "Failed to fetch saved reports");
+        }
+
+        if (!liveRes.ok) {
+          throw new Error(liveData?.error || "Failed to fetch reports");
+        }
+
+        const savedReports = Array.isArray(savedData) ? savedData : [];
+        const liveReports = Array.isArray(liveData) ? liveData : [];
+
         const liveStatusMap = {};
-        liveData.forEach((r) => {
+        liveReports.forEach((r) => {
           liveStatusMap[r.id] = r.status;
         });
 
-        const loaded = savedData
+        const loaded = savedReports
           .map((item) => {
             const snapshot =
               typeof item.snapshot === "string"
