@@ -9673,11 +9673,6 @@ function FrStockInventoryContent({ user }) {
     (sum, entry) => sum + Number(entry.quantity || 0),
     0,
   );
-  const cartTotal = cart.reduce(
-    (sum, entry) =>
-      sum + Number(entry.price || 0) * Number(entry.quantity || 0),
-    0,
-  );
   const selectedCart = cart.filter((entry) =>
     selectedCartIds.includes(entry.id),
   );
@@ -10433,8 +10428,14 @@ function FrStockInventoryContent({ user }) {
         .fr-stock-order-shell { position:relative; padding-bottom:48px; }
         .fr-stock-order-shell .stock-surface { overflow:hidden; }
         .fr-stock-order-shell .stock-order-header { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-        .fr-stock-order-shell .stock-order-cart-btn { position:relative; min-width:124px; border-radius:8px !important; min-height:32px !important; padding:6px 11px !important; font-size:11px !important; }
-        .fr-stock-order-shell .stock-cart-count { min-width:20px; height:20px; padding:0 6px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#b3a941; color:#12241B; font-size:10px; font-weight:900; }
+        body.fr-admin-ui .fr-stock-order-shell .stock-order-cart-btn,
+        .fr-stock-order-shell .stock-order-cart-btn { position:relative; display:inline-flex; align-items:center; justify-content:center; flex:0 0 44px; width:44px!important; min-width:44px!important; height:44px!important; min-height:44px!important; padding:6px!important; margin:0 4px; border:0!important; border-radius:10px!important; background:transparent!important; color:#3b791e!important; box-shadow:none!important; cursor:pointer; overflow:visible; }
+        body.fr-admin-ui .fr-stock-order-shell .stock-order-cart-btn>svg,
+        .fr-stock-order-shell .stock-order-cart-btn>svg { width:26px!important; height:26px!important; fill:none; stroke:currentColor; }
+        .fr-stock-order-shell .stock-order-cart-btn:hover { background:#f0f5e8!important; }
+        .fr-stock-order-shell .stock-order-cart-btn:focus-visible { outline:2px solid #3b791e; outline-offset:3px; }
+        .fr-stock-order-shell .stock-cart-count { position:absolute; top:0; right:-3px; min-width:19px; height:19px; padding:0 4px; box-sizing:border-box; border:2px solid #fff; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#3b791e; color:#fff; font-size:10px; line-height:1; font-weight:800; pointer-events:none; }
+
         .fr-stock-order-shell .stock-order-layout { display:grid; grid-template-columns:minmax(360px,.95fr) minmax(430px,1.05fr); min-height:520px; max-height:760px; }
         .fr-stock-order-shell .stock-order-list { min-width:0; border-right:1px solid ${C.border}; overflow-y:auto; max-height:760px; }
         .fr-stock-order-shell .stock-order-detail { min-width:0; overflow-y:auto; max-height:760px; padding:12px; scroll-margin-top:88px; }
@@ -11416,8 +11417,7 @@ max-width: 950px !important;
                 </span>
               </div>
               <div style={{ marginTop: 4, fontSize: 11, color: C.muted }}>
-                Monitor branch stock and order approved supplies without leaving
-                this screen.
+                Order store supplies from iFranchise
               </div>
             </div>
           </div>
@@ -11438,13 +11438,13 @@ max-width: 950px !important;
             </button>
             <button
               type="button"
-              className="v-btn v-btn-primary stock-order-cart-btn"
+              className="stock-order-cart-btn"
               onClick={() => setShowCart(true)}
+              aria-label={`Open cart, ${cartItemCount} ${cartItemCount === 1 ? "item" : "items"}`}
+              title="My Cart"
             >
-              <ShoppingCart size={15} />
-              Cart
-              <span className="stock-cart-count">{cartItemCount}</span>
-              <span style={{ opacity: 0.92 }}>{fmtPeso(cartTotal)}</span>
+              <ShoppingCart size={26} strokeWidth={1.7} aria-hidden="true" />
+              <span className="stock-cart-count" aria-hidden="true">{cartItemCount}</span>
             </button>
           </div>
         </div>
