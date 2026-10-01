@@ -9752,7 +9752,7 @@ function MSI_FrFifoQueue({
                       cursor: "pointer",
                     }}
                   >
-                    <MSI_HistoryIcon size={12} />
+                    <History size={12} />
                     History
                   </button>
                 </div>
@@ -9794,7 +9794,7 @@ function MSI_WebGCashPaymentModal({ visible, amount, onConfirm, onCancel }) {
     const createLink = async () => {
       clearTimers();
       try {
-        const response = await MSI_adminModuleFetch(
+        const response = await adminModuleFetch(
           `${process.env.REACT_APP_API_URL}/paymongo/create-gcash`,
           {
             method: "POST",
@@ -9835,7 +9835,7 @@ function MSI_WebGCashPaymentModal({ visible, amount, onConfirm, onCancel }) {
         }, 1000);
         pollRef.current = setInterval(async () => {
           try {
-            const statusResponse = await MSI_adminModuleFetch(
+            const statusResponse = await adminModuleFetch(
               `${process.env.REACT_APP_API_URL}/paymongo/link-status/${encodeURIComponent(data.linkId)}`,
               { credentials: "include", cache: "no-store" },
             );
@@ -9976,7 +9976,7 @@ function MSI_BatchTransferHistoryModal({ batch, ingredient, apiUrl, onClose }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    MSI_adminModuleFetch(
+    adminModuleFetch(
       `${apiUrl}/ingredient-batches/${batch.id}/transfer-history`,
     )
       .then((r) => r.json())
@@ -10051,7 +10051,7 @@ function MSI_BatchTransferHistoryModal({ batch, ingredient, apiUrl, onClose }) {
                 gap: 8,
               }}
             >
-              <MSI_HistoryIcon size={14} /> Transfer History — Batch{" "}
+              <History size={14} /> Transfer History — Batch{" "}
               {batch.batch_number || "—"}
             </div>
             <div style={{ fontSize: 12, color: MSI_C.muted, marginTop: 2 }}>
@@ -10235,7 +10235,7 @@ const MSI_frSupplyAddressCache = new Map();
 async function MSI_frSupplyAddressList(path) {
   if (MSI_frSupplyAddressCache.has(path))
     return MSI_frSupplyAddressCache.get(path);
-  const response = await fetch(`${MSI_FR_SUPPLY_PSGC}${path}`, {
+  const response = await adminModuleFetch(`${MSI_FR_SUPPLY_PSGC}${path}`, {
     headers: { Accept: "application/json" },
   });
   if (!response.ok)
@@ -10727,7 +10727,7 @@ function ManagerStockInventoryContent({ user }) {
     setInventoryError("");
 
     try {
-      const res = await MSI_adminModuleFetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/ingredients?branch=${encodeURIComponent(
           userBranch,
         )}`,
@@ -10766,7 +10766,7 @@ function ManagerStockInventoryContent({ user }) {
     setShopLoading(true);
     setShopError("");
     try {
-      const res = await MSI_adminModuleFetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/shop-items`,
         {
           credentials: "include",
@@ -10823,7 +10823,7 @@ function ManagerStockInventoryContent({ user }) {
       if (userBrand) params.set("brand", userBrand);
 
       const query = params.toString();
-      const res = await MSI_adminModuleFetch(
+      const res = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/orders${query ? `?${query}` : ""}`,
         { credentials: "include", cache: "no-store" },
       );
@@ -11317,7 +11317,7 @@ function ManagerStockInventoryContent({ user }) {
       async () => {
         lastLookupRef.current = Date.now();
         try {
-          const response = await fetch(
+          const response = await adminModuleFetch(
             `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}&addressdetails=1&accept-language=en`,
             { headers: { Accept: "application/json" } },
           );
@@ -11466,7 +11466,7 @@ function ManagerStockInventoryContent({ user }) {
     setPlacingOrder(true);
     try {
       // Re-check the live shop catalog immediately before creating the order.
-      const latestResponse = await MSI_adminModuleFetch(
+      const latestResponse = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/shop-items`,
         { credentials: "include", cache: "no-store" },
       );
@@ -11533,7 +11533,7 @@ function ManagerStockInventoryContent({ user }) {
         gcash_ref: paymentMethod === "gcash" ? confirmedGCashRef : null,
       };
 
-      const response = await MSI_adminModuleFetch(
+      const response = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/orders`,
         {
           method: "POST",
@@ -11593,7 +11593,7 @@ function ManagerStockInventoryContent({ user }) {
     }
     setPlacingOrder(true);
     try {
-      const response = await MSI_adminModuleFetch(
+      const response = await adminModuleFetch(
         `${process.env.REACT_APP_API_URL}/shop-items`,
         { credentials: "include", cache: "no-store" },
       );
@@ -11648,7 +11648,7 @@ function ManagerStockInventoryContent({ user }) {
     }
     let cancelled = false;
     setBatchLoading(true);
-    MSI_adminModuleFetch(
+    adminModuleFetch(
       `${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${selectedId}`,
       {
         credentials: "include",

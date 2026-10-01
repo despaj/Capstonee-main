@@ -648,10 +648,13 @@ router.get("/orders", async (req, res) => {
                 json_build_object(
                   'shop_item_id', oi.shop_item_id,
                   'name', COALESCE(oi.item_name,si.name),
-                  'qty', oi.quantity,
-                  'price', oi.price,
-                  'stock', COALESCE(i.stock, si.stock),
-                  'unit', COALESCE(oi.item_unit,si.unit)
+'qty', oi.quantity,
+'price', oi.price,
+'stock', COALESCE(i.stock, si.stock),
+'unit', COALESCE(oi.item_unit,si.unit),
+'inventory_quantity', oi.inventory_quantity,
+'inventory_unit', oi.inventory_unit,
+'source_ingredient_id', oi.source_ingredient_id
                 )
               ) FILTER (WHERE oi.id IS NOT NULL)
 
@@ -957,15 +960,19 @@ async function updateOrderStatus(req, res) {
                 { status: 409 },
               );
             row.requiredQuantity = Number(row.inventory_quantity);
-          } else if (
-            websiteUnit(row.sale_unit) !== websiteUnit(row.stock_unit)
-          ) {
-            throw Object.assign(
-              new Error(
-                "This older order has no unit conversion snapshot. Reject it and ask the branch to reorder.",
-              ),
-              { status: 409 },
-            );
+          } else {
+            const legacyFactor = unitFactor(row.sale_unit, row.stock_unit);
+
+            if (!(legacyFactor > 0)) {
+              throw Object.assign(
+                new Error(
+                  `This older order cannot convert ${row.sale_unit || "unknown unit"} to ${row.stock_unit || "unknown unit"}.`,
+                ),
+                { status: 409 },
+              );
+            }
+
+            row.requiredQuantity = Number(row.quantity) * legacyFactor;
           }
         }
       }
@@ -979,20 +986,53 @@ async function updateOrderStatus(req, res) {
       }
 
       const insufficient = [];
-      for (const [ingredientId, needed] of neededByIngredient.entries()) {
-        const row = itemsRes.rows.find((r) => r.ingredient_id === ingredientId);
-        const available = await getAllocatableStock(client, ingredientId);
-        if (available < needed) {
-          insufficient.push({ name: row.item_name, needed, available });
+
+      for (const [ingredientId, neededRaw] of neededByIngredient.entries()) {
+        const row = itemsRes.rows.find(
+          (r) => String(r.ingredient_id) === String(ingredientId),
+        );
+
+        const needed = stockRound(Number(neededRaw));
+        const available = stockRound(
+          Number(await getAllocatableStock(client, ingredientId)),
+        );
+
+        const stockUnit = row?.stock_unit || "units";
+
+        if (needed > available) {
+          insufficient.push({
+            name: row?.item_name || "Unknown item",
+            needed,
+            available,
+            unit: stockUnit,
+            shortage: stockRound(needed - available),
+          });
+        } else {
         }
       }
+
       if (insufficient.length > 0) {
+        insufficient.forEach((item) => {
+          console.log(
+            `  • ${item.name}: needs ${item.needed} ${item.unit}, ` +
+              `available ${item.available} ${item.unit}, ` +
+              `short ${item.shortage} ${item.unit}`,
+          );
+        });
+
+        console.log("");
+
         await client.query("ROLLBACK");
+
         return res.status(409).json({
           error: "Insufficient stock to accept this order",
+          message:
+            "The order was not accepted because one or more items exceed the available stock.",
           insufficientItems: insufficient,
         });
       }
+
+      console.log(`✅ ORDER #${req.params.id} PASSED STOCK CHECK`);
 
       const processed = new Set();
       for (const row of itemsRes.rows) {

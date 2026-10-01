@@ -2196,12 +2196,14 @@ export default function AdminDashboard({ user, onLogout }) {
       icon: <BarChart2 size={20} />,
       section: "main",
     },
-{
-  id: "stockInventory",
-  label: "Stock Inventory",
-  icon: <InventoryIcon size={22} active={activeModule === "stockInventory"} />,
-  section: "main",
-},
+    {
+      id: "stockInventory",
+      label: "Stock Inventory",
+      icon: (
+        <InventoryIcon size={22} active={activeModule === "stockInventory"} />
+      ),
+      section: "main",
+    },
     {
       id: "inventory",
       label: "Product Catalogue",
@@ -2529,13 +2531,13 @@ export default function AdminDashboard({ user, onLogout }) {
           {activeModule === "reports" && (
             <ReportsContent user={user} brands={brands} />
           )}
-{activeModule === "communication" && (
-  <CommunicationContent
-    user={user}
-    brands={brands}
-    sidebarCollapsed={sidebarCollapsed}
-  />
-)}
+          {activeModule === "communication" && (
+            <CommunicationContent
+              user={user}
+              brands={brands}
+              sidebarCollapsed={sidebarCollapsed}
+            />
+          )}
           {activeModule === "brandBranch" && (
             <BrandManagementContent
               user={user}
@@ -30418,11 +30420,7 @@ function UsersContent({ user, brands: propBrands = [] }) {
   );
 }
 
-function CommunicationContent({
-  user,
-  brands = [],
-  sidebarCollapsed,
-}) {
+function CommunicationContent({ user, brands = [], sidebarCollapsed }) {
   return (
     <div className="communication-announcement-wrapper">
       <style>{`
@@ -31163,9 +31161,38 @@ function OrderCard({
 }) {
   const isPending = order.status === "pending";
   const isAccepted = order.status === "accepted";
-  const shortItems = (stockInfo?.results || []).filter((r) => !r.sufficient);
+
+  const shortItems = (stockInfo?.results || []).filter(
+    (item) => item?.sufficient === false,
+  );
+
   const insufficient =
-    isPending && stockInfo && !stockInfo.checking && shortItems.length > 0;
+    isPending &&
+    stockInfo?.checking === false &&
+    stockInfo?.ok === false &&
+    shortItems.length > 0;
+
+  const checkingStock = isPending && stockInfo?.checking === true;
+
+  const getRequiredStock = (item) => {
+    if (
+      item?.inventory_quantity != null &&
+      Number.isFinite(Number(item.inventory_quantity))
+    ) {
+      return Number(item.inventory_quantity);
+    }
+
+    if (item?.needed != null && Number.isFinite(Number(item.needed))) {
+      return Number(item.needed);
+    }
+
+    return Number(item?.qty || 0);
+  };
+
+  const getStockUnit = (item) => item?.inventory_unit || item?.unit || "";
+
+  const disableAccept =
+    acceptDisabled || accepting || checkingStock || stockInfo?.ok !== true;
 
   const statusStyle = {
     pending: {
@@ -31229,6 +31256,7 @@ function OrderCard({
         e.currentTarget.style.transform = "translateY(0)";
       }}
     >
+      {/* HEADER */}
       <div
         style={{
           display: "flex",
@@ -31237,13 +31265,27 @@ function OrderCard({
         }}
       >
         <div>
-          <div style={{ fontWeight: 800, fontSize: 14, color: C.ink }}>
+          <div
+            style={{
+              fontWeight: 800,
+              fontSize: 14,
+              color: C.ink,
+            }}
+          >
             #{order.id}
           </div>
-          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>
+
+          <div
+            style={{
+              fontSize: 11.5,
+              color: C.muted,
+              marginTop: 2,
+            }}
+          >
             {fmtDate(order.createdAt)} · {order.source}
           </div>
         </div>
+
         <span
           style={{
             fontSize: 10,
@@ -31260,6 +31302,7 @@ function OrderCard({
         </span>
       </div>
 
+      {/* BRAND / BRANCH */}
       {(order.brand || order.branch) && (
         <div
           style={{
@@ -31274,11 +31317,15 @@ function OrderCard({
             whiteSpace: "nowrap",
           }}
         >
-          <Store size={13} color={C.green} /> {order.brand || "—"}
+          <Store size={13} color={C.green} />
+
+          {order.brand || "—"}
+
           {order.branch ? ` · ${order.branch}` : ""}
         </div>
       )}
 
+      {/* CUSTOMER */}
       <div
         style={{
           fontSize: 11.5,
@@ -31291,14 +31338,27 @@ function OrderCard({
         {order.customer}
       </div>
 
-      <div style={{ fontSize: 11.5, color: C.muted }}>
-        {order.items.length} item{order.items.length !== 1 ? "s" : ""} ·{" "}
-        <span style={{ fontWeight: 700, color: C.green }}>
+      {/* ORDER SUMMARY */}
+      <div
+        style={{
+          fontSize: 11.5,
+          color: C.muted,
+        }}
+      >
+        {order.items.length} item
+        {order.items.length !== 1 ? "s" : ""} ·{" "}
+        <span
+          style={{
+            fontWeight: 700,
+            color: C.green,
+          }}
+        >
           {fmtPeso1(order.total)}
         </span>
       </div>
 
-      {isPending && stockInfo?.checking && (
+      {/* CHECKING STOCK */}
+      {checkingStock && (
         <div
           style={{
             display: "flex",
@@ -31310,45 +31370,97 @@ function OrderCard({
         >
           <RefreshCw
             size={11}
-            style={{ animation: "spin 0.8s linear infinite" }}
-          />{" "}
+            style={{
+              animation: "spin 0.8s linear infinite",
+            }}
+          />
           Checking stock…
         </div>
       )}
 
+      {/* INSUFFICIENT STOCK WARNING */}
       {insufficient && (
         <div
           style={{
             display: "flex",
-            gap: 6,
+            gap: 8,
             alignItems: "flex-start",
-            background: C.warnBg,
-            border: `1px solid ${C.warnBorder}`,
-            borderRadius: 8,
-            padding: "7px 9px",
-            fontSize: 10.5,
+            background: "#fff7ed",
+            border: "1px solid #fdba74",
+            borderRadius: 10,
+            padding: "10px 12px",
             color: "#9a3412",
           }}
         >
-          <AlertTriangle size={12} style={{ flexShrink: 0, marginTop: 1 }} />
-          <span>
-            Insufficient stock for {shortItems.length} item
-            {shortItems.length !== 1 ? "s" : ""}
-          </span>
+          <AlertTriangle
+            size={14}
+            style={{
+              flexShrink: 0,
+              marginTop: 2,
+            }}
+          />
+
+          <div
+            style={{
+              minWidth: 0,
+              flex: 1,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 800,
+                marginBottom: 3,
+              }}
+            >
+              Can't accept — insufficient stock
+            </div>
+
+            {shortItems.map((item, index) => {
+              const needed = getRequiredStock(item);
+              const available = Number(item.available ?? 0);
+              const unit = getStockUnit(item);
+
+              return (
+                <div
+                  key={`${item.shop_item_id || item.name || index}-${index}`}
+                  style={{
+                    fontSize: 11.5,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {item.name || "Unknown item"}:{" "}
+                  {item.matched === false ? (
+                    "not linked to a stock item"
+                  ) : (
+                    <>
+                      need {needed}
+                      {unit ? ` ${unit}` : ""}, have {available}
+                      {unit ? ` ${unit}` : ""}
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
+      {/* ACCEPT */}
       {isPending && (
         <button
           onClick={(e) => {
             e.stopPropagation();
+
+            if (disableAccept) return;
+
             onAccept(order);
           }}
-          disabled={acceptDisabled}
+          disabled={disableAccept}
           style={{
             ...primaryBtn,
-            opacity: acceptDisabled ? 0.5 : 1,
-            cursor: acceptDisabled ? "not-allowed" : "pointer",
+            opacity: disableAccept ? 0.5 : 1,
+            cursor: disableAccept ? "not-allowed" : "pointer",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
@@ -31360,17 +31472,23 @@ function OrderCard({
           {accepting && (
             <RefreshCw
               size={12}
-              style={{ animation: "spin 0.8s linear infinite" }}
+              style={{
+                animation: "spin 0.8s linear infinite",
+              }}
             />
           )}
+
           {accepting
             ? "Accepting…"
-            : insufficient
-              ? "Insufficient Stock"
-              : "Accept"}
+            : checkingStock
+              ? "Checking Stock…"
+              : insufficient
+                ? "Insufficient Stock"
+                : "Accept"}
         </button>
       )}
 
+      {/* SHIP */}
       {isAccepted && (
         <button
           onClick={(e) => {
@@ -31393,14 +31511,17 @@ function OrderCard({
           {shipping && (
             <RefreshCw
               size={12}
-              style={{ animation: "spin 0.8s linear infinite" }}
+              style={{
+                animation: "spin 0.8s linear infinite",
+              }}
             />
           )}
+
           {shipping ? "Shipping…" : "Ship Order"}
         </button>
       )}
 
-      {/* NEW — read-only states, no action available on admin side */}
+      {/* SHIPPING */}
       {order.status === "shipping" && (
         <div
           style={{
@@ -31414,6 +31535,8 @@ function OrderCard({
           Awaiting branch confirmation…
         </div>
       )}
+
+      {/* RECEIVED */}
       {order.status === "received" && (
         <div
           style={{
@@ -31587,12 +31710,32 @@ function OrderDrawer({
     }
   };
 
-  const shortItems = (stockInfo?.results || []).filter((r) => !r.sufficient);
+  const shortItems = (stockInfo?.results || []).filter(
+    (item) => item?.sufficient === false,
+  );
+
   const showStockWarning =
     order.status === "pending" &&
-    stockInfo &&
-    !stockInfo.checking &&
+    stockInfo?.checking === false &&
+    stockInfo?.ok === false &&
     shortItems.length > 0;
+
+  const getRequiredStock = (item) => {
+    if (
+      item?.inventory_quantity != null &&
+      Number.isFinite(Number(item.inventory_quantity))
+    ) {
+      return Number(item.inventory_quantity);
+    }
+
+    if (item?.needed != null && Number.isFinite(Number(item.needed))) {
+      return Number(item.needed);
+    }
+
+    return Number(item?.qty || 0);
+  };
+
+  const getStockUnit = (item) => item?.inventory_unit || item?.unit || "";
 
   return (
     <div
@@ -31846,6 +31989,10 @@ function OrderDrawer({
                           </div>
                           <div style={{ fontSize: 11, color: C.muted }}>
                             Qty {item.qty}
+                            {item.unit ? ` ${item.unit}` : ""}
+                            {item.inventory_quantity != null
+                              ? ` = ${Number(item.inventory_quantity)} ${item.inventory_unit || ""}`
+                              : ""}
                             {showBadge && (
                               <span
                                 style={{
@@ -31861,7 +32008,7 @@ function OrderDrawer({
                                 ·{" "}
                                 {!r.matched
                                   ? "unmatched"
-                                  : `${r.available ?? 0} available`}
+                                  : `${r.available ?? 0} ${getStockUnit(r)} available`}
                               </span>
                             )}
                           </div>
@@ -31966,45 +32113,98 @@ function OrderDrawer({
                   <div
                     style={{
                       display: "flex",
-                      gap: 7,
+                      gap: 8,
                       alignItems: "flex-start",
-                      background: C.warnBg,
-                      border: `1px solid ${C.warnBorder}`,
-                      borderRadius: 9,
-                      padding: "9px 11px",
+                      background: "#fff7ed",
+                      border: "1px solid #fdba74",
+                      borderRadius: 10,
+                      padding: "11px 13px",
                       marginBottom: 10,
-                      fontSize: 11.5,
                       color: "#9a3412",
                     }}
                   >
                     <AlertTriangle
-                      size={13}
-                      style={{ flexShrink: 0, marginTop: 1 }}
+                      size={15}
+                      style={{
+                        flexShrink: 0,
+                        marginTop: 2,
+                      }}
                     />
-                    <div>
-                      <div style={{ fontWeight: 700, marginBottom: 2 }}>
+
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 800,
+                          marginBottom: 3,
+                        }}
+                      >
                         Can't accept — insufficient stock
                       </div>
-                      {shortItems.map((s, i) => (
-                        <div key={i}>
-                          {s.name}:{" "}
-                          {s.matched
-                            ? `need ${s.qty}, have ${s.available ?? 0}`
-                            : "not linked to a stock item"}
-                        </div>
-                      ))}
+
+                      {shortItems.map((item, index) => {
+                        const needed = getRequiredStock(item);
+                        const available = Number(item.available ?? 0);
+                        const unit = getStockUnit(item);
+
+                        return (
+                          <div
+                            key={`${item.shop_item_id || item.name || index}-${index}`}
+                            style={{
+                              fontSize: 12,
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            {item.name || "Unknown item"}:{" "}
+                            {item.matched === false ? (
+                              "not linked to a stock item"
+                            ) : (
+                              <>
+                                need {needed}
+                                {unit ? ` ${unit}` : ""}, have {available}
+                                {unit ? ` ${unit}` : ""}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
                 <div style={{ display: "flex", gap: 10 }}>
                   <button
-                    onClick={() => onAccept(order)}
-                    disabled={acceptDisabled}
+                    onClick={() => {
+                      if (
+                        acceptDisabled ||
+                        showStockWarning ||
+                        stockInfo?.checking
+                      )
+                        return;
+                      onAccept(order);
+                    }}
+                    disabled={
+                      acceptDisabled ||
+                      showStockWarning ||
+                      stockInfo?.checking === true ||
+                      stockInfo?.ok !== true
+                    }
                     style={{
                       ...primaryBtn,
                       flex: 1,
-                      opacity: acceptDisabled ? 0.5 : 1,
-                      cursor: acceptDisabled ? "not-allowed" : "pointer",
+                      opacity:
+                        acceptDisabled ||
+                        showStockWarning ||
+                        stockInfo?.checking === true ||
+                        stockInfo?.ok !== true
+                          ? 0.5
+                          : 1,
+                      cursor:
+                        acceptDisabled ||
+                        showStockWarning ||
+                        stockInfo?.checking === true ||
+                        stockInfo?.ok !== true
+                          ? "not-allowed"
+                          : "pointer",
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -32017,11 +32217,14 @@ function OrderDrawer({
                         style={{ animation: "spin 0.8s linear infinite" }}
                       />
                     )}
+
                     {accepting
                       ? "Accepting…"
-                      : showStockWarning
-                        ? "Insufficient Stock"
-                        : "Accept Order"}
+                      : stockInfo?.checking
+                        ? "Checking Stock…"
+                        : showStockWarning
+                          ? "Insufficient Stock"
+                          : "Accept Order"}
                   </button>
                   <button
                     onClick={() => setMode("reject")}
@@ -32477,6 +32680,13 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
         const data = await res.json();
         shopItemsList = Array.isArray(data) ? data : [];
       } catch {
+        setStockAvailability((prev) => {
+          const next = { ...prev };
+          pendingOrders.forEach((o) => {
+            next[o.id] = { checking: false, ok: false, results: [] };
+          });
+          return next;
+        });
         return;
       }
       const shopItemById = {};
@@ -32500,15 +32710,70 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
         ingredientById[ing.id] = ing;
       });
 
-      // 3. Collect every distinct ingredient_id referenced across pending orders,
-      //    then fetch its batches once (avoids refetching per line-item/per order).
+      const resolveIngredientId = (item) => {
+        if (item.source_ingredient_id != null) {
+          const ing = ingredientById[item.source_ingredient_id];
+          return ing && ing.branch === HEAD_OFFICE_BRANCH ? ing.id : null;
+        }
+        const si =
+          item.shop_item_id != null ? shopItemById[item.shop_item_id] : null;
+        const ing = si ? ingredientById[si.ingredient_id] : null;
+        return ing && ing.branch === HEAD_OFFICE_BRANCH ? ing.id : null;
+      };
+
+      const normUnit = (v) => {
+        const raw = String(v || "")
+          .trim()
+          .toLowerCase()
+          .replace(/\./g, "");
+        const aliases = {
+          liters: "l",
+          liter: "l",
+          litres: "l",
+          litre: "l",
+          kilograms: "kg",
+          kilogram: "kg",
+          grams: "g",
+          gram: "g",
+          milliliters: "ml",
+          milliliter: "ml",
+          pieces: "pcs",
+          piece: "pcs",
+          pc: "pcs",
+        };
+        return aliases[raw] || raw;
+      };
+
+      const convFactor = (from, to) => {
+        const a = normUnit(from);
+        const b = normUnit(to);
+        if (!a || !b) return null;
+        if (a === b) return 1;
+        const u = {
+          l: ["v", 1000],
+          ml: ["v", 1],
+          kg: ["m", 1000],
+          g: ["m", 1],
+        };
+        return u[a] && u[b] && u[a][0] === u[b][0] ? u[a][1] / u[b][1] : null;
+      };
+
+      const requiredInStockUnit = (order, item, ingredientId) => {
+        if (item.inventory_quantity != null)
+          return Number(item.inventory_quantity);
+        if (order.source !== "Web") return Number(item.qty || 0);
+        const factor = convFactor(
+          item.unit,
+          ingredientById[ingredientId]?.unit,
+        );
+        return factor > 0 ? Number(item.qty || 0) * factor : null;
+      };
+
       const neededIngredientIds = new Set();
       pendingOrders.forEach((order) => {
         order.items.forEach((item) => {
-          const si =
-            item.shop_item_id != null ? shopItemById[item.shop_item_id] : null;
-          if (ingredientById[si?.ingredient_id]?.branch === HEAD_OFFICE_BRANCH)
-            neededIngredientIds.add(si.ingredient_id);
+          const id = resolveIngredientId(item);
+          if (id != null) neededIngredientIds.add(id);
         });
       });
 
@@ -32538,23 +32803,20 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
         );
       });
 
-      // 5. Evaluate each order the same way the backend does at accept-time:
-      //    group needed qty by ingredient_id, compare against allocatable stock.
       for (const order of pendingOrders) {
         const neededByIngredient = {};
-        const itemIngredientMap = {}; // shop_item_id -> ingredient_id, for per-line display
+        const itemIngredientIds = order.items.map(resolveIngredientId);
+        const itemRequired = order.items.map((item, idx) =>
+          itemIngredientIds[idx] == null
+            ? null
+            : requiredInStockUnit(order, item, itemIngredientIds[idx]),
+        );
 
-        order.items.forEach((item) => {
-          const si =
-            item.shop_item_id != null ? shopItemById[item.shop_item_id] : null;
-          const ingredientId =
-            ingredientById[si?.ingredient_id]?.branch === HEAD_OFFICE_BRANCH
-              ? si.ingredient_id
-              : null;
-          itemIngredientMap[item.shop_item_id] = ingredientId || null;
-          if (!ingredientId) return; // unlinked item — flagged below
+        order.items.forEach((item, idx) => {
+          const ingredientId = itemIngredientIds[idx];
+          if (ingredientId == null || itemRequired[idx] == null) return;
           neededByIngredient[ingredientId] =
-            (neededByIngredient[ingredientId] || 0) + Number(item.qty || 0);
+            (neededByIngredient[ingredientId] || 0) + itemRequired[idx];
         });
 
         // Simulate allocation once per ingredient (matches backend: one batch
@@ -32568,10 +32830,10 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
           );
         });
 
-        const results = order.items.map((item) => {
-          const ingredientId = itemIngredientMap[item.shop_item_id];
+        const results = order.items.map((item, idx) => {
+          const ingredientId = itemIngredientIds[idx];
 
-          if (!ingredientId) {
+          if (!ingredientId || itemRequired[idx] == null) {
             // Mirrors backend's "unlinked" rejection — not tied to Stock Inventory
             return { ...item, matched: false, available: 0, sufficient: false };
           }
@@ -32582,6 +32844,9 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
             ...item,
             matched: true,
             available: info?.total ?? 0,
+            inventory_quantity: itemRequired[idx],
+            inventory_unit:
+              ingredientById[ingredientId]?.unit || item.inventory_unit,
             sufficient: allocation?.fulfilled ?? false,
             nextOutBatch: info?.nextOutBatch || null,
           };
@@ -32617,13 +32882,24 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
         }),
       });
       if (!res.ok) {
+        let errorData = null;
         let detail = "";
+
         try {
-          detail = (await res.json()).error || detail;
+          errorData = await res.json();
+          detail = errorData?.error || "";
         } catch {
           detail = await res.text().catch(() => "");
         }
-        throw new Error(detail || `Update failed (${res.status})`);
+
+        const error = new Error(detail || `Update failed (${res.status})`);
+
+        error.status = res.status;
+        error.insufficientItems = Array.isArray(errorData?.insufficientItems)
+          ? errorData.insufficientItems
+          : [];
+
+        throw error;
       }
       setOrders((prev) =>
         prev.map((o) =>
@@ -32645,7 +32921,10 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     if (!availability?.ok) {
       const short = (availability?.results || []).filter((r) => !r.sufficient);
       const list = short
-        .map((i) => `${i.name} (need ${i.qty}, have ${i.available ?? 0})`)
+        .map(
+          (i) =>
+            `${i.name} (need ${i.inventory_quantity ?? i.qty} ${i.inventory_unit || i.unit || ""}, have ${i.available ?? 0})`,
+        )
         .join(", ");
       showToast(
         "error",
@@ -32663,11 +32942,48 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
       );
       return true;
     } catch (err) {
+      if (err.status === 409 && err.insufficientItems?.length) {
+        const results = err.insufficientItems.map((item) => ({
+          name: item.name,
+          qty: item.needed,
+          needed: item.needed,
+          available: item.available,
+          shortage: item.shortage,
+          unit: item.unit,
+          matched: true,
+          sufficient: false,
+        }));
+
+        setStockAvailability((prev) => ({
+          ...prev,
+          [order.id]: {
+            checking: false,
+            ok: false,
+            results,
+          },
+        }));
+
+        showToast(
+          "error",
+          "Not enough stock",
+          results
+            .map(
+              (item) =>
+                `${item.name}: need ${item.needed} ${item.unit || ""}, ` +
+                `have ${item.available} ${item.unit || ""}`,
+            )
+            .join(", "),
+        );
+
+        return false;
+      }
+
       showToast(
         "error",
         "Couldn't accept order",
         err.message || "Something went wrong accepting this order.",
       );
+
       return false;
     }
   };
@@ -33129,8 +33445,9 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
                 onAccept={handleAccept}
                 acceptDisabled={
                   acceptingId === order.id ||
-                  (order.status === "pending" &&
-                    !stockAvailability[order.id]?.ok)
+                  order.status !== "pending" ||
+                  stockAvailability[order.id]?.checking ||
+                  stockAvailability[order.id]?.ok !== true
                 }
                 accepting={acceptingId === order.id}
                 onShip={handleShip}
