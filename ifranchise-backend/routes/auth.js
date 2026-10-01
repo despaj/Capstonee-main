@@ -182,8 +182,13 @@ router.post("/login", async (req, res) => {
     );
     // temp accs skip otp
     if (device.rows.length > 0 || user.rows[0].skip_otp) {
+      console.log(
+        `Trusted device or OTP-exempt account for ${email} — skipping OTP`,
+      );
+
       await logLogin(safeUser, req, latitude, longitude);
 
+      // WEB
       if (isWeb) {
         await issueSession(req, res, user.rows[0]);
 
@@ -194,6 +199,7 @@ router.post("/login", async (req, res) => {
         });
       }
 
+      // MOBILE
       const mobileSession = await issueMobileSession(req, user.rows[0]);
 
       return res.json({
@@ -203,7 +209,6 @@ router.post("/login", async (req, res) => {
         mobileSession,
       });
     }
-
     if (isWeb) {
       await startLoginChallenge(req, res, user.rows[0]);
     }
@@ -457,7 +462,7 @@ router.post("/auth/verify-password", async (req, res) => {
 });
 
 router.post("/verify-sms-otp", async (req, res) => {
-  const { email, otp, latitude, longitude, purpose } = req.body;
+  const { email, otp, trustDevice, latitude, longitude, purpose } = req.body;
 
   try {
     if (!otpStore[email]) {
@@ -517,6 +522,30 @@ router.post("/verify-sms-otp", async (req, res) => {
       });
     }
     const deviceId = getOrCreateDeviceId(req, res);
+
+    if (trustDevice) {
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+      try {
+        await pool.query(
+          `INSERT INTO trusted_devices (
+        device_id,
+        user_id,
+        expires_at
+      )
+      VALUES ($1, $2, $3)
+      ON CONFLICT (device_id, user_id)
+      DO UPDATE SET expires_at = EXCLUDED.expires_at`,
+          [deviceId, user.rows[0].id, expiresAt],
+        );
+      } catch (dbErr) {
+        console.error(
+          "SMS trusted device INSERT failed:",
+          dbErr.code,
+          dbErr.message,
+        );
+      }
+    }
 
     const isWeb = req.headers["x-client"] === "web";
 
