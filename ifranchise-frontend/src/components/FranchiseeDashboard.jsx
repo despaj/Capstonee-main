@@ -1740,17 +1740,6 @@ export function LoginSessionsContent() {
         }}
       >
         <div>
-          <h2
-            style={{
-              margin: 0,
-              fontSize: 22,
-              fontWeight: 800,
-              color: "#12241B",
-            }}
-          >
-            Login Sessions
-          </h2>
-
           <p
             style={{
               margin: "6px 0 0",
