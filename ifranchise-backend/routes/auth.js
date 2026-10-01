@@ -143,6 +143,10 @@ router.get("/me", (req, res) => {
 });
 
 router.post("/login", async (req, res) => {
+  console.log("===== LOGIN REQUEST =====");
+  console.log("X-Client:", req.headers["x-client"]);
+  console.log("X-Device-ID:", req.headers["x-device-id"]);
+  console.log("X-Device-Platform:", req.headers["x-device-platform"]);
   const { email, password, latitude, longitude } = req.body;
   const deviceId = getOrCreateDeviceId(req, res);
   try {
@@ -194,7 +198,12 @@ router.post("/login", async (req, res) => {
         });
       }
 
+      console.log("CREATING MOBILE SESSION FROM /login");
+      console.log("User ID:", user.rows[0].id);
+
       const mobileSession = await issueMobileSession(req, user.rows[0]);
+
+      console.log("MOBILE SESSION CREATED FROM /login");
 
       return res.json({
         success: true,
@@ -314,7 +323,12 @@ router.post("/verify-otp-login", async (req, res) => {
       });
     }
 
+    console.log("CREATING MOBILE SESSION FROM /verify-otp-login");
+    console.log("User ID:", user.rows[0].id);
+
     const mobileSession = await issueMobileSession(req, user.rows[0]);
+
+    console.log("MOBILE SESSION CREATED FROM /verify-otp-login");
 
     await logLogin(safeUser, req, latitude, longitude);
 
@@ -532,7 +546,12 @@ router.post("/verify-sms-otp", async (req, res) => {
       });
     }
 
+    console.log("CREATING MOBILE SESSION FROM /verify-sms-otp");
+    console.log("User ID:", user.rows[0].id);
+
     const mobileSession = await issueMobileSession(req, user.rows[0]);
+
+    console.log("MOBILE SESSION CREATED FROM /verify-sms-otp");
 
     await logLogin(safeUser, req, latitude, longitude);
 
