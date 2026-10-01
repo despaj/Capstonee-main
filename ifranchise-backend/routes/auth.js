@@ -517,15 +517,29 @@ router.post("/verify-sms-otp", async (req, res) => {
         resetToken: token,
       });
     }
-
     const deviceId = getOrCreateDeviceId(req, res);
 
-    await finishOtpSession(req, res, user.rows[0]);
+    const isWeb = req.headers["x-client"] === "web";
+
+    if (isWeb) {
+      await finishOtpSession(req, res, user.rows[0]);
+
+      await logLogin(safeUser, req, latitude, longitude);
+
+      return res.json({
+        success: true,
+        user: safeUser,
+      });
+    }
+
+    const mobileSession = await issueMobileSession(req, user.rows[0]);
+
     await logLogin(safeUser, req, latitude, longitude);
 
     return res.json({
       success: true,
       user: safeUser,
+      mobileSession,
     });
   } catch (err) {
     console.error("SMS OTP verification error:", err);
