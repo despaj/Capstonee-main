@@ -1105,7 +1105,7 @@ export default function FranchiseeDashboard({
     { id: "reports", label: "Sales & Reports", icon: <BarChart2 size={20} /> },
     {
       id: "stockInventory",
-      label: "Stock Inventory",
+      label: "Shop",
       icon: <Store size={20} />,
     },
     {
@@ -1126,7 +1126,7 @@ export default function FranchiseeDashboard({
       icon: <Megaphone size={20} />,
     },
 
-    { id: "profile", label: "Profile Settings", icon: <User size={20} /> },
+    { id: "profile", label: "Profile", icon: <User size={20} /> },
     {
       id: "sessions",
       label: "Login Sessions",
