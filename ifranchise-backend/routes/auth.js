@@ -326,9 +326,15 @@ router.post("/verify-otp-login", async (req, res) => {
     console.log("CREATING MOBILE SESSION FROM /verify-otp-login");
     console.log("User ID:", user.rows[0].id);
 
+    console.log("===== MOBILE OTP SESSION =====");
+    console.log("X-Client:", req.headers["x-client"]);
+    console.log("X-Device-ID:", req.headers["x-device-id"]);
+    console.log("X-Device-Platform:", req.headers["x-device-platform"]);
+    console.log("User ID:", user.rows[0].id);
+
     const mobileSession = await issueMobileSession(req, user.rows[0]);
 
-    console.log("MOBILE SESSION CREATED FROM /verify-otp-login");
+    console.log("MOBILE SESSION CREATED:", !!mobileSession);
 
     await logLogin(safeUser, req, latitude, longitude);
 
