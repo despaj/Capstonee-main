@@ -15,10 +15,12 @@ import ifranchisejpg from "../assets/ifranchisejpg.jpg";
 import franchisync from "../assets/franchisyncjpg.jpg";
 import { POSContent } from "./StaffDashboard";
 import { FACommunicationContent } from "./FranchiseAdminDashboard";
+import { LoginSessionsContent } from "./FranchiseeDashboard";
 import {
   Home,
   Bell,
   Box,
+  MonitorSmartphone,
   FileText,
   FileCheck,
   Users,
@@ -14762,6 +14764,13 @@ export default function ManagerDashboard({
 
     { id: "profile", label: "Profile Settings", icon: <User size={20} /> },
     {
+      id: "sessions",
+      label: "Login Sessions",
+      icon: <MonitorSmartphone size={20} />,
+      section: "account",
+    },
+
+    {
       id: "logout",
       label: "Logout",
       icon: <LogOut size={20} />,
@@ -15094,6 +15103,7 @@ export default function ManagerDashboard({
                 }}
               />
             )}
+            {activeModule === "sessions" && <LoginSessionsContent />}
           </div>
         </div>
       </main>

@@ -17,6 +17,7 @@ import { FACommunicationContent } from "./FranchiseAdminDashboard";
 import html2canvas from "html2canvas";
 import logoIfranchise from "../assets/report/ifranchise-logo.png";
 import logoSync from "../assets/report/franchsync-logo.png";
+import { LoginSessionsContent } from "./FranchiseeDashboard";
 
 import {
   Home,
@@ -55,6 +56,7 @@ import {
   Edit2,
   Archive,
   Calendar,
+  MonitorSmartphone,
   Pin,
   Megaphone,
   ArrowUpRight,
@@ -999,6 +1001,12 @@ export default function SalesAdmin({ user, onLogout }) {
       section: "account",
     },
     {
+      id: "sessions",
+      label: "Login Sessions",
+      icon: <MonitorSmartphone size={20} />,
+      section: "account",
+    },
+    {
       id: "logout",
       label: "Logout",
       icon: <LogOut size={20} />,
@@ -1230,6 +1238,7 @@ export default function SalesAdmin({ user, onLogout }) {
           {activeModule === "communication" && <SalesCommunicationContent />}
 
           {activeModule === "profile" && <SalesProfileContent user={user} />}
+          {activeModule === "sessions" && <LoginSessionsContent />}
         </div>
       </main>
 

@@ -22,6 +22,7 @@ import logoIfranchise from "../assets/report/ifranchise-logo.png";
 import logoSync from "../assets/report/franchsync-logo.png";
 import { supabase } from "../supabaseClient";
 import { adminModuleFetch } from "../utils/adminModuleFetch";
+import { LoginSessionsContent } from "./FranchiseeDashboard";
 import {
   Home,
   Box,
@@ -98,6 +99,7 @@ import {
   Bell,
   Printer,
   CalendarClock,
+  MonitorSmartphone,
 } from "lucide-react";
 
 const ADMIN_API_BASE = String(process.env.REACT_APP_API_URL || "")
@@ -2260,6 +2262,12 @@ export default function AdminDashboard({ user, onLogout }) {
       section: "account",
     },
     {
+      id: "sessions",
+      label: "Login Sessions",
+      icon: <MonitorSmartphone size={20} />,
+      section: "account",
+    },
+    {
       id: "logout",
       label: "Logout",
       icon: <LogOut size={20} />,
@@ -2546,6 +2554,7 @@ export default function AdminDashboard({ user, onLogout }) {
             />
           )}
           {activeModule === "profile" && <ProfileContent user={user} />}
+          {activeModule === "sessions" && <LoginSessionsContent />}
         </div>
       </main>
 

@@ -6,6 +6,7 @@ const cookieParser = require("cookie-parser");
 
 const pool = require("./db");
 const { loadSession } = require("./utils/authSession");
+const { loadMobileSession } = require("./utils/mobileSession");
 
 const app = express();
 
@@ -31,8 +32,9 @@ app.use(
       "Authorization",
       "X-Client",
       "X-Device-ID",
+      "X-Device-Platform",
+      "X-Mobile-Session",
     ],
-
     credentials: true,
   }),
 );
@@ -53,7 +55,7 @@ app.use(
 app.use(cookieParser());
 
 app.use(loadSession(allowedOrigins));
-
+app.use(loadMobileSession);
 const CLEANUP_INTERVAL = 24 * 60 * 60 * 1000;
 
 async function cleanupExpiredData() {

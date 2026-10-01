@@ -12,6 +12,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import StockInventoryContent from "./StockInventoryContent";
 import ReceiptPrintTemplate from "./ReceiptPrintTemplate";
+import { LoginSessionsContent } from "./FranchiseeDashboard";
 import logoIfranchise from "../assets/report/ifranchise-logo.png";
 
 import logoSync from "../assets/report/franchsync-logo.png";
@@ -81,6 +82,7 @@ import {
   LineChart,
   ShieldCheck,
   CalendarClock,
+  MonitorSmartphone,
 } from "lucide-react";
 
 const ADMIN_API_BASE = String(process.env.REACT_APP_API_URL || "")
@@ -1338,6 +1340,12 @@ export default function FranchiseAdminDashboard({ user, onLogout }) {
       section: "account",
     },
     {
+      id: "sessions",
+      label: "Login Sessions",
+      icon: <MonitorSmartphone size={20} />,
+      section: "account",
+    },
+    {
       id: "logout",
       label: "Logout",
       icon: <LogOut size={20} />,
@@ -1653,6 +1661,7 @@ export default function FranchiseAdminDashboard({ user, onLogout }) {
             />
           )}
           {activeModule === "profile" && <FAProfileContent user={user} />}
+          {activeModule === "sessions" && <LoginSessionsContent />}
         </div>
       </main>
 

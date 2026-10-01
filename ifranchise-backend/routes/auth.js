@@ -7,6 +7,11 @@ const {
   finishOtpSession,
   revokeSession,
 } = require("../utils/authSession");
+const {
+  issueMobileSession,
+  revokeMobileSession,
+} = require("../utils/mobileSession");
+
 async function passwordMatches(input, stored) {
   if (
     typeof input !== "string" ||
@@ -178,12 +183,36 @@ router.post("/login", async (req, res) => {
     // temp accs skip otp
     if (device.rows.length > 0 || user.rows[0].skip_otp) {
       await logLogin(safeUser, req, latitude, longitude);
-      await issueSession(req, res, user.rows[0]);
-      return res.json({ success: true, skipOtp: true, user: safeUser });
+
+      if (isWeb) {
+        await issueSession(req, res, user.rows[0]);
+
+        return res.json({
+          success: true,
+          skipOtp: true,
+          user: safeUser,
+        });
+      }
+
+      const mobileSession = await issueMobileSession(req, user.rows[0]);
+
+      return res.json({
+        success: true,
+        skipOtp: true,
+        user: safeUser,
+        mobileSession,
+      });
     }
 
-    await startLoginChallenge(req, res, user.rows[0]);
-    return res.json({ success: true, skipOtp: false, user: safeUser });
+    if (isWeb) {
+      await startLoginChallenge(req, res, user.rows[0]);
+    }
+
+    return res.json({
+      success: true,
+      skipOtp: false,
+      user: safeUser,
+    });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ message: "Server error" });
@@ -272,13 +301,27 @@ router.post("/verify-otp-login", async (req, res) => {
         console.error("INSERT failed:", dbErr.code, dbErr.message);
       }
     }
+    const isWeb = req.headers["x-client"] === "web";
 
-    await finishOtpSession(req, res, user.rows[0]);
+    if (isWeb) {
+      await finishOtpSession(req, res, user.rows[0]);
+
+      await logLogin(safeUser, req, latitude, longitude);
+
+      return res.json({
+        success: true,
+        user: safeUser,
+      });
+    }
+
+    const mobileSession = await issueMobileSession(req, user.rows[0]);
+
     await logLogin(safeUser, req, latitude, longitude);
 
     return res.json({
       success: true,
       user: safeUser,
+      mobileSession,
     });
   } catch (err) {
     console.error("OTP verification error:", err);
@@ -372,6 +415,28 @@ router.post("/logout", async (req, res) => {
   } catch (err) {
     console.error("Logout error:", err);
     return res.status(500).json({ message: "Logout failed" });
+  }
+});
+
+router.post("/mobile/logout", async (req, res) => {
+  try {
+    if (req.headers["x-client"] !== "mobile") {
+      return res.status(400).json({
+        message: "Invalid client.",
+      });
+    }
+
+    await revokeMobileSession(req);
+
+    return res.json({
+      success: true,
+    });
+  } catch (err) {
+    console.error("POST /mobile/logout error:", err);
+
+    return res.status(500).json({
+      message: "Failed to log out.",
+    });
   }
 });
 
@@ -715,13 +780,255 @@ router.post("/reset-password", async (req, res) => {
   }
 });
 
-router.get("/auth/session", (req, res) => {
-  res.set("Cache-Control", "no-store");
-  if (!req.user)
-    return res
-      .status(401)
-      .json({ error: "No active login session. Please sign in again." });
-  return res.json({ success: true, user: req.user });
+router.get("/auth/sessions", async (req, res) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({
+        error: "Authentication required.",
+      });
+    }
+
+    await pool.query(`
+      DELETE FROM website_auth_sessions
+      WHERE expires_at <= NOW()
+    `);
+
+    await pool.query(`
+      UPDATE mobile_auth_sessions
+      SET revoked_at = NOW()
+      WHERE expires_at <= NOW()
+        AND revoked_at IS NULL
+    `);
+
+    const webResult = await pool.query(
+      `
+        SELECT
+          token_hash,
+          device,
+          ip_address,
+          location,
+          created_at,
+          last_active_at,
+          expires_at
+        FROM website_auth_sessions
+        WHERE user_id = $1
+          AND kind = 'session'
+          AND expires_at > NOW()
+      `,
+      [String(req.user.id)],
+    );
+
+    const mobileResult = await pool.query(
+      `
+        SELECT
+          id,
+          device_id,
+          device,
+          ip_address,
+          location,
+          created_at,
+          last_active_at,
+          expires_at
+        FROM mobile_auth_sessions
+        WHERE user_id = $1
+          AND revoked_at IS NULL
+          AND expires_at > NOW()
+      `,
+      [req.user.id],
+    );
+
+    const webSessions = webResult.rows.map((row) => ({
+      id: `web:${row.token_hash}`,
+      type: "web",
+      device: row.device || "Web Browser",
+      ipAddress: row.ip_address || "Unknown",
+      location: row.location || "Unknown",
+      createdAt: row.created_at,
+      lastActiveAt: row.last_active_at,
+      expiresAt: row.expires_at,
+      current: row.token_hash === req.sessionTokenHash,
+    }));
+
+    const mobileSessions = mobileResult.rows.map((row) => ({
+      id: `mobile:${row.id}`,
+      type: "mobile",
+      device: row.device || "Mobile App",
+      deviceId: row.device_id,
+      ipAddress: row.ip_address || "Unknown",
+      location: row.location || "Unknown",
+      createdAt: row.created_at,
+      lastActiveAt: row.last_active_at,
+      expiresAt: row.expires_at,
+      current: false,
+    }));
+
+    const sessions = [...webSessions, ...mobileSessions].sort((a, b) => {
+      const aTime = new Date(a.lastActiveAt || a.createdAt).getTime();
+
+      const bTime = new Date(b.lastActiveAt || b.createdAt).getTime();
+
+      return bTime - aTime;
+    });
+
+    return res.json({
+      success: true,
+      sessions,
+    });
+  } catch (err) {
+    console.error("GET /auth/sessions error:", err);
+
+    return res.status(500).json({
+      error: "Failed to load login sessions.",
+    });
+  }
 });
 
+router.delete("/auth/sessions/:sessionId", async (req, res) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({
+        error: "Authentication required.",
+      });
+    }
+
+    const sessionId = String(req.params.sessionId || "");
+
+    if (sessionId.startsWith("web:")) {
+      const tokenHash = sessionId.slice(4);
+
+      if (!/^[a-f0-9]{64}$/.test(tokenHash)) {
+        return res.status(400).json({
+          error: "Invalid web session.",
+        });
+      }
+
+      if (tokenHash === req.sessionTokenHash) {
+        return res.status(400).json({
+          error: "Use Logout to end your current session.",
+        });
+      }
+
+      const result = await pool.query(
+        `
+          DELETE FROM website_auth_sessions
+          WHERE token_hash = $1
+            AND user_id = $2
+            AND kind = 'session'
+          RETURNING token_hash
+        `,
+        [tokenHash, String(req.user.id)],
+      );
+
+      if (!result.rows.length) {
+        return res.status(404).json({
+          error: "Session not found or already logged out.",
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Device logged out.",
+      });
+    }
+
+    if (sessionId.startsWith("mobile:")) {
+      const mobileId = Number(sessionId.slice(7));
+
+      if (!Number.isInteger(mobileId) || mobileId <= 0) {
+        return res.status(400).json({
+          error: "Invalid mobile session.",
+        });
+      }
+
+      const result = await pool.query(
+        `
+          UPDATE mobile_auth_sessions
+          SET revoked_at = NOW()
+          WHERE id = $1
+            AND user_id = $2
+            AND revoked_at IS NULL
+          RETURNING id
+        `,
+        [mobileId, req.user.id],
+      );
+
+      if (!result.rows.length) {
+        return res.status(404).json({
+          error: "Session not found or already logged out.",
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Mobile device logged out.",
+      });
+    }
+
+    return res.status(400).json({
+      error: "Invalid session.",
+    });
+  } catch (err) {
+    console.error("DELETE /auth/sessions/:sessionId error:", err);
+
+    return res.status(500).json({
+      error: "Failed to log out device.",
+    });
+  }
+});
+
+router.delete("/auth/sessions", async (req, res) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({
+        error: "Authentication required.",
+      });
+    }
+
+    if (!req.sessionTokenHash) {
+      return res.status(401).json({
+        error: "Current session could not be identified.",
+      });
+    }
+
+    const webResult = await pool.query(
+      `
+        DELETE FROM website_auth_sessions
+        WHERE user_id = $1
+          AND kind = 'session'
+          AND token_hash <> $2
+        RETURNING token_hash
+      `,
+      [String(req.user.id), req.sessionTokenHash],
+    );
+
+    const mobileResult = await pool.query(
+      `
+        UPDATE mobile_auth_sessions
+        SET revoked_at = NOW()
+        WHERE user_id = $1
+          AND revoked_at IS NULL
+          AND expires_at > NOW()
+        RETURNING id
+      `,
+      [req.user.id],
+    );
+
+    const removed = webResult.rowCount + mobileResult.rowCount;
+
+    return res.json({
+      success: true,
+      removed,
+      message:
+        removed === 1
+          ? "1 other device was logged out."
+          : `${removed} other devices were logged out.`,
+    });
+  } catch (err) {
+    console.error("DELETE /auth/sessions error:", err);
+
+    return res.status(500).json({
+      error: "Failed to log out other devices.",
+    });
+  }
+});
 module.exports = router;

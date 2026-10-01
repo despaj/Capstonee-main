@@ -25,12 +25,14 @@ import {
   Users,
   BarChart2,
   MessageCircle,
+  MonitorSmartphone,
   User,
   ShoppingCart,
   LogOut,
   Search,
   Package,
   AlertTriangle,
+  UserRound,
   DollarSign,
   EditIcon,
   TrashIcon,
@@ -1126,6 +1128,12 @@ export default function FranchiseeDashboard({
 
     { id: "profile", label: "Profile Settings", icon: <User size={20} /> },
     {
+      id: "sessions",
+      label: "Login Sessions",
+      icon: <MonitorSmartphone size={20} />,
+      section: "account",
+    },
+    {
       id: "logout",
       label: "Logout",
       icon: <LogOut size={20} />,
@@ -1354,6 +1362,7 @@ export default function FranchiseeDashboard({
       {/* Main */}
       <main className="fr-main">
         <div id="franchisee-topbar" className="fr-topbar">
+          {/* LEFT SIDE */}
           <div className="fr-topbar-heading">
             <button
               type="button"
@@ -1366,20 +1375,46 @@ export default function FranchiseeDashboard({
             >
               <Grid3X3 size={19} />
             </button>
+
             <div>
               <h1 className="fr-topbar-title">{moduleLabel}</h1>
+
               <div className="fr-topbar-context">
-                <Store size={12} />
-                {[user?.brand, user?.branch].filter(Boolean).join(" · ") ||
-                  "Franchisee workspace"}
+                <UserRound size={12} />
+                <span>Franchisee</span>
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+
+          {/* RIGHT SIDE */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
             <div style={{ textAlign: "right" }}>
               <div className="fr-user-name">{user?.name}</div>
-              <div className="fr-user-role">Franchisee — {user?.branch}</div>
+
+              <div
+                className="fr-user-role"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-end",
+                  gap: 5,
+                }}
+              >
+                <Store size={12} />
+
+                <span>
+                  {[user?.brand, user?.branch].filter(Boolean).join(" · ") ||
+                    "Franchisee workspace"}
+                </span>
+              </div>
             </div>
+
             <button
               type="button"
               className="fr-avatar"
@@ -1437,6 +1472,9 @@ export default function FranchiseeDashboard({
                   onUserUpdate?.(updatedUser);
                 }}
               />
+            )}
+            {activeModule === "sessions" && (
+              <LoginSessionsContent user={user} />
             )}
           </div>
         </div>
@@ -1574,6 +1612,383 @@ const PAL = [
   "#db2777",
   "#ea580c",
 ];
+
+export function LoginSessionsContent() {
+  const [sessions, setSessions] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [removing, setRemoving] = React.useState(null);
+  const [removingOthers, setRemovingOthers] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  const loadSessions = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/auth/sessions`,
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to load login sessions.");
+      }
+
+      setSessions(Array.isArray(data?.sessions) ? data.sessions : []);
+    } catch (err) {
+      setError(err.message || "Failed to load login sessions.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
+
+  const logoutDevice = async (sessionId) => {
+    if (removing) return;
+
+    try {
+      setRemoving(sessionId);
+      setError("");
+
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/auth/sessions/${encodeURIComponent(
+          sessionId,
+        )}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to log out device.");
+      }
+
+      await loadSessions();
+    } catch (err) {
+      setError(err.message || "Failed to log out device.");
+    } finally {
+      setRemoving(null);
+    }
+  };
+
+  const logoutOtherDevices = async () => {
+    if (removingOthers) return;
+
+    try {
+      setRemovingOthers(true);
+      setError("");
+
+      const res = await adminModuleFetch(
+        `${process.env.REACT_APP_API_URL}/auth/sessions`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to log out other devices.");
+      }
+
+      await loadSessions();
+    } catch (err) {
+      setError(err.message || "Failed to log out other devices.");
+    } finally {
+      setRemovingOthers(false);
+    }
+  };
+
+  const formatDate = (value) => {
+    if (!value) return "—";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return "—";
+    }
+
+    return date.toLocaleString();
+  };
+
+  const otherSessionCount = sessions.filter(
+    (session) => !session.current,
+  ).length;
+
+  return (
+    <div
+      style={{
+        maxWidth: 1000,
+        margin: "0 auto",
+      }}
+    >
+      {/* HEADER */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 20,
+          marginBottom: 22,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 22,
+              fontWeight: 800,
+              color: "#12241B",
+            }}
+          >
+            Login Sessions
+          </h2>
+
+          <p
+            style={{
+              margin: "6px 0 0",
+              fontSize: 13,
+              color: "#6B756D",
+              lineHeight: 1.6,
+            }}
+          >
+            Review the devices currently signed in to your account and log out
+            sessions you no longer recognize or use.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={logoutOtherDevices}
+          disabled={removingOthers || loading || otherSessionCount === 0}
+          style={{
+            border: "1px solid #F2B8B5",
+            background: "#FFF5F5",
+            color: "#B42318",
+            borderRadius: 10,
+            padding: "10px 14px",
+            fontSize: 12,
+            fontWeight: 700,
+            cursor:
+              removingOthers || loading || otherSessionCount === 0
+                ? "not-allowed"
+                : "pointer",
+            opacity:
+              removingOthers || loading || otherSessionCount === 0 ? 0.55 : 1,
+          }}
+        >
+          {removingOthers ? "Logging out…" : "Log out all other devices"}
+        </button>
+      </div>
+
+      {/* ERROR */}
+      {error && (
+        <div
+          style={{
+            padding: "11px 13px",
+            borderRadius: 10,
+            background: "#FFF7ED",
+            border: "1px solid #FDBA74",
+            color: "#9A3412",
+            fontSize: 12,
+            marginBottom: 16,
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* LOADING */}
+      {loading ? (
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #E1E6D8",
+            borderRadius: 14,
+            padding: 30,
+            textAlign: "center",
+            color: "#6B756D",
+            fontSize: 13,
+          }}
+        >
+          Loading login sessions…
+        </div>
+      ) : sessions.length === 0 ? (
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #E1E6D8",
+            borderRadius: 14,
+            padding: 30,
+            textAlign: "center",
+          }}
+        >
+          <MonitorSmartphone size={28} color="#70806F" />
+
+          <div
+            style={{
+              fontWeight: 700,
+              marginTop: 10,
+              color: "#12241B",
+            }}
+          >
+            No active sessions
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          {sessions.map((session) => (
+            <div
+              key={session.id}
+              style={{
+                background: "#fff",
+                border: session.current
+                  ? "1px solid #A7C98B"
+                  : "1px solid #E1E6D8",
+                borderRadius: 14,
+                padding: "16px 18px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 18,
+                flexWrap: "wrap",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 13,
+                  minWidth: 0,
+                }}
+              >
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 11,
+                    background: session.current ? "#EEF6E8" : "#F4F6F2",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <MonitorSmartphone
+                    size={20}
+                    color={session.current ? "#3F7D20" : "#70806F"}
+                  />
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 800,
+                        color: "#12241B",
+                      }}
+                    >
+                      {session.device}
+                    </span>
+
+                    {session.current && (
+                      <span
+                        style={{
+                          padding: "3px 7px",
+                          borderRadius: 20,
+                          background: "#EAF5E3",
+                          color: "#3F7D20",
+                          fontSize: 9.5,
+                          fontWeight: 800,
+                        }}
+                      >
+                        THIS DEVICE
+                      </span>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 5,
+                      fontSize: 11.5,
+                      color: "#6B756D",
+                    }}
+                  >
+                    {session.location}
+                    {" · "}
+                    {session.ipAddress}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 4,
+                      fontSize: 10.5,
+                      color: "#929B93",
+                    }}
+                  >
+                    Last active: {formatDate(session.lastActiveAt)}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 2,
+                      fontSize: 10.5,
+                      color: "#929B93",
+                    }}
+                  >
+                    Signed in: {formatDate(session.createdAt)}
+                  </div>
+                </div>
+              </div>
+
+              {!session.current && (
+                <button
+                  type="button"
+                  disabled={removing === session.id}
+                  onClick={() => logoutDevice(session.id)}
+                  style={{
+                    border: "1px solid #F2B8B5",
+                    background: "#FFF5F5",
+                    color: "#B42318",
+                    borderRadius: 9,
+                    padding: "8px 12px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: removing === session.id ? "not-allowed" : "pointer",
+                    opacity: removing === session.id ? 0.55 : 1,
+                  }}
+                >
+                  {removing === session.id ? "Logging out…" : "Log out"}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ProductAnalyticsPanel({
   preset,
@@ -9115,8 +9530,13 @@ const FR_SUPPLY_PSGC = "https://psgc.gitlab.io/api";
 const frSupplyAddressCache = new Map();
 async function frSupplyAddressList(path) {
   if (frSupplyAddressCache.has(path)) return frSupplyAddressCache.get(path);
-  const response = await fetch(`${FR_SUPPLY_PSGC}${path}`, { headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error("Address options could not be loaded. Please retry or enter the complete address below.");
+  const response = await fetch(`${FR_SUPPLY_PSGC}${path}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok)
+    throw new Error(
+      "Address options could not be loaded. Please retry or enter the complete address below.",
+    );
   const data = await response.json();
   if (!Array.isArray(data)) throw new Error("Address options are unavailable.");
   const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name));
@@ -9124,13 +9544,30 @@ async function frSupplyAddressList(path) {
   return sorted;
 }
 function frSupplyAddressName(value) {
-  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
-    .replace(/\b(city of|municipality of|province of|city|municipality|barangay|brgy\.?|province)\b/g, "")
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(
+      /\b(city of|municipality of|province of|city|municipality|barangay|brgy\.?|province)\b/g,
+      "",
+    )
     .replace(/[^a-z0-9]/g, "");
 }
 function FrSupplyAddressFields({ address, mapResult, inputRef, onChange }) {
-  const [options, setOptions] = useState({ regions: [], provinces: [], cities: [], barangays: [] });
-  const [fields, setFields] = useState({ region: "", province: "", city: "", barangay: "", street: "" });
+  const [options, setOptions] = useState({
+    regions: [],
+    provinces: [],
+    cities: [],
+    barangays: [],
+  });
+  const [fields, setFields] = useState({
+    region: "",
+    province: "",
+    city: "",
+    barangay: "",
+    street: "",
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -9145,93 +9582,290 @@ function FrSupplyAddressFields({ address, mapResult, inputRef, onChange }) {
         if (request !== requestRef.current) return;
         if (!mapResult) {
           setOptions({ regions, provinces: [], cities: [], barangays: [] });
-          setFields({ region: "", province: "", city: "", barangay: "", street: "" });
+          setFields({
+            region: "",
+            province: "",
+            city: "",
+            barangay: "",
+            street: "",
+          });
           return;
         }
         const addr = mapResult.address || {};
-        const street = [addr.house_number, addr.road || addr.pedestrian || addr.residential].filter(Boolean).join(" ");
+        const street = [
+          addr.house_number,
+          addr.road || addr.pedestrian || addr.residential,
+        ]
+          .filter(Boolean)
+          .join(" ");
         const [allCities, allProvinces] = await Promise.all([
-          frSupplyAddressList("/cities-municipalities/"), frSupplyAddressList("/provinces/")
+          frSupplyAddressList("/cities-municipalities/"),
+          frSupplyAddressList("/provinces/"),
         ]);
-        const names = [addr.city, addr.town, addr.municipality, addr.village].filter(Boolean).map(frSupplyAddressName);
-        const provinceNames = [addr.province, addr.state, addr.county].filter(Boolean).map(frSupplyAddressName);
-        let candidates = allCities.filter((item) => names.includes(frSupplyAddressName(item.name)));
-        if (candidates.length > 1) candidates = candidates.filter((item) => {
-          const province = allProvinces.find((row) => String(row.code) === String(item.provinceCode));
-          return province && provinceNames.includes(frSupplyAddressName(province.name));
-        });
+        const names = [addr.city, addr.town, addr.municipality, addr.village]
+          .filter(Boolean)
+          .map(frSupplyAddressName);
+        const provinceNames = [addr.province, addr.state, addr.county]
+          .filter(Boolean)
+          .map(frSupplyAddressName);
+        let candidates = allCities.filter((item) =>
+          names.includes(frSupplyAddressName(item.name)),
+        );
+        if (candidates.length > 1)
+          candidates = candidates.filter((item) => {
+            const province = allProvinces.find(
+              (row) => String(row.code) === String(item.provinceCode),
+            );
+            return (
+              province &&
+              provinceNames.includes(frSupplyAddressName(province.name))
+            );
+          });
         const city = candidates.length === 1 ? candidates[0] : null;
-        const province = city ? allProvinces.find((item) => String(item.code) === String(city.provinceCode)) : null;
-        const region = regions.find((item) => String(item.code) === String(city?.regionCode || province?.regionCode)) ||
-          regions.find((item) => frSupplyAddressName(item.name) === frSupplyAddressName(addr.region || addr.state));
-        const provinces = region ? await frSupplyAddressList(`/regions/${region.code}/provinces/`) : [];
-        const cities = province ? await frSupplyAddressList(`/provinces/${province.code}/cities-municipalities/`) :
-          region ? await frSupplyAddressList(`/regions/${region.code}/cities-municipalities/`) : [];
-        const matchedCity = cities.find((item) => String(item.code) === String(city?.code));
-        const barangays = matchedCity ? await frSupplyAddressList(`/cities-municipalities/${matchedCity.code}/barangays/`) : [];
-        const barangayNames = [addr.suburb, addr.quarter, addr.neighbourhood, addr.village, addr.hamlet].filter(Boolean).map(frSupplyAddressName);
-        const barangayMatches = barangays.filter((item) => barangayNames.includes(frSupplyAddressName(item.name)));
-        const barangay = barangayMatches.length === 1 ? barangayMatches[0] : null;
+        const province = city
+          ? allProvinces.find(
+              (item) => String(item.code) === String(city.provinceCode),
+            )
+          : null;
+        const region =
+          regions.find(
+            (item) =>
+              String(item.code) ===
+              String(city?.regionCode || province?.regionCode),
+          ) ||
+          regions.find(
+            (item) =>
+              frSupplyAddressName(item.name) ===
+              frSupplyAddressName(addr.region || addr.state),
+          );
+        const provinces = region
+          ? await frSupplyAddressList(`/regions/${region.code}/provinces/`)
+          : [];
+        const cities = province
+          ? await frSupplyAddressList(
+              `/provinces/${province.code}/cities-municipalities/`,
+            )
+          : region
+            ? await frSupplyAddressList(
+                `/regions/${region.code}/cities-municipalities/`,
+              )
+            : [];
+        const matchedCity = cities.find(
+          (item) => String(item.code) === String(city?.code),
+        );
+        const barangays = matchedCity
+          ? await frSupplyAddressList(
+              `/cities-municipalities/${matchedCity.code}/barangays/`,
+            )
+          : [];
+        const barangayNames = [
+          addr.suburb,
+          addr.quarter,
+          addr.neighbourhood,
+          addr.village,
+          addr.hamlet,
+        ]
+          .filter(Boolean)
+          .map(frSupplyAddressName);
+        const barangayMatches = barangays.filter((item) =>
+          barangayNames.includes(frSupplyAddressName(item.name)),
+        );
+        const barangay =
+          barangayMatches.length === 1 ? barangayMatches[0] : null;
         if (request !== requestRef.current) return;
         setOptions({ regions, provinces, cities, barangays });
-        setFields({ region: region?.code || "", province: province?.code || "", city: matchedCity?.code || "", barangay: barangay?.code || "", street });
-        if (!matchedCity || !barangay) setError("The map filled the complete address below. Review it, or select any missing address fields.");
+        setFields({
+          region: region?.code || "",
+          province: province?.code || "",
+          city: matchedCity?.code || "",
+          barangay: barangay?.code || "",
+          street,
+        });
+        if (!matchedCity || !barangay)
+          setError(
+            "The map filled the complete address below. Review it, or select any missing address fields.",
+          );
       } catch (err) {
         if (request === requestRef.current) setError(err.message);
       } finally {
         if (request === requestRef.current) setBusy(false);
       }
     })();
-    return () => { requestRef.current += 1; };
+    return () => {
+      requestRef.current += 1;
+    };
   }, [mapResult, retry]);
   const composeAddress = (next, lists) => {
-    if (!next.region || !next.city || !next.barangay || (lists.provinces.length > 0 && !next.province)) return "";
-    return [next.street.trim(), lists.barangays.find((item) => item.code === next.barangay)?.name,
+    if (
+      !next.region ||
+      !next.city ||
+      !next.barangay ||
+      (lists.provinces.length > 0 && !next.province)
+    )
+      return "";
+    return [
+      next.street.trim(),
+      lists.barangays.find((item) => item.code === next.barangay)?.name,
       lists.cities.find((item) => item.code === next.city)?.name,
       lists.provinces.find((item) => item.code === next.province)?.name,
-      lists.regions.find((item) => item.code === next.region)?.name, "Philippines"].filter(Boolean).join(", ");
+      lists.regions.find((item) => item.code === next.region)?.name,
+      "Philippines",
+    ]
+      .filter(Boolean)
+      .join(", ");
   };
   const changeField = async (key, value) => {
     const request = ++requestRef.current;
     const next = { ...fields, [key]: value };
     const lists = { ...options };
-    if (key === "region") { next.province = ""; next.city = ""; next.barangay = ""; lists.provinces = []; lists.cities = []; lists.barangays = []; }
-    if (key === "province") { next.city = ""; next.barangay = ""; lists.cities = []; lists.barangays = []; }
-    if (key === "city") { next.barangay = ""; lists.barangays = []; }
-    setFields(next); setOptions(lists); setError("");
+    if (key === "region") {
+      next.province = "";
+      next.city = "";
+      next.barangay = "";
+      lists.provinces = [];
+      lists.cities = [];
+      lists.barangays = [];
+    }
+    if (key === "province") {
+      next.city = "";
+      next.barangay = "";
+      lists.cities = [];
+      lists.barangays = [];
+    }
+    if (key === "city") {
+      next.barangay = "";
+      lists.barangays = [];
+    }
+    setFields(next);
+    setOptions(lists);
+    setError("");
     onChange(composeAddress(next, lists));
-    if (!["region", "province", "city"].includes(key) || !value) { setBusy(false); return; }
+    if (!["region", "province", "city"].includes(key) || !value) {
+      setBusy(false);
+      return;
+    }
     setBusy(true);
     try {
       if (key === "region") {
-        lists.provinces = await frSupplyAddressList(`/regions/${value}/provinces/`);
-        if (!lists.provinces.length) lists.cities = await frSupplyAddressList(`/regions/${value}/cities-municipalities/`);
-      } else if (key === "province") lists.cities = await frSupplyAddressList(`/provinces/${value}/cities-municipalities/`);
-      else lists.barangays = await frSupplyAddressList(`/cities-municipalities/${value}/barangays/`);
+        lists.provinces = await frSupplyAddressList(
+          `/regions/${value}/provinces/`,
+        );
+        if (!lists.provinces.length)
+          lists.cities = await frSupplyAddressList(
+            `/regions/${value}/cities-municipalities/`,
+          );
+      } else if (key === "province")
+        lists.cities = await frSupplyAddressList(
+          `/provinces/${value}/cities-municipalities/`,
+        );
+      else
+        lists.barangays = await frSupplyAddressList(
+          `/cities-municipalities/${value}/barangays/`,
+        );
       if (request === requestRef.current) setOptions(lists);
-    } catch (err) { if (request === requestRef.current) setError(err.message); }
-    finally { if (request === requestRef.current) setBusy(false); }
+    } catch (err) {
+      if (request === requestRef.current) setError(err.message);
+    } finally {
+      if (request === requestRef.current) setBusy(false);
+    }
   };
-  const dropdown = (key, label, rows, disabled = false) => <label className="fr-address-field"><span>{label}</span><select value={fields[key]} disabled={busy || disabled} onChange={(event) => changeField(key, event.target.value)}><option value="">{busy ? "Loading…" : `Select ${label.toLowerCase()}`}</option>{rows.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label>;
-  return <div className="fr-address-fields" aria-busy={busy}>
-    <div className="fr-address-grid">
-      {dropdown("region", "Region", options.regions)}
-      {options.provinces.length > 0 && dropdown("province", "Province", options.provinces, !fields.region)}
-      {dropdown("city", "City / Municipality", options.cities, !fields.region || (options.provinces.length > 0 && !fields.province))}
-      {dropdown("barangay", "Barangay", options.barangays, !fields.city)}
-      <label className="fr-address-field fr-address-full"><span>House / Building No., Street, Subdivision</span><input value={fields.street} disabled={busy} onChange={(event) => changeField("street", event.target.value)} placeholder="e.g. Unit 2, 123 Sampaguita Street" /></label>
+  const dropdown = (key, label, rows, disabled = false) => (
+    <label className="fr-address-field">
+      <span>{label}</span>
+      <select
+        value={fields[key]}
+        disabled={busy || disabled}
+        onChange={(event) => changeField(key, event.target.value)}
+      >
+        <option value="">
+          {busy ? "Loading…" : `Select ${label.toLowerCase()}`}
+        </option>
+        {rows.map((item) => (
+          <option key={item.code} value={item.code}>
+            {item.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+  return (
+    <div className="fr-address-fields" aria-busy={busy}>
+      <div className="fr-address-grid">
+        {dropdown("region", "Region", options.regions)}
+        {options.provinces.length > 0 &&
+          dropdown("province", "Province", options.provinces, !fields.region)}
+        {dropdown(
+          "city",
+          "City / Municipality",
+          options.cities,
+          !fields.region || (options.provinces.length > 0 && !fields.province),
+        )}
+        {dropdown("barangay", "Barangay", options.barangays, !fields.city)}
+        <label className="fr-address-field fr-address-full">
+          <span>House / Building No., Street, Subdivision</span>
+          <input
+            value={fields.street}
+            disabled={busy}
+            onChange={(event) => changeField("street", event.target.value)}
+            placeholder="e.g. Unit 2, 123 Sampaguita Street"
+          />
+        </label>
+      </div>
+      {error && (
+        <div className="fr-address-notice" role="status">
+          {error}{" "}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setRetry((value) => value + 1)}
+          >
+            Reload address options
+          </button>
+        </div>
+      )}
+      <label className="fr-address-field fr-address-complete">
+        <span>Complete Delivery Address</span>
+        <textarea
+          ref={inputRef}
+          value={address}
+          rows={3}
+          onChange={(event) => {
+            requestRef.current += 1;
+            setBusy(false);
+            onChange(event.target.value);
+            setFields({
+              region: "",
+              province: "",
+              city: "",
+              barangay: "",
+              street: "",
+            });
+            setOptions((current) => ({
+              ...current,
+              provinces: [],
+              cities: [],
+              barangays: [],
+            }));
+          }}
+          placeholder="Select the address above or click the map. You may also enter the complete address here."
+        />
+      </label>
+      <small className="fr-address-help">
+        Check the house number, street, and barangay before placing your order.
+      </small>
     </div>
-    {error && <div className="fr-address-notice" role="status">{error} <button type="button" disabled={busy} onClick={() => setRetry((value) => value + 1)}>Reload address options</button></div>}
-    <label className="fr-address-field fr-address-complete"><span>Complete Delivery Address</span><textarea ref={inputRef} value={address} rows={3} onChange={(event) => { requestRef.current += 1; setBusy(false); onChange(event.target.value); setFields({ region: "", province: "", city: "", barangay: "", street: "" }); setOptions((current) => ({ ...current, provinces: [], cities: [], barangays: [] })); }} placeholder="Select the address above or click the map. You may also enter the complete address here." /></label>
-    <small className="fr-address-help">Check the house number, street, and barangay before placing your order.</small>
-  </div>;
+  );
 }
 
 function FrStockInventoryContent({ user }) {
   const [stockToast, setStockToast] = useState(null);
   const closeStockToast = useCallback(() => setStockToast(null), []);
   const notifyStock = useCallback((message, type = "error") => {
-    setStockToast({ type, title: type === "error" ? "Please review" : "Added to cart", message });
+    setStockToast({
+      type,
+      title: type === "error" ? "Please review" : "Added to cart",
+      message,
+    });
   }, []);
   const [orderDialog, setOrderDialog] = useState(null);
   const [orderQuantity, setOrderQuantity] = useState("1");
@@ -9252,10 +9886,14 @@ function FrStockInventoryContent({ user }) {
   const isLowStock = (item) =>
     Number(item.stock || 0) <= Number(item.min_stock || 0);
   // Read only the signed-in account's user ID; staff roles are not substituted.
-  const accountId = [user?.id, user?.userId, user?.user_id]
-    .filter((value) => typeof value === "string" || typeof value === "number")
-    .map((value) => String(value).trim())
-    .find((value) => value && !["null", "undefined", "0"].includes(value.toLowerCase())) || null;
+  const accountId =
+    [user?.id, user?.userId, user?.user_id]
+      .filter((value) => typeof value === "string" || typeof value === "number")
+      .map((value) => String(value).trim())
+      .find(
+        (value) =>
+          value && !["null", "undefined", "0"].includes(value.toLowerCase()),
+      ) || null;
   const userBranch = String(user?.branch || "").trim();
   const userBrand = String(user?.brand || user?.brand_name || "").trim();
   const CART_KEY = "@franchisee_supply_cart";
@@ -9287,18 +9925,33 @@ function FrStockInventoryContent({ user }) {
     if (!hasOrderingDialog && !showCart) return undefined;
     const previousFocus = document.activeElement;
     const modal = orderingModalRef.current;
-    const selector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]';
-    (modal?.querySelector("[autofocus]") || modal?.querySelector(selector))?.focus();
+    const selector =
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]';
+    (
+      modal?.querySelector("[autofocus]") || modal?.querySelector(selector)
+    )?.focus();
     const trapFocus = (event) => {
       if (event.key !== "Tab" || !modal) return;
-      const controls = Array.from(modal.querySelectorAll(selector)).filter((element) => element.getClientRects().length);
-      const first = controls[0]; const last = controls[controls.length - 1];
+      const controls = Array.from(modal.querySelectorAll(selector)).filter(
+        (element) => element.getClientRects().length,
+      );
+      const first = controls[0];
+      const last = controls[controls.length - 1];
       if (!first) return;
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      }
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     modal?.addEventListener("keydown", trapFocus);
-    return () => { modal?.removeEventListener("keydown", trapFocus); if (previousFocus?.isConnected) previousFocus.focus(); };
+    return () => {
+      modal?.removeEventListener("keydown", trapFocus);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
   }, [hasOrderingDialog, showCart]);
   const [checkoutItems, setCheckoutItems] = useState([]);
   const [address, setAddress] = useState(String(user?.address || "").trim());
@@ -9498,7 +10151,8 @@ function FrStockInventoryContent({ user }) {
       const scoped = raw
         .filter((order) => {
           const orderUserId = order?.user_id ?? order?.userId;
-          const sameUser = orderUserId == null || String(orderUserId) === accountId;
+          const sameUser =
+            orderUserId == null || String(orderUserId) === accountId;
           const sameBranch =
             !userBranch ||
             !order?.branch ||
@@ -9555,7 +10209,6 @@ function FrStockInventoryContent({ user }) {
     return () => clearTimeout(timer);
   }, [orderSuccess, viewSupplyOrders]);
 
-
   useEffect(() => {
     try {
       const saved = localStorage.getItem(CART_KEY);
@@ -9611,7 +10264,8 @@ function FrStockInventoryContent({ user }) {
         if (unitF && String(i.unit || "") !== unitF) return false;
         const low = isLowStock(i);
         if (statusF === "out" && Number(i.stock || 0) > 0) return false;
-        if (statusF === "low" && (!low || Number(i.stock || 0) <= 0)) return false;
+        if (statusF === "low" && (!low || Number(i.stock || 0) <= 0))
+          return false;
         if (statusF === "ok" && low) return false;
         if (statusF === "expiring" || statusF === "expired") {
           const expRaw = i.extra_fields?.exp_date;
@@ -9678,7 +10332,13 @@ function FrStockInventoryContent({ user }) {
   );
   const selectedCartTotal = selectedCart.reduce(
     (sum, entry) =>
-      sum + Number(shopItems.find((item) => item.id === entry.id)?.price ?? entry.price ?? 0) * Number(entry.quantity || 0),
+      sum +
+      Number(
+        shopItems.find((item) => item.id === entry.id)?.price ??
+          entry.price ??
+          0,
+      ) *
+        Number(entry.quantity || 0),
     0,
   );
   const toggleCartItem = (id) =>
@@ -9709,42 +10369,102 @@ function FrStockInventoryContent({ user }) {
     const available = Math.floor(Number(shopItem?.stock || 0));
     const existing = cart.find((entry) => entry.id === shopItem?.id);
     const currentQty = Number(existing?.quantity || 0);
-    if (!shopItem || !Number.isInteger(quantity) || quantity < 1 || currentQty + quantity > available) {
-      setQuantityError(`Enter a whole quantity from 1 to ${Math.max(0, available - currentQty)}.`);
+    if (
+      !shopItem ||
+      !Number.isInteger(quantity) ||
+      quantity < 1 ||
+      currentQty + quantity > available
+    ) {
+      setQuantityError(
+        `Enter a whole quantity from 1 to ${Math.max(0, available - currentQty)}.`,
+      );
       return false;
     }
-    const entry = createCartEntry(shopItem, inventoryItem, currentQty + quantity);
-    saveCart(existing ? cart.map((item) => item.id === entry.id ? entry : item) : [...cart, entry]);
-    setSelectedCartIds((ids) => ids.includes(entry.id) ? ids : [...ids, entry.id]);
-    notifyStock(`${frStockQuantity(quantity, entry.unit)} of ${entry.name} added to your cart.`, "success");
+    const entry = createCartEntry(
+      shopItem,
+      inventoryItem,
+      currentQty + quantity,
+    );
+    saveCart(
+      existing
+        ? cart.map((item) => (item.id === entry.id ? entry : item))
+        : [...cart, entry],
+    );
+    setSelectedCartIds((ids) =>
+      ids.includes(entry.id) ? ids : [...ids, entry.id],
+    );
+    notifyStock(
+      `${frStockQuantity(quantity, entry.unit)} of ${entry.name} added to your cart.`,
+      "success",
+    );
     return true;
   };
 
   const openOrderDialog = (inventoryItem, mode) => {
     const shopItem = getShopListingFor(inventoryItem);
-    if (shopLoading) { notifyStock("Supply details are still loading. Please try again shortly."); return; }
+    if (shopLoading) {
+      notifyStock(
+        "Supply details are still loading. Please try again shortly.",
+      );
+      return;
+    }
     if (!shopItem || Number(shopItem.stock) < 1) {
-      notifyStock(shopItem ? "This supply item is currently out of stock." : "This item has no available supply listing for your branch.");
+      notifyStock(
+        shopItem
+          ? "This supply item is currently out of stock."
+          : "This item has no available supply listing for your branch.",
+      );
       return;
     }
     setOrderDialog({ inventoryItem, shopItem, mode });
     setOrderQuantity("1");
     setQuantityError("");
   };
-  const dialogShopItem = orderDialog ? shopItems.find((item) => item.id === orderDialog.shopItem.id) : null;
-  const dialogCartQuantity = dialogShopItem ? Number(cart.find((item) => item.id === dialogShopItem.id)?.quantity || 0) : 0;
-  const dialogMaximum = Math.max(0, Math.floor(Number(dialogShopItem?.stock || 0)) - (orderDialog?.mode === "cart" ? dialogCartQuantity : 0));
+  const dialogShopItem = orderDialog
+    ? shopItems.find((item) => item.id === orderDialog.shopItem.id)
+    : null;
+  const dialogCartQuantity = dialogShopItem
+    ? Number(cart.find((item) => item.id === dialogShopItem.id)?.quantity || 0)
+    : 0;
+  const dialogMaximum = Math.max(
+    0,
+    Math.floor(Number(dialogShopItem?.stock || 0)) -
+      (orderDialog?.mode === "cart" ? dialogCartQuantity : 0),
+  );
   const confirmOrderDialog = (event) => {
     event.preventDefault();
-    if (shopLoading || shopError) { setQuantityError("Please wait until Head Office stock is available."); return; }
-    const quantity = Number(orderQuantity);
-    if (!dialogShopItem || !Number.isInteger(quantity) || quantity < 1 || quantity > dialogMaximum) {
-      setQuantityError(dialogMaximum ? `Enter a whole quantity from 1 to ${dialogMaximum}.` : "No additional supply stock is available.");
+    if (shopLoading || shopError) {
+      setQuantityError("Please wait until Head Office stock is available.");
       return;
     }
-    const completed = orderDialog.mode === "cart"
-      ? addToCart(dialogShopItem, orderDialog.inventoryItem, quantity)
-      : prepareCheckout([createCartEntry(dialogShopItem, orderDialog.inventoryItem, quantity)], true, "buyNow");
+    const quantity = Number(orderQuantity);
+    if (
+      !dialogShopItem ||
+      !Number.isInteger(quantity) ||
+      quantity < 1 ||
+      quantity > dialogMaximum
+    ) {
+      setQuantityError(
+        dialogMaximum
+          ? `Enter a whole quantity from 1 to ${dialogMaximum}.`
+          : "No additional supply stock is available.",
+      );
+      return;
+    }
+    const completed =
+      orderDialog.mode === "cart"
+        ? addToCart(dialogShopItem, orderDialog.inventoryItem, quantity)
+        : prepareCheckout(
+            [
+              createCartEntry(
+                dialogShopItem,
+                orderDialog.inventoryItem,
+                quantity,
+              ),
+            ],
+            true,
+            "buyNow",
+          );
     if (completed) setOrderDialog(null);
   };
 
@@ -9802,7 +10522,11 @@ function FrStockInventoryContent({ user }) {
   const removeFromCart = (id) =>
     saveCart(cart.filter((entry) => entry.id !== id));
 
-  const prepareCheckout = (requestedItems, closeCart = true, source = "cart") => {
+  const prepareCheckout = (
+    requestedItems,
+    closeCart = true,
+    source = "cart",
+  ) => {
     if (!requestedItems.length) {
       notifyStock("Your cart is empty.");
       return false;
@@ -9823,7 +10547,11 @@ function FrStockInventoryContent({ user }) {
         problems.push(`${entry.name}: out of stock`);
         return;
       }
-      if (!Number.isInteger(requestedQty) || requestedQty < 1 || requestedQty > available) {
+      if (
+        !Number.isInteger(requestedQty) ||
+        requestedQty < 1 ||
+        requestedQty > available
+      ) {
         problems.push(
           `${entry.name}: only ${available} ${live.unit || "unit(s)"} available`,
         );
@@ -9902,8 +10630,13 @@ function FrStockInventoryContent({ user }) {
           if (request !== mapRequestRef.current) return;
           if (!result.display_name)
             throw new Error("No address was found for this pin.");
-          if (result.address?.country_code && result.address.country_code !== "ph") {
-            throw new Error("Please choose a delivery location in the Philippines.");
+          if (
+            result.address?.country_code &&
+            result.address.country_code !== "ph"
+          ) {
+            throw new Error(
+              "Please choose a delivery location in the Philippines.",
+            );
           }
           setAddress(result.display_name);
           setMapAddressData({ ...result, lookupId: request });
@@ -9932,10 +10665,17 @@ function FrStockInventoryContent({ user }) {
       Math.min(1, (event.clientY - bounds.top) / bounds.height),
     );
     selectMapPoint({
-      latitude: (Math.atan(Math.sinh(
-        Math.asinh(Math.tan(mapBounds.north * Math.PI / 180)) - y *
-        (Math.asinh(Math.tan(mapBounds.north * Math.PI / 180)) - Math.asinh(Math.tan(mapBounds.south * Math.PI / 180)))
-      )) * 180) / Math.PI,
+      latitude:
+        (Math.atan(
+          Math.sinh(
+            Math.asinh(Math.tan((mapBounds.north * Math.PI) / 180)) -
+              y *
+                (Math.asinh(Math.tan((mapBounds.north * Math.PI) / 180)) -
+                  Math.asinh(Math.tan((mapBounds.south * Math.PI) / 180))),
+          ),
+        ) *
+          180) /
+        Math.PI,
       longitude: mapBounds.west + x * (mapBounds.east - mapBounds.west),
     });
   };
@@ -10013,7 +10753,10 @@ function FrStockInventoryContent({ user }) {
   );
 
   const submitOrder = async (confirmedGCashRef = null) => {
-    if (locationBusy) { notifyStock("Please wait for the address lookup to finish."); return; }
+    if (locationBusy) {
+      notifyStock("Please wait for the address lookup to finish.");
+      return;
+    }
     if (!address.trim()) {
       setShowAddressPrompt(true);
       return;
@@ -10052,7 +10795,11 @@ function FrStockInventoryContent({ user }) {
         const live = latestEligible.find((item) => item.id === entry.id);
         if (!live)
           throw new Error(`${entry.name} is no longer available for ordering.`);
-        if (!Number.isInteger(Number(entry.quantity)) || Number(entry.quantity) < 1 || Number(entry.quantity) > Number(live.stock)) {
+        if (
+          !Number.isInteger(Number(entry.quantity)) ||
+          Number(entry.quantity) < 1 ||
+          Number(entry.quantity) > Number(live.stock)
+        ) {
           throw new Error(
             `${entry.name} now has only ${Number(live.stock)} ${live.unit || entry.unit || "unit(s)"} available.`,
           );
@@ -10132,7 +10879,10 @@ function FrStockInventoryContent({ user }) {
   };
 
   const handleCheckoutAction = async () => {
-    if (locationBusy) { notifyStock("Please wait for the address lookup to finish."); return; }
+    if (locationBusy) {
+      notifyStock("Please wait for the address lookup to finish.");
+      return;
+    }
     if (paymentMethod === "cod") {
       submitOrder();
       return;
@@ -10162,7 +10912,11 @@ function FrStockInventoryContent({ user }) {
         const live = eligible.find((item) => item.id === entry.id);
         if (!live)
           throw new Error(`${entry.name} is no longer available for ordering.`);
-        if (!Number.isInteger(Number(entry.quantity)) || Number(entry.quantity) < 1 || Number(entry.quantity) > Number(live.stock || 0)) {
+        if (
+          !Number.isInteger(Number(entry.quantity)) ||
+          Number(entry.quantity) < 1 ||
+          Number(entry.quantity) > Number(live.stock || 0)
+        ) {
           throw new Error(
             `${entry.name} now has only ${Number(live.stock || 0)} ${live.unit || entry.unit || "unit(s)"} available.`,
           );
@@ -11444,7 +12198,9 @@ max-width: 950px !important;
               title="My Cart"
             >
               <ShoppingCart size={26} strokeWidth={1.7} aria-hidden="true" />
-              <span className="stock-cart-count" aria-hidden="true">{cartItemCount}</span>
+              <span className="stock-cart-count" aria-hidden="true">
+                {cartItemCount}
+              </span>
             </button>
           </div>
         </div>
@@ -11613,7 +12369,11 @@ max-width: 950px !important;
                 const stockValue = Math.max(0, Number(item.stock ?? 0));
                 const outOfStock = stockValue <= 0;
                 const low = !outOfStock && isLowStock(item);
-                const stockStatus = outOfStock ? "Out of Stock" : low ? "Low Stock" : "In Stock";
+                const stockStatus = outOfStock
+                  ? "Out of Stock"
+                  : low
+                    ? "Low Stock"
+                    : "In Stock";
                 const stockClass = outOfStock ? "out" : low ? "low" : "ok";
                 const stockPercent =
                   maxBarStock > 0
@@ -11635,16 +12395,42 @@ max-width: 950px !important;
                     tabIndex={0}
                     aria-pressed={active}
                     onKeyDown={(e) => {
-                      if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                      if (
+                        e.target === e.currentTarget &&
+                        (e.key === "Enter" || e.key === " ")
+                      ) {
                         e.preventDefault();
                         selectItem(item);
                       }
                     }}
                   >
                     <span className="stock-order-row-top">
-                      <span className="fr-row-order-buttons" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-                        <button type="button" className="fr-row-order-btn" title={`Add ${item.name} to cart`} aria-label={`Add ${item.name} to cart`} disabled={shopLoading} onClick={() => openOrderDialog(item, "cart")}><ShoppingCart size={15} /><span>Add to Cart</span></button>
-                        <button type="button" className="fr-row-order-btn primary" title={`Buy ${item.name} now`} aria-label={`Buy ${item.name} now`} disabled={shopLoading} onClick={() => openOrderDialog(item, "buyNow")}><span>Buy Now</span></button>
+                      <span
+                        className="fr-row-order-buttons"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          className="fr-row-order-btn"
+                          title={`Add ${item.name} to cart`}
+                          aria-label={`Add ${item.name} to cart`}
+                          disabled={shopLoading}
+                          onClick={() => openOrderDialog(item, "cart")}
+                        >
+                          <ShoppingCart size={15} />
+                          <span>Add to Cart</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="fr-row-order-btn primary"
+                          title={`Buy ${item.name} now`}
+                          aria-label={`Buy ${item.name} now`}
+                          disabled={shopLoading}
+                          onClick={() => openOrderDialog(item, "buyNow")}
+                        >
+                          <span>Buy Now</span>
+                        </button>
                       </span>
                       <span className="stock-order-row-name">{item.name}</span>
                       <span className="stock-order-row-meta">
@@ -11672,8 +12458,17 @@ max-width: 950px !important;
                         style={{ width: `${stockPercent}%` }}
                       />
                     </span>
-                    <button type="button" className={`fr-stock-status ${stockClass}`} title={stockBarLabel} onClick={(event) => { event.stopPropagation(); selectItem(item); }}>
-                      <span aria-hidden="true" />{stockStatus} · {frStockQuantity(item.stock, item.unit)}
+                    <button
+                      type="button"
+                      className={`fr-stock-status ${stockClass}`}
+                      title={stockBarLabel}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        selectItem(item);
+                      }}
+                    >
+                      <span aria-hidden="true" />
+                      {stockStatus} · {frStockQuantity(item.stock, item.unit)}
                     </button>
                     <span className="stock-order-row-actions">
                       <button
@@ -11969,8 +12764,6 @@ max-width: 950px !important;
                     }}
                   />
                 </div>
-
-
               </div>
             ) : (
               <div
@@ -12010,7 +12803,8 @@ max-width: 950px !important;
                       lineHeight: 1.6,
                     }}
                   >
-                    View stock rotation and batch details. Use the buttons on each item to order supplies.
+                    View stock rotation and batch details. Use the buttons on
+                    each item to order supplies.
                   </div>
                 </div>
               </div>
@@ -12021,66 +12815,475 @@ max-width: 950px !important;
 
       <Toast toast={stockToast} onClose={closeStockToast} />
       {orderDialog && (
-        <div className="v-modal-overlay" onMouseDown={() => setOrderDialog(null)}>
-          <form ref={orderingModalRef} className="v-modal fr-quantity-modal" role="dialog" aria-modal="true" aria-labelledby="fr-order-title" onMouseDown={(event) => event.stopPropagation()} onSubmit={confirmOrderDialog} onKeyDown={(event) => { if (event.key === "Escape") setOrderDialog(null); }}>
-            <div className="fr-dialog-head"><div><small>{orderDialog.mode === "cart" ? "Add to Cart" : "Buy Now"}</small><h3 id="fr-order-title">{orderDialog.inventoryItem.name}</h3></div><button type="button" className="fr-icon-btn" aria-label="Close quantity dialog" onClick={() => setOrderDialog(null)}><X size={18} /></button></div>
-            <div className="fr-supply-details">
-              <div className="fr-supply-details-title"><Package size={16} /> Supply Details</div>
-              <dl>
-                <div><dt>Brand</dt><dd>{dialogShopItem?.brand || userBrand}</dd></div>
-                <div><dt>Category</dt><dd>{orderDialog.inventoryItem.category || dialogShopItem?.category || "—"}</dd></div>
-                <div><dt>SKU</dt><dd>{orderDialog.inventoryItem.sku || dialogShopItem?.sku || "—"}</dd></div>
-                <div><dt>Your Branch Stock</dt><dd>{frStockQuantity(orderDialog.inventoryItem.stock, orderDialog.inventoryItem.unit)}</dd></div>
-                <div><dt>Head Office Stock</dt><dd>{shopLoading ? "Loading…" : frStockQuantity(dialogShopItem?.stock || 0, dialogShopItem?.unit)}</dd></div>
-                <div><dt>Price per {frFullUnit(dialogShopItem?.unit, 1)}</dt><dd>{fmtPeso(dialogShopItem?.price || 0)}</dd></div>
-              </dl>
-              {dialogCartQuantity > 0 && <p>{frStockQuantity(dialogCartQuantity, dialogShopItem?.unit)} already in your cart.</p>}
+        <div
+          className="v-modal-overlay"
+          onMouseDown={() => setOrderDialog(null)}
+        >
+          <form
+            ref={orderingModalRef}
+            className="v-modal fr-quantity-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="fr-order-title"
+            onMouseDown={(event) => event.stopPropagation()}
+            onSubmit={confirmOrderDialog}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setOrderDialog(null);
+            }}
+          >
+            <div className="fr-dialog-head">
+              <div>
+                <small>
+                  {orderDialog.mode === "cart" ? "Add to Cart" : "Buy Now"}
+                </small>
+                <h3 id="fr-order-title">{orderDialog.inventoryItem.name}</h3>
+              </div>
+              <button
+                type="button"
+                className="fr-icon-btn"
+                aria-label="Close quantity dialog"
+                onClick={() => setOrderDialog(null)}
+              >
+                <X size={18} />
+              </button>
             </div>
-            <label className="fr-quantity-label" htmlFor="fr-supply-quantity">Quantity</label>
-            <div className="fr-quantity-control"><button type="button" aria-label="Decrease quantity" disabled={shopLoading || Number(orderQuantity) <= 1} onClick={() => { setOrderQuantity(String(Math.max(1, Number(orderQuantity || 1) - 1))); setQuantityError(""); }}>−</button><input autoFocus id="fr-supply-quantity" type="number" min="1" max={dialogMaximum} step="1" value={orderQuantity} onChange={(event) => {
-              const value = event.target.value;
-              setOrderQuantity(value === "" ? "" : String(Math.min(dialogMaximum, Math.max(1, Math.floor(Number(value) || 1)))));
-              setQuantityError("");
-            }} onBlur={() => { if (!orderQuantity && dialogMaximum > 0) setOrderQuantity("1"); }} disabled={shopLoading || dialogMaximum < 1} aria-describedby={quantityError ? "fr-quantity-error" : undefined} /><button type="button" aria-label="Increase quantity" disabled={shopLoading || Number(orderQuantity) >= dialogMaximum} onClick={() => { setOrderQuantity(String(Math.min(dialogMaximum, Number(orderQuantity || 0) + 1))); setQuantityError(""); }}>+</button></div>
-            <p className="fr-quantity-limit">{frStockQuantity(Number(orderQuantity) || 0, dialogShopItem?.unit)} selected · Maximum {frStockQuantity(dialogMaximum, dialogShopItem?.unit)}{orderDialog.mode === "cart" && dialogCartQuantity > 0 ? " more" : ""}</p>
-            {shopError && <p className="fr-field-error" role="alert">Unable to refresh Head Office stock. <button type="button" onClick={fetchShopItems}>Retry</button></p>}
-            {quantityError && <p id="fr-quantity-error" className="fr-field-error" role="alert">{quantityError}</p>}
-            <div className="fr-quantity-total"><span>Subtotal</span><strong>{fmtPeso(Number(dialogShopItem?.price || 0) * Math.max(0, Number(orderQuantity) || 0))}</strong></div>
-            <button className="v-btn v-btn-primary fr-wide-button" type="submit" disabled={shopLoading || Boolean(shopError) || dialogMaximum < 1}>{orderDialog.mode === "cart" && <ShoppingCart size={15} />}{orderDialog.mode === "cart" ? "Add to Cart" : "Proceed to Checkout"}</button>
+            <div className="fr-supply-details">
+              <div className="fr-supply-details-title">
+                <Package size={16} /> Supply Details
+              </div>
+              <dl>
+                <div>
+                  <dt>Brand</dt>
+                  <dd>{dialogShopItem?.brand || userBrand}</dd>
+                </div>
+                <div>
+                  <dt>Category</dt>
+                  <dd>
+                    {orderDialog.inventoryItem.category ||
+                      dialogShopItem?.category ||
+                      "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>SKU</dt>
+                  <dd>
+                    {orderDialog.inventoryItem.sku ||
+                      dialogShopItem?.sku ||
+                      "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Your Branch Stock</dt>
+                  <dd>
+                    {frStockQuantity(
+                      orderDialog.inventoryItem.stock,
+                      orderDialog.inventoryItem.unit,
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Head Office Stock</dt>
+                  <dd>
+                    {shopLoading
+                      ? "Loading…"
+                      : frStockQuantity(
+                          dialogShopItem?.stock || 0,
+                          dialogShopItem?.unit,
+                        )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Price per {frFullUnit(dialogShopItem?.unit, 1)}</dt>
+                  <dd>{fmtPeso(dialogShopItem?.price || 0)}</dd>
+                </div>
+              </dl>
+              {dialogCartQuantity > 0 && (
+                <p>
+                  {frStockQuantity(dialogCartQuantity, dialogShopItem?.unit)}{" "}
+                  already in your cart.
+                </p>
+              )}
+            </div>
+            <label className="fr-quantity-label" htmlFor="fr-supply-quantity">
+              Quantity
+            </label>
+            <div className="fr-quantity-control">
+              <button
+                type="button"
+                aria-label="Decrease quantity"
+                disabled={shopLoading || Number(orderQuantity) <= 1}
+                onClick={() => {
+                  setOrderQuantity(
+                    String(Math.max(1, Number(orderQuantity || 1) - 1)),
+                  );
+                  setQuantityError("");
+                }}
+              >
+                −
+              </button>
+              <input
+                autoFocus
+                id="fr-supply-quantity"
+                type="number"
+                min="1"
+                max={dialogMaximum}
+                step="1"
+                value={orderQuantity}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setOrderQuantity(
+                    value === ""
+                      ? ""
+                      : String(
+                          Math.min(
+                            dialogMaximum,
+                            Math.max(1, Math.floor(Number(value) || 1)),
+                          ),
+                        ),
+                  );
+                  setQuantityError("");
+                }}
+                onBlur={() => {
+                  if (!orderQuantity && dialogMaximum > 0)
+                    setOrderQuantity("1");
+                }}
+                disabled={shopLoading || dialogMaximum < 1}
+                aria-describedby={
+                  quantityError ? "fr-quantity-error" : undefined
+                }
+              />
+              <button
+                type="button"
+                aria-label="Increase quantity"
+                disabled={shopLoading || Number(orderQuantity) >= dialogMaximum}
+                onClick={() => {
+                  setOrderQuantity(
+                    String(
+                      Math.min(dialogMaximum, Number(orderQuantity || 0) + 1),
+                    ),
+                  );
+                  setQuantityError("");
+                }}
+              >
+                +
+              </button>
+            </div>
+            <p className="fr-quantity-limit">
+              {frStockQuantity(
+                Number(orderQuantity) || 0,
+                dialogShopItem?.unit,
+              )}{" "}
+              selected · Maximum{" "}
+              {frStockQuantity(dialogMaximum, dialogShopItem?.unit)}
+              {orderDialog.mode === "cart" && dialogCartQuantity > 0
+                ? " more"
+                : ""}
+            </p>
+            {shopError && (
+              <p className="fr-field-error" role="alert">
+                Unable to refresh Head Office stock.{" "}
+                <button type="button" onClick={fetchShopItems}>
+                  Retry
+                </button>
+              </p>
+            )}
+            {quantityError && (
+              <p id="fr-quantity-error" className="fr-field-error" role="alert">
+                {quantityError}
+              </p>
+            )}
+            <div className="fr-quantity-total">
+              <span>Subtotal</span>
+              <strong>
+                {fmtPeso(
+                  Number(dialogShopItem?.price || 0) *
+                    Math.max(0, Number(orderQuantity) || 0),
+                )}
+              </strong>
+            </div>
+            <button
+              className="v-btn v-btn-primary fr-wide-button"
+              type="submit"
+              disabled={shopLoading || Boolean(shopError) || dialogMaximum < 1}
+            >
+              {orderDialog.mode === "cart" && <ShoppingCart size={15} />}
+              {orderDialog.mode === "cart"
+                ? "Add to Cart"
+                : "Proceed to Checkout"}
+            </button>
           </form>
         </div>
       )}
       {showCart && (
         <div className="v-modal-overlay" onMouseDown={() => setShowCart(false)}>
-          <div ref={orderingModalRef} className="v-modal fr-web-cart" role="dialog" aria-modal="true" aria-labelledby="fr-cart-title" onMouseDown={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === "Escape") setShowCart(false); }}>
-            <header className="fr-web-cart-head"><div><h2 id="fr-cart-title"><ShoppingCart size={23} /> My Cart <span>{cart.length}</span></h2><p>{userBrand} · {userBranch}</p></div><button type="button" className="v-btn v-btn-secondary" onClick={() => setShowCart(false)}><X size={15} /> Close</button></header>
+          <div
+            ref={orderingModalRef}
+            className="v-modal fr-web-cart"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="fr-cart-title"
+            onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setShowCart(false);
+            }}
+          >
+            <header className="fr-web-cart-head">
+              <div>
+                <h2 id="fr-cart-title">
+                  <ShoppingCart size={23} /> My Cart <span>{cart.length}</span>
+                </h2>
+                <p>
+                  {userBrand} · {userBranch}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="v-btn v-btn-secondary"
+                onClick={() => setShowCart(false)}
+              >
+                <X size={15} /> Close
+              </button>
+            </header>
             {cartLineItems.length ? (
               <div className="fr-web-cart-layout">
                 <section className="fr-web-cart-items" aria-label="Cart items">
-                  <div className="fr-cart-toolbar"><label><input type="checkbox" checked={cart.length > 0 && selectedCart.length === cart.length} onChange={toggleAllCartItems} /> Select all items</label><span>{selectedCart.length} selected</span></div>
-                  <div className="fr-cart-table-scroll"><table className="fr-cart-table"><thead><tr><th scope="col">Select</th><th scope="col">Item</th><th scope="col">Unit Price</th><th scope="col">Quantity</th><th scope="col">Subtotal</th><th scope="col"><span className="fr-visually-hidden">Remove</span></th></tr></thead><tbody>
-                  {cartLineItems.map((entry) => {
-                    const hasIssue = !Number.isInteger(Number(entry.quantity)) || Number(entry.quantity) < 1 || entry.stock <= 0 || Number(entry.quantity) > entry.stock;
-                    return <tr key={entry.id} className={hasIssue ? "fr-cart-row-issue" : ""}>
-                      <td><input type="checkbox" aria-label={`Select ${entry.name}`} checked={selectedCartIds.includes(entry.id)} onChange={() => toggleCartItem(entry.id)} /></td>
-                      <td><div className="fr-cart-product"><div className="fr-cart-thumb">{entry.image_url ? <img src={entry.image_url} alt="" /> : <Package size={22} />}</div><div><strong>{entry.name}</strong><small>{entry.brand} · {frFullUnit(entry.unit, Number(entry.quantity))}</small><small className={hasIssue ? "fr-field-error" : ""}>{entry.stock <= 0 ? "Currently unavailable" : hasIssue ? `Update quantity — ${entry.stock} available` : `Head Office: ${frStockQuantity(entry.stock, entry.unit)} available`}</small></div></div></td>
-                      <td>{fmtPeso(entry.price)}</td>
-                      <td><div className="fr-cart-stepper"><button type="button" aria-label={`Decrease ${entry.name}`} disabled={Number(entry.quantity) <= 1 || entry.stock <= 0} onClick={() => updateCartQuantity(entry.id, -1)}>−</button><input type="number" aria-label={`Quantity for ${entry.name}`} min="1" max={Math.floor(entry.stock)} step="1" disabled={shopLoading || entry.stock <= 0} value={entry.quantity} onChange={(event) => { const value = event.target.value;
-                        if (value === "") setCart((current) => current.map((item) => item.id === entry.id ? { ...item, quantity: "" } : item));
-                        else setCartQuantity(entry.id, value); }} onBlur={(event) => setCartQuantity(entry.id, event.target.value)} /><button type="button" aria-label={`Increase ${entry.name}`} disabled={Number(entry.quantity) >= entry.stock || entry.stock <= 0} onClick={() => updateCartQuantity(entry.id, 1)}>+</button></div><small className="fr-cart-quantity-hint">{frStockQuantity(Number(entry.quantity) || 0, entry.unit)} · Max {Math.floor(entry.stock)}</small></td>
-                      <td><strong>{fmtPeso(entry.price * Number(entry.quantity || 0))}</strong></td>
-                      <td><button type="button" className="fr-icon-btn danger" title="Remove item" aria-label={`Remove ${entry.name}`} onClick={() => removeFromCart(entry.id)}><Trash2 size={16} /></button></td>
-                    </tr>;
-                  })}
-                  </tbody></table></div>
-
+                  <div className="fr-cart-toolbar">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={
+                          cart.length > 0 && selectedCart.length === cart.length
+                        }
+                        onChange={toggleAllCartItems}
+                      />{" "}
+                      Select all items
+                    </label>
+                    <span>{selectedCart.length} selected</span>
+                  </div>
+                  <div className="fr-cart-table-scroll">
+                    <table className="fr-cart-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Select</th>
+                          <th scope="col">Item</th>
+                          <th scope="col">Unit Price</th>
+                          <th scope="col">Quantity</th>
+                          <th scope="col">Subtotal</th>
+                          <th scope="col">
+                            <span className="fr-visually-hidden">Remove</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cartLineItems.map((entry) => {
+                          const hasIssue =
+                            !Number.isInteger(Number(entry.quantity)) ||
+                            Number(entry.quantity) < 1 ||
+                            entry.stock <= 0 ||
+                            Number(entry.quantity) > entry.stock;
+                          return (
+                            <tr
+                              key={entry.id}
+                              className={hasIssue ? "fr-cart-row-issue" : ""}
+                            >
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Select ${entry.name}`}
+                                  checked={selectedCartIds.includes(entry.id)}
+                                  onChange={() => toggleCartItem(entry.id)}
+                                />
+                              </td>
+                              <td>
+                                <div className="fr-cart-product">
+                                  <div className="fr-cart-thumb">
+                                    {entry.image_url ? (
+                                      <img src={entry.image_url} alt="" />
+                                    ) : (
+                                      <Package size={22} />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <strong>{entry.name}</strong>
+                                    <small>
+                                      {entry.brand} ·{" "}
+                                      {frFullUnit(
+                                        entry.unit,
+                                        Number(entry.quantity),
+                                      )}
+                                    </small>
+                                    <small
+                                      className={
+                                        hasIssue ? "fr-field-error" : ""
+                                      }
+                                    >
+                                      {entry.stock <= 0
+                                        ? "Currently unavailable"
+                                        : hasIssue
+                                          ? `Update quantity — ${entry.stock} available`
+                                          : `Head Office: ${frStockQuantity(entry.stock, entry.unit)} available`}
+                                    </small>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>{fmtPeso(entry.price)}</td>
+                              <td>
+                                <div className="fr-cart-stepper">
+                                  <button
+                                    type="button"
+                                    aria-label={`Decrease ${entry.name}`}
+                                    disabled={
+                                      Number(entry.quantity) <= 1 ||
+                                      entry.stock <= 0
+                                    }
+                                    onClick={() =>
+                                      updateCartQuantity(entry.id, -1)
+                                    }
+                                  >
+                                    −
+                                  </button>
+                                  <input
+                                    type="number"
+                                    aria-label={`Quantity for ${entry.name}`}
+                                    min="1"
+                                    max={Math.floor(entry.stock)}
+                                    step="1"
+                                    disabled={shopLoading || entry.stock <= 0}
+                                    value={entry.quantity}
+                                    onChange={(event) => {
+                                      const value = event.target.value;
+                                      if (value === "")
+                                        setCart((current) =>
+                                          current.map((item) =>
+                                            item.id === entry.id
+                                              ? { ...item, quantity: "" }
+                                              : item,
+                                          ),
+                                        );
+                                      else setCartQuantity(entry.id, value);
+                                    }}
+                                    onBlur={(event) =>
+                                      setCartQuantity(
+                                        entry.id,
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                  <button
+                                    type="button"
+                                    aria-label={`Increase ${entry.name}`}
+                                    disabled={
+                                      Number(entry.quantity) >= entry.stock ||
+                                      entry.stock <= 0
+                                    }
+                                    onClick={() =>
+                                      updateCartQuantity(entry.id, 1)
+                                    }
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                <small className="fr-cart-quantity-hint">
+                                  {frStockQuantity(
+                                    Number(entry.quantity) || 0,
+                                    entry.unit,
+                                  )}{" "}
+                                  · Max {Math.floor(entry.stock)}
+                                </small>
+                              </td>
+                              <td>
+                                <strong>
+                                  {fmtPeso(
+                                    entry.price * Number(entry.quantity || 0),
+                                  )}
+                                </strong>
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="fr-icon-btn danger"
+                                  title="Remove item"
+                                  aria-label={`Remove ${entry.name}`}
+                                  onClick={() => removeFromCart(entry.id)}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </section>
-                <aside className="fr-cart-summary"><h3>Order Summary</h3><p>Choose the items you want to order.</p><div><span>Selected items</span><strong>{selectedCart.length}</strong></div><div><span>Quantity</span><strong>{selectedCart.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0)}</strong></div><div className="fr-cart-summary-total"><span>Total</span><strong>{fmtPeso(selectedCartTotal)}</strong></div>
-                  {cartLineItems.some((entry) => selectedCartIds.includes(entry.id) && (!Number.isInteger(Number(entry.quantity)) || Number(entry.quantity) < 1 || entry.stock <= 0 || Number(entry.quantity) > entry.stock)) && <p className="fr-field-error" role="alert">Update the highlighted items before checkout.</p>}
-                  <button type="button" className="v-btn v-btn-primary fr-wide-button" disabled={!selectedCart.length || shopLoading || Boolean(shopError) || cartLineItems.some((entry) => selectedCartIds.includes(entry.id) && (!Number.isInteger(Number(entry.quantity)) || Number(entry.quantity) < 1 || entry.stock <= 0 || Number(entry.quantity) > entry.stock))} onClick={() => prepareCheckout(cartLineItems.filter((entry) => selectedCartIds.includes(entry.id)))}><CheckCircle size={16} /> Check Out ({selectedCart.length})</button><small>Unselected items stay in your cart.</small>
+                <aside className="fr-cart-summary">
+                  <h3>Order Summary</h3>
+                  <p>Choose the items you want to order.</p>
+                  <div>
+                    <span>Selected items</span>
+                    <strong>{selectedCart.length}</strong>
+                  </div>
+                  <div>
+                    <span>Quantity</span>
+                    <strong>
+                      {selectedCart.reduce(
+                        (sum, entry) => sum + Number(entry.quantity || 0),
+                        0,
+                      )}
+                    </strong>
+                  </div>
+                  <div className="fr-cart-summary-total">
+                    <span>Total</span>
+                    <strong>{fmtPeso(selectedCartTotal)}</strong>
+                  </div>
+                  {cartLineItems.some(
+                    (entry) =>
+                      selectedCartIds.includes(entry.id) &&
+                      (!Number.isInteger(Number(entry.quantity)) ||
+                        Number(entry.quantity) < 1 ||
+                        entry.stock <= 0 ||
+                        Number(entry.quantity) > entry.stock),
+                  ) && (
+                    <p className="fr-field-error" role="alert">
+                      Update the highlighted items before checkout.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    className="v-btn v-btn-primary fr-wide-button"
+                    disabled={
+                      !selectedCart.length ||
+                      shopLoading ||
+                      Boolean(shopError) ||
+                      cartLineItems.some(
+                        (entry) =>
+                          selectedCartIds.includes(entry.id) &&
+                          (!Number.isInteger(Number(entry.quantity)) ||
+                            Number(entry.quantity) < 1 ||
+                            entry.stock <= 0 ||
+                            Number(entry.quantity) > entry.stock),
+                      )
+                    }
+                    onClick={() =>
+                      prepareCheckout(
+                        cartLineItems.filter((entry) =>
+                          selectedCartIds.includes(entry.id),
+                        ),
+                      )
+                    }
+                  >
+                    <CheckCircle size={16} /> Check Out ({selectedCart.length})
+                  </button>
+                  <small>Unselected items stay in your cart.</small>
                 </aside>
               </div>
-            ) : <div className="stock-order-empty"><ShoppingCart size={36} color={C.green} /><h3>Your cart is empty</h3><p>Add supplies directly from your stock inventory.</p></div>}
+            ) : (
+              <div className="stock-order-empty">
+                <ShoppingCart size={36} color={C.green} />
+                <h3>Your cart is empty</h3>
+                <p>Add supplies directly from your stock inventory.</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -12293,7 +13496,11 @@ max-width: 950px !important;
                                     {item._name}
                                   </div>
                                   <div className="stock-order-history-item-meta">
-                                    {frStockQuantity(item._quantity, item._unit)} × {fmtPeso(item._price)}
+                                    {frStockQuantity(
+                                      item._quantity,
+                                      item._unit,
+                                    )}{" "}
+                                    × {fmtPeso(item._price)}
                                   </div>
                                 </div>
                                 <strong
@@ -12412,14 +13619,29 @@ max-width: 950px !important;
                   Your supply order has been submitted successfully.
                 </div>
                 <div className="fr-order-success-actions">
-                  <button type="button" className="checkout-place-btn" onClick={viewSupplyOrders}>
+                  <button
+                    type="button"
+                    className="checkout-place-btn"
+                    onClick={viewSupplyOrders}
+                  >
                     <History size={18} /> View Orders
                   </button>
-                  <button type="button" className="fr-order-redirecting" disabled aria-busy="true">
-                    <RefreshCw size={15} className="fr-order-redirect-spinner" aria-hidden="true" />
+                  <button
+                    type="button"
+                    className="fr-order-redirecting"
+                    disabled
+                    aria-busy="true"
+                  >
+                    <RefreshCw
+                      size={15}
+                      className="fr-order-redirect-spinner"
+                      aria-hidden="true"
+                    />
                     Redirecting to order history…
                   </button>
-                  <span className="fr-visually-hidden" role="status">Redirecting to order history in 3 seconds.</span>
+                  <span className="fr-visually-hidden" role="status">
+                    Redirecting to order history in 3 seconds.
+                  </span>
                 </div>
               </div>
             ) : (
@@ -12473,7 +13695,8 @@ max-width: 950px !important;
                               {entry.name}
                             </div>
                             <div className="checkout-order-qty">
-                              {frStockQuantity(entry.quantity, entry.unit)} · {fmtPeso(entry.price)} each
+                              {frStockQuantity(entry.quantity, entry.unit)} ·{" "}
+                              {fmtPeso(entry.price)} each
                             </div>
                           </div>
                           <div className="checkout-order-price">
@@ -12493,7 +13716,8 @@ max-width: 950px !important;
                     </div>
                     {renderLocationMap()}
                     <p className="checkout-map-hint">
-                      Click the map to select your delivery location and fill in the address.
+                      Click the map to select your delivery location and fill in
+                      the address.
                     </p>
                     {locationError && (
                       <p className="checkout-map-error" role="alert">
